@@ -7,8 +7,8 @@
 > still exposes, and creates or edits real Spotify playlists on the user's behalf —
 > with a GUI and a CLI over a shared application core.
 
-- **Author:** _[your full name]_
-- **Student ID:** _[your student id]_
+- **Author:** Sarina Kavoli
+- **Student ID:** 220816757
 - **Course:** EECS3311 (Software Design), Fall 2026
 
 ---
