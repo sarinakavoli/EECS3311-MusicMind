@@ -71,5 +71,35 @@ All UML diagrams are authored in **UMLet**. The editable source files are in
 
 ## Build & run
 
-_To be added in Stage 2._ Planned stack: Java (JavaFX GUI + CLI), PostgreSQL, one
-hosted LLM behind an `LLMProvider` interface.
+**Stack:** Java 17, JavaFX (GUI), a command-line interface (CLI), **SQLite** for
+persistence, and one LLM behind the `LLMProvider` interface.
+(SQLite replaces the PostgreSQL planned in Stage 1 — see `docs/STAGE2_PLAN.md`.)
+
+### Prerequisites
+- **JDK 17+** (`java -version`).
+- A **Spotify Developer app** — create one at
+  <https://developer.spotify.com/dashboard>, note the Client ID/Secret, and add
+  the redirect URI `http://127.0.0.1:8080/callback`. A Spotify **Premium**
+  account is required for Web API access.
+- An **LLM API key** (any cheap/free model, e.g. Google Gemini free tier).
+
+### Local configuration (keys stay local — never committed)
+```bash
+cp .env.example .env     # then edit .env and fill in your real values
+```
+`.env` is git-ignored; only `.env.example` (placeholders) is tracked.
+
+### Build & test
+```bash
+./gradlew build          # compile everything
+./gradlew test           # run the unit tests (e.g. PlaylistValidatorTest)
+```
+
+### Run
+```bash
+./gradlew run                              # launch the GUI
+./gradlew runCli --args="help"             # CLI: list commands
+./gradlew runCli --args="profile"          # CLI: a specific feature
+```
+
+> No real API keys ever appear in source, commits, reports, or recordings.
