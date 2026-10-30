@@ -1,0 +1,53 @@
+plugins {
+    id 'application'
+    id 'java'
+    id 'org.openjfx.javafxplugin' version '0.1.0'
+}
+
+group = 'com.musicmind'
+version = '0.1.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+javafx {
+    version = '17.0.6'
+    modules = ['javafx.controls', 'javafx.fxml']
+}
+
+dependencies {
+    // Persistence (SQLite — see docs/stage2 change log: PostgreSQL -> SQLite)
+    implementation 'org.xerial:sqlite-jdbc:3.45.1.0'
+    // JSON (parsing LLM output and Spotify responses)
+    implementation 'com.google.code.gson:gson:2.10.1'
+    // Loads the local .env file (keys never committed)
+    implementation 'io.github.cdimascio:dotenv-java:3.0.0'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+application {
+    // Default `./gradlew run` launches the GUI.
+    mainClass = 'com.musicmind.app.GuiApp'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+// `./gradlew runCli --args="profile"` launches the command-line interface.
+tasks.register('runCli', JavaExec) {
+    group = 'application'
+    description = 'Runs the MusicMind command-line interface.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.musicmind.cli.CliApp'
+    standardInput = System.in
+}
