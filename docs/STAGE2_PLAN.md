@@ -26,6 +26,8 @@
 - **`MusicService` gains `getTopArtists(timeRange)`** — reason: F1 aggregates genres, which Spotify exposes only on artists, but `getTopItems` returns `Track`; impact: additive method implemented by `SpotifyAdapter` and passed through `RetryingMusicService`.
 - **LLM provider = Google Gemini** (`GeminiLLMProvider` via the `LLMProvider` seam) — reason: generous free tier for a solo student; impact: real provider used when `LLM_API_KEY` is set, with `MockLLMProvider`/deterministic fallback otherwise so F1 never fails.
 - **Auth is PKCE (public client)** — reason: no server to hold a client secret; impact: only `SPOTIFY_CLIENT_ID` is needed; `.env.example` dropped the secret/Postgres vars and added `DATABASE_PATH`.
+- **Gradle 8.14.3 → 9.1.0 + foojay toolchain resolver** — reason: Gradle 8.14.3 cannot run on JDK 25, and a machine with only JDK 25 has no Java 17 toolchain; impact: `./gradlew` works on JDK 25 with no `JAVA_HOME` setup, the project still compiles as Java 17, and the first build downloads a JDK 17 if none is found (needs network).
+- **JavaFX 17.0.6 → 21.0.13** — reason: on macOS 26 the 17.0.6 native window code crashed the app on launch (`NSTrackingRectTag` exception in `libglass`); impact: GUI launches; 21 is an LTS line that still supports Java 17, and no GUI code changed.
 - _(Add further changes here as they happen.)_
 
 ## Design patterns (must be evident in code)
