@@ -7,13 +7,13 @@
 | Period | Dates | Required | Status |
 |---|---|---|---|
 | 1 | Oct 20–26 | 5 | missed (0) — capped single −5 already applies |
-| 2 | Oct 27–Nov 2 | 5 | ✅ met (scaffold commits Oct 30) |
+| 2 | Oct 27–Nov 2 | 5 | ✅ met (scaffold + Phase 1 commits, Oct 30) |
 | 3 | Nov 3–9 | 5 | pending |
 
 ## Phases
 
 - [x] **Phase 0 — Scaffold (Oct 30):** Gradle+JavaFX, domain model, core interfaces, PlaylistValidator+tests, Strategy classes, MockLLM, CLI skeleton.
-- [ ] **Phase 1 — Spine + first slice (Nov 1–2):** SpotifyAdapter (auth + core endpoints), RetryingMusicService, real LLMProvider, SQLite repositories, MemoryManager, AppController/Facade wiring, **F1 View Taste Profile working in GUI + CLI**.
+- [x] **Phase 1 — Spine + first slice (code complete Oct 30; live Spotify demo pending keys):** SpotifyAdapter (PKCE auth + core endpoints), RetryingMusicService, real LLMProvider (Gemini), SQLite repositories, MemoryManager, AppController/Facade wiring, **F1 View Taste Profile working in GUI + CLI**. Unit tests green (retry/backoff, SQLite round-trip, genre aggregation, summary fallback).
 - [ ] **Phase 2 — Flagship agent features (Nov 3–5):** F5 Create Playlist (Planner, ConstraintChecker, RecommendationEngine, PlaylistManager + Commands, State lifecycle), F4 Discovery, F7 exposed, F8 Preferences, F9 Feedback. Record videos as each works.
 - [ ] **Phase 3 — Remaining features (Nov 6–7):** F2 Trends, F3 Search, F6 Modify+Undo, F10 Explain, F11 Negotiate, F12 History/Restore. All 12 present.
 - [ ] **Phase 4 — Report + videos + polish (Nov 8–9):** stage2-report (7 sections), updated UML, feature→impl mapping, patterns, changes table, AI log, weekly commit summary, demo index; README; record/upload all videos; final verification.
@@ -21,7 +21,11 @@
 
 ## Documented Stage 2 changes (Section 3 / 4 of report)
 
-- **PostgreSQL → SQLite** — reason: zero server setup for a solo build; impact: none on design, `Repository` interfaces unchanged.
+- **PostgreSQL → SQLite** — reason: zero server setup for a solo build; impact: minimal; concrete repositories are SQLite-backed, `MemoryManager` façade unchanged.
+- **`Repository<T, ID>` → `Repository<T>`** (per-user `save(userId, entity)` / `findByUser` / `deleteForUser`) — reason: the domain value objects (`ListeningProfile`, `UserPreference`) are immutable and do not embed their owner, so the original `save(T)` / `findById(ID)` shape could not be implemented cleanly; impact: interface reshaped before any implementation existed; SQLite repos + `MemoryManager` use the new shape.
+- **`MusicService` gains `getTopArtists(timeRange)`** — reason: F1 aggregates genres, which Spotify exposes only on artists, but `getTopItems` returns `Track`; impact: additive method implemented by `SpotifyAdapter` and passed through `RetryingMusicService`.
+- **LLM provider = Google Gemini** (`GeminiLLMProvider` via the `LLMProvider` seam) — reason: generous free tier for a solo student; impact: real provider used when `LLM_API_KEY` is set, with `MockLLMProvider`/deterministic fallback otherwise so F1 never fails.
+- **Auth is PKCE (public client)** — reason: no server to hold a client secret; impact: only `SPOTIFY_CLIENT_ID` is needed; `.env.example` dropped the secret/Postgres vars and added `DATABASE_PATH`.
 - _(Add further changes here as they happen.)_
 
 ## Design patterns (must be evident in code)
