@@ -1,1 +1,8 @@
+// Auto-provisions a matching JDK (Java 17 toolchain) when one is not installed,
+// so `./gradlew build` works on any machine regardless of the JDK in PATH —
+// including a machine whose only JDK is 25 (Gradle 9.1+ can run on JDK 25).
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
 rootProject.name = 'musicmind'

@@ -9,7 +9,8 @@ Spotify Web API. EECS3311 Software Design course project (individual). Stage 1
 
 ## Stack
 - **Java 17**, **JavaFX** (GUI), a **CLI**, **SQLite** (JDBC) for persistence, and one
-  **LLM** behind the `LLMProvider` interface. Build tool: **Gradle** (wrapper committed).
+  **LLM** behind the `LLMProvider` interface. Build tool: **Gradle 9.1** (wrapper committed).
+- `./gradlew` runs on JDK 17–25; a Java 17 toolchain is downloaded automatically if missing.
 - SQLite replaces the PostgreSQL planned in Stage 1 (documented change — see STAGE2_PLAN.md).
 
 ## Commands
