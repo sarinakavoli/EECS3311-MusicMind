@@ -53,8 +53,10 @@ public final class Config {
         return get("LLM_API_KEY");
     }
 
+    /** The configured model, or the default if unset or still the old placeholder. */
     public String llmModel() {
-        return get("LLM_MODEL", "gemini-2.0-flash");
+        String model = get("LLM_MODEL");
+        return isReal(model, "your_model_name_here") ? model : "gemini-2.0-flash";
     }
 
     public boolean llmConfigured() {
