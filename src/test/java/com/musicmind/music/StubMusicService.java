@@ -11,7 +11,7 @@ import java.util.List;
  * Test-only no-op {@link MusicService}: every method throws until a test
  * overrides the one it exercises. Keeps individual tests short.
  */
-class StubMusicService implements MusicService {
+public class StubMusicService implements MusicService {
     @Override public List<Track> getTopItems(String type, String timeRange) { throw new UnsupportedOperationException(); }
     @Override public List<Artist> getTopArtists(String timeRange) { throw new UnsupportedOperationException(); }
     @Override public List<Track> getSavedTracks() { throw new UnsupportedOperationException(); }
