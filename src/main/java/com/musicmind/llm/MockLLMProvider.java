@@ -19,6 +19,10 @@ public class MockLLMProvider implements LLMProvider {
             return "Selected a balance of familiar favourites and a few new artists "
                     + "that match your top genres, with no explicit tracks.";
         }
+        if (p.contains("summar") || p.contains("taste") || p.contains("listener")) {
+            return "Your taste centres on a few favourite genres, mixing familiar "
+                    + "go-to artists with room to explore new ones.";
+        }
         return "{}";
     }
 }

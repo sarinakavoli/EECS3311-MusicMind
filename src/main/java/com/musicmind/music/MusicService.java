@@ -1,6 +1,7 @@
 package com.musicmind.music;
 
 import com.musicmind.domain.Album;
+import com.musicmind.domain.Artist;
 import com.musicmind.domain.Playlist;
 import com.musicmind.domain.Track;
 
@@ -16,6 +17,16 @@ public interface MusicService {
 
     // ---- read: listening data ----
     List<Track> getTopItems(String type, String timeRange);
+
+    /**
+     * The user's top artists for a time range ({@code short_term},
+     * {@code medium_term}, {@code long_term}). Artists carry their genres, which
+     * {@code ProfileBuilder} aggregates into the taste profile (F1). This sits
+     * alongside {@link #getTopItems} because the Track-only return type there
+     * cannot express an artist's genres.
+     */
+    List<Artist> getTopArtists(String timeRange);
+
     List<Track> getSavedTracks();
     List<Track> getRecentlyPlayed();
 

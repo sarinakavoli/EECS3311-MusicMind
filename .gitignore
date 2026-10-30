@@ -2,6 +2,11 @@
 .env
 *.env
 !*.env.example
+.spotify-tokens.json
+
+# Local SQLite database (created at runtime)
+*.db
+*.db-journal
 
 # Java / build
 *.class
