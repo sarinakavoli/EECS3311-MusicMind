@@ -17,8 +17,8 @@
 
 | Stage | Deliverable | Status |
 |-------|-------------|--------|
-| Stage 1 | Design report (this repo, `docs/`) | In progress |
-| Stage 2 | Implementation | Not started |
+| Stage 1 | Design report (this repo, `docs/`) | Done |
+| Stage 2 | Implementation | In progress |
 | Stage 3 | Verification & testing | Not started |
 
 This is **one repository used across all three stages** (per the assignment).
