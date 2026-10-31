@@ -72,7 +72,7 @@ class RecommendationEngineTest {
             searches.add(query);
             if (searchFailure != null) throw searchFailure;
             for (Map.Entry<String, List<Track>> e : byGenre.entrySet()) {
-                if (query.equals("genre:" + (e.getKey().contains(" ") ? "\"" + e.getKey() + "\"" : e.getKey()))) {
+                if (query.equals(e.getKey())) {
                     return e.getValue();
                 }
             }
@@ -126,6 +126,19 @@ class RecommendationEngineTest {
         m.recent = List.of(track("rec0", "a1"));
         m.byGenre.put("rock", unknownTracks("r", 20));
         return m;
+    }
+
+    @Test
+    void genreSearchesAreSentAsPlainKeywordsNeverAsAGenreFilter() {
+        FakeMusic music = richMusic();
+        RecommendationEngine e = engine(music);
+        e.setStrategy(new FamiliarStrategy());
+
+        e.recommend(profile(), spec(1.0), List.of());
+
+        assertFalse(music.searches.isEmpty());
+        assertTrue(music.searches.stream().noneMatch(q -> q.contains("genre:")), music.searches.toString());
+        assertTrue(music.searches.contains("rock"), music.searches.toString());
     }
 
     @Test

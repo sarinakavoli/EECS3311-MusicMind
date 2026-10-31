@@ -54,7 +54,7 @@ class AppControllerDiscoverTest extends PostgresTestBase {
         @Override public List<Track> getRecentlyPlayed() { return List.of(); }
         @Override public List<Track> search(String query, int limit) {
             calls.add("search " + query);
-            if (!query.equals("genre:rock")) return List.of();
+            if (!query.equals("rock")) return List.of();
             return IntStream.range(0, 12).mapToObj(i ->
                     new Track("n" + i, "spotify:track:n" + i, "N" + i, 1000, i == 3, List.of("x" + i))).toList();
         }

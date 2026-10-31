@@ -108,10 +108,11 @@ public class PromptBuilder {
 
     public String buildSearchPrompt(String text) {
         return start(Kind.SEARCH)
-                + "Turn this music search into Spotify search terms. Do not name specific songs.\n"
+                + "Turn this music search into Spotify search terms. Do not name specific songs. "
+                + "Keep keywords short (a few words) and do not repeat the genre in the keywords.\n"
                 + "Search: " + text + "\n"
                 + "Reply with JSON only: {\"keywords\": free text, \"genre\": genre or \"\", "
-                + "\"filters\": {\"year\": ..., \"artist\": ...} using only fields you are sure of, "
+                + "\"filters\": {\"year\": ..., \"artist\": ...} using only those two fields and only if you are sure of them, "
                 + "\"confidence\": number from 0 to 1}";
     }
 

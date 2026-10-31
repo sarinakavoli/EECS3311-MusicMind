@@ -60,12 +60,14 @@ public class ResponseParser {
         String keywords = text(o, "keywords");
         String genre = text(o, "genre");
         Map<String, String> filters = new LinkedHashMap<>();
+        List<String> allowed = config.searchAllowedFilters();
         if (o.has("filters") && !o.get("filters").isJsonNull()) {
             if (!o.get("filters").isJsonObject()) {
                 throw new ParseException("'filters' must be an object");
             }
             o.getAsJsonObject("filters").entrySet().forEach(e -> {
-                if (e.getValue().isJsonPrimitive() && !e.getValue().getAsString().isBlank()) {
+                if (allowed.contains(e.getKey().toLowerCase(Locale.ROOT))
+                        && e.getValue().isJsonPrimitive() && !e.getValue().getAsString().isBlank()) {
                     filters.put(e.getKey(), e.getValue().getAsString().trim());
                 }
             });

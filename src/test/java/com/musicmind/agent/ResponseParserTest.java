@@ -91,7 +91,21 @@ class ResponseParserTest {
         assertEquals("jazz", q.genre());
         assertEquals(Map.of("year", "1999"), q.filters());
         assertEquals(0.9, q.confidence(), 1e-9);
-        assertEquals("rain genre:jazz year:1999", q.toSpotifyQuery());
+        assertEquals("rain jazz year:1999", q.toSpotifyQuery());
+    }
+
+    @Test
+    void filtersOutsideTheAllowedListAreDropped() {
+        SearchQuery q = parser.parseSearchQuery("{\"keywords\":\"rain\",\"filters\":{\"mood\":\"sad\","
+                + "\"year\":\"1999\",\"genre\":\"jazz\",\"artist\":\"Nina\"},\"confidence\":0.9}");
+        assertEquals(Map.of("year", "1999", "artist", "Nina"), q.filters());
+        assertEquals("rain year:1999 artist:Nina", q.toSpotifyQuery());
+    }
+
+    @Test
+    void aQueryWhoseOnlyFilterIsUnknownIsRejectedAsEmpty() {
+        assertThrows(ParseException.class,
+                () -> parser.parseSearchQuery("{\"keywords\":\"\",\"filters\":{\"mood\":\"sad\"}}"));
     }
 
     @Test

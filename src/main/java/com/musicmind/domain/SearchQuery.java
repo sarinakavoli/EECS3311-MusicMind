@@ -13,14 +13,21 @@ public record SearchQuery(String keywords, String genre, Map<String, String> fil
         filters = filters == null ? Map.of() : java.util.Collections.unmodifiableMap(new LinkedHashMap<>(filters));
     }
 
-    /** The {@code q} value for Spotify's search endpoint. */
+    /**
+     * The {@code q} value for Spotify's search endpoint. The genre is sent as a plain keyword
+     * (unless the keywords already contain it) because Spotify's {@code genre:} filter empties
+     * most searches (R19); {@code year} and {@code artist} filters stay.
+     */
     public String toSpotifyQuery() {
         StringBuilder q = new StringBuilder();
         if (keywords != null && !keywords.isBlank()) {
             q.append(keywords.trim());
         }
-        if (genre != null && !genre.isBlank()) {
-            append(q, "genre", genre);
+        if (genre != null && !genre.isBlank() && !mentions(keywords, genre.trim())) {
+            if (q.length() > 0) {
+                q.append(' ');
+            }
+            q.append(genre.trim());
         }
         filters.forEach((key, value) -> {
             if (value != null && !value.isBlank()) {
@@ -28,6 +35,11 @@ public record SearchQuery(String keywords, String genre, Map<String, String> fil
             }
         });
         return q.toString();
+    }
+
+    private static boolean mentions(String keywords, String genre) {
+        return keywords != null && keywords.toLowerCase(java.util.Locale.ROOT)
+                .contains(genre.toLowerCase(java.util.Locale.ROOT));
     }
 
     private static void append(StringBuilder q, String field, String value) {

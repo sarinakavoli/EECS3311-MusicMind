@@ -25,8 +25,17 @@ class DomainAdditionsTest {
         filters.put("year", "2019-2021");
         filters.put("artist", "Daft Punk");
         SearchQuery q = new SearchQuery("late night", "synth pop", filters, 0.8);
-        assertEquals("late night genre:\"synth pop\" year:2019-2021 artist:\"Daft Punk\"", q.toSpotifyQuery());
+        assertEquals("late night synth pop year:2019-2021 artist:\"Daft Punk\"", q.toSpotifyQuery());
         assertEquals(0.8, q.confidence());
+    }
+
+    @Test
+    void searchQueryNeverEmitsAGenreFilter() {
+        assertEquals("upbeat indie running", new SearchQuery("upbeat indie running", "indie", Map.of(), 1).toSpotifyQuery());
+        assertEquals("upbeat indie running", new SearchQuery("upbeat indie running", "Indie", Map.of(), 1).toSpotifyQuery());
+        assertEquals("upbeat running indie", new SearchQuery("upbeat running", "indie", Map.of(), 1).toSpotifyQuery());
+        assertEquals("indie rock", new SearchQuery(null, "indie rock", Map.of(), 1).toSpotifyQuery());
+        assertEquals("rock year:1999", new SearchQuery("rock", null, Map.of("year", "1999"), 1).toSpotifyQuery());
     }
 
     @Test
@@ -36,7 +45,7 @@ class DomainAdditionsTest {
 
     @Test
     void searchQueryWithOnlyAGenreOmitsKeywords() {
-        assertEquals("genre:jazz", new SearchQuery(" ", "jazz", Map.of(), 0.5).toSpotifyQuery());
+        assertEquals("jazz", new SearchQuery(" ", "jazz", Map.of(), 0.5).toSpotifyQuery());
     }
 
     @Test

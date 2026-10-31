@@ -211,14 +211,12 @@ public class MusicAgentFacade {
         if (parsed.confidence() < config.searchMinConfidence()) {
             lastSearchLabel = config.searchFallbackLabel();
         }
-        ToolResult result = tools.execute("search",
-                Map.of("query", parsed.toSpotifyQuery(), "limit", config.searchResultLimit()));
-        if (!result.ok()) {
-            throw new MusicServiceException("Search failed: " + result.error());
+        List<Track> ranked = runSearch(parsed);
+        String keywords = parsed.keywords() == null ? "" : parsed.keywords().strip();
+        if (ranked.isEmpty() && !keywords.isEmpty() && !keywords.equals(parsed.toSpotifyQuery())) {
+            // Genre and filters can empty a search Spotify would answer; try the keywords alone once.
+            ranked = runSearch(new SearchQuery(keywords, null, Map.of(), parsed.confidence()));
         }
-        @SuppressWarnings("unchecked")
-        List<Track> results = (List<Track>) result.payload();
-        List<Track> ranked = ranker.rank(parsed, parser.verifyTracks(results, results));
         if (ranked.isEmpty()) {
             String hint = suggestRelaxedQuery(parsed)
                     .map(q -> String.format(config.searchRelaxedHintTemplate(), q))
@@ -226,6 +224,17 @@ public class MusicAgentFacade {
             lastSearchNotice = String.format(config.searchNoResultsTemplate(), query.strip()) + " " + hint;
         }
         return ranked;
+    }
+
+    private List<Track> runSearch(SearchQuery query) {
+        ToolResult result = tools.execute("search",
+                Map.of("query", query.toSpotifyQuery(), "limit", config.searchResultLimit()));
+        if (!result.ok()) {
+            throw new MusicServiceException("Search failed: " + result.error());
+        }
+        @SuppressWarnings("unchecked")
+        List<Track> results = (List<Track>) result.payload();
+        return ranker.rank(query, parser.verifyTracks(results, results));
     }
 
     /** Why the last search found nothing and what to try instead; null when it found something. */

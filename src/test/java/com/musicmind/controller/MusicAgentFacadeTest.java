@@ -500,6 +500,34 @@ class MusicAgentFacadeTest extends PostgresTestBase {
         assertNotNull(notice);
         assertTrue(notice.contains("mellow shoegaze from 1987"), notice);
         assertTrue(notice.contains("\"mellow\""), "suggests the keywords alone: " + notice);
+        assertEquals(List.of("mellow shoegaze year:1987", "mellow"), music.searches, "retried once");
+    }
+
+    @Test
+    void anEmptyParsedSearchIsRetriedWithTheKeywordsAloneAndTheRetryResultsReturned() {
+        FakeMusic music = new FakeMusic() {
+            @Override public List<Track> search(String query, int limit) {
+                super.search(query, limit);
+                return query.equals("mellow") ? List.of(named("r", "Mellow Song")) : List.of();
+            }
+        };
+        LLMProvider llm = p -> "{\"keywords\":\"mellow\",\"genre\":\"shoegaze\","
+                + "\"filters\":{\"year\":\"1987\"},\"confidence\":0.9}";
+        MusicAgentFacade f = facade(music, llm);
+
+        List<Track> found = f.searchMusic("mellow shoegaze from 1987");
+
+        assertEquals(List.of("mellow shoegaze year:1987", "mellow"), music.searches);
+        assertEquals(List.of("r"), found.stream().map(Track::id).toList());
+        assertNull(f.lastSearchNotice());
+        assertNull(f.lastSearchLabel(), "a retry is not an LLM failure");
+    }
+
+    @Test
+    void noRetryHappensWhenTheKeywordsAreTheWholeQuery() {
+        FakeMusic music = new FakeMusic();
+        assertTrue(facade(music, null).searchMusic("zzzz").isEmpty());
+        assertEquals(List.of("zzzz"), music.searches);
     }
 
     @Test

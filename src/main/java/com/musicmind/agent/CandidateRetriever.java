@@ -39,7 +39,7 @@ class CandidateRetriever {
         return new ArrayList<>(byId.values());
     }
 
-    /** Tracks Spotify's search returns for the genre. */
+    /** Tracks Spotify's search returns for the genre, sent as a plain keyword (R19). */
     List<Track> byGenre(String genre) {
         String query = new SearchQuery(null, genre, Map.of(), 1.0).toSpotifyQuery();
         Map<String, Track> byId = new LinkedHashMap<>();

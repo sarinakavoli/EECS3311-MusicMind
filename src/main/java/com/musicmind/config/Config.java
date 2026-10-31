@@ -299,6 +299,12 @@ public final class Config {
         return integer("search.resultLimit");
     }
 
+    /** Filter fields an LLM-built search may use; any other field is dropped so it cannot empty a search. */
+    public List<String> searchAllowedFilters() {
+        return Arrays.stream(text("search.allowedFilters").split(","))
+                .map(s -> s.trim().toLowerCase(java.util.Locale.ROOT)).filter(s -> !s.isEmpty()).toList();
+    }
+
     /** A parsed search query below this confidence falls back to a raw keyword search. */
     public double searchMinConfidence() {
         return Double.parseDouble(text("search.minConfidence"));

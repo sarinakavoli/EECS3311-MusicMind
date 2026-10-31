@@ -89,6 +89,9 @@ class PromptBuilderTest {
     @Test
     void searchEditAndOptionsPromptsCarryTheirInputs() {
         assertTrue(builder.buildSearchPrompt("sad 90s songs").contains("sad 90s songs"));
+        String prompt = builder.buildSearchPrompt("sad 90s songs");
+        assertTrue(prompt.contains("short"), prompt);
+        assertTrue(prompt.contains("do not repeat the genre"), prompt);
         String edit = builder.buildEditPrompt("remove the second", List.of("idA", "idB"));
         assertTrue(edit.contains("remove the second") && edit.contains("1: idA") && edit.contains("2: idB"));
         String opts = builder.buildOptionsPrompt(new FeasibilityReport(false, List.of("too short"), List.of("raise minutes")));
