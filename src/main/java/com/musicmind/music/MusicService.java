@@ -16,6 +16,7 @@ import java.util.List;
 public interface MusicService {
 
     // ---- read: listening data ----
+    /** The user's top <em>tracks</em> for a time range; artists come from {@link #getTopArtists}. */
     List<Track> getTopItems(String type, String timeRange);
 
     /**
@@ -41,6 +42,12 @@ public interface MusicService {
     void removeItems(String playlistId, List<String> uris);
     void reorderItems(String playlistId, int from, int to);
     List<Track> getPlaylistItems(String playlistId);
+
+    /**
+     * Removes a playlist from the user's library (Spotify has no hard delete for
+     * playlists; unfollowing is how a created playlist is undone).
+     */
+    void unfollowPlaylist(String playlistId);
 
     /** The current user's Spotify user id (needed to create playlists). */
     String currentUserId();

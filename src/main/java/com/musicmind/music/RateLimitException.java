@@ -7,15 +7,7 @@ package com.musicmind.music;
  */
 public class RateLimitException extends MusicServiceException {
 
-    private final int retryAfterSeconds;
-
     public RateLimitException(String message, int retryAfterSeconds) {
-        super(message, 429);
-        this.retryAfterSeconds = Math.max(0, retryAfterSeconds);
-    }
-
-    /** Seconds to wait before retrying, as advised by the {@code Retry-After} header. */
-    public int retryAfterSeconds() {
-        return retryAfterSeconds;
+        super(message, 429, null, retryAfterSeconds);
     }
 }

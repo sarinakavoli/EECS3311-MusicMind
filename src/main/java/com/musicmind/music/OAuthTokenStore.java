@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * Spotify OAuth using <b>Authorization Code with PKCE</b> (a public-client
@@ -36,10 +37,10 @@ import java.util.concurrent.TimeUnit;
  * The refresh token is cached in a git-ignored file so later runs reconnect
  * silently (no browser), which matters when recording a demo.
  */
-public class SpotifyAuth {
+public class OAuthTokenStore {
 
     private static final String AUTHORIZE_URL = "https://accounts.spotify.com/authorize";
-    private static final String TOKEN_URL = "https://accounts.spotify.com/api/token";
+    private static final String DEFAULT_TOKEN_URL = "https://accounts.spotify.com/api/token";
     private static final String SCOPES = String.join(" ",
             "user-top-read",
             "user-library-read",
@@ -47,11 +48,16 @@ public class SpotifyAuth {
             "user-read-private",
             "playlist-read-private",
             "playlist-modify-public",
-            "playlist-modify-private");
+            "playlist-modify-private",
+            "user-library-modify");
+
+    static final String LOGIN_MESSAGE = "Your Spotify session has expired. Please log in to Spotify again.";
 
     private final String clientId;
     private final String redirectUri;
     private final Path tokenCache;
+    private final String tokenUrl;
+    private final Consumer<String> browser;
     private final HttpClient http = HttpClient.newHttpClient();
     private final Gson gson = new Gson();
 
@@ -59,17 +65,30 @@ public class SpotifyAuth {
     private String refreshToken;
     private Instant expiresAt = Instant.EPOCH;
 
-    public SpotifyAuth(String clientId, String redirectUri) {
+    public OAuthTokenStore(String clientId, String redirectUri) {
         this(clientId, redirectUri, Path.of(".spotify-tokens.json"));
     }
 
-    public SpotifyAuth(String clientId, String redirectUri, Path tokenCache) {
+    public OAuthTokenStore(String clientId, String redirectUri, Path tokenCache) {
+        this(clientId, redirectUri, tokenCache, DEFAULT_TOKEN_URL);
+    }
+
+    /** Token endpoint seam, so tests can point refresh/exchange at a local server. */
+    OAuthTokenStore(String clientId, String redirectUri, Path tokenCache, String tokenUrl) {
+        this(clientId, redirectUri, tokenCache, tokenUrl, null);
+    }
+
+    /** As above, plus a seam for the "open the browser" step (null opens the real one). */
+    OAuthTokenStore(String clientId, String redirectUri, Path tokenCache, String tokenUrl,
+                    Consumer<String> browser) {
         if (clientId == null || clientId.isBlank()) {
             throw new MusicServiceException("Spotify client id is not configured (set SPOTIFY_CLIENT_ID in .env).");
         }
         this.clientId = clientId;
         this.redirectUri = redirectUri;
         this.tokenCache = tokenCache;
+        this.tokenUrl = tokenUrl;
+        this.browser = browser != null ? browser : this::openBrowser;
         loadCache();
     }
 
@@ -89,6 +108,32 @@ public class SpotifyAuth {
         }
         authorize();
         return accessToken;
+    }
+
+    /**
+     * Discards the current access token and gets a new one from the refresh
+     * token, called when Spotify answers 401. Never opens a browser: if the
+     * refresh token is missing or rejected the user must log in again.
+     */
+    public synchronized String forceRefresh() {
+        if (refreshToken == null) {
+            throw new AuthExpiredException(LOGIN_MESSAGE);
+        }
+        try {
+            refresh();
+        } catch (MusicServiceException e) {
+            refreshToken = null;
+            throw new AuthExpiredException(LOGIN_MESSAGE, e);
+        }
+        return accessToken;
+    }
+
+    /** Forces the full browser (PKCE) flow, ignoring any cached tokens. */
+    public synchronized void login() {
+        accessToken = null;
+        refreshToken = null;
+        expiresAt = Instant.EPOCH;
+        authorize();
     }
 
     // ---- full authorization-code + PKCE flow ----
@@ -151,7 +196,7 @@ public class SpotifyAuth {
         });
         server.start();
         try {
-            openBrowser(authUrl);
+            browser.accept(authUrl);
             return codeFuture.get(5, TimeUnit.MINUTES);
         } catch (Exception e) {
             if (e.getCause() instanceof MusicServiceException mse) throw mse;
@@ -193,7 +238,7 @@ public class SpotifyAuth {
     }
 
     private JsonObject postToken(String form) {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(TOKEN_URL))
+        HttpRequest request = HttpRequest.newBuilder(URI.create(tokenUrl))
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .POST(HttpRequest.BodyPublishers.ofString(form))
                 .build();

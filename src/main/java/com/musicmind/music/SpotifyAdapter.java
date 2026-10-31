@@ -22,7 +22,7 @@ import java.util.List;
  * Adapter (GoF) that implements the internal {@link MusicService} over the
  * Spotify Web API. It translates between Spotify's JSON shapes and the app's
  * domain objects, so the rest of the system never depends on Spotify directly.
- * Authentication (PKCE) is delegated to {@link SpotifyAuth}.
+ * Authentication (PKCE) is delegated to {@link OAuthTokenStore}.
  *
  * <p>Dev-mode Spotify constraints are respected: discovery is built from the
  * user's own data (top items, saved, recently played, search, artist→albums→
@@ -30,19 +30,33 @@ import java.util.List;
  */
 public class SpotifyAdapter implements MusicService {
 
-    private static final String API = "https://api.spotify.com/v1";
+    private static final String DEFAULT_API = "https://api.spotify.com/v1";
+    /** Spotify caps search pages at 10 in development mode. */
+    private static final int SEARCH_PAGE = 10;
+    private static final int LIBRARY_PAGE = 50;
+    private static final int PLAYLIST_PAGE = 100;
+    private static final int ADD_BATCH = 100;
+    /** Upper bound on items collected by any paged read. */
+    private static final int MAX_ITEMS = 500;
 
-    private final SpotifyAuth auth;
     private final HttpClient http = HttpClient.newHttpClient();
+    private final OAuthTokenStore auth;
+    private final String api;
     private final Gson gson = new Gson();
     private String cachedUserId;
 
     public SpotifyAdapter(String clientId, String redirectUri) {
-        this(new SpotifyAuth(clientId, redirectUri));
+        this(new OAuthTokenStore(clientId, redirectUri));
     }
 
-    public SpotifyAdapter(SpotifyAuth auth) {
+    public SpotifyAdapter(OAuthTokenStore auth) {
+        this(auth, DEFAULT_API);
+    }
+
+    /** API base URL seam, so tests can target a local server. */
+    SpotifyAdapter(OAuthTokenStore auth, String apiBaseUrl) {
         this.auth = auth;
+        this.api = apiBaseUrl;
     }
 
     // ---- read: listening data ----
@@ -59,31 +73,45 @@ public class SpotifyAdapter implements MusicService {
 
     @Override
     public List<Track> getTopItems(String type, String timeRange) {
-        String kind = (type == null || type.isBlank()) ? "tracks" : type.toLowerCase();
-        JsonObject body = get("/me/top/" + kind + "?limit=20&time_range=" + range(timeRange));
+        if (type != null && !type.isBlank() && !type.equalsIgnoreCase("tracks")) {
+            throw new IllegalArgumentException("getTopItems returns tracks only; use getTopArtists for artists.");
+        }
+        JsonObject body = get("/me/top/tracks?limit=20&time_range=" + range(timeRange));
         return tracks(array(body, "items"));
     }
 
     @Override
     public List<Track> getSavedTracks() {
-        JsonObject body = get("/me/tracks?limit=50");
-        return tracksFromWrapped(array(body, "items"), "track");
+        return pagedTracks("/me/tracks?limit=" + LIBRARY_PAGE, null);
     }
 
     @Override
     public List<Track> getRecentlyPlayed() {
         JsonObject body = get("/me/player/recently-played?limit=50");
-        return tracksFromWrapped(array(body, "items"), "track");
+        return tracksFromWrapped(array(body, "items"));
     }
 
     // ---- read: catalogue ----
 
     @Override
     public List<Track> search(String query, int limit) {
-        int capped = Math.max(1, Math.min(limit, 10)); // dev-mode search cap
-        JsonObject body = get("/search?type=track&limit=" + capped + "&q=" + enc(query));
-        JsonObject tracks = body.has("tracks") ? body.getAsJsonObject("tracks") : new JsonObject();
-        return tracks(array(tracks, "items"));
+        int wanted = Math.min(limit, MAX_ITEMS);
+        List<Track> out = new ArrayList<>();
+        int offset = 0;
+        while (out.size() < wanted) {
+            int size = Math.min(SEARCH_PAGE, wanted - out.size());
+            JsonObject body = get("/search?type=track&limit=" + size + "&offset=" + offset + "&q=" + enc(query));
+            JsonObject page = body.has("tracks") && body.get("tracks").isJsonObject()
+                    ? body.getAsJsonObject("tracks") : new JsonObject();
+            List<Track> found = tracks(array(page, "items"));
+            int returned = array(page, "items").size();
+            out.addAll(found);
+            if (returned == 0 || !hasNext(page)) {
+                break;
+            }
+            offset += returned;
+        }
+        return out;
     }
 
     @Override
@@ -111,28 +139,30 @@ public class SpotifyAdapter implements MusicService {
         req.addProperty("name", name);
         req.addProperty("public", false);
         req.addProperty("description", "Created by MusicMind");
-        JsonObject body = send("POST", "/users/" + enc(userId) + "/playlists", req.toString());
+        JsonObject body = send("POST", "/me/playlists", req.toString());
         return new Playlist(str(body, "id"), str(body, "name"), List.of());
     }
 
     @Override
     public void addItems(String playlistId, List<String> uris) {
-        JsonObject req = new JsonObject();
-        req.add("uris", gson.toJsonTree(uris));
-        send("POST", "/playlists/" + enc(playlistId) + "/tracks", req.toString());
+        for (int i = 0; i < uris.size(); i += ADD_BATCH) {
+            JsonObject req = new JsonObject();
+            req.add("uris", gson.toJsonTree(uris.subList(i, Math.min(i + ADD_BATCH, uris.size()))));
+            send("POST", "/playlists/" + enc(playlistId) + "/items", req.toString());
+        }
     }
 
     @Override
     public void removeItems(String playlistId, List<String> uris) {
-        JsonArray tracks = new JsonArray();
+        JsonArray items = new JsonArray();
         for (String uri : uris) {
             JsonObject t = new JsonObject();
             t.addProperty("uri", uri);
-            tracks.add(t);
+            items.add(t);
         }
         JsonObject req = new JsonObject();
-        req.add("tracks", tracks);
-        send("DELETE", "/playlists/" + enc(playlistId) + "/tracks", req.toString());
+        req.add("items", items);
+        send("DELETE", "/playlists/" + enc(playlistId) + "/items", req.toString());
     }
 
     @Override
@@ -141,13 +171,19 @@ public class SpotifyAdapter implements MusicService {
         req.addProperty("range_start", from);
         req.addProperty("insert_before", to);
         req.addProperty("range_length", 1);
-        send("PUT", "/playlists/" + enc(playlistId) + "/tracks", req.toString());
+        send("PUT", "/playlists/" + enc(playlistId) + "/items", req.toString());
     }
 
     @Override
     public List<Track> getPlaylistItems(String playlistId) {
-        JsonObject body = get("/playlists/" + enc(playlistId) + "/tracks?limit=100");
-        return tracksFromWrapped(array(body, "items"), "track");
+        return pagedTracks("/playlists/" + enc(playlistId) + "/items?limit=" + PLAYLIST_PAGE,
+                "Permission denied: Spotify only lets an app read the items of playlists that are owned or "
+                        + "collaborative, so this playlist cannot be read.");
+    }
+
+    @Override
+    public void unfollowPlaylist(String playlistId) {
+        send("DELETE", "/me/library?uris=" + enc("spotify:playlist:" + playlistId), null);
     }
 
     @Override
@@ -164,9 +200,70 @@ public class SpotifyAdapter implements MusicService {
         return send("GET", path, null);
     }
 
+    /**
+     * Follows {@code next} links from {@code firstPath} until none remain or
+     * {@link #MAX_ITEMS} entries are gathered. {@code forbiddenMessage}, when
+     * set, replaces the generic text of a 403.
+     */
+    private List<Track> pagedTracks(String firstPath, String forbiddenMessage) {
+        List<Track> out = new ArrayList<>();
+        String url = api + firstPath;
+        while (url != null && out.size() < MAX_ITEMS) {
+            JsonObject page;
+            try {
+                page = sendUrl("GET", url, null);
+            } catch (MusicServiceException e) {
+                if (e.statusCode() == 403 && forbiddenMessage != null) {
+                    throw new MusicServiceException(forbiddenMessage, 403, e);
+                }
+                throw e;
+            }
+            out.addAll(tracksFromWrapped(array(page, "items")));
+            url = hasNext(page) ? page.get("next").getAsString() : null;
+            if (url != null && !url.startsWith(api)) {
+                throw new MusicServiceException("Spotify returned an unexpected next-page address; stopped paging.");
+            }
+        }
+        return out.size() > MAX_ITEMS ? new ArrayList<>(out.subList(0, MAX_ITEMS)) : out;
+    }
+
     private JsonObject send(String method, String path, String jsonBody) {
-        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(API + path))
-                .header("Authorization", "Bearer " + auth.accessToken());
+        return sendUrl(method, api + path, jsonBody);
+    }
+
+    /** One call; on 401 forces a token refresh and retries exactly once. */
+    private JsonObject sendUrl(String method, String url, String jsonBody) {
+        HttpResponse<String> response = execute(method, url, jsonBody, auth.accessToken());
+        if (response.statusCode() == 401) {
+            response = execute(method, url, jsonBody, auth.forceRefresh());
+            if (response.statusCode() == 401) {
+                throw new AuthExpiredException(OAuthTokenStore.LOGIN_MESSAGE);
+            }
+        }
+        int code = response.statusCode();
+        String where = method + " " + url.substring(api.length());
+        if (code == 429) {
+            throw new RateLimitException("Spotify rate limit hit on " + where, retryAfter(response));
+        }
+        if (code / 100 != 2) {
+            throw new MusicServiceException("Spotify API error (HTTP " + code + ") on " + where
+                    + ": " + response.body(), code, null, retryAfter(response));
+        }
+        String body = response.body();
+        if (body == null || body.isBlank()) {
+            return new JsonObject(); // 204 No Content
+        }
+        try {
+            JsonElement parsed = gson.fromJson(body, JsonElement.class);
+            return parsed != null && parsed.isJsonObject() ? parsed.getAsJsonObject() : new JsonObject();
+        } catch (RuntimeException e) {
+            throw new MusicServiceException("Spotify returned an unreadable response on " + where, e);
+        }
+    }
+
+    private HttpResponse<String> execute(String method, String url, String jsonBody, String token) {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
+                .header("Authorization", "Bearer " + token);
         if (jsonBody == null) {
             builder.method(method, HttpRequest.BodyPublishers.noBody());
         } else {
@@ -174,28 +271,21 @@ public class SpotifyAdapter implements MusicService {
                     .method(method, HttpRequest.BodyPublishers.ofString(jsonBody));
         }
         try {
-            HttpResponse<String> response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-            int code = response.statusCode();
-            if (code == 429) {
-                String retry = response.headers().firstValue("Retry-After").orElse("1");
-                throw new RateLimitException("Spotify rate limit hit on " + method + " " + path,
-                        parseInt(retry, 1));
-            }
-            if (code / 100 != 2) {
-                throw new MusicServiceException("Spotify API error (HTTP " + code + ") on "
-                        + method + " " + path + ": " + response.body(), code);
-            }
-            String body = response.body();
-            if (body == null || body.isBlank()) {
-                return new JsonObject(); // 204 No Content (e.g. reorder)
-            }
-            JsonElement parsed = gson.fromJson(body, JsonElement.class);
-            return parsed != null && parsed.isJsonObject() ? parsed.getAsJsonObject() : new JsonObject();
-        } catch (MusicServiceException e) {
-            throw e;
+            return http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new MusicServiceException("Interrupted during a Spotify request", e);
         } catch (Exception e) {
-            throw new MusicServiceException("Spotify request failed on " + method + " " + path, e);
+            throw new MusicServiceException("Spotify request failed on " + method + " " + url, e);
         }
+    }
+
+    private static int retryAfter(HttpResponse<String> response) {
+        return parseInt(response.headers().firstValue("Retry-After").orElse("0"), 0);
+    }
+
+    private static boolean hasNext(JsonObject page) {
+        return page.has("next") && !page.get("next").isJsonNull();
     }
 
     // ---- JSON -> domain mapping ----
@@ -203,18 +293,33 @@ public class SpotifyAdapter implements MusicService {
     private List<Track> tracks(JsonArray items) {
         List<Track> out = new ArrayList<>();
         for (JsonElement e : items) {
-            out.add(toTrack(e.getAsJsonObject()));
+            if (e.isJsonObject() && str(e.getAsJsonObject(), "id") != null) {
+                out.add(toTrack(e.getAsJsonObject()));
+            }
         }
         return out;
     }
 
-    /** For responses where each item wraps the track under a key (saved/recent/playlist). */
-    private List<Track> tracksFromWrapped(JsonArray items, String key) {
+    /**
+     * For entries that wrap the track: playlist entries use {@code item} (Feb 2026),
+     * with {@code track} accepted as the legacy key (saved and recent entries use it).
+     * Null entries and local files without an id are skipped.
+     */
+    private List<Track> tracksFromWrapped(JsonArray items) {
         List<Track> out = new ArrayList<>();
         for (JsonElement e : items) {
-            JsonObject item = e.getAsJsonObject();
-            if (item.has(key) && item.get(key).isJsonObject()) {
-                out.add(toTrack(item.getAsJsonObject(key)));
+            if (!e.isJsonObject()) {
+                continue;
+            }
+            JsonObject entry = e.getAsJsonObject();
+            JsonElement wrapped = entry.has("item") && !entry.get("item").isJsonNull()
+                    ? entry.get("item") : entry.get("track");
+            if (wrapped == null || !wrapped.isJsonObject()) {
+                continue;
+            }
+            JsonObject t = wrapped.getAsJsonObject();
+            if (str(t, "id") != null) {
+                out.add(toTrack(t));
             }
         }
         return out;

@@ -24,5 +24,6 @@ public class StubMusicService implements MusicService {
     @Override public void removeItems(String playlistId, List<String> uris) { throw new UnsupportedOperationException(); }
     @Override public void reorderItems(String playlistId, int from, int to) { throw new UnsupportedOperationException(); }
     @Override public List<Track> getPlaylistItems(String playlistId) { throw new UnsupportedOperationException(); }
+    @Override public void unfollowPlaylist(String playlistId) { throw new UnsupportedOperationException(); }
     @Override public String currentUserId() { throw new UnsupportedOperationException(); }
 }
