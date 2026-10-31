@@ -57,6 +57,14 @@ class PlannerTest {
     }
 
     @Test
+    void aReplyWithOnlyAnUnknownFilterFallsBackToTheOriginalText() {
+        SearchQuery q = planner(p -> "{\"keywords\":\"\",\"filters\":{\"mood\":\"sad\"},\"confidence\":0.9}")
+                .parseSearchQuery("sad songs");
+        assertEquals("sad songs", q.keywords());
+        assertTrue(q.filters().isEmpty());
+    }
+
+    @Test
     void anLlmFailureFallsBackToTheOriginalText() {
         assertEquals("lofi", planner(p -> { throw new LLMException("down"); }).parseSearchQuery("lofi").keywords());
         assertEquals("lofi", planner(p -> { throw new IllegalStateException("boom"); }).parseSearchQuery("lofi").keywords());

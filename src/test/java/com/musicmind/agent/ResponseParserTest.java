@@ -103,6 +103,12 @@ class ResponseParserTest {
     }
 
     @Test
+    void filterKeysAreStoredLowercased() {
+        SearchQuery q = parser.parseSearchQuery("{\"keywords\":\"rain\",\"filters\":{\"Year\":\"1999\"},\"confidence\":0.9}");
+        assertEquals("rain year:1999", q.toSpotifyQuery());
+    }
+
+    @Test
     void aQueryWhoseOnlyFilterIsUnknownIsRejectedAsEmpty() {
         assertThrows(ParseException.class,
                 () -> parser.parseSearchQuery("{\"keywords\":\"\",\"filters\":{\"mood\":\"sad\"}}"));

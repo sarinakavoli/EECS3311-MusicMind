@@ -68,7 +68,7 @@ public class ResponseParser {
             o.getAsJsonObject("filters").entrySet().forEach(e -> {
                 if (allowed.contains(e.getKey().toLowerCase(Locale.ROOT))
                         && e.getValue().isJsonPrimitive() && !e.getValue().getAsString().isBlank()) {
-                    filters.put(e.getKey(), e.getValue().getAsString().trim());
+                    filters.put(e.getKey().toLowerCase(Locale.ROOT), e.getValue().getAsString().trim());
                 }
             });
         }

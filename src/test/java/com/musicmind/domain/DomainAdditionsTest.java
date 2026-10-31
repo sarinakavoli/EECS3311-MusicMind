@@ -34,6 +34,9 @@ class DomainAdditionsTest {
         assertEquals("upbeat indie running", new SearchQuery("upbeat indie running", "indie", Map.of(), 1).toSpotifyQuery());
         assertEquals("upbeat indie running", new SearchQuery("upbeat indie running", "Indie", Map.of(), 1).toSpotifyQuery());
         assertEquals("upbeat running indie", new SearchQuery("upbeat running", "indie", Map.of(), 1).toSpotifyQuery());
+        assertEquals("popular songs pop", new SearchQuery("popular songs", "pop", Map.of(), 1).toSpotifyQuery());
+        assertEquals("unpopular pop", new SearchQuery("unpopular", "pop", Map.of(), 1).toSpotifyQuery());
+        assertEquals("pop hits", new SearchQuery("pop hits", "pop", Map.of(), 1).toSpotifyQuery());
         assertEquals("indie rock", new SearchQuery(null, "indie rock", Map.of(), 1).toSpotifyQuery());
         assertEquals("rock year:1999", new SearchQuery("rock", null, Map.of("year", "1999"), 1).toSpotifyQuery());
     }

@@ -38,8 +38,10 @@ public record SearchQuery(String keywords, String genre, Map<String, String> fil
     }
 
     private static boolean mentions(String keywords, String genre) {
-        return keywords != null && keywords.toLowerCase(java.util.Locale.ROOT)
-                .contains(genre.toLowerCase(java.util.Locale.ROOT));
+        return keywords != null && java.util.regex.Pattern
+                .compile("(?<![\\p{L}\\p{N}])" + java.util.regex.Pattern.quote(genre) + "(?![\\p{L}\\p{N}])",
+                        java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.UNICODE_CASE)
+                .matcher(keywords).find();
     }
 
     private static void append(StringBuilder q, String field, String value) {
