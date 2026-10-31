@@ -4,6 +4,8 @@ import io.github.cdimascio.dotenv.Dotenv;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.function.UnaryOperator;
@@ -237,6 +239,36 @@ public final class Config {
 
     public String parserDefaultPlaylistName() {
         return text("parser.defaultPlaylistName");
+    }
+
+    // ---- Taste profile and trends ----
+
+    /** Time ranges from most recent to oldest, as the user types them (short, medium, long). */
+    public List<String> profileRanges() {
+        return Arrays.stream(text("profile.ranges").split(",")).map(String::trim).toList();
+    }
+
+    public String profileDefaultRange() {
+        return text("profile.defaultRange");
+    }
+
+    /** Fewer top artists or top tracks than this makes a profile partial. */
+    public int profileMinItems() {
+        return integer("profile.minItems");
+    }
+
+    public int profileFallbackGenres() {
+        return integer("profile.fallbackGenres");
+    }
+
+    /** Appended to every non-LLM summary or narrative so it is never mistaken for AI output. */
+    public String computedLabel() {
+        return text("text.computedLabel");
+    }
+
+    /** The line both interfaces show to credit Spotify for the data. */
+    public String spotifyAttribution() {
+        return text("text.spotifyAttribution");
     }
 
     /** The single shared truncation of a raw HTTP body for error messages. */

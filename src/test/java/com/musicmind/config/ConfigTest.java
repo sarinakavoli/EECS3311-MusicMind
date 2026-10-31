@@ -2,6 +2,7 @@ package com.musicmind.config;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -78,5 +79,42 @@ class ConfigTest {
         String cut = c.truncateBody("x".repeat(c.errorBodyLimit() + 50));
         assertEquals(c.errorBodyLimit() + 3, cut.length());
         assertTrue(cut.endsWith("..."));
+    }
+
+    @Test
+    void profileTunablesComeFromTheBundledProperties() {
+        Config c = Config.of(Map.of());
+        assertEquals(List.of("short", "medium", "long"), c.profileRanges());
+        assertEquals("medium", c.profileDefaultRange());
+        assertEquals(5, c.profileMinItems());
+        assertEquals(3, c.profileFallbackGenres());
+        assertTrue(c.computedLabel().contains("not AI-written"));
+        assertTrue(c.spotifyAttribution().contains("Spotify"));
+    }
+
+    @Test
+    void promptAndParserTunablesComeFromTheBundledProperties() {
+        Config c = Config.of(Map.of());
+        assertEquals(10, c.promptMaxGenres());
+        assertEquals(1, c.parserMinTargetMinutes());
+        assertEquals(600, c.parserMaxTargetMinutes());
+        assertEquals(60, c.parserDefaultTargetMinutes());
+        assertEquals(0.5, c.parserDefaultFamiliarRatio(), 1e-9);
+        assertEquals("MusicMind Playlist", c.parserDefaultPlaylistName());
+    }
+
+    @Test
+    void environmentSettingsFallBackToTheirDefaultsAndAreTrimmed() {
+        Config none = Config.of(Map.of());
+        assertEquals("http://127.0.0.1:8080/callback", none.spotifyRedirectUri());
+        assertEquals("jdbc:postgresql://localhost:5432/musicmind", none.databaseUrl());
+        assertEquals("musicmind", none.databaseUser());
+        assertFalse(none.spotifyConfigured());
+
+        Config set = Config.of(Map.of("SPOTIFY_CLIENT_ID", "  id123 ", "DATABASE_USER", "me"));
+        assertEquals("id123", set.spotifyClientId());
+        assertTrue(set.spotifyConfigured());
+        assertEquals("me", set.databaseUser());
+        assertFalse(Config.of(Map.of("SPOTIFY_CLIENT_ID", "your_client_id_here")).spotifyConfigured());
     }
 }

@@ -50,7 +50,7 @@ class PlaylistHistoryRepositoryTest extends PostgresTestBase {
         List<Playlist> mine = repo.findByUser("user-1");
         assertEquals(List.of("v2", "v1"), mine.stream().map(Playlist::name).toList());
         assertEquals(1, repo.findByUser("user-2").size());
-        assertTrue(Integer.parseInt(String.valueOf(first)) > 0);
+        assertTrue(first > 0);
     }
 
     @Test

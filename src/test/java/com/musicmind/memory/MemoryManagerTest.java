@@ -102,6 +102,8 @@ class MemoryManagerTest extends PostgresTestBase {
                 new Track("a", "spotify:track:a", "T", 1, false, List.of()),
                 new Track("b", "spotify:track:b", "T", 1, false, List.of())));
         int id = memory.saveSnapshot(p);
+        assertTrue(id > 0, "snapshot ids are positive");
+        assertTrue(memory.saveSnapshot(p) > id, "each snapshot gets a new, larger id");
         Playlist loaded = memory.loadSnapshot(id);
         assertEquals("Mix", loaded.name());
         assertEquals(List.of("a", "b"), loaded.tracks().stream().map(Track::id).toList());

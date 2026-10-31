@@ -1,8 +1,8 @@
 package com.musicmind.domain;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -13,6 +13,8 @@ public class ListeningProfile {
     private final List<Track> topTracks;
     private final List<String> savedTrackIds;
     private final Instant generatedAt;
+    private final boolean partial;
+    private final List<String> notices;
     private String summary;
 
     public ListeningProfile(Map<String, Double> genreHistogram,
@@ -28,6 +30,24 @@ public class ListeningProfile {
                             List<String> savedTrackIds,
                             String summary,
                             Instant generatedAt) {
+        this(genreHistogram, topArtists, topTracks, savedTrackIds, summary, generatedAt,
+                onlyOneSourceHasData(topArtists, topTracks), List.of());
+    }
+
+    /**
+     * @param partial true when the profile rests on little history or a failed read
+     * @param notices what is missing, in words for the user
+     */
+    public ListeningProfile(Map<String, Double> genreHistogram,
+                            List<Artist> topArtists,
+                            List<Track> topTracks,
+                            List<String> savedTrackIds,
+                            String summary,
+                            Instant generatedAt,
+                            boolean partial,
+                            List<String> notices) {
+        this.partial = partial;
+        this.notices = notices == null ? List.of() : List.copyOf(notices);
         this.genreHistogram = genreHistogram == null ? Map.of() : Map.copyOf(genreHistogram);
         this.topArtists = topArtists == null ? List.of() : List.copyOf(topArtists);
         this.topTracks = topTracks == null ? List.of() : List.copyOf(topTracks);
@@ -36,12 +56,27 @@ public class ListeningProfile {
         this.generatedAt = generatedAt;
     }
 
+    private static boolean onlyOneSourceHasData(List<Artist> artists, List<Track> tracks) {
+        boolean noArtists = artists == null || artists.isEmpty();
+        boolean noTracks = tracks == null || tracks.isEmpty();
+        return noArtists != noTracks;
+    }
+
     /**
-     * True when only one of top artists and top tracks has data, i.e. a Spotify
-     * read came back empty and the profile rests on the other source alone.
+     * True when the profile rests on little history or a Spotify read that failed.
+     * {@code ProfileBuilder} decides this against the configured threshold; {@link #notices}
+     * says what is missing.
      */
     public boolean isPartial() {
-        return topArtists.isEmpty() != topTracks.isEmpty();
+        return partial;
+    }
+
+    /** Genres from most to least prominent, at most {@code limit}. */
+    public List<Map.Entry<String, Double>> rankedGenres(int limit) {
+        return genreHistogram.entrySet().stream()
+                .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
+                .limit(limit)
+                .toList();
     }
 
     /** Artists the user already knows: top artists plus the artists of top tracks. */
@@ -78,4 +113,5 @@ public class ListeningProfile {
     public String summary() { return summary; }
     public void setSummary(String summary) { this.summary = summary; }
     public Instant generatedAt() { return generatedAt; }
+    public List<String> notices() { return notices; }
 }
