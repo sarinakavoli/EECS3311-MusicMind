@@ -26,7 +26,7 @@ public class OpenAiProvider implements LLMProvider {
     private final String model;
     private final String endpoint;
     private final Duration timeout;
-    private final int errorBodyLimit;
+    private final Config config;
     private final HttpClient http = HttpClient.newHttpClient();
     private final Gson gson = new Gson();
 
@@ -39,12 +39,11 @@ public class OpenAiProvider implements LLMProvider {
         if (apiKey == null || apiKey.isBlank()) {
             throw new LLMException("LLM API key is not configured (set LLM_API_KEY in .env).");
         }
-        Config config = Config.defaults();
+        this.config = Config.defaults();
         this.apiKey = apiKey;
         this.model = (model == null || model.isBlank()) ? config.llmModel() : model;
         this.endpoint = baseUrl.replaceAll("/+$", "") + "/chat/completions";
         this.timeout = Duration.ofSeconds(timeoutSeconds);
-        this.errorBodyLimit = config.errorBodyLimit();
     }
 
     @Override
@@ -101,6 +100,6 @@ public class OpenAiProvider implements LLMProvider {
             return "";
         }
         String clean = text.replace(apiKey, REDACTED);
-        return clean.length() <= errorBodyLimit ? clean : clean.substring(0, errorBodyLimit) + "...";
+        return config.truncateBody(clean);
     }
 }

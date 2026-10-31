@@ -52,4 +52,31 @@ class ConfigTest {
         assertEquals(5, c.databaseConnectTimeoutSeconds());
         assertTrue(c.errorBodyLimit() > 0);
     }
+
+    @Test
+    void remainingSpotifyLiteralsAreTunables() {
+        Config c = Config.of(Map.of());
+        assertEquals("https://accounts.spotify.com/authorize", c.spotifyAuthorizeUrl());
+        assertEquals(100, c.spotifyPlaylistPageSize());
+        assertEquals(100, c.spotifyAddBatchSize());
+        assertEquals(20, c.spotifyTopItemsLimit());
+        assertEquals(50, c.spotifyRecentlyPlayedLimit());
+        assertEquals(50, c.spotifyAlbumPageSize());
+    }
+
+    @Test
+    void databasePasswordHasNoBuiltInDefault() {
+        assertEquals("", Config.of(Map.of()).databasePassword());
+        assertEquals("pw", Config.of(Map.of("DATABASE_PASSWORD", "pw")).databasePassword());
+    }
+
+    @Test
+    void truncateBodyKeepsShortTextAndCutsLongText() {
+        Config c = Config.of(Map.of());
+        assertEquals("short", c.truncateBody("short"));
+        assertEquals(null, c.truncateBody(null));
+        String cut = c.truncateBody("x".repeat(c.errorBodyLimit() + 50));
+        assertEquals(c.errorBodyLimit() + 3, cut.length());
+        assertTrue(cut.endsWith("..."));
+    }
 }

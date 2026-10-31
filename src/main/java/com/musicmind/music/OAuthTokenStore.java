@@ -40,7 +40,6 @@ import java.util.function.Consumer;
  */
 public class OAuthTokenStore {
 
-    private static final String AUTHORIZE_URL = "https://accounts.spotify.com/authorize";
     private static final String SCOPES = String.join(" ",
             "user-top-read",
             "user-library-read",
@@ -150,7 +149,7 @@ public class OAuthTokenStore {
         String state = randomUrlSafe(16);
         URI redirect = URI.create(redirectUri);
 
-        String authUrl = AUTHORIZE_URL
+        String authUrl = Config.defaults().spotifyAuthorizeUrl()
                 + "?client_id=" + enc(clientId)
                 + "&response_type=code"
                 + "&redirect_uri=" + enc(redirectUri)
@@ -252,7 +251,7 @@ public class OAuthTokenStore {
             HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() / 100 != 2) {
                 throw new MusicServiceException("Spotify token request failed (HTTP "
-                        + response.statusCode() + "): " + truncate(response.body()), response.statusCode());
+                        + response.statusCode() + "): " + Config.defaults().truncateBody(response.body()), response.statusCode());
             }
             return gson.fromJson(response.body(), JsonObject.class);
         } catch (MusicServiceException e) {
@@ -260,11 +259,6 @@ public class OAuthTokenStore {
         } catch (Exception e) {
             throw new MusicServiceException("Spotify token request failed.", e);
         }
-    }
-
-    private String truncate(String body) {
-        int limit = Config.defaults().errorBodyLimit();
-        return body == null || body.length() <= limit ? body : body.substring(0, limit) + "...";
     }
 
     private void storeTokens(JsonObject json, boolean expectRefresh) {

@@ -135,7 +135,7 @@ public final class Config {
     }
 
     public String databasePassword() {
-        return get("DATABASE_PASSWORD", "changeme");
+        return get("DATABASE_PASSWORD", "");
     }
 
     public int databaseConnectTimeoutSeconds() {
@@ -186,6 +186,39 @@ public final class Config {
     /** Maximum characters of a raw HTTP response body to include in an error message. */
     public int errorBodyLimit() {
         return integer("http.errorBodyLimit");
+    }
+
+    public String spotifyAuthorizeUrl() {
+        return text("spotify.authorizeUrl");
+    }
+
+    /** Page size when reading playlist items. */
+    public int spotifyPlaylistPageSize() {
+        return integer("spotify.playlistPageSize");
+    }
+
+    /** Most URIs sent in one add-items request. */
+    public int spotifyAddBatchSize() {
+        return integer("spotify.addBatchSize");
+    }
+
+    public int spotifyTopItemsLimit() {
+        return integer("spotify.topItemsLimit");
+    }
+
+    public int spotifyRecentlyPlayedLimit() {
+        return integer("spotify.recentlyPlayedLimit");
+    }
+
+    /** Page size for artist albums and album tracks. */
+    public int spotifyAlbumPageSize() {
+        return integer("spotify.albumPageSize");
+    }
+
+    /** The single shared truncation of a raw HTTP body for error messages. */
+    public String truncateBody(String body) {
+        int limit = errorBodyLimit();
+        return body == null || body.length() <= limit ? body : body.substring(0, limit) + "...";
     }
 
     private String text(String key) {

@@ -31,13 +31,15 @@ import java.util.List;
  */
 public class SpotifyAdapter implements MusicService {
 
-    private static final int PLAYLIST_PAGE = 100;
-    private static final int ADD_BATCH = 100;
-
     private final int searchPage;
     private final int libraryPage;
     private final int maxItems;
-    private final int errorBodyLimit;
+    private final int playlistPage;
+    private final int addBatch;
+    private final int topLimit;
+    private final int recentLimit;
+    private final int albumPage;
+    private final Config config;
     private final HttpClient http = HttpClient.newHttpClient();
     private final OAuthTokenStore auth;
     private final String api;
@@ -56,18 +58,22 @@ public class SpotifyAdapter implements MusicService {
     SpotifyAdapter(OAuthTokenStore auth, String apiBaseUrl) {
         this.auth = auth;
         this.api = apiBaseUrl;
-        Config config = Config.defaults();
+        this.config = Config.defaults();
         this.searchPage = config.spotifySearchPageSize();
         this.libraryPage = config.spotifyLibraryPageSize();
         this.maxItems = config.spotifyMaxItems();
-        this.errorBodyLimit = config.errorBodyLimit();
+        this.playlistPage = config.spotifyPlaylistPageSize();
+        this.addBatch = config.spotifyAddBatchSize();
+        this.topLimit = config.spotifyTopItemsLimit();
+        this.recentLimit = config.spotifyRecentlyPlayedLimit();
+        this.albumPage = config.spotifyAlbumPageSize();
     }
 
     // ---- read: listening data ----
 
     @Override
     public List<Artist> getTopArtists(String timeRange) {
-        JsonObject body = get("/me/top/artists?limit=20&time_range=" + range(timeRange));
+        JsonObject body = get("/me/top/artists?limit=" + topLimit + "&time_range=" + range(timeRange));
         List<Artist> artists = new ArrayList<>();
         for (JsonElement e : array(body, "items")) {
             artists.add(toArtist(e.getAsJsonObject()));
@@ -80,7 +86,7 @@ public class SpotifyAdapter implements MusicService {
         if (type != null && !type.isBlank() && !type.equalsIgnoreCase("tracks")) {
             throw new IllegalArgumentException("getTopItems returns tracks only; use getTopArtists for artists.");
         }
-        JsonObject body = get("/me/top/tracks?limit=20&time_range=" + range(timeRange));
+        JsonObject body = get("/me/top/tracks?limit=" + topLimit + "&time_range=" + range(timeRange));
         return tracks(array(body, "items"));
     }
 
@@ -91,7 +97,7 @@ public class SpotifyAdapter implements MusicService {
 
     @Override
     public List<Track> getRecentlyPlayed() {
-        JsonObject body = get("/me/player/recently-played?limit=50");
+        JsonObject body = get("/me/player/recently-played?limit=" + recentLimit);
         return tracksFromWrapped(array(body, "items"));
     }
 
@@ -120,7 +126,7 @@ public class SpotifyAdapter implements MusicService {
 
     @Override
     public List<Album> getArtistAlbums(String artistId) {
-        JsonObject body = get("/artists/" + enc(artistId) + "/albums?limit=50&include_groups=album,single");
+        JsonObject body = get("/artists/" + enc(artistId) + "/albums?limit=" + albumPage + "&include_groups=album,single");
         List<Album> albums = new ArrayList<>();
         for (JsonElement e : array(body, "items")) {
             JsonObject a = e.getAsJsonObject();
@@ -131,7 +137,7 @@ public class SpotifyAdapter implements MusicService {
 
     @Override
     public List<Track> getAlbumTracks(String albumId) {
-        JsonObject body = get("/albums/" + enc(albumId) + "/tracks?limit=50");
+        JsonObject body = get("/albums/" + enc(albumId) + "/tracks?limit=" + albumPage);
         return tracks(array(body, "items"));
     }
 
@@ -149,9 +155,9 @@ public class SpotifyAdapter implements MusicService {
 
     @Override
     public void addItems(String playlistId, List<String> uris) {
-        for (int i = 0; i < uris.size(); i += ADD_BATCH) {
+        for (int i = 0; i < uris.size(); i += addBatch) {
             JsonObject req = new JsonObject();
-            req.add("uris", gson.toJsonTree(uris.subList(i, Math.min(i + ADD_BATCH, uris.size()))));
+            req.add("uris", gson.toJsonTree(uris.subList(i, Math.min(i + addBatch, uris.size()))));
             send("POST", "/playlists/" + enc(playlistId) + "/items", req.toString());
         }
     }
@@ -180,7 +186,7 @@ public class SpotifyAdapter implements MusicService {
 
     @Override
     public List<Track> getPlaylistItems(String playlistId) {
-        return pagedTracks("/playlists/" + enc(playlistId) + "/items?limit=" + PLAYLIST_PAGE,
+        return pagedTracks("/playlists/" + enc(playlistId) + "/items?limit=" + playlistPage,
                 "Permission denied: Spotify only lets an app read the items of playlists that are owned or "
                         + "collaborative, so this playlist cannot be read.");
     }
@@ -251,7 +257,7 @@ public class SpotifyAdapter implements MusicService {
         }
         if (code / 100 != 2) {
             throw new MusicServiceException("Spotify API error (HTTP " + code + ") on " + where
-                    + ": " + truncate(response.body()), code, null, retryAfter(response));
+                    + ": " + config.truncateBody(response.body()), code, null, retryAfter(response));
         }
         String body = response.body();
         if (body == null || body.isBlank()) {
@@ -263,13 +269,6 @@ public class SpotifyAdapter implements MusicService {
         } catch (RuntimeException e) {
             throw new MusicServiceException("Spotify returned an unreadable response on " + where, e);
         }
-    }
-
-    private String truncate(String body) {
-        if (body == null || body.length() <= errorBodyLimit) {
-            return body;
-        }
-        return body.substring(0, errorBodyLimit) + "...";
     }
 
     private HttpResponse<String> execute(String method, String url, String jsonBody, String token) {
