@@ -19,6 +19,7 @@ Dates are Toronto time. Each day ends with real commits pushed to GitHub, and a 
 | Sat Oct 31 | Tasks 6-8: F1, F2, F3, F4, F8, F9 | `profile`, `trends`, `search`, `discover`, `prefs`, `feedback` |
 | Sat Oct 31 (added) | Task 18: MusicBrainz genres, run before Task 9 | `profile --refresh` shows genres |
 | Sat Oct 31 (added) | Task 19: search fix, run before Task 9 | `search` returns tracks |
+| Sat Oct 31 (added) | Task 20: discovery fix, run before Task 9 | `discover` shows only tracks new to you |
 | Sun Nov 1 | Tasks 9-12: F5, F6, F7, F10, F11, F12, full CLI | `create`, `modify`, `undo`, `validate`, `explain`, `history`, `restore` |
 | Mon Nov 2 | Tasks 13-17: GUI, docs, UML, report, final review, merge | All GUI tabs, README setup, report PDF |
 | Nov 3-9 | Buffer: fixes from Sarina's testing (real code commits only), video links added to the report | Videos recorded |
@@ -262,6 +263,20 @@ Run before Task 9. Live test: `upbeat indie running genre:indie` returned 1 trac
 - `suggestRelaxedQuery` stays for when that also finds nothing.
 
 Tests: exact query strings for genre, repeated genre and filters; unknown filter dropped; empty result retried with keywords and that the retry's results are returned; F4 search strings contain no `genre:`.
+
+### Task 20: Discovery matches Stage 1 F4
+
+Run before Task 9. Live test of `discover`: 13 of 20 results came from the user's own history, artist album reads all failed with HTTP 400, and raw errors reached the Notice.
+
+- Spotify allows at most 10 on `/artists/{id}/albums` but accepts 50 on `/albums/{id}/tracks`. Replace the shared `spotify.albumPageSize` with `spotify.artistAlbumPageSize=10` and `spotify.albumTrackPageSize=50`.
+- F4 must "exclude tracks the user already knows": in `discover`, no recommended track may be in the library (top, saved or recently played). The familiar pool becomes tracks by artists the user knows that are not in the library; the novel pool stays tracks by artists new to the user. Known-artist album tracks are the main familiar source, and `getArtistAlbums` already supplies them.
+- The library stays a candidate source for F5 playlist creation, which Stage 1 builds from familiar tracks. Keep `recommend(profile, spec, feedback)` as it is; add one explicit engine setting for whether library tracks may be selected, set by `discover`, so Task 10 can allow them.
+- Reasons must stay true: never "from your own listening history" in `discover`.
+- Equal scores keep source order, not track id order. Results stay deterministic.
+- Replace raw error text in the Notice with a short message, with the count of failed reads, from `musicmind.properties`. Technical detail must not reach the user.
+- Delete the leftover untracked files `agent/ProfileSummarizer.java`, `controller/TasteProfileResult.java`, `ProfileSummarizerTest.java` and `ProfileSummarizerNoProviderTest.java`, which Task 6 already removed from git.
+
+Tests: no recommended track is in the library, with all three strategies; library tracks allowed when the setting allows them; known-artist new tracks count as familiar with a true reason; adapter sends limit 10 for artist albums and 50 for album tracks; equal scores keep source order; Notice contains no HTTP status, URL or JSON.
 
 ### Task 14: Documentation and conformance
 
