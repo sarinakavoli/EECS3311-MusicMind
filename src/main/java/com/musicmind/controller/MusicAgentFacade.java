@@ -291,6 +291,7 @@ public class MusicAgentFacade {
 
         PlaylistSpec effective = PreferenceSettings.from(preferences).applyTo(spec);
         engine.chooseStrategy(effective.familiarRatio());
+        engine.setAllowLibraryTracks(false); // F4: exclude tracks the user already knows
         List<Recommendation> recommendations = engine.recommend(profile, effective, feedback);
         notices.addAll(engine.lastNotices());
 

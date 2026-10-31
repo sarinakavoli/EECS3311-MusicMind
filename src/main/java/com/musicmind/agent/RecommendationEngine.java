@@ -30,7 +30,8 @@ import java.util.Set;
 /**
  * The Context of the Strategy pattern and the project's own recommender (F4). Spotify's
  * recommendation endpoint is not available, so candidates come from the user's listening data:
- * their top, saved and recently played tracks (the familiar pool), genre-adjacent searches and
+ * their top, saved and recently played tracks (the familiar pool unless disabled by
+ * {@link #setAllowLibraryTracks}, in which case it holds new tracks by known artists), genre-adjacent searches and
  * the albums of their top artists (the novel pool). The engine filters blocked artists and
  * unwanted explicit tracks, lets the current {@link RecommendationStrategy} pick, then scores and
  * orders what was picked. Everything is deterministic and no LLM is involved.
@@ -55,6 +56,7 @@ public class RecommendationEngine {
     private final Config config;
     private final StrategySelector selector;
     private RecommendationStrategy strategy;
+    private boolean allowLibraryTracks = true;
     // The strategy used by the current run: the configured one, or a re-chosen one after widening.
     private RecommendationStrategy runStrategy;
 
@@ -81,6 +83,15 @@ public class RecommendationEngine {
     /** Picks the strategy that fits a familiar share (1.0 = all familiar). */
     public synchronized void chooseStrategy(double familiarRatio) {
         this.strategy = selector.select(familiarRatio);
+    }
+
+    /**
+     * Whether tracks the user already has (top, saved, recently played) may be selected. Discovery
+     * turns this off because F4 recommends only unknown tracks; playlist creation (F5) builds from
+     * familiar tracks and leaves it on. Defaults to true and holds until changed.
+     */
+    public synchronized void setAllowLibraryTracks(boolean allow) {
+        this.allowLibraryTracks = allow;
     }
 
     /** Why the last run chose what it did, or null before the first run. */
@@ -174,7 +185,7 @@ public class RecommendationEngine {
             notes.add(String.format(config.wording("discoverFewResults"), result.size()));
         }
         if (!retriever.errors().isEmpty()) {
-            notes.add(String.format(config.wording("discoverReadFailed"), String.join(" ", retriever.errors())));
+            notes.add(String.format(config.wording("discoverReadFailed"), retriever.errors().size()));
         }
         this.trace = buildTrace(result, spec, selection);
         this.notices = List.copyOf(notes);
@@ -221,6 +232,9 @@ public class RecommendationEngine {
         Set<String> seen = new HashSet<>();
         List<Track> all = new ArrayList<>(library);
         all.addAll(novelCandidates);
+        if (!allowLibraryTracks) {
+            all.removeIf(t -> libraryIds.contains(t.id()));
+        }
         for (Track t : all) {
             if (!seen.add(t.id())) {
                 continue;
@@ -230,11 +244,11 @@ public class RecommendationEngine {
             } else if (t.isExplicit() && !spec.allowExplicit()) {
                 explicit++;
             } else {
-                (libraryIds.contains(t.id()) ? familiar : novel).add(t);
+                (isFamiliar(t, libraryIds) ? familiar : novel).add(t);
             }
         }
         Comparator<Track> best = Comparator.<Track>comparingDouble(t -> score(t, spec)).reversed()
-                .thenComparing(Track::id);
+;
         familiar.sort(best);
         novel.sort(best);
 
@@ -248,14 +262,21 @@ public class RecommendationEngine {
         List<Recommendation> recs = new ArrayList<>();
         int novelSelected = 0;
         for (Track t : picked.values()) {
-            if (!libraryIds.contains(t.id())) {
+            if (!isFamiliar(t, libraryIds)) {
                 novelSelected++;
             }
             recs.add(new Recommendation(t, reason(t), familiarity(t), score(t, spec)));
         }
-        recs.sort(Comparator.comparingDouble(Recommendation::score).reversed()
-                .thenComparing(r -> r.track().id()));
+        recs.sort(Comparator.comparingDouble(Recommendation::score).reversed());
         return new Selection(recs, novelSelected, blocked, explicit);
+    }
+
+    /**
+     * Familiar tracks are the user's own when library tracks are allowed, else the not-yet-known
+     * tracks by artists the user already listens to. Ties in score keep source order (sorts are stable).
+     */
+    private boolean isFamiliar(Track track, Set<String> libraryIds) {
+        return allowLibraryTracks ? libraryIds.contains(track.id()) : familiarity(track) >= 1.0;
     }
 
     // ---- scoring inputs ----

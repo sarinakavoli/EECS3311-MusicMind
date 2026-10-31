@@ -102,8 +102,7 @@ class AppControllerDiscoverTest extends PostgresTestBase {
         assertEquals(1, sessionsAfterFirst, "only the taste profile is stored");
         assertEquals(1, c.memory().loadHistory("sp-user").size(), "discover itself saves nothing");
         assertEquals(ids(first), ids(second), "the stored profile gives the same picks as the fresh one");
-        assertTrue(second.stream().anyMatch(r -> r.track().id().startsWith("t") && r.familiarity() == 1.0),
-                "library tracks are known");
+        assertTrue(second.stream().noneMatch(r -> r.track().id().startsWith("t")), "library tracks are never recommended");
         assertTrue(second.stream().anyMatch(r -> r.track().id().startsWith("n") && r.familiarity() == 0.0),
                 "genre-search picks are novel");
         assertEquals(ids(second).size(), ids(second).stream().distinct().count());
@@ -225,7 +224,9 @@ class AppControllerDiscoverTest extends PostgresTestBase {
     @Test
     void everyCandidateBlockedIsReportedThroughTheController() {
         AppController c = controller(new Music() {
-            @Override public List<Track> search(String q, int l) { return List.of(); }
+            @Override public List<Track> search(String q, int l) {
+                return List.of(new Track("b0", "spotify:track:b0", "B0", 1000, false, List.of("a0")));
+            }
         });
         c.setPreference(new UserPreference("blockedArtists",
                 "a0,a1,a2,a3,a4,a5", false, 0.5));

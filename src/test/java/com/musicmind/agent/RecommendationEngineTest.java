@@ -394,7 +394,23 @@ class RecommendationEngineTest {
         List<Recommendation> recs = e.recommend(profile(), spec(1.0), List.of());
 
         assertEquals(5, recs.size(), "the library alone still answers");
-        assertTrue(e.lastNotices().stream().anyMatch(n -> n.contains("boom")), e.lastNotices().toString());
+        assertTrue(e.lastNotices().stream().anyMatch(n -> n.contains("6 ")), e.lastNotices().toString());
+    }
+
+    @Test
+    void failedReadsAreReportedAsACountWithNoTechnicalDetail() {
+        FakeMusic m = richMusic();
+        m.searchFailure = new MusicServiceException(
+                "Spotify returned HTTP 400 for https://api.spotify.com/v1/search: {\"error\":{\"message\":\"Invalid limit\"}}");
+        RecommendationEngine e = engine(m);
+
+        e.recommend(profile(), spec(1.0), List.of());
+
+        String notice = e.lastNotices().stream().filter(n -> n.contains("Spotify")).findFirst().orElseThrow();
+        assertTrue(notice.contains("6 "), "three genre searches failed, three more after widening: " + notice);
+        for (String technical : List.of("HTTP", "400", "http", "{", "Invalid limit")) {
+            assertFalse(notice.contains(technical), notice);
+        }
     }
 
     @Test
@@ -431,32 +447,91 @@ class RecommendationEngineTest {
     }
 
     @Test
-    void recommendationsAreOrderedByScoreThenTrackId() {
+    void recommendationsAreOrderedByScore() {
         RecommendationEngine e = engine(richMusic());
         List<Recommendation> recs = e.recommend(profile(), spec(0.5), List.of());
 
         for (int i = 1; i < recs.size(); i++) {
             Recommendation a = recs.get(i - 1);
             Recommendation b = recs.get(i);
-            assertTrue(a.score() > b.score()
-                    || (a.score() == b.score() && a.track().id().compareTo(b.track().id()) < 0));
+            assertTrue(a.score() >= b.score());
         }
     }
 
     @Test
-    void theResultDoesNotDependOnTheOrderSpotifyReturnsThings() {
-        FakeMusic forward = richMusic();
-        FakeMusic backward = richMusic();
-        backward.top = reversed(backward.top);
-        backward.byGenre.put("rock", reversed(backward.byGenre.get("rock")));
-        backward.recent = reversed(backward.recent);
-
-        List<Recommendation> a = engine(forward).recommend(profile(), spec(0.5), List.of());
-        List<Recommendation> b = engine(backward).recommend(profile(), spec(0.5), List.of());
-        List<Recommendation> again = engine(forward).recommend(profile(), spec(0.5), List.of());
+    void theSameInputGivesTheSameResult() {
+        List<Recommendation> a = engine(richMusic()).recommend(profile(), spec(0.5), List.of());
+        List<Recommendation> b = engine(richMusic()).recommend(profile(), spec(0.5), List.of());
 
         assertEquals(ids(a), ids(b));
-        assertEquals(ids(a), ids(again));
+    }
+
+    @Test
+    void equalScoresKeepSourceOrderNotTrackIdOrder() {
+        FakeMusic m = new FakeMusic();
+        m.byGenre.put("rock", List.of(track("z", "s1"), track("m", "s2"), track("a", "s3")));
+        RecommendationEngine e = engine(m);
+        e.setStrategy(new DiscoveryStrategy());
+
+        List<Recommendation> recs = e.recommend(profile(), spec(0.0), List.of());
+
+        assertEquals(List.of("z", "m", "a"), ids(recs));
+    }
+
+    @Test
+    void whenLibraryTracksAreNotAllowedNoStrategyRecommendsOne() {
+        for (var strategy : List.of(new FamiliarStrategy(), new DiscoveryStrategy(), new BalancedStrategy())) {
+            FakeMusic m = richMusic();
+            List<Track> mixed = new ArrayList<>(m.byGenre.get("rock"));
+            mixed.addAll(List.of(track("top0", "a1"), track("saved0", "a2"), track("rec0", "a1")));
+            m.byGenre.put("rock", mixed);
+            m.albumsByArtist.put("a1", List.of(new Album("alb1", "Album", "2020")));
+            m.tracksByAlbum.put("alb1", List.of(track("top1", "a1"), track("deep1", "a1"), track("deep2", "a1")));
+            RecommendationEngine e = engine(m);
+            e.setAllowLibraryTracks(false);
+            e.setStrategy(strategy);
+
+            for (double ratio : List.of(0.0, 0.5, 1.0)) {
+                List<Recommendation> recs = e.recommend(profile(), spec(ratio), List.of());
+                String label = strategy.getClass().getSimpleName() + " at " + ratio + ": " + ids(recs);
+                assertFalse(recs.isEmpty(), label);
+                assertTrue(ids(recs).stream().noneMatch(id -> List.of("top0", "top1", "top2", "saved0", "rec0").contains(id)), label);
+                assertTrue(recs.stream().noneMatch(r -> r.reason().contains("listening history")), label);
+            }
+        }
+    }
+
+    @Test
+    void libraryTracksCanBeSelectedWhenTheSettingAllowsIt() {
+        RecommendationEngine e = engine(richMusic());
+        e.setAllowLibraryTracks(true);
+        e.setStrategy(new FamiliarStrategy());
+
+        List<Recommendation> recs = e.recommend(profile(), spec(1.0), List.of());
+
+        assertEquals(5, recs.stream().filter(r -> r.reason().contains("listening history")).count());
+    }
+
+    @Test
+    void newTracksByKnownArtistsAreFamiliarWithATrueReason() {
+        FakeMusic m = new FakeMusic();
+        m.top = List.of(track("top0", "a1"));
+        m.albumsByArtist.put("a1", List.of(new Album("alb1", "Album", "2020")));
+        m.tracksByAlbum.put("alb1", List.of(track("top0", "a1"), track("deep1", "a1"), track("deep2", "a1")));
+        m.byGenre.put("rock", List.of(track("n1", "stranger")));
+        RecommendationEngine e = engine(m);
+        e.setAllowLibraryTracks(false);
+        e.setStrategy(new FamiliarStrategy());
+
+        List<Recommendation> recs = e.recommend(profile(), spec(1.0), List.of());
+
+        assertEquals(List.of("deep1", "deep2", "n1"), ids(recs));
+        for (Recommendation r : recs.subList(0, 2)) {
+            assertEquals(1.0, r.familiarity());
+            assertTrue(r.reason().contains("already listen") && r.reason().contains("album"), r.reason());
+            assertFalse(r.reason().contains("listening history"), r.reason());
+        }
+        assertEquals(0.0, recs.get(2).familiarity());
     }
 
     private static List<Track> reversed(List<Track> tracks) {
