@@ -42,6 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -207,7 +208,7 @@ class MusicAgentFacadeTest extends PostgresTestBase {
         ListeningProfile profile = facade(music, null).analyzeTaste(USER);
 
         assertTrue(profile.isPartial());
-        assertTrue(profile.notices().stream().anyMatch(n -> n.contains("500")), profile.notices().toString());
+        assertTrue(profile.notices().contains(config.wording("readFailedSavedTracks")), profile.notices().toString());
         assertEquals("pop", profile.topGenre());
     }
 
@@ -242,7 +243,43 @@ class MusicAgentFacadeTest extends PostgresTestBase {
         music.savedFailure = new MusicServiceException("down S");
 
         MusicServiceException e = assertThrows(MusicServiceException.class, () -> facade(music, null).analyzeTaste(USER));
-        assertTrue(e.getMessage().contains("down A"), e.getMessage());
+        assertEquals(config.wording("profileAllReadsFailed"), e.getMessage());
+        assertSame(music.artistsFailure, e.getCause(), "the original failure stays available as the cause");
+    }
+
+    private static final String RAW = "Spotify API error (HTTP 503) on GET https://api.spotify.com/v1/me/top/artists?limit=20"
+            + ": {\"error\":{\"status\":503,\"message\":\"upstream connect error\"}}";
+
+    private static final List<String> RAW_DETAILS = List.of("HTTP", "503", "http", "api.spotify", "upstream", "/v1", "GET");
+
+    /** No status, URL or response text; for stored JSON (which has braces of its own) only the details are checked. */
+    private static void assertNoRawDetail(String text) {
+        for (String raw : RAW_DETAILS) {
+            assertFalse(text.contains(raw), "found '" + raw + "' in: " + text);
+        }
+    }
+
+    private static void assertNothingRaw(String text) {
+        assertNoRawDetail(text);
+        assertFalse(text.contains("{") || text.contains("}"), "JSON in: " + text);
+    }
+
+    @Test
+    void aFailedReadShowsOnlyShortWordingInTheProfileTheStoredDataAndThePrompt() {
+        FakeMusic music = new FakeMusic();
+        music.savedFailure = new MusicServiceException(RAW, 503);
+        music.tracksFailure = new MusicServiceException(RAW, 503);
+        List<String> prompts = new ArrayList<>();
+        MemoryManager memory = memory();
+
+        ListeningProfile profile = facade(music, p -> { prompts.add(p); return "ok"; }, memory,
+                tools(music, memory, new ArrayList<>())).analyzeTaste(USER);
+
+        assertTrue(profile.notices().contains(config.wording("readFailedTopTracks")), profile.notices().toString());
+        profile.notices().forEach(MusicAgentFacadeTest::assertNothingRaw);
+        assertNoRawDetail(memory.loadHistory("user-1").get(0).derivedData());
+        prompts.forEach(MusicAgentFacadeTest::assertNothingRaw);
+        assertNothingRaw(profile.summary());
     }
 
     @Test
@@ -443,8 +480,32 @@ class MusicAgentFacadeTest extends PostgresTestBase {
 
         TrendReport r = facade(music, null, memory, tm).analyzeTrends(USER);
 
-        assertTrue(r.gaps().stream().anyMatch(g -> g.contains("medium") && g.contains("500")), r.gaps().toString());
+        assertTrue(r.gaps().contains(String.format(config.wording("trendRangeFailed"), "medium")), r.gaps().toString());
+        r.gaps().forEach(g -> assertFalse(g.contains("500"), g));
         assertFalse(r.addedGenres().isEmpty());
+    }
+
+    @Test
+    void aFailedTrendReadShowsNoRawErrorInTheGapsTheNarrativeOrThePrompt() {
+        FakeMusic music = trendMusic();
+        FakeMusic failing = new FakeMusic() {
+            @Override public List<Artist> getTopArtists(String range) {
+                if (range.equals("medium")) throw new MusicServiceException(RAW, 503);
+                return music.artistsByRange.get(range);
+            }
+        };
+        MemoryManager memory = memory();
+        ToolManager tm = new ToolManager();
+        SpotifyTool.allFor(failing).forEach(tm::register);
+        List<String> prompts = new ArrayList<>();
+
+        TrendReport r = facade(music, p -> { prompts.add(p); return "Your taste moved."; }, memory, tm).analyzeTrends(USER);
+
+        assertFalse(r.gaps().isEmpty());
+        r.gaps().forEach(MusicAgentFacadeTest::assertNothingRaw);
+        prompts.forEach(MusicAgentFacadeTest::assertNothingRaw);
+        assertNothingRaw(r.narrative());
+        assertNothingRaw(facade(music, null, memory, tm).analyzeTrends(USER).narrative());
     }
 
     @Test
@@ -583,9 +644,11 @@ class MusicAgentFacadeTest extends PostgresTestBase {
     @Test
     void aFailedSearchSaysWhy() {
         FakeMusic music = new FakeMusic();
-        music.searchFailure = new MusicServiceException("Spotify returned 500");
+        music.searchFailure = new MusicServiceException(RAW, 503);
         MusicServiceException e = assertThrows(MusicServiceException.class, () -> facade(music, null).searchMusic("jazz"));
-        assertTrue(e.getMessage().contains("500"), e.getMessage());
+        assertEquals(config.wording("searchFailed"), e.getMessage());
+        assertNothingRaw(e.getMessage());
+        assertSame(music.searchFailure, e.getCause(), "the original failure stays available as the cause");
     }
 
     @Test

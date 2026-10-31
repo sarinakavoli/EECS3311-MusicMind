@@ -34,7 +34,7 @@ public class ToolManager {
             throw e;
         } catch (RuntimeException e) {
             String reason = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-            return ToolResult.failure(toolName + " failed: " + reason);
+            return ToolResult.failure(toolName + " failed: " + reason, e);
         }
     }
 }

@@ -22,16 +22,19 @@ public class TrendComparator {
 
     private final ProfileBuilder profileBuilder;
     private final int minItems;
+    private final Config config;
 
     public TrendComparator(ProfileBuilder profileBuilder, Config config) {
         this.profileBuilder = profileBuilder;
         this.minItems = config.profileMinItems();
+        this.config = config;
     }
 
     /**
      * @param artistsByRange top artists per range, ordered newest first; a range with no
      *                       data (or that failed to load) maps to an empty list
-     * @param fetchErrors    range to reason, for ranges whose read failed
+     * @param fetchErrors    ranges whose read failed (the values are not shown: the gap uses the
+     *                       configured short wording, never the raw error)
      * @return a report without a narrative
      */
     public TrendReport compare(Map<String, List<Artist>> artistsByRange, Map<String, String> fetchErrors) {
@@ -42,7 +45,7 @@ public class TrendComparator {
         artistsByRange.forEach((range, artists) -> {
             genresByRange.put(range, profileBuilder.computeGenreHistogram(artists));
             if (fetchErrors.containsKey(range)) {
-                gaps.add("The " + range + " range could not be read: " + fetchErrors.get(range));
+                gaps.add(String.format(config.wording("trendRangeFailed"), range));
             } else if (artists.isEmpty()) {
                 gaps.add("No top artists for the " + range + " range.");
             } else {

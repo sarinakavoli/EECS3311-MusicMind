@@ -127,9 +127,9 @@ public class MusicAgentFacade {
         Objects.requireNonNull(user, "user");
         String r = normalizeRange(range);
 
-        Fetch<Artist> artists = fetch(TOP_ITEMS, Map.of("type", "artists", "range", r), "Top artists");
-        Fetch<Track> topTracks = fetch(TOP_ITEMS, Map.of("type", "tracks", "range", r), "Top tracks");
-        Fetch<Track> saved = fetch(SAVED_TRACKS, Map.of(), "Saved tracks");
+        Fetch<Artist> artists = fetch(TOP_ITEMS, Map.of("type", "artists", "range", r), "readFailedTopArtists");
+        Fetch<Track> topTracks = fetch(TOP_ITEMS, Map.of("type", "tracks", "range", r), "readFailedTopTracks");
+        Fetch<Track> saved = fetch(SAVED_TRACKS, Map.of(), "readFailedSavedTracks");
 
         List<String> errors = Fetch.errors(artists, topTracks, saved);
         List<String> notices = new ArrayList<>(errors);
@@ -137,8 +137,8 @@ public class MusicAgentFacade {
             notices.add(savedTracksCappedNotice());
         }
         if (errors.size() == 3) {
-            throw new MusicServiceException("Could not read your Spotify listening data. "
-                    + String.join(" ", errors));
+            throw new MusicServiceException(config.wording("profileAllReadsFailed"),
+                    Fetch.firstCause(artists, topTracks, saved));
         }
         ListeningProfile built = profileBuilder.build(
                 new TopItems(artists.items(), topTracks.items()), saved.items(), notices);
@@ -179,7 +179,7 @@ public class MusicAgentFacade {
         Map<String, List<Artist>> byRange = new LinkedHashMap<>();
         Map<String, String> errors = new LinkedHashMap<>();
         for (String range : config.profileRanges()) {
-            Fetch<Artist> f = fetch(TOP_ITEMS, Map.of("type", "artists", "range", range), "Top artists");
+            Fetch<Artist> f = fetch(TOP_ITEMS, Map.of("type", "artists", "range", range), "readFailedTopArtists");
             byRange.put(range, f.items());
             if (f.error() != null) {
                 errors.put(range, f.error());
@@ -235,7 +235,7 @@ public class MusicAgentFacade {
         ToolResult result = tools.execute("search",
                 Map.of("query", query.toSpotifyQuery(), "limit", config.searchResultLimit()));
         if (!result.ok()) {
-            throw new MusicServiceException("Search failed: " + result.error());
+            throw new MusicServiceException(config.wording("searchFailed"), result.cause());
         }
         @SuppressWarnings("unchecked")
         List<Track> results = (List<Track>) result.payload();
@@ -344,8 +344,17 @@ public class MusicAgentFacade {
         return r;
     }
 
-    /** A tool's list payload, or the reason it could not be read. */
-    private record Fetch<T>(List<T> items, String error) {
+    /** A tool's list payload, or the short wording for why it could not be read (and the original failure). */
+    private record Fetch<T>(List<T> items, String error, Throwable cause) {
+        static Throwable firstCause(Fetch<?>... fetches) {
+            for (Fetch<?> f : fetches) {
+                if (f.cause != null) {
+                    return f.cause;
+                }
+            }
+            return null;
+        }
+
         static List<String> errors(Fetch<?>... fetches) {
             List<String> out = new ArrayList<>();
             for (Fetch<?> f : fetches) {
@@ -358,12 +367,13 @@ public class MusicAgentFacade {
     }
 
     @SuppressWarnings("unchecked")
-    private <T> Fetch<T> fetch(String tool, Map<String, Object> args, String what) {
+    private <T> Fetch<T> fetch(String tool, Map<String, Object> args, String failureWording) {
         ToolResult result = tools.execute(tool, args);
         if (!result.ok()) {
-            return new Fetch<>(List.of(), what + " could not be read: " + result.error());
+            // The raw error stays on the cause; nothing from it reaches a notice, stored data or a prompt.
+            return new Fetch<>(List.of(), config.wording(failureWording), result.cause());
         }
-        return new Fetch<>((List<T>) result.payload(), null);
+        return new Fetch<>((List<T>) result.payload(), null, null);
     }
 
     private ListeningProfile withSummary(ListeningProfile p) {

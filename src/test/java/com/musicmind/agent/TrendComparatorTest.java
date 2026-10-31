@@ -91,11 +91,10 @@ class TrendComparatorTest {
     }
 
     @Test
-    void aRangeThatFailedToLoadIsReportedWithItsReasonInsteadOfAsEmpty() {
+    void aRangeThatFailedToLoadIsReportedAsFailedInsteadOfEmptyWithoutTheRawReason() {
         TrendReport r = comparator.compare(
                 ranges(full(artist("a", "pop")), List.of(), full(artist("b", "rock"))),
-                Map.of("medium", "boom"));
-        assertEquals(1, r.gaps().size());
-        assertTrue(r.gaps().get(0).contains("medium") && r.gaps().get(0).contains("boom"), r.gaps().get(0));
+                Map.of("medium", "Spotify API error (HTTP 500) on GET /me/top/artists: {boom}"));
+        assertEquals(List.of("The medium range could not be read from Spotify."), r.gaps());
     }
 }
