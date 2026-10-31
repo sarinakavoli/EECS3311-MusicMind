@@ -44,7 +44,7 @@ class MemoryManagerTest extends PostgresTestBase {
         assertFalse(prefs.get(0).explicitAllowed());
         assertTrue(memory.isAvailable());
         assertNull(memory.warning());
-        // another user has nothing saved: gets defaults only if DB is down, otherwise empty
+        // a user with nothing saved gets an empty list (defaults apply only when the database is down)
         assertTrue(memory.loadPreferences("someone-else").isEmpty());
     }
 
