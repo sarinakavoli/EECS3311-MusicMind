@@ -427,6 +427,11 @@ public final class Config {
         return integer("profile.minItems");
     }
 
+    /** A stored profile older than this many hours is rebuilt before discovery uses it. */
+    public int profileMaxAgeHours() {
+        return integer("profile.maxAgeHours");
+    }
+
     public int profileFallbackGenres() {
         return integer("profile.fallbackGenres");
     }

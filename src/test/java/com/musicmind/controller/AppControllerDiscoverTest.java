@@ -109,6 +109,72 @@ class AppControllerDiscoverTest extends PostgresTestBase {
         assertTrue(second.stream().allMatch(r -> !r.reason().isBlank()));
     }
 
+    /** Six top artists alternate rock and jazz; each has one album with a new track; searches return known and unknown artists. */
+    private static class VariedMusic extends Music {
+        @Override public List<Artist> getTopArtists(String r) {
+            return IntStream.range(0, 6).mapToObj(i ->
+                    new Artist("a" + i, "N" + i, List.of(i % 2 == 0 ? "rock" : "jazz"))).toList();
+        }
+        @Override public List<com.musicmind.domain.Album> getArtistAlbums(String id) {
+            return List.of(new com.musicmind.domain.Album("al-" + id, "Album", "2020"));
+        }
+        @Override public List<Track> getAlbumTracks(String albumId) {
+            String artist = albumId.substring("al-".length());
+            return List.of(new Track("new-" + artist, "spotify:track:new-" + artist, "New", 1000, false, List.of(artist)));
+        }
+        @Override public List<Track> search(String query, int limit) {
+            return IntStream.range(0, 12).mapToObj(i -> new Track("n" + i, "spotify:track:n" + i, "N" + i, 1000, false,
+                    List.of(i % 3 == 0 ? "a" + (i % 6) : "x" + i))).toList();
+        }
+    }
+
+    @Test
+    void aStoredProfileScoresTheSameAsAFreshOne() {
+        AppController c = controller(new VariedMusic());
+        PlaylistSpec spec = c.discoverSpec(0.5);
+
+        List<Recommendation> fresh = c.discover(spec);   // no stored profile yet: built just now
+        List<Recommendation> stored = c.discover(spec);  // read back from the stored session
+
+        assertFalse(fresh.isEmpty());
+        assertEquals(fresh, stored, "same tracks, reasons, familiarity and scores");
+        assertTrue(fresh.stream().anyMatch(r -> r.familiarity() == 1.0), "known-artist picks depend on stored track artists");
+    }
+
+    private static final String OLD_FORMAT = "{\"range\":\"medium\",\"genreHistogram\":{\"rock\":1.0},"
+            + "\"artistIds\":[\"a0\",\"a1\"],\"trackIds\":[\"t0\"],\"savedTrackIds\":[],\"summary\":\"s\","
+            + "\"partial\":false,\"notices\":[],\"generatedAt\":\"%s\"}";
+
+    private void storeProfile(String generatedAt) {
+        com.musicmind.domain.AgentSession s = new com.musicmind.domain.AgentSession(
+                java.util.UUID.randomUUID().toString(), java.time.Instant.now(), null);
+        s.setStatus("done");
+        s.setRequest(new com.musicmind.domain.AgentRequest("view taste profile (medium)",
+                com.musicmind.domain.RequestKind.ANALYZE_TASTE));
+        s.setDerivedData(String.format(OLD_FORMAT, generatedAt));
+        memory(db).saveSession(s);
+    }
+
+    @Test
+    void aStoredProfileOlderThanTheLimitIsRebuilt() {
+        storeProfile(java.time.Instant.now().minus(java.time.Duration.ofHours(config.profileMaxAgeHours() + 1)).toString());
+        AppController c = controller(new Music());
+
+        c.discover(c.discoverSpec(0.5));
+
+        assertEquals(2, c.memory().loadHistory("sp-user").size(), "a new profile was built and stored");
+    }
+
+    @Test
+    void aRecentStoredProfileInTheOldFormatStillLoadsAndIsReused() {
+        storeProfile(java.time.Instant.now().minus(java.time.Duration.ofHours(1)).toString());
+        AppController c = controller(new Music());
+
+        c.discover(c.discoverSpec(0.5));
+
+        assertEquals(1, c.memory().loadHistory("sp-user").size(), "the stored profile was reused");
+    }
+
     @Test
     void discoverNeverCallsTheLlm() {
         AtomicInteger calls = new AtomicInteger();

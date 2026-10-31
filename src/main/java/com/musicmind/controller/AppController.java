@@ -38,6 +38,7 @@ import com.musicmind.tool.MemoryTool;
 import com.musicmind.tool.SpotifyTool;
 import com.musicmind.tool.ToolManager;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -237,12 +238,15 @@ public class AppController {
 
     /**
      * F4 — recommendations for the logged-in user (signing in if needed). The taste profile is the
-     * stored one, or is built when there is none yet. Nothing is persisted.
+     * stored one, or is built when there is none yet or the stored one is older than
+     * {@code profile.maxAgeHours}. Discovery itself persists nothing.
      */
     public List<Recommendation> discover(PlaylistSpec spec) {
         requireSpotify();
         User user = currentUser != null ? currentUser : login();
-        ListeningProfile profile = facade.lastProfile(user).filter(p -> !p.isEmpty())
+        Instant oldest = Instant.now().minus(Duration.ofHours(config.profileMaxAgeHours()));
+        ListeningProfile profile = facade.lastProfile(user)
+                .filter(p -> !p.isEmpty() && p.generatedAt() != null && p.generatedAt().isAfter(oldest))
                 .orElseGet(() -> facade.analyzeTaste(user));
         return facade.discover(profile, spec);
     }

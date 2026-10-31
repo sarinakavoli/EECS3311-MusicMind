@@ -430,6 +430,13 @@ public class MusicAgentFacade {
         derived.put("genreHistogram", p.genreHistogram());
         derived.put("artistIds", p.topArtists().stream().map(Artist::id).toList());
         derived.put("trackIds", p.topTracks().stream().map(Track::id).toList());
+        // Genres (from MusicBrainz) and track-artist links are derived data; they let a stored profile score like a fresh one.
+        Map<String, List<String>> artistGenres = new LinkedHashMap<>();
+        p.topArtists().stream().filter(a -> !a.genres().isEmpty()).forEach(a -> artistGenres.put(a.id(), a.genres()));
+        derived.put("artistGenres", artistGenres);
+        Map<String, List<String>> trackArtists = new LinkedHashMap<>();
+        p.topTracks().stream().filter(t -> !t.artistIds().isEmpty()).forEach(t -> trackArtists.put(t.id(), t.artistIds()));
+        derived.put("trackArtistIds", trackArtists);
         derived.put("savedTrackIds", p.savedTrackIds());
         derived.put("summary", p.summary());
         derived.put("partial", p.isPartial());
@@ -450,10 +457,14 @@ public class MusicAgentFacade {
             Map<String, Double> histogram = new LinkedHashMap<>();
             o.getAsJsonObject("genreHistogram").entrySet()
                     .forEach(e -> histogram.put(e.getKey(), e.getValue().getAsDouble()));
+            // Profiles stored before genres and track artists were kept lack these maps and load without them.
+            Map<String, List<String>> artistGenres = stringLists(o, "artistGenres");
+            Map<String, List<String>> trackArtists = stringLists(o, "trackArtistIds");
             List<Artist> artists = strings(o, "artistIds").stream()
-                    .map(id -> new Artist(id, "", List.of())).toList();
+                    .map(id -> new Artist(id, "", artistGenres.getOrDefault(id, List.of()))).toList();
             List<Track> tracks = strings(o, "trackIds").stream()
-                    .map(id -> new Track(id, "spotify:track:" + id, "", 0, false, List.of())).toList();
+                    .map(id -> new Track(id, "spotify:track:" + id, "", 0, false,
+                            trackArtists.getOrDefault(id, List.of()))).toList();
             String summary = o.has("summary") && !o.get("summary").isJsonNull() ? o.get("summary").getAsString() : null;
             Instant at = o.has("generatedAt") && !o.get("generatedAt").isJsonNull()
                     ? Instant.parse(o.get("generatedAt").getAsString()) : null;
@@ -467,6 +478,18 @@ public class MusicAgentFacade {
                  | java.time.format.DateTimeParseException e) {
             return Optional.empty();
         }
+    }
+
+    private static Map<String, List<String>> stringLists(JsonObject o, String key) {
+        Map<String, List<String>> out = new LinkedHashMap<>();
+        if (o.has(key) && o.get(key).isJsonObject()) {
+            o.getAsJsonObject(key).entrySet().forEach(e -> {
+                List<String> values = new ArrayList<>();
+                e.getValue().getAsJsonArray().forEach(v -> values.add(v.getAsString()));
+                out.put(e.getKey(), values);
+            });
+        }
+        return out;
     }
 
     private static List<String> strings(JsonObject o, String key) {
