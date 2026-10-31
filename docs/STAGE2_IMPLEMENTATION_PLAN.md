@@ -20,6 +20,7 @@ Dates are Toronto time. Each day ends with real commits pushed to GitHub, and a 
 | Sat Oct 31 (added) | Task 18: MusicBrainz genres, run before Task 9 | `profile --refresh` shows genres |
 | Sat Oct 31 (added) | Task 19: search fix, run before Task 9 | `search` returns tracks |
 | Sat Oct 31 (added) | Task 20: discovery fix, run before Task 9 | `discover` shows only tracks new to you |
+| Sat Oct 31 (added) | Task 21: PR review fixes, run before Task 9 | `discover` and `profile` still work |
 | Sun Nov 1 | Tasks 9-12: F5, F6, F7, F10, F11, F12, full CLI | `create`, `modify`, `undo`, `validate`, `explain`, `history`, `restore` |
 | Mon Nov 2 | Tasks 13-17: GUI, docs, UML, report, final review, merge | All GUI tabs, README setup, report PDF |
 | Nov 3-9 | Buffer: fixes from Sarina's testing (real code commits only), video links added to the report | Videos recorded |
@@ -278,6 +279,23 @@ Run before Task 9. Live test of `discover`: 13 of 20 results came from the user'
 - Delete the leftover untracked files `agent/ProfileSummarizer.java`, `controller/TasteProfileResult.java`, `ProfileSummarizerTest.java` and `ProfileSummarizerNoProviderTest.java`, which Task 6 already removed from git.
 
 Tests: no recommended track is in the library, with all three strategies; library tracks allowed when the setting allows them; known-artist new tracks count as familiar with a true reason; adapter sends limit 10 for artist albums and 50 for album tracks; equal scores keep source order; Notice contains no HTTP status, URL or JSON.
+
+### Task 21: PR review fixes
+
+Run before Task 9. Fix all ten findings from the PR #1 code review. All numbers go in `musicmind.properties`; all user-facing wording too.
+
+1. **Stored profile.** `derivedJson` also stores each top artist's genres and each top track's artist ids (identifiers and derived data only, never names), and `parseDerived` restores them, so a stored profile scores the same as a fresh one. `AppController.discover` rebuilds the profile when the stored one is older than `profile.maxAgeHours` (default 24).
+2. **Retried batches.** A failed batch must never re-send earlier batches. `RetryingMusicService.addItems` and `removeItems` split into `spotify.addBatchSize` batches and retry each batch on its own.
+3. **`removeItems` over 100.** Batch it, through the same mechanism as item 2.
+4. **`OAuthTokenStore.accessToken`.** Only a 400 or 401 from the token endpoint clears the refresh token and falls back to the browser. Any other failure is rethrown, as `forceRefresh` already does.
+5. **Saved tracks cap.** Add `spotify.maxSavedTracks` (default 5000) for `getSavedTracks`. If the cap is reached, the profile and discover show a notice saying some saved tracks were not checked.
+6. **Same-name artists.** If more than one candidate passes the name and score checks, return no genres instead of the first. Log nothing about it to the user. This is a cached no-match.
+7. **Raw errors.** F1, F2 and F3 show short messages from `musicmind.properties` with no status, URL or response text. Nothing raw goes into `derived_json`, trend gaps or LLM prompts. Keep the cause on the exception.
+8. **Token file.** Create and rewrite `.spotify-tokens.json` as owner-only (rw-------), tightening an existing file. Where POSIX permissions are unsupported, keep working.
+9. **MusicBrainz outage.** After `musicbrainz.maxConsecutiveFailures` (default 2) failed lookups, skip lookups for `musicbrainz.cooldownSeconds` (default 300) so a run finishes quickly. Skipped lookups are not cached and count as failures for the existing notice.
+10. **Callback page.** HTML-escape everything put in the page. Also ignore a callback whose `state` does not match instead of aborting the login.
+
+Tests for each item, including: stored and fresh profiles give equal scores; profile older than the limit is rebuilt; a 429 on batch 2 re-sends only batch 2; removing 250 URIs sends 3 requests; a 500 on refresh opens no browser; saved-track cap notice; two exact-name candidates give no genres; no status, URL or JSON in F1, F2 or F3 output or `derived_json`; token file permissions; lookups stop after the failure limit and resume after the cooldown; script in `error` is escaped; wrong `state` does not abort login.
 
 ### Task 14: Documentation and conformance
 
