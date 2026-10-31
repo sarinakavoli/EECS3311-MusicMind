@@ -28,7 +28,7 @@ No new user-facing features today, so there is one check.
 env -u JAVA_HOME ./gradlew build
 ```
 
-**Expected:** `BUILD SUCCESSFUL`, with 285 tests passing. No keys or database server are needed for this step.
+**Expected:** `BUILD SUCCESSFUL`, with about 400 tests passing. No keys or database server are needed for this step.
 
 ### 2. Taste profile (F1)
 
@@ -149,8 +149,8 @@ brew services start postgresql@17
 **Verified:** the build and 285 automated tests, using stand-in Spotify and LLM services and an embedded database. On the CLI itself, only `help` and the usage messages for `prefs` and `feedback` were run.
 
 **Not verified live:**
-- Nothing has run against real Spotify or OpenAI. The commands above, from `profile` onwards, have never run on your account.
-- Artist genres are the main risk. If `profile` shows `(no genre data)` even with plenty of listening history, Spotify is probably not returning genres for this app, and that also weakens `trends` and `discover`. Tell me if you see it.
+- `prefs` and `feedback` have not been checked on your account yet.
+- Update (Oct 31): Spotify sends no genres to this app, so they now come from MusicBrainz. `profile`, `trends`, `search` and `discover` have since run live. Expect a notice saying how many of your top artists had genre data.
 - A very short `discover` list, or one with widening notices, depends on what Spotify returns for your account. Tell me if it looks wrong.
 - The GUI was only kept compiling. Its screens for these features arrive with Task 13.
 - `create`, `modify`, `validate`, `explain` and `history` still print "implemented in a later phase". They arrive on Sunday.
