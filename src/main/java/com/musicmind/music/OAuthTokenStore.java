@@ -15,10 +15,13 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -100,9 +103,14 @@ public class OAuthTokenStore {
             try {
                 refresh();
                 return accessToken;
-            } catch (RuntimeException e) {
-                // Refresh token expired/revoked — fall back to a full re-auth.
+            } catch (MusicServiceException e) {
+                // Only a rejected refresh token (expired or revoked) means a new login is needed;
+                // a 429, 5xx or network failure is rethrown for the retry decorator, not a reason to open a browser.
+                if (e.statusCode() != 400 && e.statusCode() != 401) {
+                    throw e;
+                }
                 refreshToken = null;
+                saveCache();
             }
         }
         authorize();
@@ -179,13 +187,15 @@ public class OAuthTokenStore {
             String code = param(query, "code");
             String returnedState = param(query, "state");
             String error = param(query, "error");
+            boolean genuine = expectedState.equals(returnedState);
+            boolean ok = genuine && error == null && code != null;
             String body;
-            boolean ok = error == null && code != null && expectedState.equals(returnedState);
             if (ok) {
                 body = html("MusicMind is connected to Spotify.", "You can close this tab and return to the app.");
+            } else if (!genuine) {
+                body = html("Spotify authorization failed.", "This request did not come from your login, so it was ignored.");
             } else {
-                body = html("Spotify authorization failed.",
-                        error != null ? error : "Missing or mismatched authorization code.");
+                body = html("Spotify authorization failed.", error != null ? error : "Missing authorization code.");
             }
             byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().add("Content-Type", "text/html; charset=utf-8");
@@ -194,7 +204,8 @@ public class OAuthTokenStore {
             exchange.close();
             if (ok) {
                 codeFuture.complete(code);
-            } else {
+            } else if (genuine) {
+                // A stray request with another state must not abort the real login; only our own state can.
                 codeFuture.completeExceptionally(new MusicServiceException(
                         "Spotify authorization failed: " + (error != null ? error : "bad callback")));
             }
@@ -232,14 +243,14 @@ public class OAuthTokenStore {
                 + "&redirect_uri=" + enc(redirectUri)
                 + "&client_id=" + enc(clientId)
                 + "&code_verifier=" + enc(verifier);
-        storeTokens(postToken(form), true);
+        storeTokens(postToken(form));
     }
 
     private void refresh() {
         String form = "grant_type=refresh_token"
                 + "&refresh_token=" + enc(refreshToken)
                 + "&client_id=" + enc(clientId);
-        storeTokens(postToken(form), false);
+        storeTokens(postToken(form));
     }
 
     private JsonObject postToken(String form) {
@@ -261,7 +272,7 @@ public class OAuthTokenStore {
         }
     }
 
-    private void storeTokens(JsonObject json, boolean expectRefresh) {
+    private void storeTokens(JsonObject json) {
         this.accessToken = json.get("access_token").getAsString();
         int expiresIn = json.has("expires_in") ? json.get("expires_in").getAsInt() : 3600;
         this.expiresAt = Instant.now().plusSeconds(expiresIn);
@@ -286,13 +297,29 @@ public class OAuthTokenStore {
         }
     }
 
+    private static final Set<PosixFilePermission> OWNER_ONLY = PosixFilePermissions.fromString("rw-------");
+
+    /** Best effort. The file holds a refresh token, so it is created and kept readable by its owner only. */
     private void saveCache() {
         try {
             JsonObject json = new JsonObject();
             if (refreshToken != null) json.addProperty("refresh_token", refreshToken);
+            restrictToOwner();
             Files.writeString(tokenCache, gson.toJson(json));
         } catch (Exception ignored) {
             // caching is best-effort
+        }
+    }
+
+    /** Creates the file as rw------- or tightens an existing one before any token is written; no-op without POSIX permissions. */
+    private void restrictToOwner() throws java.io.IOException {
+        if (!tokenCache.getFileSystem().supportedFileAttributeViews().contains("posix")) {
+            return;
+        }
+        if (Files.exists(tokenCache)) {
+            Files.setPosixFilePermissions(tokenCache, OWNER_ONLY);
+        } else {
+            Files.createFile(tokenCache, PosixFilePermissions.asFileAttribute(OWNER_ONLY));
         }
     }
 
@@ -333,7 +360,12 @@ public class OAuthTokenStore {
         return "<!doctype html><html><head><meta charset=\"utf-8\"><title>MusicMind</title></head>"
                 + "<body style=\"font-family:system-ui;margin:0;display:flex;height:100vh;"
                 + "align-items:center;justify-content:center;background:#121212;color:#fff\">"
-                + "<div style=\"text-align:center\"><h1 style=\"color:#1DB954\">" + title + "</h1>"
-                + "<p>" + subtitle + "</p></div></body></html>";
+                + "<div style=\"text-align:center\"><h1 style=\"color:#1DB954\">" + escape(title) + "</h1>"
+                + "<p>" + escape(subtitle) + "</p></div></body></html>";
+    }
+
+    private static String escape(String text) {
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                .replace("\"", "&quot;").replace("'", "&#39;");
     }
 }

@@ -13,15 +13,20 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.security.MessageDigest;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class OAuthTokenStoreTest {
 
@@ -145,6 +150,137 @@ class OAuthTokenStoreTest {
             assertEquals(consent.get("code_challenge"), Base64.getUrlEncoder().withoutPadding().encodeToString(digest));
             assertEquals("tok1", store.accessToken());
             assertTrue(Files.readString(cache).contains("refresh-1"), "new refresh token is cached");
+        }
+    }
+
+    // ---- accessToken: only a rejected refresh token falls back to the browser ----
+
+    @Test
+    void accessTokenRejectedWith400Or401ClearsTheRefreshTokenAndOpensTheBrowser() throws Exception {
+        for (int status : new int[]{400, 401}) {
+            try (FakeSpotifyServer server = new FakeSpotifyServer()) {
+                AtomicBoolean opened = new AtomicBoolean();
+                OAuthTokenStore store = storeWithCachedRefreshToken(server, url -> {
+                    opened.set(true);
+                    throw new IllegalStateException("no browser in tests");
+                });
+                server.failTokenEndpointWith(status);
+
+                assertThrows(MusicServiceException.class, store::accessToken);
+
+                assertTrue(opened.get(), "HTTP " + status + " means log in again");
+                assertFalse(Files.readString(dir.resolve("tokens.json")).contains("refresh-1"), "refresh token cleared");
+            }
+        }
+    }
+
+    @Test
+    void accessTokenFailingWithAnotherStatusIsRethrownWithoutOpeningTheBrowser() throws Exception {
+        for (int status : new int[]{429, 500, 503}) {
+            try (FakeSpotifyServer server = new FakeSpotifyServer()) {
+                AtomicBoolean opened = new AtomicBoolean();
+                OAuthTokenStore store = storeWithCachedRefreshToken(server, url -> opened.set(true));
+                server.failTokenEndpointWith(status);
+
+                MusicServiceException e = assertThrows(MusicServiceException.class, store::accessToken);
+
+                assertEquals(status, e.statusCode());
+                assertFalse(opened.get(), "HTTP " + status + " must not start a login");
+                server.failTokenEndpointWith(200);
+                assertEquals("tok1", store.accessToken(), "the refresh token survived");
+            }
+        }
+    }
+
+    private OAuthTokenStore storeWithCachedRefreshToken(FakeSpotifyServer server, java.util.function.Consumer<String> browser)
+            throws IOException {
+        Path cache = dir.resolve("tokens.json");
+        Files.writeString(cache, "{\"refresh_token\":\"refresh-1\"}");
+        return new OAuthTokenStore("client", "http://127.0.0.1:8080/callback", cache, server.tokenUrl(), browser);
+    }
+
+    // ---- token file permissions ----
+
+    private static final Set<PosixFilePermission> OWNER_ONLY = PosixFilePermissions.fromString("rw-------");
+
+    @Test
+    void theTokenFileIsCreatedReadableByTheOwnerOnly() throws Exception {
+        assumeTrue(dir.getFileSystem().supportedFileAttributeViews().contains("posix"));
+        try (FakeSpotifyServer server = new FakeSpotifyServer()) {
+            OAuthTokenStore store = server.tokenStore(dir);
+            Files.delete(dir.resolve("tokens.json"));
+            store.forceRefresh();
+
+            assertEquals(OWNER_ONLY, Files.getPosixFilePermissions(dir.resolve("tokens.json")));
+            assertTrue(Files.readString(dir.resolve("tokens.json")).contains("refresh-1"));
+        }
+    }
+
+    @Test
+    void anExistingTokenFileIsTightenedWhenRewritten() throws Exception {
+        assumeTrue(dir.getFileSystem().supportedFileAttributeViews().contains("posix"));
+        try (FakeSpotifyServer server = new FakeSpotifyServer()) {
+            OAuthTokenStore store = server.tokenStore(dir);
+            Files.setPosixFilePermissions(dir.resolve("tokens.json"), PosixFilePermissions.fromString("rw-r--r--"));
+
+            store.forceRefresh();
+
+            assertEquals(OWNER_ONLY, Files.getPosixFilePermissions(dir.resolve("tokens.json")));
+        }
+    }
+
+    // ---- the callback page ----
+
+    private String redirect() throws IOException {
+        try (ServerSocket s = new ServerSocket(0)) {
+            return "http://127.0.0.1:" + s.getLocalPort() + "/callback";
+        }
+    }
+
+    private static HttpResponse<String> get(String url) {
+        try {
+            return HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create(url)).build(),
+                    HttpResponse.BodyHandlers.ofString());
+        } catch (IOException | InterruptedException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    @Test
+    void textInTheErrorParameterIsEscapedInTheCallbackPage() throws Exception {
+        String redirect = redirect();
+        String[] page = new String[1];
+        try (FakeSpotifyServer server = new FakeSpotifyServer()) {
+            OAuthTokenStore store = new OAuthTokenStore("client", redirect, dir.resolve("t.json"), server.tokenUrl(), url -> {
+                String state = form(URI.create(url).getRawQuery()).get("state");
+                page[0] = get(redirect + "?error=" + java.net.URLEncoder.encode("<script>alert(1)</script>", StandardCharsets.UTF_8)
+                        + "&state=" + state).body();
+            });
+
+            assertThrows(MusicServiceException.class, store::login);
+
+            assertFalse(page[0].contains("<script>"), page[0]);
+            assertTrue(page[0].contains("&lt;script&gt;alert(1)&lt;/script&gt;"), page[0]);
+        }
+    }
+
+    @Test
+    void aCallbackWithTheWrongStateIsIgnoredAndTheLoginStillCompletes() throws Exception {
+        String redirect = redirect();
+        int[] wrongStatus = new int[1];
+        try (FakeSpotifyServer server = new FakeSpotifyServer()) {
+            OAuthTokenStore store = new OAuthTokenStore("client", redirect, dir.resolve("t.json"), server.tokenUrl(), url -> {
+                String state = form(URI.create(url).getRawQuery()).get("state");
+                wrongStatus[0] = get(redirect + "?code=evil&state=not-" + state).statusCode();
+                get(redirect + "?error=access_denied&state=other");
+                get(redirect + "?code=abc&state=" + state);
+            });
+
+            store.login();
+
+            assertEquals(400, wrongStatus[0]);
+            assertEquals("abc", form(server.tokenRequests.get(0)).get("code"), "only the genuine callback was used");
+            assertEquals("tok1", store.accessToken());
         }
     }
 }
