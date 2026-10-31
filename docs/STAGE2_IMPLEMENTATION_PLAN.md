@@ -87,6 +87,7 @@ Stage 1 is internally inconsistent or silent in these places. These decisions bi
 | R17 | Stage 1 lists `MockLLMProvider`; Stage 2 rejects hard-coded responses. | `MockLLMProvider` stays as a test double and is never created by `AppController`. With no `LLM_API_KEY`, features needing the LLM say so; features with a Stage 1 fallback (F1, F2 wording, F3 keyword search) use it and label it. |
 | R18 | Stage 1 takes genres from Spotify artist metadata, but live testing on Oct 31 showed Spotify returns no `genres` field to this Development Mode app. | Genres come from MusicBrainz through `GenreEnrichingMusicService`, a Decorator over `MusicService`. Aggregation stays deterministic and the LLM does not supply genres. Documented as a Stage 2 change. |
 | R19 | Stage 1 F3 and F4 use genre in Spotify searches, but live testing on Oct 31 showed the `genre:` filter returns 0-1 tracks where plain keywords return 20. | Genre stays a field of `SearchQuery` and in ranking, but is sent to Spotify as a plain keyword, never as a `genre:` filter. Documented as a Stage 2 change. |
+| R20 | Stage 1 lists the main classes only. Some supporting classes are not in its diagram. | Keep small supporting classes where they keep a Stage 1 class focused. No Stage 1 name, signature or responsibility changes to make room for one. Every class or member beyond Stage 1 appears in the updated UML and in `docs/STAGE2_PLAN.md` with Original → Change → Reason → Impact, plus the live evidence where a change came from testing. |
 
 ## File map
 
@@ -283,6 +284,7 @@ Tests: no recommended track is in the library, with all three strategies; librar
 - `docs/STAGE2_PLAN.md`: rewrite changes as Original design → Implemented change → Reason → Impact. Remove the SQLite and Gemini entries; add R1-R17 additive changes and the Gradle/JavaFX changes; update phases.
 - `README.md` per the Stage 2 checklist: prerequisites, dependency installation, PostgreSQL setup (`CREATE ROLE`/`CREATE DATABASE`), copying `.env.example` and entering keys locally, GUI and CLI launch commands, example usage. Update `CLAUDE.md`, `src/README.md`, `.env.example`. Follow the README from scratch to prove it works.
 - `docs/AI_COLLABORATION_LOG.md`: tool, model, tasks, and token/money cost rows (blank cost cells clearly marked for Sarina), plus representative interactions.
+- `docs/STAGE1_CONFORMANCE.md` also lists every difference from Stage 1 (R1-R20 and all added classes) with its justification, so nothing is left unexplained.
 - `docs/STAGE1_CONFORMANCE.md`: every F1-F12 row from the Stage 1 traceability table → actual classes, methods, tests, CLI and GUI entry, status.
 - Add safe sample data if any feature needs it to reproduce. Remove remaining SQLite or Gemini references with a repo-wide grep.
 
