@@ -31,7 +31,7 @@ import java.util.Set;
  * The Context of the Strategy pattern and the project's own recommender (F4). Spotify's
  * recommendation endpoint is not available, so candidates come from the user's listening data:
  * their top, saved and recently played tracks (the familiar pool unless disabled by
- * {@link #setAllowLibraryTracks}, in which case it holds new tracks by known artists), genre-adjacent searches and
+ * {@code allowLibraryTracks == false}, in which case it holds new tracks by known artists), genre-adjacent searches and
  * the albums of their top artists (the novel pool). The engine filters blocked artists and
  * unwanted explicit tracks, lets the current {@link RecommendationStrategy} pick, then scores and
  * orders what was picked. Everything is deterministic and no LLM is involved.
@@ -56,6 +56,7 @@ public class RecommendationEngine {
     private final Config config;
     private final StrategySelector selector;
     private RecommendationStrategy strategy;
+    // Per-run: whether the current run may pick tracks the user already has.
     private boolean allowLibraryTracks = true;
     // The strategy used by the current run: the configured one, or a re-chosen one after widening.
     private RecommendationStrategy runStrategy;
@@ -85,15 +86,6 @@ public class RecommendationEngine {
         this.strategy = selector.select(familiarRatio);
     }
 
-    /**
-     * Whether tracks the user already has (top, saved, recently played) may be selected. Discovery
-     * turns this off because F4 recommends only unknown tracks; playlist creation (F5) builds from
-     * familiar tracks and leaves it on. Defaults to true and holds until changed.
-     */
-    public synchronized void setAllowLibraryTracks(boolean allow) {
-        this.allowLibraryTracks = allow;
-    }
-
     /** Why the last run chose what it did, or null before the first run. */
     public synchronized DecisionTrace lastTrace() {
         return trace;
@@ -111,9 +103,19 @@ public class RecommendationEngine {
      *
      * @throws MusicServiceException if every Spotify read failed
      */
+    public List<Recommendation> recommend(ListeningProfile profile, PlaylistSpec spec, List<Feedback> feedback) {
+        return recommend(profile, spec, feedback, true);
+    }
+
+    /**
+     * As {@link #recommend(ListeningProfile, PlaylistSpec, List)}, but the caller says per run whether
+     * tracks the user already has (top, saved, recently played) may be picked. Discovery (F4) passes
+     * false; playlist creation (F5) passes true. Nothing is remembered between runs.
+     */
     public synchronized List<Recommendation> recommend(ListeningProfile profile, PlaylistSpec spec,
-                                                       List<Feedback> feedback) {
+                                                       List<Feedback> feedback, boolean allowLibraryTracks) {
         Objects.requireNonNull(profile, "profile");
+        this.allowLibraryTracks = allowLibraryTracks;
         Objects.requireNonNull(spec, "spec");
         this.profile = profile;
         this.runStrategy = strategy;
@@ -130,6 +132,10 @@ public class RecommendationEngine {
         library.forEach(t -> origins.put(t.id(), new Origin(Source.LIBRARY, null)));
         Set<String> libraryIds = new HashSet<>();
         library.forEach(t -> libraryIds.add(t.id()));
+        if (!allowLibraryTracks) {
+            // Also the profile's known tracks, in case a library read failed or a list was capped.
+            libraryIds.addAll(profile.knownTrackIds());
+        }
 
         List<String> blockedSeeds = spec.blockedArtists();
         List<String> artistSeeds = profile.topArtists().stream().map(Artist::id)
@@ -170,7 +176,7 @@ public class RecommendationEngine {
         }
 
         if (retriever.successes() == 0 && !retriever.errors().isEmpty()) {
-            throw new MusicServiceException("Could not read your Spotify data. " + String.join(" ", retriever.errors()));
+            throw new MusicServiceException(String.format(config.wording("discoverAllReadsFailed"), retriever.errors().size()));
         }
         if (steps > 0) {
             notes.add(String.format(config.wording("discoverWidened"), Math.min(genreLimit, genres.size()),
@@ -247,8 +253,7 @@ public class RecommendationEngine {
                 (isFamiliar(t, libraryIds) ? familiar : novel).add(t);
             }
         }
-        Comparator<Track> best = Comparator.<Track>comparingDouble(t -> score(t, spec)).reversed()
-;
+        Comparator<Track> best = Comparator.<Track>comparingDouble(t -> score(t, spec)).reversed();
         familiar.sort(best);
         novel.sort(best);
 
@@ -371,7 +376,9 @@ public class RecommendationEngine {
         Map<String, String> reasons = new LinkedHashMap<>();
         recs.forEach(r -> reasons.put(r.track().id(), r.reason()));
         List<String> satisfied = new ArrayList<>();
-        satisfied.add(config.wording("constraintLibraryExcluded"));
+        if (!allowLibraryTracks) {
+            satisfied.add(config.wording("constraintLibraryExcluded"));
+        }
         if (!spec.blockedArtists().isEmpty()) {
             satisfied.add(config.wording("constraintBlockedExcluded"));
         }

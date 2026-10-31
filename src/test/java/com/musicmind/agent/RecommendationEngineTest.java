@@ -422,7 +422,58 @@ class RecommendationEngineTest {
 
         MusicServiceException ex = assertThrows(MusicServiceException.class,
                 () -> e.recommend(profile(), spec(0.5), List.of()));
-        assertTrue(ex.getMessage().contains("offline"));
+        for (String technical : List.of("offline", "HTTP", "http", "{")) {
+            assertFalse(ex.getMessage().contains(technical), ex.getMessage());
+        }
+        assertTrue(ex.getMessage().contains("(11 reads"), "3 library + 2 album + 6 search reads: " + ex.getMessage());
+    }
+
+    @Test
+    void allReadsFailingNeverLeaksStatusUrlOrJson() {
+        FakeMusic m = richMusic();
+        String raw = "Spotify returned HTTP 400 for https://api.spotify.com/v1/search: {\"error\":{\"message\":\"Invalid limit\"}}";
+        m.libraryFailure = new MusicServiceException(raw);
+        m.searchFailure = new MusicServiceException(raw);
+        RecommendationEngine e = engine(m);
+
+        MusicServiceException ex = assertThrows(MusicServiceException.class,
+                () -> e.recommend(profile(), spec(0.5), List.of()));
+        for (String technical : List.of("HTTP", "400", "https", "{", "Invalid limit")) {
+            assertFalse(ex.getMessage().contains(technical), ex.getMessage());
+        }
+    }
+
+    @Test
+    void aDiscoverRunDoesNotChangeALaterThreeArgumentRecommend() {
+        RecommendationEngine e = engine(richMusic());
+        e.setStrategy(new FamiliarStrategy());
+
+        List<Recommendation> discovery = e.recommend(profile(), spec(1.0), List.of(), false);
+        List<Recommendation> later = e.recommend(profile(), spec(1.0), List.of());
+
+        assertTrue(discovery.stream().noneMatch(r -> r.familiarity() == 1.0 && r.reason().contains("listening history")));
+        assertEquals(5, later.stream().filter(r -> r.reason().contains("listening history")).count());
+    }
+
+    @Test
+    void knownTrackIdsAreExcludedEvenWhenTheLibraryReadFailed() {
+        FakeMusic m = new FakeMusic();
+        m.libraryFailure = new MusicServiceException("offline");
+        m.byGenre.put("rock", List.of(track("top0", "a1"), track("saved0", "a2"), track("fresh", "stranger")));
+        RecommendationEngine e = engine(m);
+        e.setStrategy(new DiscoveryStrategy());
+
+        assertEquals(List.of("fresh"), ids(e.recommend(profile(), spec(0.0), List.of(), false)));
+    }
+
+    @Test
+    void theLibraryConstraintIsOnlyListedWhenLibraryTracksAreExcluded() {
+        RecommendationEngine e = engine(richMusic());
+
+        e.recommend(profile(), spec(0.5), List.of(), false);
+        assertTrue(e.lastTrace().constraintsSatisfied().stream().anyMatch(c -> c.contains("library")));
+        e.recommend(profile(), spec(0.5), List.of(), true);
+        assertTrue(e.lastTrace().constraintsSatisfied().stream().noneMatch(c -> c.contains("library")));
     }
 
     @Test
@@ -443,7 +494,7 @@ class RecommendationEngineTest {
         assertTrue(fresh.reason().contains("new to you") && fresh.reason().contains("rock"), fresh.reason());
         Recommendation known = recs.stream().filter(r -> r.familiarity() == 1.0).findFirst().orElseThrow();
         assertTrue(known.reason().contains("already listen") && known.reason().contains("listening history"), known.reason());
-        assertTrue(trace.constraintsSatisfied().stream().anyMatch(c -> c.contains("library")));
+        assertTrue(trace.constraintsSatisfied().stream().noneMatch(c -> c.contains("library")));
     }
 
     @Test
@@ -488,11 +539,10 @@ class RecommendationEngineTest {
             m.albumsByArtist.put("a1", List.of(new Album("alb1", "Album", "2020")));
             m.tracksByAlbum.put("alb1", List.of(track("top1", "a1"), track("deep1", "a1"), track("deep2", "a1")));
             RecommendationEngine e = engine(m);
-            e.setAllowLibraryTracks(false);
             e.setStrategy(strategy);
 
             for (double ratio : List.of(0.0, 0.5, 1.0)) {
-                List<Recommendation> recs = e.recommend(profile(), spec(ratio), List.of());
+                List<Recommendation> recs = e.recommend(profile(), spec(ratio), List.of(), false);
                 String label = strategy.getClass().getSimpleName() + " at " + ratio + ": " + ids(recs);
                 assertFalse(recs.isEmpty(), label);
                 assertTrue(ids(recs).stream().noneMatch(id -> List.of("top0", "top1", "top2", "saved0", "rec0").contains(id)), label);
@@ -504,10 +554,9 @@ class RecommendationEngineTest {
     @Test
     void libraryTracksCanBeSelectedWhenTheSettingAllowsIt() {
         RecommendationEngine e = engine(richMusic());
-        e.setAllowLibraryTracks(true);
         e.setStrategy(new FamiliarStrategy());
 
-        List<Recommendation> recs = e.recommend(profile(), spec(1.0), List.of());
+        List<Recommendation> recs = e.recommend(profile(), spec(1.0), List.of(), true);
 
         assertEquals(5, recs.stream().filter(r -> r.reason().contains("listening history")).count());
     }
@@ -520,10 +569,9 @@ class RecommendationEngineTest {
         m.tracksByAlbum.put("alb1", List.of(track("top0", "a1"), track("deep1", "a1"), track("deep2", "a1")));
         m.byGenre.put("rock", List.of(track("n1", "stranger")));
         RecommendationEngine e = engine(m);
-        e.setAllowLibraryTracks(false);
         e.setStrategy(new FamiliarStrategy());
 
-        List<Recommendation> recs = e.recommend(profile(), spec(1.0), List.of());
+        List<Recommendation> recs = e.recommend(profile(), spec(1.0), List.of(), false);
 
         assertEquals(List.of("deep1", "deep2", "n1"), ids(recs));
         for (Recommendation r : recs.subList(0, 2)) {
@@ -532,12 +580,6 @@ class RecommendationEngineTest {
             assertFalse(r.reason().contains("listening history"), r.reason());
         }
         assertEquals(0.0, recs.get(2).familiarity());
-    }
-
-    private static List<Track> reversed(List<Track> tracks) {
-        List<Track> copy = new ArrayList<>(tracks);
-        Collections.reverse(copy);
-        return copy;
     }
 
     @Test
