@@ -38,7 +38,8 @@ public class SpotifyAdapter implements MusicService {
     private final int addBatch;
     private final int topLimit;
     private final int recentLimit;
-    private final int albumPage;
+    private final int artistAlbumPage;
+    private final int albumTrackPage;
     private final Config config;
     private final HttpClient http = HttpClient.newHttpClient();
     private final OAuthTokenStore auth;
@@ -66,7 +67,8 @@ public class SpotifyAdapter implements MusicService {
         this.addBatch = config.spotifyAddBatchSize();
         this.topLimit = config.spotifyTopItemsLimit();
         this.recentLimit = config.spotifyRecentlyPlayedLimit();
-        this.albumPage = config.spotifyAlbumPageSize();
+        this.artistAlbumPage = config.spotifyArtistAlbumPageSize();
+        this.albumTrackPage = config.spotifyAlbumTrackPageSize();
     }
 
     // ---- read: listening data ----
@@ -126,7 +128,7 @@ public class SpotifyAdapter implements MusicService {
 
     @Override
     public List<Album> getArtistAlbums(String artistId) {
-        JsonObject body = get("/artists/" + enc(artistId) + "/albums?limit=" + albumPage + "&include_groups=album,single");
+        JsonObject body = get("/artists/" + enc(artistId) + "/albums?limit=" + artistAlbumPage + "&include_groups=album,single");
         List<Album> albums = new ArrayList<>();
         for (JsonElement e : array(body, "items")) {
             JsonObject a = e.getAsJsonObject();
@@ -137,7 +139,7 @@ public class SpotifyAdapter implements MusicService {
 
     @Override
     public List<Track> getAlbumTracks(String albumId) {
-        JsonObject body = get("/albums/" + enc(albumId) + "/tracks?limit=" + albumPage);
+        JsonObject body = get("/albums/" + enc(albumId) + "/tracks?limit=" + albumTrackPage);
         return tracks(array(body, "items"));
     }
 

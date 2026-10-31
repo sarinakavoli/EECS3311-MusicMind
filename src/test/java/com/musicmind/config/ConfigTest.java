@@ -62,7 +62,8 @@ class ConfigTest {
         assertEquals(100, c.spotifyAddBatchSize());
         assertEquals(20, c.spotifyTopItemsLimit());
         assertEquals(50, c.spotifyRecentlyPlayedLimit());
-        assertEquals(50, c.spotifyAlbumPageSize());
+        assertEquals(10, c.spotifyArtistAlbumPageSize());
+        assertEquals(50, c.spotifyAlbumTrackPageSize());
     }
 
     @Test

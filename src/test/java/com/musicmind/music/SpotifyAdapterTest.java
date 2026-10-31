@@ -226,6 +226,8 @@ class SpotifyAdapterTest {
         List<Track> tracks = adapter.getAlbumTracks("al1");
 
         assertEquals("/v1/artists/ar1/albums", api.requests.get(0).path());
+        assertTrue(api.requests.get(0).query().contains("limit=10&"), api.requests.get(0).query());
+        assertTrue(api.requests.get(1).query().contains("limit=50"), api.requests.get(1).query());
         assertEquals("al1", albums.get(0).id());
         assertEquals("/v1/albums/al1/tracks", api.requests.get(1).path());
         assertEquals(1, tracks.size());

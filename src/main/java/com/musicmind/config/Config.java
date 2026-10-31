@@ -263,9 +263,14 @@ public final class Config {
         return integer("spotify.recentlyPlayedLimit");
     }
 
-    /** Page size for artist albums and album tracks. */
-    public int spotifyAlbumPageSize() {
-        return integer("spotify.albumPageSize");
+    /** Page size for {@code /artists/{id}/albums}; Spotify rejects anything above 10. */
+    public int spotifyArtistAlbumPageSize() {
+        return integer("spotify.artistAlbumPageSize");
+    }
+
+    /** Page size for {@code /albums/{id}/tracks}. */
+    public int spotifyAlbumTrackPageSize() {
+        return integer("spotify.albumTrackPageSize");
     }
 
     public int promptMaxGenres() {
