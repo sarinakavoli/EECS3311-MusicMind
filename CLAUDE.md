@@ -1,6 +1,7 @@
 # CLAUDE.md — MusicMind (EECS3311 Stage 2)
 
-Project context for Claude Code. Read `docs/STAGE2_PLAN.md` for the full plan.
+Project context for Claude Code. The binding plan is `docs/STAGE2_IMPLEMENTATION_PLAN.md`;
+changes are recorded in `docs/STAGE2_PLAN.md`.
 
 ## What this is
 MusicMind — an AI music-discovery & playlist-management agent that integrates the
@@ -8,10 +9,11 @@ Spotify Web API. EECS3311 Software Design course project (individual). Stage 1
 (design) is complete and in `docs/`; **Stage 2 is implementation**, due **Nov 10, 2026**.
 
 ## Stack
-- **Java 17**, **JavaFX** (GUI), a **CLI**, **SQLite** (JDBC) for persistence, and one
-  **LLM** behind the `LLMProvider` interface. Build tool: **Gradle 9.1** (wrapper committed).
+- **Java 17**, **JavaFX** (GUI), a **CLI**, **PostgreSQL** (JDBC) for persistence, and one
+  **LLM** (`OpenAiProvider`) behind the `LLMProvider` interface. Build tool: **Gradle 9.1** (wrapper committed).
 - `./gradlew` runs on JDK 17–25; a Java 17 toolchain is downloaded automatically if missing.
-- SQLite replaces the PostgreSQL planned in Stage 1 (documented change — see STAGE2_PLAN.md).
+- Spotify returns no artist genres to this app, so genres come from MusicBrainz through
+  `GenreEnrichingMusicService` (R18 in `docs/STAGE2_IMPLEMENTATION_PLAN.md`).
 
 ## Commands
 ```bash
@@ -23,16 +25,14 @@ Spotify Web API. EECS3311 Software Design course project (individual). Stage 1
 
 ## Package map (`src/main/java/com/musicmind/`)
 - `domain/` — entities (Track, Playlist, PlaylistSpec, ListeningProfile, AgentSession, …)
-- `music/` — `MusicService` (Adapter target); `SpotifyAdapter`, `RetryingMusicService` (to build)
-- `llm/` — `LLMProvider`; `MockLLMProvider` (done), real provider (to build)
-- `agent/` — `PlaylistValidator` (done); Planner, ToolManager, ConstraintChecker,
-  RecommendationEngine, ProfileBuilder, ExplanationService, PromptBuilder, ResponseParser (to build)
-- `agent/strategy/` — Strategy pattern: Abstract + Familiar/Discovery/Balanced (done)
-- `agent/command/` — `PlaylistCommand` + concretes, PlaylistManager (to build)
-- `agent/state/` — `SessionState` + phase classes (to build)
-- `memory/` — MemoryManager + repositories (`Repository` interface done; SQLite impls to build)
-- `tool/` — `Tool`, `ToolResult`; SpotifyTool, MemoryTool (to build)
-- `controller/` — `AppController` (to build); `app/GuiApp` (done), `cli/CliApp` (done)
+- `music/` — `MusicService`, `SpotifyAdapter`, `OAuthTokenStore`, `RetryingMusicService`,
+  `GenreEnrichingMusicService`, `MusicBrainzAdapter`
+- `llm/` — `LLMProvider`, `OpenAiProvider` (`MockLLMProvider` is test-only)
+- `agent/` — planning, recommendation, parsing and validation classes
+- `agent/strategy/`, `agent/command/`, `agent/state/` — Strategy, Command and State patterns
+- `memory/` — `MemoryManager`, `Database`, repositories
+- `tool/` — `Tool`, `ToolManager`, `SpotifyTool`, `MemoryTool`
+- `controller/` — `AppController`, `MusicAgentFacade`; `app/` GUI; `cli/` CLI
 
 ## Design patterns (must stay evident in code)
 Adapter · Strategy · Command · State · Facade (+ Repository, Decorator).
@@ -54,12 +54,5 @@ Dev-mode apps: no `/recommendations`, no audio-features, limited search (≤10/c
 listening data (top items, saved, recently-played, search, artist→albums→tracks).
 Auth: **Authorization Code with PKCE**, redirect `http://127.0.0.1:8080/callback`.
 
-## Next task (Phase 1)
-Build the spine and the first end-to-end feature:
-1. `SpotifyAdapter` implementing `MusicService` — PKCE auth + `GET /me`, `/me/top/*`,
-   `/me/tracks`, `/search`, create playlist, add items. Wrap with `RetryingMusicService`
-   (Decorator) for 429 backoff.
-2. SQLite repositories + `MemoryManager`.
-3. `AppController` + `MusicAgentFacade` wiring.
-4. **F1 View Taste Profile** working in both GUI and CLI (ProfileBuilder aggregates
-   genres; LLM writes a one-line summary). Record a short demo when it works.
+## Current status
+See the daily schedule in `docs/STAGE2_IMPLEMENTATION_PLAN.md` and `docs/DAILY_TEST_NOTES.md`.
