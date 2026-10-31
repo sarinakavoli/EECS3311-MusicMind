@@ -15,12 +15,12 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Adapter (GoF) from the MusicBrainz web service to {@link GenreService}. An artist
@@ -28,7 +28,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * equals the Spotify name ignoring case and accents and its score reaches the
  * configured minimum. Anything less certain yields no genres: it never guesses.
  * Requests are paced to MusicBrainz's one-per-second limit across all lookups, a
- * 503 is retried once, and every other failure yields no genres plus a notice.
+ * 503 is retried once, and every other failure (including a timeout or a malformed
+ * response) is reported as "unknown" so the caller does not cache it.
  */
 public class MusicBrainzAdapter implements GenreService {
 
@@ -50,11 +51,10 @@ public class MusicBrainzAdapter implements GenreService {
     }
 
     private final Config config;
-    private final HttpClient http = HttpClient.newHttpClient();
+    private final HttpClient http;
     private final Gson gson = new Gson();
     private final Clock clock;
     private final Sleeper sleeper;
-    private final List<String> notices = new CopyOnWriteArrayList<>();
     /** Time the last request was sent; guarded by {@code this}. */
     private long lastRequestMillis;
     private boolean anyRequestSent;
@@ -65,13 +65,10 @@ public class MusicBrainzAdapter implements GenreService {
 
     MusicBrainzAdapter(Config config, Clock clock, Sleeper sleeper) {
         this.config = config;
+        this.http = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(config.musicBrainzTimeoutSeconds())).build();
         this.clock = clock;
         this.sleeper = sleeper;
-    }
-
-    /** What went wrong in lookups so far, one notice per failed artist. */
-    public List<String> notices() {
-        return List.copyOf(notices);
     }
 
     @Override
@@ -83,8 +80,8 @@ public class MusicBrainzAdapter implements GenreService {
         try {
             String mbid = findMatch(name);
             return Optional.of(mbid == null ? List.of() : genresOf(mbid));
-        } catch (LookupFailed e) {
-            notices.add(String.format(config.wording("genreNoticeFailed"), name, e.getMessage()));
+        } catch (LookupFailed | RuntimeException e) {
+            // A failed or unreadable response is "unknown", not "no genres": it is retried, never cached.
             return Optional.empty();
         }
     }
@@ -95,7 +92,7 @@ public class MusicBrainzAdapter implements GenreService {
                 + "&limit=" + config.musicBrainzResultLimit() + "&fmt=json";
         JsonArray artists = get(url).getAsJsonArray("artists");
         if (artists == null) {
-            return null;
+            throw new LookupFailed("response has no artists list");
         }
         String wanted = normalise(name);
         for (JsonElement e : artists) {
@@ -127,7 +124,7 @@ public class MusicBrainzAdapter implements GenreService {
         JsonArray genres = get(config.musicBrainzBaseUrl() + "/artist/" + encode(mbid) + "?inc=genres&fmt=json")
                 .getAsJsonArray("genres");
         if (genres == null) {
-            return List.of();
+            throw new LookupFailed("response has no genres list");
         }
         List<JsonObject> sorted = new ArrayList<>();
         genres.forEach(g -> sorted.add(g.getAsJsonObject()));
@@ -173,6 +170,7 @@ public class MusicBrainzAdapter implements GenreService {
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .header("User-Agent", config.musicBrainzUserAgent())
                 .header("Accept", "application/json")
+                .timeout(Duration.ofSeconds(config.musicBrainzTimeoutSeconds()))
                 .GET().build();
         return http.send(request, HttpResponse.BodyHandlers.ofString());
     }

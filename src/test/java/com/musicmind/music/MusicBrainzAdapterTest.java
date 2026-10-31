@@ -186,7 +186,6 @@ class MusicBrainzAdapterTest {
         serve("{\"artists\":[]}");
 
         assertEquals(Optional.of(List.<String>of()), adapter().lookup(artist("Nobody")));
-        assertTrue(adapter().notices().isEmpty());
     }
 
     @Test
@@ -224,14 +223,12 @@ class MusicBrainzAdapterTest {
     }
 
     @Test
-    void aSecond503GivesUpWithNoGenresAndANotice() {
+    void aSecond503GivesUpWithNoGenres() {
         handler = r -> Reply.status(503);
         MusicBrainzAdapter adapter = adapter();
 
         assertEquals(Optional.empty(), adapter.lookup(artist("Miles Davis")));
         assertEquals(2, requests.size(), "one attempt and exactly one retry");
-        assertEquals(1, adapter.notices().size());
-        assertTrue(adapter.notices().get(0).contains("503"), adapter.notices().get(0));
     }
 
     @Test
@@ -244,13 +241,12 @@ class MusicBrainzAdapterTest {
     }
 
     @Test
-    void anyOtherFailureReturnsNoGenresRecordsANoticeAndDoesNotThrow() {
+    void anyOtherFailureReturnsNoGenresAndDoesNotThrow() {
         handler = r -> Reply.status(500);
         MusicBrainzAdapter adapter = adapter();
 
         assertTrue(adapter.genresFor(artist("Miles Davis")).isEmpty());
         assertEquals(Optional.empty(), adapter.lookup(artist("Miles Davis")));
-        assertEquals(2, adapter.notices().size());
     }
 
     @Test
@@ -259,7 +255,6 @@ class MusicBrainzAdapterTest {
         MusicBrainzAdapter adapter = adapter();
 
         assertEquals(Optional.empty(), adapter.lookup(artist("Miles Davis")));
-        assertEquals(1, adapter.notices().size());
     }
 
     @Test
@@ -268,7 +263,6 @@ class MusicBrainzAdapterTest {
         MusicBrainzAdapter adapter = new MusicBrainzAdapter(config, time, time);
 
         assertEquals(Optional.empty(), adapter.lookup(artist("Miles Davis")));
-        assertEquals(1, adapter.notices().size());
     }
 
     @Test
@@ -290,5 +284,52 @@ class MusicBrainzAdapterTest {
             assertTrue(stamps.get(i) - stamps.get(i - 1) >= interval,
                     "gap before request " + i + " was " + (stamps.get(i) - stamps.get(i - 1)));
         }
+    }
+
+    @Test
+    void aCandidateWithoutAnIdIsAFailureNotACrash() {
+        handler = r -> Reply.ok("{\"artists\":[{\"name\":\"Miles Davis\",\"score\":100}]}");
+
+        assertEquals(Optional.empty(), adapter().lookup(artist("Miles Davis")));
+    }
+
+    @Test
+    void aGenreWithoutANameIsAFailureNotACrash() {
+        handler = r -> r.path().endsWith("/artist/") ? Reply.ok(search("m", "Miles Davis", 100))
+                : Reply.ok("{\"genres\":[{\"count\":3}]}");
+
+        assertEquals(Optional.empty(), adapter().lookup(artist("Miles Davis")));
+    }
+
+    @Test
+    void a200WithoutTheExpectedListsIsAFailureSoItIsNeverCachedAsNoMatch() {
+        handler = r -> Reply.ok("{}");
+        assertEquals(Optional.empty(), adapter().lookup(artist("Miles Davis")));
+
+        handler = r -> r.path().endsWith("/artist/") ? Reply.ok(search("m", "Miles Davis", 100)) : Reply.ok("{}");
+        assertEquals(Optional.empty(), adapter().lookup(artist("Miles Davis")));
+    }
+
+    @Test
+    void aServerThatStallsTimesOutAsAFailure() {
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        handler = r -> {
+            try {
+                release.await(10, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+            return Reply.status(500);
+        };
+        Config config = Config.of(Map.of()).withTunables(Map.of(
+                "musicbrainz.baseUrl", "http://127.0.0.1:" + server.getAddress().getPort() + "/ws/2",
+                "musicbrainz.timeoutSeconds", "1"));
+
+        long start = System.nanoTime();
+        Optional<List<String>> result = new MusicBrainzAdapter(config, time, time).lookup(artist("Miles Davis"));
+        release.countDown();
+
+        assertEquals(Optional.empty(), result);
+        assertTrue((System.nanoTime() - start) / 1_000_000 < 5000, "should give up near the 1 second timeout");
     }
 }

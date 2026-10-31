@@ -223,6 +223,10 @@ public final class Config {
         return integer("musicbrainz.maxWaitSeconds");
     }
 
+    public int musicBrainzTimeoutSeconds() {
+        return integer("musicbrainz.timeoutSeconds");
+    }
+
     public int musicBrainzCacheDays() {
         return integer("musicbrainz.cacheDays");
     }
