@@ -15,10 +15,17 @@ import java.util.Map;
  */
 public class BalancedStrategy extends AbstractRecommendationStrategy {
 
+    public BalancedStrategy() {
+    }
+
+    public BalancedStrategy(Config config) {
+        super(config);
+    }
+
     @Override
     public List<Track> selectCandidates(Map<String, List<Track>> pools, PlaylistSpec spec) {
         int count = targetCount(spec);
-        double familiarRatio = spec == null ? Config.defaults().discoverDefaultFamiliarRatio() : spec.familiarRatio();
+        double familiarRatio = spec == null ? config().discoverDefaultFamiliarRatio() : spec.familiarRatio();
         int familiarCount = (int) Math.round(count * familiarRatio);
         int novelCount = count - familiarCount;
 

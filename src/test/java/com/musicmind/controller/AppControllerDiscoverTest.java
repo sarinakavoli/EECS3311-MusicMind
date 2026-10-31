@@ -95,12 +95,19 @@ class AppControllerDiscoverTest extends PostgresTestBase {
         Music music = new Music();
         AppController c = controller(music);
 
-        c.discover(c.discoverSpec(0.5));
+        List<Recommendation> first = c.discover(c.discoverSpec(0.5));
         int sessionsAfterFirst = c.memory().loadHistory("sp-user").size();
-        c.discover(c.discoverSpec(0.5));
+        List<Recommendation> second = c.discover(c.discoverSpec(0.5)); // from the id-only stored profile
 
         assertEquals(1, sessionsAfterFirst, "only the taste profile is stored");
         assertEquals(1, c.memory().loadHistory("sp-user").size(), "discover itself saves nothing");
+        assertEquals(ids(first), ids(second), "the stored profile gives the same picks as the fresh one");
+        assertTrue(second.stream().anyMatch(r -> r.track().id().startsWith("t") && r.familiarity() == 1.0),
+                "library tracks are known");
+        assertTrue(second.stream().anyMatch(r -> r.track().id().startsWith("n") && r.familiarity() == 0.0),
+                "genre-search picks are novel");
+        assertEquals(ids(second).size(), ids(second).stream().distinct().count());
+        assertTrue(second.stream().allMatch(r -> !r.reason().isBlank()));
     }
 
     @Test

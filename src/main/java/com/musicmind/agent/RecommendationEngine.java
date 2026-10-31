@@ -54,7 +54,9 @@ public class RecommendationEngine {
     private final ToolManager tools;
     private final Config config;
     private final StrategySelector selector;
-    private RecommendationStrategy strategy = new BalancedStrategy();
+    private RecommendationStrategy strategy;
+    // The strategy used by the current run: the configured one, or a re-chosen one after widening.
+    private RecommendationStrategy runStrategy;
 
     // State of the most recent run, read by score() and the last* accessors.
     private ListeningProfile profile;
@@ -69,6 +71,7 @@ public class RecommendationEngine {
         this.tools = tools;
         this.config = config;
         this.selector = new StrategySelector(config);
+        this.strategy = new BalancedStrategy(config);
     }
 
     public synchronized void setStrategy(RecommendationStrategy strategy) {
@@ -102,6 +105,7 @@ public class RecommendationEngine {
         Objects.requireNonNull(profile, "profile");
         Objects.requireNonNull(spec, "spec");
         this.profile = profile;
+        this.runStrategy = strategy;
         this.verdicts = latestVerdicts(feedback);
         double max = profile.genreHistogram().values().stream().mapToDouble(Double::doubleValue).max().orElse(0.0);
         this.genreAffinity = genreAffinities(profile, max);
@@ -151,7 +155,7 @@ public class RecommendationEngine {
             steps++;
             genreLimit += config.discoverWidenGenresPerStep();
             ratio = Math.min(1.0, ratio + config.discoverWidenNoveltyStep());
-            chooseStrategy(ratio);
+            runStrategy = selector.select(ratio);
         }
 
         if (retriever.successes() == 0 && !retriever.errors().isEmpty()) {
@@ -203,7 +207,7 @@ public class RecommendationEngine {
 
     /** Enough picks, and enough of them new, for the novelty the spec asked for. */
     private boolean enough(Selection selection, PlaylistSpec spec) {
-        int needed = Math.min(config.discoverMinResults(), AbstractRecommendationStrategy.targetCount(spec));
+        int needed = Math.min(config.discoverMinResults(), AbstractRecommendationStrategy.targetCount(spec, config));
         int neededNovel = (int) Math.round(needed * (1 - spec.familiarRatio()));
         return selection.recommendations().size() >= needed && selection.novelSelected() >= neededNovel;
     }
@@ -234,12 +238,12 @@ public class RecommendationEngine {
         familiar.sort(best);
         novel.sort(best);
 
-        strategy.bindProfile(profile);
+        runStrategy.bindProfile(profile);
         Map<String, List<Track>> pools = new LinkedHashMap<>();
         pools.put(FAMILIAR_POOL, familiar);
         pools.put(NOVEL_POOL, novel);
         Map<String, Track> picked = new LinkedHashMap<>();
-        strategy.selectCandidates(pools, spec).forEach(t -> picked.putIfAbsent(t.id(), t));
+        runStrategy.selectCandidates(pools, spec).forEach(t -> picked.putIfAbsent(t.id(), t));
 
         List<Recommendation> recs = new ArrayList<>();
         int novelSelected = 0;
@@ -353,7 +357,7 @@ public class RecommendationEngine {
         if (!spec.allowExplicit()) {
             satisfied.add(config.wording("constraintExplicitExcluded"));
         }
-        return new DecisionTrace(strategy.getClass().getSimpleName(), reasons, satisfied);
+        return new DecisionTrace(runStrategy.getClass().getSimpleName(), reasons, satisfied);
     }
 
     private String filterSummary(Selection s) {

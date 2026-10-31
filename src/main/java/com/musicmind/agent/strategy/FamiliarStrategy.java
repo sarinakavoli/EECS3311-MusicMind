@@ -1,5 +1,6 @@
 package com.musicmind.agent.strategy;
 
+import com.musicmind.config.Config;
 import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.Track;
 
@@ -9,6 +10,13 @@ import java.util.Map;
 
 /** Selection policy that stays close to the user's familiar taste, filling any gap with new tracks. */
 public class FamiliarStrategy extends AbstractRecommendationStrategy {
+
+    public FamiliarStrategy() {
+    }
+
+    public FamiliarStrategy(Config config) {
+        super(config);
+    }
 
     @Override
     public List<Track> selectCandidates(Map<String, List<Track>> pools, PlaylistSpec spec) {

@@ -229,7 +229,7 @@ public class CliApp {
         try {
             switch (action) {
                 case "set" -> {
-                    UserPreference pref = PreferenceSettings.parse(rest[1],
+                    UserPreference pref = controller.parsePreference(rest[1],
                             String.join(" ", Arrays.copyOfRange(rest, 2, rest.length)));
                     controller.setPreference(pref);
                     System.out.println(controller.memory().warning() == null

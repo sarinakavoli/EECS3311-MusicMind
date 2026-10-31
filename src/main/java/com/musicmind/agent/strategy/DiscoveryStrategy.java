@@ -1,5 +1,6 @@
 package com.musicmind.agent.strategy;
 
+import com.musicmind.config.Config;
 import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.Track;
@@ -14,6 +15,13 @@ import java.util.Map;
  * and only then familiar tracks to fill the count.
  */
 public class DiscoveryStrategy extends AbstractRecommendationStrategy {
+
+    public DiscoveryStrategy() {
+    }
+
+    public DiscoveryStrategy(Config config) {
+        super(config);
+    }
 
     @Override
     public List<Track> selectCandidates(Map<String, List<Track>> pools, PlaylistSpec spec) {

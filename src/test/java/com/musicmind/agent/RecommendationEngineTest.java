@@ -451,4 +451,43 @@ class RecommendationEngineTest {
         Collections.reverse(copy);
         return copy;
     }
+
+    @Test
+    void widenedRunsNeverReplaceTheStrategyTheCallerSet() {
+        FakeMusic m = new FakeMusic();
+        m.top = List.of(track("top0", "a1"));
+        m.byGenre.put("rock", unknownTracks("g0-", 1));
+        RecommendationEngine e = engine(m);
+        FamiliarStrategy mine = new FamiliarStrategy();
+        e.setStrategy(mine);
+
+        e.recommend(profile(), spec(0.5), List.of()); // too few: widens, ratio rises
+        assertFalse(e.lastNotices().isEmpty(), "widening happened");
+        e.recommend(profile(), spec(0.5), List.of());
+
+        assertEquals("FamiliarStrategy", e.lastTrace().strategyName());
+        try {
+            java.lang.reflect.Field f = RecommendationEngine.class.getDeclaredField("strategy");
+            f.setAccessible(true);
+            assertTrue(f.get(e) == mine, "the field still holds the caller's strategy");
+        } catch (ReflectiveOperationException ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
+    @Test
+    void engineAndStrategiesAgreeOnAnOverriddenTunable() {
+        Config eight = config.withTunables(Map.of("strategy.avgTrackMinutes", "8"));
+        ToolManager tools = new ToolManager();
+        SpotifyTool.allFor(richMusic()).forEach(tools::register);
+        RecommendationEngine e = new RecommendationEngine(tools, eight);
+
+        List<Recommendation> defaultStrategy = e.recommend(profile(), spec(0.5), List.of());
+        e.chooseStrategy(0.0);
+        List<Recommendation> chosen = e.recommend(profile(), spec(0.0), List.of());
+
+        assertEquals(5, defaultStrategy.size(), "40 min / 8 = 5 tracks");
+        assertEquals(5, chosen.size());
+        assertTrue(e.lastNotices().isEmpty(), "5 picks are enough when 5 are wanted: " + e.lastNotices());
+    }
 }

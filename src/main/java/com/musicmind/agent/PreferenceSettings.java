@@ -89,15 +89,16 @@ public final class PreferenceSettings {
     }
 
     /**
-     * Builds the preference for a key and the text a user typed.
+     * Builds the preference for a key and the text a user typed. The config supplies the neutral
+     * value stored in the columns a key does not use.
      *
      * @throws IllegalArgumentException with a message fit to show the user for an unknown key or unusable value
      */
-    public static UserPreference parse(String key, String value) {
+    public static UserPreference parse(String key, String value, Config config) {
         if (key == null) {
             throw unknownKey(null);
         }
-        double neutralBias = Config.defaults().discoverDefaultFamiliarRatio();
+        double neutralBias = config.discoverDefaultFamiliarRatio();
         String text = value == null ? "" : value.strip();
         return switch (key.strip()) {
             case BLOCKED_ARTISTS -> new UserPreference(BLOCKED_ARTISTS, join(split(text)), false, neutralBias);

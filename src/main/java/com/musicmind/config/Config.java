@@ -58,6 +58,14 @@ public final class Config {
         return new Config(settings::get, loadTunables());
     }
 
+    /** A copy of this configuration with some tunables replaced (for tests of tunable-driven behaviour). */
+    public Config withTunables(Map<String, String> overrides) {
+        Properties merged = new Properties();
+        merged.putAll(tunables);
+        merged.putAll(overrides);
+        return new Config(lookup, merged);
+    }
+
     private static Properties loadTunables() {
         Properties props = new Properties();
         try (InputStream in = Config.class.getResourceAsStream(TUNABLES_RESOURCE)) {

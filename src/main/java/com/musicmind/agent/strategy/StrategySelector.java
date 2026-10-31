@@ -7,19 +7,21 @@ public class StrategySelector {
 
     private final double familiarMin;
     private final double discoveryMax;
+    private final Config config;
 
     public StrategySelector(Config config) {
+        this.config = config;
         this.familiarMin = config.discoverFamiliarStrategyMin();
         this.discoveryMax = config.discoverDiscoveryStrategyMax();
     }
 
     public RecommendationStrategy select(double familiarRatio) {
         if (familiarRatio >= familiarMin) {
-            return new FamiliarStrategy();
+            return new FamiliarStrategy(config);
         }
         if (familiarRatio <= discoveryMax) {
-            return new DiscoveryStrategy();
+            return new DiscoveryStrategy(config);
         }
-        return new BalancedStrategy();
+        return new BalancedStrategy(config);
     }
 }

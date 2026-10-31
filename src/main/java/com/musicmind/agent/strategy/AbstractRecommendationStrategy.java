@@ -18,7 +18,20 @@ import java.util.Set;
  */
 public abstract class AbstractRecommendationStrategy implements RecommendationStrategy {
 
+    private final Config config;
     private ListeningProfile profile;
+
+    protected AbstractRecommendationStrategy(Config config) {
+        this.config = config;
+    }
+
+    protected AbstractRecommendationStrategy() {
+        this(Config.defaults());
+    }
+
+    protected Config config() {
+        return config;
+    }
 
     /** R7: the engine binds the profile before it asks for candidates. */
     @Override
@@ -50,12 +63,15 @@ public abstract class AbstractRecommendationStrategy implements RecommendationSt
     }
 
     /** Number of tracks to aim for given the spec: its duration over the average track length, else the default. */
-    public static int targetCount(PlaylistSpec spec) {
-        Config config = Config.defaults();
+    public static int targetCount(PlaylistSpec spec, Config config) {
         if (spec != null && spec.targetMinutes() > 0) {
             return Math.max(1, spec.targetMinutes() / config.avgTrackMinutes());
         }
         return config.defaultTrackCount();
+    }
+
+    protected int targetCount(PlaylistSpec spec) {
+        return targetCount(spec, config);
     }
 
     protected List<Track> take(List<Track> list, int n) {

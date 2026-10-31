@@ -1,5 +1,6 @@
 package com.musicmind.agent.strategy;
 
+import com.musicmind.config.Config;
 import com.musicmind.domain.Artist;
 import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.PlaylistSpec;
@@ -129,8 +130,8 @@ class StrategyTest {
 
     @Test
     void noTargetDurationUsesTheConfiguredDefaultCount() {
-        assertEquals(20, AbstractRecommendationStrategy.targetCount(spec(0, 0.5)));
-        assertEquals(10, AbstractRecommendationStrategy.targetCount(spec(40, 0.5)));
+        assertEquals(20, AbstractRecommendationStrategy.targetCount(spec(0, 0.5), Config.defaults()));
+        assertEquals(10, AbstractRecommendationStrategy.targetCount(spec(40, 0.5), Config.defaults()));
     }
 
     @Test
@@ -138,5 +139,16 @@ class StrategyTest {
         ListeningProfile p = profile();
         assertEquals(1.0, p.familiarity(track("a", "known")));
         assertEquals(0.0, p.familiarity(track("b", "stranger")));
+    }
+
+    @Test
+    void strategiesUseTheConfigTheyAreGiven() {
+        Config big = Config.of(Map.of()).withTunables(Map.of("strategy.avgTrackMinutes", "8"));
+        for (RecommendationStrategy s : List.of(new FamiliarStrategy(big), new DiscoveryStrategy(big), new BalancedStrategy(big))) {
+            s.bindProfile(profile());
+            List<Track> out = s.selectCandidates(
+                    Map.of("familiar", familiarPool(20), "novel", novelPool(20)), spec(40, 0.5));
+            assertEquals(5, out.size(), s.getClass().getSimpleName());
+        }
     }
 }

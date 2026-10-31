@@ -250,6 +250,15 @@ public class AppController {
     // ---- F8 ----
 
     /**
+     * Turns what a user typed into a preference.
+     *
+     * @throws IllegalArgumentException with a message fit to show, for an unknown key or unusable value
+     */
+    public UserPreference parsePreference(String key, String value) {
+        return PreferenceSettings.parse(key, value, config);
+    }
+
+    /**
      * Stores a preference (an existing key is updated). With the database down the app keeps going and
      * {@code memory().warning()} says it was not saved.
      *
