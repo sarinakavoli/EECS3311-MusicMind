@@ -17,6 +17,7 @@ Dates are Toronto time. Each day ends with real commits pushed to GitHub, and a 
 |---|---|---|
 | Fri Oct 30 | Tasks 1-5: PostgreSQL, Spotify API fix, OpenAI, tools, LLM parsing | `./gradlew build` passes |
 | Sat Oct 31 | Tasks 6-8: F1, F2, F3, F4, F8, F9 | `profile`, `trends`, `search`, `discover`, `prefs`, `feedback` |
+| Sat Oct 31 (added) | Task 18: MusicBrainz genres, run before Task 9 | `profile --refresh` shows genres |
 | Sun Nov 1 | Tasks 9-12: F5, F6, F7, F10, F11, F12, full CLI | `create`, `modify`, `undo`, `validate`, `explain`, `history`, `restore` |
 | Mon Nov 2 | Tasks 13-17: GUI, docs, UML, report, final review, merge | All GUI tabs, README setup, report PDF |
 | Nov 3-9 | Buffer: fixes from Sarina's testing (real code commits only), video links added to the report | Videos recorded |
@@ -82,6 +83,7 @@ Stage 1 is internally inconsistent or silent in these places. These decisions bi
 | R15 | `musicmind` executable name. | `installDist` produces `bin/musicmind` (CLI) and `bin/musicmind-gui`. `./gradlew run` and `runCli` remain. |
 | R16 | Authentication (UC01) has no class method. | `AppController.login(): User` and `currentUser()`. |
 | R17 | Stage 1 lists `MockLLMProvider`; Stage 2 rejects hard-coded responses. | `MockLLMProvider` stays as a test double and is never created by `AppController`. With no `LLM_API_KEY`, features needing the LLM say so; features with a Stage 1 fallback (F1, F2 wording, F3 keyword search) use it and label it. |
+| R18 | Stage 1 takes genres from Spotify artist metadata, but live testing on Oct 31 showed Spotify returns no `genres` field to this Development Mode app. | Genres come from MusicBrainz through `GenreEnrichingMusicService`, a Decorator over `MusicService`. Aggregation stays deterministic and the LLM does not supply genres. Documented as a Stage 2 change. |
 
 ## File map
 
@@ -227,6 +229,24 @@ Tests: argument parsing and dispatch with a fake controller seam. Add a small `A
 JavaFX views over `AppController` only, using background workers: login; **Profile** tab with genre breakdown, top artists/tracks, "Refresh profile"; **Trends**; **Search** with "add to candidates"; **Discover** with accept/reject; **Create Playlist** dialog with goal, target duration, explicit toggle, familiar-vs-new ratio, name, and progress from state names; **Playlists** view with "Modify" box, "Undo", validation badges, "Why these?" expander, and thumbs up/down on tracks; **Preferences** screen; **History** list with plan/result and "Restore". F11 conflict dialog. Spotify attribution. Not-configured and database-unavailable banners. Keep view logic thin.
 
 Tests: formatting helpers. Launch `./gradlew run` for 15s and confirm no crash, reported in the task report.
+
+### Task 18: Genre metadata from MusicBrainz
+
+Run before Task 9. Spotify returns no `genres` for this app (R18), so F1, F2, F4 and F5 have no genre signal.
+
+- Domain-neutral interface `music/GenreService`: `genresFor(artist): List<String>`, ordered most to least prominent.
+- `music/MusicBrainzAdapter` implements it (Adapter). Search `GET {base}/artist/?query=artist:"<name>"&limit=<n>&fmt=json`, then `GET {base}/artist/{mbid}?inc=genres&fmt=json`; order genres by `count`. Accept a match only if the name equals the Spotify artist name ignoring case and accents, or a listed alias does, and its score meets the configured minimum. Otherwise return no genres: never guess.
+- Send the required descriptive `User-Agent`. Keep to the 1 request per second limit, shared across calls. Retry 503 once honouring `Retry-After`. Any other failure returns no genres and records a notice; it never fails the feature.
+- `music/GenreEnrichingMusicService` implements `MusicService` (Decorator) and delegates everything; `getTopArtists` returns artists with genres filled. Artists Spotify already gave genres to are left alone.
+- Wiring order: `GenreEnrichingMusicService(RetryingMusicService(SpotifyAdapter))`.
+- `memory/repository/GenreRepository` caches per Spotify artist id, in table `artist_genre` (artist_id, genres, fetched_at), including no-match results, so repeat runs make no calls. Expiry comes from config. Genres are MusicMind derived data, so caching is allowed; artist names are not stored. A database outage just means no cache.
+- All URLs, the User-Agent, delay, match score, result limit, retry wait and cache days go in `musicmind.properties`.
+- Partial coverage: `ProfileBuilder` adds a notice when some artists have no genres, with the counts. `(no genre data)` remains only when none do.
+- `PromptBuilder.buildSummaryPrompt`: with no genres, tell the model not to make claims about genres or genre variety.
+- Output says genre data comes from MusicBrainz in the CLI profile and trends output.
+- `build.gradle` and `.env.example` need no key.
+
+Tests: local `HttpServer` for match, no match, alias, accent, low score, 503 retry, failure, ordering, User-Agent and pacing (with a clock/sleeper seam). Decorator delegation of every method. Cache hit makes no HTTP call; no-match is cached; expiry refetches. Partial-coverage notice. No network in tests.
 
 ### Task 14: Documentation and conformance
 
