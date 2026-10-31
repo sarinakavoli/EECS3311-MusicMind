@@ -19,7 +19,6 @@ import com.musicmind.domain.TopItems;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.User;
-import com.musicmind.llm.LLMException;
 import com.musicmind.llm.LLMProvider;
 import com.musicmind.memory.MemoryManager;
 import com.musicmind.music.MusicServiceException;
@@ -107,6 +106,7 @@ public class MusicAgentFacade {
         ListeningProfile built = profileBuilder.build(
                 new TopItems(artists.items(), topTracks.items()), saved.items(), errors);
         ListeningProfile profile = withSummary(built);
+        profile.setRange(r);
 
         AgentSession session = new AgentSession(UUID.randomUUID().toString(), Instant.now(), null);
         session.setStatus("done");
@@ -214,7 +214,7 @@ public class MusicAgentFacade {
         try {
             String line = firstLine(llm.complete(prompt));
             return line.isBlank() || line.startsWith("{") ? null : line;
-        } catch (LLMException e) {
+        } catch (RuntimeException e) {
             return null;
         }
     }
@@ -298,9 +298,12 @@ public class MusicAgentFacade {
             String summary = o.has("summary") && !o.get("summary").isJsonNull() ? o.get("summary").getAsString() : null;
             Instant at = o.has("generatedAt") && !o.get("generatedAt").isJsonNull()
                     ? Instant.parse(o.get("generatedAt").getAsString()) : null;
+            String storedRange = o.has("range") && !o.get("range").isJsonNull() ? o.get("range").getAsString() : null;
             boolean partial = o.has("partial") && o.get("partial").getAsBoolean();
-            return Optional.of(new ListeningProfile(histogram, artists, tracks, strings(o, "savedTrackIds"),
-                    summary, at, partial, strings(o, "notices")));
+            ListeningProfile stored = new ListeningProfile(histogram, artists, tracks, strings(o, "savedTrackIds"),
+                    summary, at, partial, strings(o, "notices"));
+            stored.setRange(storedRange);
+            return Optional.of(stored);
         } catch (JsonSyntaxException | IllegalStateException | ClassCastException
                  | java.time.format.DateTimeParseException e) {
             return Optional.empty();

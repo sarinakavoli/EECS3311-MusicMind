@@ -33,7 +33,8 @@ class AppControllerTest extends PostgresTestBase {
     private class Music extends StubMusicService {
         @Override public String currentUserId() { return "sp-user"; }
         @Override public List<Artist> getTopArtists(String r) {
-            return IntStream.range(0, 6).mapToObj(i -> new Artist("a" + i, "N" + i, List.of("indie"))).toList();
+            String genre = r.startsWith("short") ? "synthwave" : "indie";
+            return IntStream.range(0, 6).mapToObj(i -> new Artist(genre + i, "N" + i, List.of(genre))).toList();
         }
         @Override public List<Track> getTopItems(String type, String r) {
             return IntStream.range(0, 6)
@@ -64,8 +65,8 @@ class AppControllerTest extends PostgresTestBase {
 
         assertTrue(p.summary().endsWith(config.computedLabel()), p.summary());
         TrendReport t = c.analyzeTrends(c.currentUser());
-        assertTrue(t.narrative().endsWith(config.computedLabel()) || t.narrative().toLowerCase().contains("not enough"),
-                t.narrative());
+        assertFalse(t.addedGenres().isEmpty(), "the ranges differ, so there is something to narrate");
+        assertTrue(t.narrative().endsWith(config.computedLabel()), t.narrative());
     }
 
     @Test

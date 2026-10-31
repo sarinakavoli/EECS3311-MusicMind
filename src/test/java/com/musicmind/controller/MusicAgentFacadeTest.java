@@ -252,6 +252,33 @@ class MusicAgentFacadeTest extends PostgresTestBase {
     }
 
     @Test
+    void anUncheckedLlmFailureStillFallsBackAndSavesTheSession() {
+        MemoryManager memory = memory();
+        FakeMusic music = new FakeMusic();
+        ListeningProfile p = facade(music, prompt -> { throw new IllegalStateException("parser bug"); }, memory,
+                tools(music, memory, new ArrayList<>())).analyzeTaste(USER);
+        assertTrue(p.summary().endsWith(config.computedLabel()), p.summary());
+        assertEquals(1, memory.loadHistory("user-1").size());
+    }
+
+    @Test
+    void anUncheckedLlmFailureStillGivesALabelledTrendNarrative() {
+        TrendReport r = facade(trendMusic(), p -> { throw new IllegalStateException("parser bug"); }).analyzeTrends(USER);
+        assertTrue(r.narrative().endsWith(config.computedLabel()), r.narrative());
+    }
+
+    @Test
+    void lastProfileKnowsWhichRangeItCovers() {
+        FakeMusic music = new FakeMusic();
+        MemoryManager memory = memory();
+        MusicAgentFacade facade = facade(music, null, memory, tools(music, memory, new ArrayList<>()));
+        assertEquals("long", facade.analyzeTaste(USER, "long").range());
+        assertEquals("long", facade.lastProfile(USER).orElseThrow().range());
+        facade.analyzeTaste(USER);
+        assertEquals("medium", facade.lastProfile(USER).orElseThrow().range());
+    }
+
+    @Test
     void anLlmSentenceIsKeptWithoutTheComputedLabel() {
         ListeningProfile p = facade(new FakeMusic(), p2 -> "\"You love pop.\"\nextra").analyzeTaste(USER);
         assertEquals("You love pop.", p.summary());

@@ -16,6 +16,7 @@ public class ListeningProfile {
     private final boolean partial;
     private final List<String> notices;
     private String summary;
+    private String range;
 
     public ListeningProfile(Map<String, Double> genreHistogram,
                             List<Artist> topArtists,
@@ -114,4 +115,7 @@ public class ListeningProfile {
     public void setSummary(String summary) { this.summary = summary; }
     public Instant generatedAt() { return generatedAt; }
     public List<String> notices() { return notices; }
+    /** The time range this profile covers (short, medium or long), or null if unknown. */
+    public String range() { return range; }
+    public void setRange(String range) { this.range = range; }
 }

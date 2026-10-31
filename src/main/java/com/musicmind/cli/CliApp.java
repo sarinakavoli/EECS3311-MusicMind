@@ -154,6 +154,9 @@ public class CliApp {
         if (profile.generatedAt() != null) {
             System.out.println("Generated: " + profile.generatedAt());
         }
+        if (profile.range() != null) {
+            System.out.println("Time range: " + profile.range());
+        }
         profile.notices().forEach(n -> System.out.println("Notice: " + n));
         System.out.println();
 
