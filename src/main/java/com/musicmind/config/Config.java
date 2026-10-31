@@ -63,15 +63,17 @@ public final class Config {
         return isReal(llmApiKey(), "your_llm_api_key_here");
     }
 
-    // ---- Persistence ----
-    /** Path to the local SQLite database file (created on first run). */
-    public String databasePath() {
-        return get("DATABASE_PATH", "musicmind.db");
+    // ---- Persistence (PostgreSQL) ----
+    public String databaseUrl() {
+        return get("DATABASE_URL", "jdbc:postgresql://localhost:5432/musicmind");
     }
 
-    /** JDBC URL for the SQLite store. */
-    public String databaseUrl() {
-        return "jdbc:sqlite:" + databasePath();
+    public String databaseUser() {
+        return get("DATABASE_USER", "musicmind");
+    }
+
+    public String databasePassword() {
+        return get("DATABASE_PASSWORD", "changeme");
     }
 
     /** True when a value is present and is not the shipped placeholder. */

@@ -8,11 +8,16 @@ import com.musicmind.llm.LLMProvider;
 import com.musicmind.llm.MockLLMProvider;
 import com.musicmind.memory.Database;
 import com.musicmind.memory.MemoryManager;
-import com.musicmind.memory.repository.SqlitePreferenceRepository;
-import com.musicmind.memory.repository.SqliteProfileRepository;
+import com.musicmind.memory.PersistenceException;
+import com.musicmind.memory.repository.FeedbackRepository;
+import com.musicmind.memory.repository.PlaylistHistoryRepository;
+import com.musicmind.memory.repository.PreferenceRepository;
+import com.musicmind.memory.repository.SessionRepository;
 import com.musicmind.music.MusicService;
 import com.musicmind.music.RetryingMusicService;
 import com.musicmind.music.SpotifyAdapter;
+
+import java.util.function.Supplier;
 
 /**
  * Application controller (MVC): the single wiring point shared by the GUI and
@@ -44,15 +49,29 @@ public class AppController {
                 ? new GeminiLLMProvider(config.llmApiKey(), config.llmModel())
                 : new MockLLMProvider();
 
-        Database db = new Database(config.databaseUrl());
-        db.init();
-        MemoryManager memory = new MemoryManager(
-                new SqliteProfileRepository(db), new SqlitePreferenceRepository(db));
+        // The database may be down: the app keeps running and MemoryManager warns (F8).
+        Database db = new Database(config.databaseUrl(), config.databaseUser(), config.databasePassword());
+        try {
+            db.init();
+        } catch (PersistenceException ignored) {
+            // MemoryManager falls back to safe defaults and exposes the warning
+        }
+
+        MusicService music = null;
+        Supplier<String> currentUser = () -> "local";
+        if (config.spotifyConfigured()) {
+            music = new RetryingMusicService(
+                    new SpotifyAdapter(config.spotifyClientId(), config.spotifyRedirectUri()));
+            currentUser = music::currentUserId;
+        }
+        MemoryManager memory = new MemoryManager(db,
+                new PreferenceRepository(db, currentUser),
+                new FeedbackRepository(db, currentUser),
+                new SessionRepository(db, currentUser),
+                new PlaylistHistoryRepository(db, currentUser));
 
         MusicAgentFacade facade = null;
-        if (config.spotifyConfigured()) {
-            MusicService music = new RetryingMusicService(
-                    new SpotifyAdapter(config.spotifyClientId(), config.spotifyRedirectUri()));
+        if (music != null) {
             facade = new MusicAgentFacade(music, memory, new ProfileBuilder(music), new ProfileSummarizer(llm));
         }
         return new AppController(memory, facade, config.spotifyConfigured(), config.llmConfigured());

@@ -1,46 +1,137 @@
 package com.musicmind.memory;
 
-import com.musicmind.domain.ListeningProfile;
+import com.musicmind.domain.AgentSession;
+import com.musicmind.domain.Feedback;
+import com.musicmind.domain.Playlist;
 import com.musicmind.domain.UserPreference;
-import com.musicmind.memory.repository.Repository;
+import com.musicmind.memory.repository.FeedbackRepository;
+import com.musicmind.memory.repository.PlaylistHistoryRepository;
+import com.musicmind.memory.repository.PreferenceRepository;
+import com.musicmind.memory.repository.SessionRepository;
 
 import java.util.List;
-import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
- * Façade over the persistence layer. The agent remembers things (taste
- * profiles, preferences) through these high-level calls and never touches a
- * repository or SQL directly.
+ * Facade over the persistence layer: the agent remembers preferences, feedback,
+ * sessions and playlist snapshots through these calls and never touches a
+ * repository or SQL. If the database is unavailable the app keeps running
+ * (F8 alternative case): reads fall back to safe defaults or empty results,
+ * writes of preferences, feedback and sessions are skipped with a warning, and
+ * {@link #warning()} says what happened. Snapshots are not skipped silently,
+ * because undo and restore depend on them.
  */
 public class MemoryManager {
 
-    private final Repository<ListeningProfile> profiles;
-    private final Repository<UserPreference> preferences;
+    /** Safe defaults used while the database is down: no explicit content, balanced familiarity. */
+    private static final List<UserPreference> DEFAULT_PREFERENCES =
+            List.of(new UserPreference("default", "", false, 0.5));
 
-    public MemoryManager(Repository<ListeningProfile> profiles,
-                         Repository<UserPreference> preferences) {
-        this.profiles = profiles;
+    private final Database db;
+    private final PreferenceRepository preferences;
+    private final FeedbackRepository feedback;
+    private final SessionRepository sessions;
+    private final PlaylistHistoryRepository history;
+    private volatile String warning;
+
+    public MemoryManager(Database db, PreferenceRepository preferences, FeedbackRepository feedback,
+                         SessionRepository sessions, PlaylistHistoryRepository history) {
+        this.db = db;
         this.preferences = preferences;
-    }
-
-    // ---- taste profile (F1) ----
-
-    public void saveProfile(String userId, ListeningProfile profile) {
-        profiles.save(userId, profile);
-    }
-
-    /** The most recently saved profile for a user, if any. */
-    public Optional<ListeningProfile> loadProfile(String userId) {
-        return profiles.findByUser(userId).stream().findFirst();
+        this.feedback = feedback;
+        this.sessions = sessions;
+        this.history = history;
     }
 
     // ---- preferences (F8) ----
 
-    public void savePreference(String userId, UserPreference preference) {
-        preferences.save(userId, preference);
+    public List<UserPreference> loadPreferences(String userId) {
+        return guarded("load preferences", () -> preferences.findByUser(userId), DEFAULT_PREFERENCES);
     }
 
-    public List<UserPreference> preferences(String userId) {
-        return preferences.findByUser(userId);
+    /** @throws IllegalArgumentException for a blank key or a {@code familiarBias} outside 0..1 */
+    public void savePreference(UserPreference p) {
+        validate(p);
+        guarded("save the preference", () -> {
+            preferences.save(p);
+            return null;
+        }, null);
+    }
+
+    // ---- feedback (F9) ----
+
+    public List<Feedback> loadFeedback(String userId) {
+        return guarded("load feedback", () -> feedback.findByUser(userId), List.of());
+    }
+
+    public void saveFeedback(Feedback f) {
+        guarded("save the feedback", () -> {
+            feedback.save(f);
+            return null;
+        }, null);
+    }
+
+    // ---- sessions and history (F1, F10, F12) ----
+
+    public void saveSession(AgentSession s) {
+        guarded("save the session", () -> {
+            sessions.save(s);
+            return null;
+        }, null);
+    }
+
+    public List<AgentSession> loadHistory(String userId) {
+        return guarded("load history", () -> sessions.findByUser(userId), List.of());
+    }
+
+    /** The current user's latest session that produced this playlist, or {@code null}. */
+    public AgentSession findSessionByPlaylist(String playlistId) {
+        return guarded("look up the session", () -> sessions.findByPlaylist(playlistId), null);
+    }
+
+    // ---- snapshots (F12) ----
+
+    /** @return the new snapshot's id */
+    public int saveSnapshot(Playlist playlist) {
+        return history.saveSnapshot(playlist);
+    }
+
+    /** The snapshot as a {@link Playlist} of id-only tracks, or {@code null} if there is no such snapshot. */
+    public Playlist loadSnapshot(int id) {
+        return history.findById(String.valueOf(id));
+    }
+
+    // ---- availability ----
+
+    public boolean isAvailable() {
+        return db.isAvailable();
+    }
+
+    /** The most recent database warning, or {@code null} once an operation has succeeded since. */
+    public String warning() {
+        return warning;
+    }
+
+    private <R> R guarded(String action, Supplier<R> op, R fallback) {
+        try {
+            R result = op.get();
+            warning = null;
+            return result;
+        } catch (PersistenceException e) {
+            warning = "Database unavailable: could not " + action + ". Continuing with defaults.";
+            return fallback;
+        }
+    }
+
+    private static void validate(UserPreference p) {
+        if (p == null) {
+            throw new IllegalArgumentException("Preference must not be null.");
+        }
+        if (p.key() == null || p.key().isBlank()) {
+            throw new IllegalArgumentException("Preference key must not be blank.");
+        }
+        if (Double.isNaN(p.familiarBias()) || p.familiarBias() < 0 || p.familiarBias() > 1) {
+            throw new IllegalArgumentException("familiarBias must be between 0 and 1.");
+        }
     }
 }

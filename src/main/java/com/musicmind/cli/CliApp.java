@@ -69,13 +69,13 @@ public class CliApp {
         System.out.println("[musicmind] The first run opens your browser to connect Spotify.");
         try {
             TasteProfileResult result = controller.viewTasteProfile(timeRange);
-            printProfile(result, controller.isLlmConfigured());
+            printProfile(result, controller.isLlmConfigured(), controller.memory().warning());
         } catch (RuntimeException e) {
             System.out.println("Could not build your profile: " + e.getMessage());
         }
     }
 
-    private static void printProfile(TasteProfileResult result, boolean llmConfigured) {
+    private static void printProfile(TasteProfileResult result, boolean llmConfigured, String memoryWarning) {
         System.out.println();
         System.out.println("===== Your MusicMind Taste Profile =====");
         System.out.println("Spotify user: " + result.userId());
@@ -100,7 +100,9 @@ public class CliApp {
         System.out.println("Summary" + (llmConfigured ? " (by the LLM):" : " (offline fallback — set LLM_API_KEY for an AI summary):"));
         System.out.println("  " + result.summary());
         System.out.println();
-        System.out.println("(Saved to memory — re-running shows it was remembered.)");
+        System.out.println(memoryWarning == null
+                ? "(Saved to memory.)"
+                : "(Not saved: " + memoryWarning + ")");
     }
 
     private static void printHelp() {

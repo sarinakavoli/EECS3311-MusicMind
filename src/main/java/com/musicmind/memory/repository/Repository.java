@@ -3,25 +3,24 @@ package com.musicmind.memory.repository;
 import java.util.List;
 
 /**
- * Repository (DAO) pattern: a persistence boundary over the SQLite store, scoped
- * per user. MemoryManager uses concrete repositories so the rest of the agent
- * never touches SQL.
- *
- * <p>Entities here are immutable domain value objects that do not embed their
- * owner, so ownership is passed explicitly as {@code userId} rather than read
- * off the entity. (Stage 2 change from the Stage 1 {@code Repository<T, ID>}
- * sketch — see docs/STAGE2_PLAN.md.)
+ * Repository (DAO) pattern: a persistence boundary over PostgreSQL. Concrete
+ * repositories take a current-user supplier and stamp it on every save and
+ * on id-based lookups, because the entities do not embed their owner;
+ * {@link #findByUser(String)} filters explicitly.
  *
  * @param <T> entity type
  */
 public interface Repository<T> {
 
-    /** Insert, or replace, the entity owned by {@code userId}. */
-    void save(String userId, T entity);
+    /** Insert, or update, the entity for the current user. */
+    void save(T entity);
+
+    /** The current user's entity with this id, or {@code null} if there is none. */
+    T findById(String id);
 
     /** All entities of this type owned by {@code userId} (never null; 0..n). */
     List<T> findByUser(String userId);
 
-    /** Remove every entity of this type owned by {@code userId}. */
-    void deleteForUser(String userId);
+    /** Remove the current user's entity with this id (no-op if absent). */
+    void delete(String id);
 }

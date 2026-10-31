@@ -2,11 +2,20 @@ package com.musicmind.controller;
 
 import com.musicmind.agent.ProfileBuilder;
 import com.musicmind.agent.ProfileSummarizer;
+import com.google.gson.Gson;
+import com.musicmind.domain.AgentRequest;
+import com.musicmind.domain.AgentSession;
+import com.musicmind.domain.Artist;
 import com.musicmind.domain.ListeningProfile;
+import com.musicmind.domain.RequestKind;
+import com.musicmind.domain.Track;
 import com.musicmind.memory.MemoryManager;
 import com.musicmind.music.MusicService;
 
-import java.util.Optional;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * Facade (GoF) over the agent subsystem. It exposes one high-level method per
@@ -30,19 +39,28 @@ public class MusicAgentFacade {
     }
 
     /**
-     * F1 — View Taste Profile. Fetches listening data, builds the profile,
-     * remembers it, and attaches a one-line summary.
+     * F1 — View Taste Profile. Fetches listening data, builds the profile, attaches
+     * a one-line summary, and remembers the run as a session whose derived data
+     * (genre histogram, ids, summary) is stored as JSON. No titles or artist names
+     * are stored (Spotify terms).
      */
     public TasteProfileResult viewTasteProfile(String timeRange) {
         String userId = music.currentUserId();
         ListeningProfile profile = profileBuilder.build(timeRange);
-        memory.saveProfile(userId, profile);
         String summary = summarizer.summarize(profile);
-        return new TasteProfileResult(userId, profile, summary);
-    }
 
-    /** The last profile remembered for a user, if the agent has built one before. */
-    public Optional<ListeningProfile> lastProfile(String userId) {
-        return memory.loadProfile(userId);
+        Map<String, Object> derived = new LinkedHashMap<>();
+        derived.put("genreHistogram", profile.genreHistogram());
+        derived.put("artistIds", profile.topArtists().stream().map(Artist::id).toList());
+        derived.put("trackIds", profile.topTracks().stream().map(Track::id).toList());
+        derived.put("summary", summary);
+        derived.put("generatedAt", profile.generatedAt() == null ? null : profile.generatedAt().toString());
+
+        AgentSession session = new AgentSession(UUID.randomUUID().toString(), Instant.now(), null);
+        session.setStatus("done");
+        session.setRequest(new AgentRequest("view taste profile (" + timeRange + ")", RequestKind.ANALYZE_TASTE));
+        session.setDerivedData(new Gson().toJson(derived));
+        memory.saveSession(session);
+        return new TasteProfileResult(userId, profile, summary);
     }
 }
