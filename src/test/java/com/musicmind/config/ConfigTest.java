@@ -129,4 +129,16 @@ class ConfigTest {
         assertEquals("me", set.databaseUser());
         assertFalse(Config.of(Map.of("SPOTIFY_CLIENT_ID", "your_client_id_here")).spotifyConfigured());
     }
+
+    @Test
+    void discoveryTunablesAndWordingComeFromTheBundledProperties() {
+        Config c = Config.of(Map.of());
+        assertEquals(0.7, c.discoverDefaultFamiliarRatio(), 1e-9);
+        assertTrue(c.discoverFamiliarStrategyMin() > c.discoverDiscoveryStrategyMax());
+        assertEquals(10, c.discoverMinResults());
+        assertEquals(2, c.discoverWidenSteps());
+        assertEquals(0.2, c.discoverWidenNoveltyStep(), 1e-9);
+        assertTrue(c.discoverRejectPenalty() > 0 && c.discoverAcceptBoost() > 0);
+        assertTrue(c.wording("discoverNoResults").length() > 0);
+    }
 }

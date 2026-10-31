@@ -280,6 +280,75 @@ public final class Config {
         return text("text.searchNoRelaxedHint");
     }
 
+    // ---- Personalised discovery (F4) ----
+
+    public double discoverDefaultFamiliarRatio() {
+        return Double.parseDouble(text("discover.defaultFamiliarRatio"));
+    }
+
+    /** A requested familiar share at or above this selects the FamiliarStrategy. */
+    public double discoverFamiliarStrategyMin() {
+        return Double.parseDouble(text("discover.familiarStrategyMin"));
+    }
+
+    /** A requested familiar share at or below this selects the DiscoveryStrategy. */
+    public double discoverDiscoveryStrategyMax() {
+        return Double.parseDouble(text("discover.discoveryStrategyMax"));
+    }
+
+    public int discoverInitialGenres() {
+        return integer("discover.initialGenres");
+    }
+
+    public int discoverArtistSeeds() {
+        return integer("discover.artistSeeds");
+    }
+
+    public int discoverAlbumsPerArtist() {
+        return integer("discover.albumsPerArtist");
+    }
+
+    public int discoverSearchLimit() {
+        return integer("discover.searchLimit");
+    }
+
+    public int discoverMinResults() {
+        return integer("discover.minResults");
+    }
+
+    public int discoverWidenSteps() {
+        return integer("discover.widenSteps");
+    }
+
+    public int discoverWidenGenresPerStep() {
+        return integer("discover.widenGenresPerStep");
+    }
+
+    public double discoverWidenNoveltyStep() {
+        return Double.parseDouble(text("discover.widenNoveltyStep"));
+    }
+
+    public double discoverFitWeight() {
+        return Double.parseDouble(text("discover.weight.fit"));
+    }
+
+    public double discoverGenreWeight() {
+        return Double.parseDouble(text("discover.weight.genre"));
+    }
+
+    public double discoverAcceptBoost() {
+        return Double.parseDouble(text("discover.feedback.acceptBoost"));
+    }
+
+    public double discoverRejectPenalty() {
+        return Double.parseDouble(text("discover.feedback.rejectPenalty"));
+    }
+
+    /** Wording template or phrase from {@code musicmind.properties}; keys are {@code text.*}. */
+    public String wording(String key) {
+        return text("text." + key);
+    }
+
     // ---- Taste profile and trends ----
 
     /** Time ranges from most recent to oldest, as the user types them (short, medium, long). */

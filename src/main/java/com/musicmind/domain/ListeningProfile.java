@@ -88,6 +88,17 @@ public class ListeningProfile {
         return ids;
     }
 
+    /** 1.0 if any artist of the track is one the user already knows, else 0.0. */
+    public double familiarity(Track track) {
+        Set<String> known = knownArtistIds();
+        for (String artistId : track.artistIds()) {
+            if (known.contains(artistId)) {
+                return 1.0;
+            }
+        }
+        return 0.0;
+    }
+
     /** Tracks the user already knows: top tracks plus saved tracks. */
     public Set<String> knownTrackIds() {
         Set<String> ids = new HashSet<>(savedTrackIds);

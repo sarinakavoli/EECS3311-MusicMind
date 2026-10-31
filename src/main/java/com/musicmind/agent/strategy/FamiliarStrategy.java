@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/** Selection policy that stays close to the user's familiar taste. */
+/** Selection policy that stays close to the user's familiar taste, filling any gap with new tracks. */
 public class FamiliarStrategy extends AbstractRecommendationStrategy {
 
     @Override
@@ -15,7 +15,8 @@ public class FamiliarStrategy extends AbstractRecommendationStrategy {
         int count = targetCount(spec);
         List<Track> result = new ArrayList<>(take(pools.getOrDefault("familiar", List.of()), count));
         if (result.size() < count) {
-            result.addAll(take(pools.getOrDefault("novel", List.of()), count - result.size()));
+            List<Track> novel = excludeKnown(pools.getOrDefault("novel", List.of()), profile());
+            result.addAll(take(novel, count - result.size()));
         }
         return result;
     }
