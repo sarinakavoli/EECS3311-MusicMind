@@ -250,7 +250,7 @@ public final class Config {
         return integer("spotify.playlistPageSize");
     }
 
-    /** Most URIs sent in one add-items request. */
+    /** Most URIs sent in one add-items or remove-items request. */
     public int spotifyAddBatchSize() {
         return integer("spotify.addBatchSize");
     }

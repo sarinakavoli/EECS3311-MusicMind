@@ -169,6 +169,66 @@ class RetryingMusicServiceTest {
         assertEquals(2, calls[0]);
     }
 
+    private static List<String> uris(int n) {
+        return java.util.stream.IntStream.range(0, n).mapToObj(i -> "spotify:track:t" + i).toList();
+    }
+
+    @Test
+    void aRateLimitOnTheSecondBatchResendsOnlyThatBatch() {
+        List<List<String>> sent = new ArrayList<>();
+        int[] calls = {0};
+        MusicService flaky = new StubMusicService() {
+            @Override public void addItems(String playlistId, List<String> items) {
+                if (++calls[0] == 2) {
+                    throw new RateLimitException("429", 1);
+                }
+                sent.add(items);
+            }
+        };
+        List<String> all = uris(250);
+
+        new RetryingMusicService(flaky, 3, s -> { }).addItems("pl1", all);
+
+        assertEquals(4, calls[0], "batch 1, batch 2 (429), batch 2 again, batch 3");
+        assertEquals(List.of(all.subList(0, 100), all.subList(100, 200), all.subList(200, 250)), sent,
+                "every batch arrived once and none was re-sent");
+    }
+
+    @Test
+    void removeItemsAlsoRetriesEachBatchOnItsOwn() {
+        List<List<String>> sent = new ArrayList<>();
+        int[] calls = {0};
+        MusicService flaky = new StubMusicService() {
+            @Override public void removeItems(String playlistId, List<String> items) {
+                if (++calls[0] == 3) {
+                    throw new MusicServiceException("down", 503);
+                }
+                sent.add(items);
+            }
+        };
+        List<String> all = uris(250);
+
+        new RetryingMusicService(flaky, 3, s -> { }).removeItems("pl1", all);
+
+        assertEquals(4, calls[0]);
+        assertEquals(List.of(all.subList(0, 100), all.subList(100, 200), all.subList(200, 250)), sent);
+    }
+
+    @Test
+    void aBatchThatKeepsFailingGivesUpWithoutSendingLaterBatches() {
+        int[] calls = {0};
+        MusicService down = new StubMusicService() {
+            @Override public void addItems(String playlistId, List<String> items) {
+                calls[0]++;
+                throw new RateLimitException("429", 1);
+            }
+        };
+
+        assertThrows(RateLimitException.class, () -> new RetryingMusicService(down, 2, s -> { }).addItems("pl1", uris(250)));
+
+        assertEquals(3, calls[0], "first batch only: one attempt plus two retries");
+    }
+
     @Test
     void retriesOverARealAdapterAgainstAFailingServer(@TempDir java.nio.file.Path dir) throws Exception {
         try (FakeSpotifyServer api = new FakeSpotifyServer()) {

@@ -166,15 +166,17 @@ public class SpotifyAdapter implements MusicService {
 
     @Override
     public void removeItems(String playlistId, List<String> uris) {
-        JsonArray items = new JsonArray();
-        for (String uri : uris) {
-            JsonObject t = new JsonObject();
-            t.addProperty("uri", uri);
-            items.add(t);
+        for (int i = 0; i < uris.size(); i += addBatch) {
+            JsonArray items = new JsonArray();
+            for (String uri : uris.subList(i, Math.min(i + addBatch, uris.size()))) {
+                JsonObject t = new JsonObject();
+                t.addProperty("uri", uri);
+                items.add(t);
+            }
+            JsonObject req = new JsonObject();
+            req.add("items", items);
+            send("DELETE", "/playlists/" + enc(playlistId) + "/items", req.toString());
         }
-        JsonObject req = new JsonObject();
-        req.add("items", items);
-        send("DELETE", "/playlists/" + enc(playlistId) + "/items", req.toString());
     }
 
     @Override

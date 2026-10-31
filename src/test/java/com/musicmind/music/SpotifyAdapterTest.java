@@ -280,6 +280,21 @@ class SpotifyAdapterTest {
     }
 
     @Test
+    void removeItemsDeletesInBatchesOfAHundred() {
+        api.respond(r -> Reply.ok("{\"snapshot_id\":\"s\"}"));
+        List<String> uris = IntStream.range(0, 250).mapToObj(i -> "spotify:track:t" + i).toList();
+
+        adapter.removeItems("pl1", uris);
+
+        assertEquals(3, api.requests.size());
+        assertTrue(api.requests.stream().allMatch(r -> r.method().equals("DELETE")));
+        assertEquals(List.of(100, 100, 50), api.requests.stream()
+                .map(r -> json(r.body()).getAsJsonArray("items").size()).toList());
+        assertEquals("spotify:track:t200", json(api.requests.get(2).body())
+                .getAsJsonArray("items").get(0).getAsJsonObject().get("uri").getAsString());
+    }
+
+    @Test
     void reorderItemsPutsARangeMoveToTheItemsEndpoint() {
         api.respond(r -> Reply.ok("{\"snapshot_id\":\"s\"}"));
 

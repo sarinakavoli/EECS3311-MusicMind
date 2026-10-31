@@ -7,6 +7,7 @@ import com.musicmind.domain.Playlist;
 import com.musicmind.domain.Track;
 
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -28,6 +29,8 @@ public class RetryingMusicService implements MusicService {
     private final int maxRetries;
     /** A server asking us to wait longer than this is treated as unavailable. */
     private final long maxWaitSeconds;
+    /** Most URIs per add or remove request; each batch is retried on its own. */
+    private final int batchSize;
     private final Sleeper sleeper;
 
     public RetryingMusicService(MusicService delegate) {
@@ -38,6 +41,7 @@ public class RetryingMusicService implements MusicService {
         this.delegate = delegate;
         this.maxRetries = maxRetries;
         this.maxWaitSeconds = Config.defaults().spotifyMaxWaitSeconds();
+        this.batchSize = Config.defaults().spotifyAddBatchSize();
         this.sleeper = sleeper;
     }
 
@@ -134,12 +138,23 @@ public class RetryingMusicService implements MusicService {
 
     @Override
     public void addItems(String playlistId, List<String> uris) {
-        withBackoff(() -> delegate.addItems(playlistId, uris));
+        inBatches(uris, batch -> delegate.addItems(playlistId, batch));
     }
 
     @Override
     public void removeItems(String playlistId, List<String> uris) {
-        withBackoff(() -> delegate.removeItems(playlistId, uris));
+        inBatches(uris, batch -> delegate.removeItems(playlistId, batch));
+    }
+
+    /**
+     * Sends the URIs in batches, retrying each batch by itself, so a failure on a later batch never
+     * re-sends an earlier one (which would add its tracks twice).
+     */
+    private void inBatches(List<String> uris, Consumer<List<String>> send) {
+        for (int i = 0; i < uris.size(); i += batchSize) {
+            List<String> batch = uris.subList(i, Math.min(i + batchSize, uris.size()));
+            withBackoff(() -> send.accept(batch));
+        }
     }
 
     @Override
