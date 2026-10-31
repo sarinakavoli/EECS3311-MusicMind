@@ -3,6 +3,7 @@ package com.musicmind.cli;
 import com.musicmind.controller.AppController;
 import com.musicmind.domain.Artist;
 import com.musicmind.domain.ListeningProfile;
+import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.User;
 import com.musicmind.music.AuthExpiredException;
@@ -54,7 +55,8 @@ public class CliApp {
         switch (command) {
             case "profile" -> runProfile(rest);
             case "trends" -> runTrends();
-            case "search", "discover", "create",
+            case "search" -> runSearch(rest);
+            case "discover", "create",
                  "modify", "validate", "prefs", "feedback", "explain", "history" ->
                     System.out.println("[musicmind] '" + command + "' "
                             + (rest.length == 0 ? "" : String.join(" ", rest))
@@ -121,6 +123,37 @@ public class CliApp {
             printTrends(controller.analyzeTrends(user), controller);
         } catch (RuntimeException e) {
             reportFailure("compare your listening", e);
+        }
+    }
+
+    /** F3 — natural-language search: {@code search "<query>"}. */
+    private static void runSearch(String[] rest) {
+        String query = String.join(" ", rest).strip();
+        if (query.isEmpty()) {
+            System.out.println("Usage: search \"<what you are looking for>\"");
+            return;
+        }
+        AppController controller = AppController.create();
+        User user = signIn(controller);
+        if (user == null) {
+            return;
+        }
+        try {
+            List<Track> found = controller.searchMusic(query);
+            System.out.println();
+            for (int i = 0; i < found.size(); i++) {
+                System.out.printf("%2d. %s  (%s)%n", i + 1, found.get(i).title(), found.get(i).uri());
+            }
+            if (controller.lastSearchLabel() != null) {
+                System.out.println(controller.lastSearchLabel());
+            }
+            if (controller.lastSearchNotice() != null) {
+                System.out.println(controller.lastSearchNotice());
+            }
+            System.out.println();
+            System.out.println(controller.spotifyAttribution());
+        } catch (RuntimeException e) {
+            reportFailure("search", e);
         }
     }
 

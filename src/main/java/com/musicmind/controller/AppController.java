@@ -1,10 +1,14 @@
 package com.musicmind.controller;
 
+import com.musicmind.agent.Planner;
 import com.musicmind.agent.ProfileBuilder;
 import com.musicmind.agent.PromptBuilder;
+import com.musicmind.agent.ResponseParser;
+import com.musicmind.agent.SearchRanker;
 import com.musicmind.agent.TrendComparator;
 import com.musicmind.config.Config;
 import com.musicmind.domain.ListeningProfile;
+import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.User;
 import com.musicmind.llm.LLMProvider;
@@ -59,8 +63,11 @@ public class AppController {
             SpotifyTool.allFor(music).forEach(tools::register);
             tools.register(new MemoryTool(memory));
             ProfileBuilder profileBuilder = new ProfileBuilder(config);
+            PromptBuilder prompts = new PromptBuilder(config);
+            ResponseParser parser = new ResponseParser(config);
             this.facade = new MusicAgentFacade(tools, memory, profileBuilder,
-                    new TrendComparator(profileBuilder, config), new PromptBuilder(config), llm, config);
+                    new TrendComparator(profileBuilder, config), prompts, llm, config,
+                    new Planner(llm, prompts, parser, config), parser, new SearchRanker(config));
         }
     }
 
@@ -160,6 +167,24 @@ public class AppController {
     public TrendReport analyzeTrends(User user) {
         requireSpotify();
         return facade.analyzeTrends(user);
+    }
+
+    // ---- F3 ----
+
+    /** F3 — ranked tracks for a free-text query. */
+    public List<Track> searchMusic(String query) {
+        requireSpotify();
+        return facade.searchMusic(query);
+    }
+
+    /** Why the last search found nothing and what to try; null when it found results. */
+    public String lastSearchNotice() {
+        return facade == null ? null : facade.lastSearchNotice();
+    }
+
+    /** The "plain keyword search" label if the last search was not interpreted; otherwise null. */
+    public String lastSearchLabel() {
+        return facade == null ? null : facade.lastSearchLabel();
     }
 
     private void requireSpotify() {

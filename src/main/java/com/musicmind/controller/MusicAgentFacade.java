@@ -6,8 +6,11 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
+import com.musicmind.agent.Planner;
 import com.musicmind.agent.ProfileBuilder;
 import com.musicmind.agent.PromptBuilder;
+import com.musicmind.agent.ResponseParser;
+import com.musicmind.agent.SearchRanker;
 import com.musicmind.agent.TrendComparator;
 import com.musicmind.config.Config;
 import com.musicmind.domain.AgentRequest;
@@ -15,6 +18,7 @@ import com.musicmind.domain.AgentSession;
 import com.musicmind.domain.Artist;
 import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.RequestKind;
+import com.musicmind.domain.SearchQuery;
 import com.musicmind.domain.TopItems;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
@@ -61,10 +65,15 @@ public class MusicAgentFacade {
     private final PromptBuilder prompts;
     private final LLMProvider llm; // null when no key is configured
     private final Config config;
+    private final Planner planner;
+    private final ResponseParser parser;
+    private final SearchRanker ranker;
+    private volatile String lastSearchNotice;
+    private volatile String lastSearchLabel;
 
     public MusicAgentFacade(ToolManager tools, MemoryManager memory, ProfileBuilder profileBuilder,
                             TrendComparator trendComparator, PromptBuilder prompts, LLMProvider llm,
-                            Config config) {
+                            Config config, Planner planner, ResponseParser parser, SearchRanker ranker) {
         this.tools = tools;
         this.memory = memory;
         this.profileBuilder = profileBuilder;
@@ -72,6 +81,9 @@ public class MusicAgentFacade {
         this.prompts = prompts;
         this.llm = llm;
         this.config = config;
+        this.planner = planner;
+        this.parser = parser;
+        this.ranker = ranker;
     }
 
     // ---- F1 ----
@@ -156,6 +168,69 @@ public class MusicAgentFacade {
         }
         String narrative = fromLlm(prompts.buildTrendPrompt(report));
         return report.withNarrative(narrative != null ? narrative : fallbackNarrative(report, config.profileRanges()));
+    }
+
+    // ---- F3 ----
+
+    /**
+     * F3 — the Planner structures the text (or falls back to a raw keyword query), the
+     * {@code search} tool fetches the tracks, {@link ResponseParser#verifyTracks} keeps only
+     * confirmed ones and the {@link SearchRanker} orders them. An empty result sets
+     * {@link #lastSearchNotice()}; a keyword fallback sets {@link #lastSearchLabel()}.
+     *
+     * @throws IllegalArgumentException if {@code query} is blank
+     * @throws MusicServiceException if the search itself fails
+     */
+    public List<Track> searchMusic(String query) {
+        if (query == null || query.isBlank()) {
+            throw new IllegalArgumentException("Type something to search for.");
+        }
+        lastSearchNotice = null;
+        lastSearchLabel = null;
+        SearchQuery parsed = planner.parseSearchQuery(query);
+        if (parsed.confidence() < config.searchMinConfidence()) {
+            lastSearchLabel = config.searchFallbackLabel();
+        }
+        ToolResult result = tools.execute("search",
+                Map.of("query", parsed.toSpotifyQuery(), "limit", config.searchResultLimit()));
+        if (!result.ok()) {
+            throw new MusicServiceException("Search failed: " + result.error());
+        }
+        @SuppressWarnings("unchecked")
+        List<Track> results = (List<Track>) result.payload();
+        List<Track> ranked = ranker.rank(parsed, parser.verifyTracks(results, results));
+        if (ranked.isEmpty()) {
+            String hint = suggestRelaxedQuery(parsed)
+                    .map(q -> String.format(config.searchRelaxedHintTemplate(), q))
+                    .orElse(config.searchNoRelaxedHint());
+            lastSearchNotice = String.format(config.searchNoResultsTemplate(), query.strip()) + " " + hint;
+        }
+        return ranked;
+    }
+
+    /** Why the last search found nothing and what to try instead; null when it found something. */
+    public String lastSearchNotice() {
+        return lastSearchNotice;
+    }
+
+    /** The "plain keyword search" label when the last search could not be interpreted; otherwise null. */
+    public String lastSearchLabel() {
+        return lastSearchLabel;
+    }
+
+    /**
+     * A looser version of a query that found nothing: the keywords without the genre and
+     * filters, or else the keywords without their last word. Empty when nothing can be dropped.
+     */
+    public Optional<String> suggestRelaxedQuery(SearchQuery query) {
+        String keywords = query.keywords() == null ? "" : query.keywords().strip();
+        boolean structured = (query.genre() != null && !query.genre().isBlank()) || !query.filters().isEmpty();
+        if (structured) {
+            String base = !keywords.isEmpty() ? keywords : query.genre() == null ? "" : query.genre().strip();
+            return base.isEmpty() ? Optional.empty() : Optional.of(base);
+        }
+        int cut = keywords.lastIndexOf(' ');
+        return cut < 0 ? Optional.empty() : Optional.of(keywords.substring(0, cut).strip());
     }
 
     // ---- helpers ----

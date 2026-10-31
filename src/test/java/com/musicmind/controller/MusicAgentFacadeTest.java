@@ -1,6 +1,9 @@
 package com.musicmind.controller;
 
+import com.musicmind.agent.Planner;
 import com.musicmind.agent.ProfileBuilder;
+import com.musicmind.agent.ResponseParser;
+import com.musicmind.agent.SearchRanker;
 import com.musicmind.agent.PromptBuilder;
 import com.musicmind.agent.TrendComparator;
 import com.musicmind.config.Config;
@@ -38,6 +41,7 @@ import java.util.stream.IntStream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -56,6 +60,17 @@ class MusicAgentFacadeTest extends PostgresTestBase {
         RuntimeException savedFailure;
         RuntimeException artistsFailure;
         RuntimeException tracksFailure;
+        List<Track> searchResults = List.of();
+        RuntimeException searchFailure;
+        final List<String> searches = new ArrayList<>();
+        int searchLimit;
+
+        @Override public List<Track> search(String query, int limit) {
+            searches.add(query);
+            searchLimit = limit;
+            if (searchFailure != null) throw searchFailure;
+            return searchResults;
+        }
 
         FakeMusic() {
             for (String r : List.of("short", "medium", "long")) {
@@ -104,8 +119,10 @@ class MusicAgentFacadeTest extends PostgresTestBase {
 
     private MusicAgentFacade facade(FakeMusic music, LLMProvider llm, MemoryManager memory, ToolManager tools) {
         ProfileBuilder builder = new ProfileBuilder(config);
+        PromptBuilder prompts = new PromptBuilder(config);
         return new MusicAgentFacade(tools, memory, builder, new TrendComparator(builder, config),
-                new PromptBuilder(config), llm, config);
+                prompts, llm, config, new Planner(llm, prompts, new ResponseParser(config), config),
+                new ResponseParser(config), new SearchRanker(config));
     }
 
     private ToolManager tools(FakeMusic music, MemoryManager memory, List<String> toolLog) {
@@ -421,5 +438,108 @@ class MusicAgentFacadeTest extends PostgresTestBase {
         FakeMusic music = trendMusic();
         music.artistsFailure = new AuthExpiredException("expired");
         assertThrows(AuthExpiredException.class, () -> facade(music, null).analyzeTrends(USER));
+    }
+
+    // ---- F3 ----
+
+    private static Track named(String id, String title) {
+        return new Track(id, "spotify:track:" + id, title, 1000, false, List.of());
+    }
+
+    @Test
+    void searchUsesTheParsedQueryAndRanksTheRealResults() {
+        FakeMusic music = new FakeMusic();
+        music.searchResults = List.of(named("a", "Sunshine"), named("b", "Mellow Alternative"), named("a", "Sunshine"));
+        LLMProvider llm = p -> "{\"keywords\":\"mellow alternative\",\"genre\":\"\",\"filters\":{},\"confidence\":0.9}";
+        MusicAgentFacade f = facade(music, llm);
+
+        List<Track> found = f.searchMusic("mellow alternative for studying");
+
+        assertEquals(List.of("mellow alternative"), music.searches);
+        assertEquals(config.searchResultLimit(), music.searchLimit);
+        assertEquals(List.of("b", "a"), found.stream().map(Track::id).toList(), "ranked, duplicates dropped");
+        assertNull(f.lastSearchLabel());
+        assertNull(f.lastSearchNotice());
+    }
+
+    @Test
+    void withNoLlmItSearchesTheTextAsTypedAndLabelsIt() {
+        FakeMusic music = new FakeMusic();
+        music.searchResults = List.of(named("a", "Lofi"));
+        MusicAgentFacade f = facade(music, null);
+
+        assertEquals(1, f.searchMusic("lofi beats").size());
+
+        assertEquals(List.of("lofi beats"), music.searches);
+        assertEquals(config.searchFallbackLabel(), f.lastSearchLabel());
+    }
+
+    @Test
+    void aLowConfidenceParseSearchesTheOriginalTextAndLabelsIt() {
+        FakeMusic music = new FakeMusic();
+        music.searchResults = List.of(named("a", "Jazz"));
+        MusicAgentFacade f = facade(music, p -> "{\"keywords\":\"guess\",\"confidence\":0.1}");
+
+        f.searchMusic("rainy jazz");
+
+        assertEquals(List.of("rainy jazz"), music.searches);
+        assertEquals(config.searchFallbackLabel(), f.lastSearchLabel());
+    }
+
+    @Test
+    void noResultsGivesAnEmptyListAndARelaxedQuerySuggestion() {
+        FakeMusic music = new FakeMusic();
+        LLMProvider llm = p -> "{\"keywords\":\"mellow\",\"genre\":\"shoegaze\","
+                + "\"filters\":{\"year\":\"1987\"},\"confidence\":0.9}";
+        MusicAgentFacade f = facade(music, llm);
+
+        assertTrue(f.searchMusic("mellow shoegaze from 1987").isEmpty());
+
+        String notice = f.lastSearchNotice();
+        assertNotNull(notice);
+        assertTrue(notice.contains("mellow shoegaze from 1987"), notice);
+        assertTrue(notice.contains("\"mellow\""), "suggests the keywords alone: " + notice);
+    }
+
+    @Test
+    void relaxingAKeywordOnlyQueryDropsItsLastWord() {
+        MusicAgentFacade f = facade(new FakeMusic(), null);
+        assertEquals(java.util.Optional.of("rainy day"),
+                f.suggestRelaxedQuery(new com.musicmind.domain.SearchQuery("rainy day jazz", null, Map.of(), 0)));
+        assertEquals(java.util.Optional.empty(),
+                f.suggestRelaxedQuery(new com.musicmind.domain.SearchQuery("jazz", null, Map.of(), 0)));
+    }
+
+    @Test
+    void aNoticeWithNothingToRelaxStillGivesAHint() {
+        FakeMusic music = new FakeMusic();
+        MusicAgentFacade f = facade(music, null);
+        assertTrue(f.searchMusic("zzzz").isEmpty());
+        assertTrue(f.lastSearchNotice().contains(config.searchNoRelaxedHint()), f.lastSearchNotice());
+    }
+
+    @Test
+    void theNoticeAndLabelAreResetByTheNextSearch() {
+        FakeMusic music = new FakeMusic();
+        MusicAgentFacade f = facade(music, null);
+        f.searchMusic("zzzz");
+        music.searchResults = List.of(named("a", "Ok"));
+        f.searchMusic("ok");
+        assertNull(f.lastSearchNotice());
+    }
+
+    @Test
+    void aFailedSearchSaysWhy() {
+        FakeMusic music = new FakeMusic();
+        music.searchFailure = new MusicServiceException("Spotify returned 500");
+        MusicServiceException e = assertThrows(MusicServiceException.class, () -> facade(music, null).searchMusic("jazz"));
+        assertTrue(e.getMessage().contains("500"), e.getMessage());
+    }
+
+    @Test
+    void aBlankQueryIsRejectedBeforeAnyCall() {
+        FakeMusic music = new FakeMusic();
+        assertThrows(IllegalArgumentException.class, () -> facade(music, null).searchMusic("   "));
+        assertTrue(music.searches.isEmpty());
     }
 }

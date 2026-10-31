@@ -115,4 +115,22 @@ class AppControllerTest extends PostgresTestBase {
     void spotifyAttributionComesFromConfiguration() {
         assertEquals(config.spotifyAttribution(), controller(new Music()).spotifyAttribution());
     }
+
+    @Test
+    void searchWorksWithNoLlmAndExposesTheLabelAndNotice() {
+        Music music = new Music() {
+            @Override public List<Track> search(String q, int limit) {
+                return q.equals("nothing") ? List.of()
+                        : List.of(new Track("s1", "spotify:track:s1", "Jazz", 1, false, List.of()));
+            }
+        };
+        AppController c = controller(music);
+
+        assertEquals(1, c.searchMusic("jazz").size());
+        assertEquals(config.searchFallbackLabel(), c.lastSearchLabel());
+        assertNull(c.lastSearchNotice());
+
+        assertTrue(c.searchMusic("nothing").isEmpty());
+        assertTrue(c.lastSearchNotice().contains("nothing"));
+    }
 }
