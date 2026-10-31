@@ -71,6 +71,15 @@ class SpotifyToolTest {
     }
 
     @Test
+    void getTopItemsRejectsAnyOtherType() {
+        ToolResult r = manager().execute("getTopItems", Map.of("type", "albums"));
+        assertFalse(r.ok());
+        assertTrue(r.error().contains("albums"));
+        assertTrue(calls.isEmpty());
+        assertTrue(manager().execute("getTopItems", Map.of("type", "tracks")).ok());
+    }
+
+    @Test
     void searchRequiresAQueryAndAcceptsALimit() {
         ToolManager tm = manager();
         assertFalse(tm.execute("search", Map.of()).ok());

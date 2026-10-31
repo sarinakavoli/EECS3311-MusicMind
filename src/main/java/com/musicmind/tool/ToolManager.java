@@ -33,7 +33,8 @@ public class ToolManager {
         } catch (AuthExpiredException e) {
             throw e;
         } catch (RuntimeException e) {
-            return ToolResult.failure(toolName + " failed: " + e.getMessage());
+            String reason = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            return ToolResult.failure(toolName + " failed: " + reason);
         }
     }
 }

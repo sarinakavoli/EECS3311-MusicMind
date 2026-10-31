@@ -215,6 +215,30 @@ public final class Config {
         return integer("spotify.albumPageSize");
     }
 
+    public int promptMaxGenres() {
+        return integer("prompt.maxGenres");
+    }
+
+    public int parserMinTargetMinutes() {
+        return integer("parser.minTargetMinutes");
+    }
+
+    public int parserMaxTargetMinutes() {
+        return integer("parser.maxTargetMinutes");
+    }
+
+    public int parserDefaultTargetMinutes() {
+        return integer("parser.defaultTargetMinutes");
+    }
+
+    public double parserDefaultFamiliarRatio() {
+        return Double.parseDouble(text("parser.defaultFamiliarRatio"));
+    }
+
+    public String parserDefaultPlaylistName() {
+        return text("parser.defaultPlaylistName");
+    }
+
     /** The single shared truncation of a raw HTTP body for error messages. */
     public String truncateBody(String body) {
         int limit = errorBodyLimit();

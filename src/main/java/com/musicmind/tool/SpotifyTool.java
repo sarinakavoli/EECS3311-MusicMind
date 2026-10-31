@@ -28,9 +28,14 @@ public class SpotifyTool implements Tool {
         return List.of(
                 new SpotifyTool("getTopItems", a -> {
                     String range = optional(a, "range");
-                    return "artists".equalsIgnoreCase(optional(a, "type"))
-                            ? music.getTopArtists(range)
-                            : music.getTopItems("tracks", range);
+                    String type = optional(a, "type");
+                    if (type == null || "tracks".equalsIgnoreCase(type)) {
+                        return music.getTopItems("tracks", range);
+                    }
+                    if ("artists".equalsIgnoreCase(type)) {
+                        return music.getTopArtists(range);
+                    }
+                    throw new IllegalArgumentException("'type' must be 'tracks' or 'artists', got '" + type + "'");
                 }),
                 new SpotifyTool("getSavedTracks", a -> music.getSavedTracks()),
                 new SpotifyTool("getRecentlyPlayed", a -> music.getRecentlyPlayed()),

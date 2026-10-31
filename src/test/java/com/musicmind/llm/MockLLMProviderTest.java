@@ -1,57 +1,45 @@
 package com.musicmind.llm;
 
-import com.google.gson.JsonElement;
-import com.google.gson.JsonParser;
+import com.musicmind.agent.PromptBuilder;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MockLLMProviderTest {
 
     private final MockLLMProvider mock = new MockLLMProvider();
 
-    private static JsonElement json(String s) {
-        return JsonParser.parseString(s);
-    }
-
     @Test
-    void planPromptYieldsAPlaylistSpecJson() {
-        var o = json(mock.complete("Create a playlist plan for: 90 minutes of focus music")).getAsJsonObject();
-        assertTrue(o.get("targetMinutes").getAsInt() > 0);
-        assertTrue(o.has("allowExplicit") && o.has("familiarRatio") && o.has("blockedArtists"));
-    }
-
-    @Test
-    void searchPromptYieldsASearchQueryJson() {
-        var o = json(mock.complete("Parse this search request: upbeat songs")).getAsJsonObject();
-        assertTrue(o.has("text"));
-    }
-
-    @Test
-    void editPromptYieldsACommandList() {
-        var o = json(mock.complete("Modify the playlist: remove the slowest track")).getAsJsonObject();
-        assertTrue(o.getAsJsonArray("commands").size() > 0);
-    }
-
-    @Test
-    void optionsPromptYieldsTextOptions() {
-        var o = json(mock.complete("The constraints are infeasible. Suggest options")).getAsJsonObject();
-        assertTrue(o.getAsJsonArray("options").size() >= 2);
-    }
-
-    @Test
-    void trendsExplainAndSummaryPromptsYieldPlainText() {
-        for (String p : new String[]{"Describe the listening trends", "Explain these decisions", "Summarise this taste profile"}) {
-            String out = mock.complete(p);
-            assertFalse(out.isBlank());
-            assertFalse(out.startsWith("{"), p);
+    void routesOnTheLeadingMarkerForEveryKind() {
+        for (PromptBuilder.Kind kind : PromptBuilder.Kind.values()) {
+            String out = mock.complete(kind.marker() + "\nanything at all");
+            assertFalse(out.isBlank(), kind.name());
+            boolean json = kind == PromptBuilder.Kind.PLAN || kind == PromptBuilder.Kind.SEARCH
+                    || kind == PromptBuilder.Kind.EDIT || kind == PromptBuilder.Kind.OPTIONS;
+            assertEquals(json, out.startsWith("{"), kind.name());
         }
     }
 
     @Test
+    void keywordsInThePromptBodyDoNotChangeTheRoute() {
+        String plain = mock.complete(PromptBuilder.Kind.PLAN.marker() + "\nplan");
+        String tricky = mock.complete(PromptBuilder.Kind.PLAN.marker() + "\nexplain trend search edit option");
+        assertEquals(plain, tricky);
+    }
+
+    @Test
+    void unmarkedOrNullPromptsAreRejected() {
+        assertThrows(LLMException.class, () -> mock.complete("Describe the listening trends"));
+        assertThrows(LLMException.class, () -> mock.complete(null));
+    }
+
+    @Test
     void responsesAreDeterministic() {
-        assertEquals(mock.complete("Explain these decisions"), mock.complete("Explain these decisions"));
+        String p = PromptBuilder.Kind.EXPLAIN.marker() + "\nx";
+        assertEquals(mock.complete(p), mock.complete(p));
+        assertTrue(mock.complete(p).length() > 0);
     }
 }

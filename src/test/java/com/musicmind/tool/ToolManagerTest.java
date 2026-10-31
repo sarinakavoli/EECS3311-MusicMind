@@ -53,6 +53,15 @@ class ToolManagerTest {
     }
 
     @Test
+    void exceptionWithoutMessageReportsItsClassName() {
+        ToolManager tm = new ToolManager();
+        tm.register(tool("npe", args -> { throw new NullPointerException(); }));
+        ToolResult r = tm.execute("npe", Map.of());
+        assertFalse(r.ok());
+        assertEquals("npe failed: NullPointerException", r.error());
+    }
+
+    @Test
     void authExpiryPropagates() {
         ToolManager tm = new ToolManager();
         tm.register(tool("auth", args -> { throw new AuthExpiredException("log in again"); }));
