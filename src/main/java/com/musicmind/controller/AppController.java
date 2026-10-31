@@ -1,16 +1,24 @@
 package com.musicmind.controller;
 
 import com.musicmind.agent.Planner;
+import com.musicmind.agent.PreferenceSettings;
 import com.musicmind.agent.ProfileBuilder;
 import com.musicmind.agent.PromptBuilder;
+import com.musicmind.agent.RecommendationEngine;
 import com.musicmind.agent.ResponseParser;
 import com.musicmind.agent.SearchRanker;
 import com.musicmind.agent.TrendComparator;
 import com.musicmind.config.Config;
+import com.musicmind.domain.DecisionTrace;
+import com.musicmind.domain.Feedback;
 import com.musicmind.domain.ListeningProfile;
+import com.musicmind.domain.PlaylistSpec;
+import com.musicmind.domain.Recommendation;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.User;
+import com.musicmind.domain.UserPreference;
+import com.musicmind.domain.Verdict;
 import com.musicmind.llm.LLMProvider;
 import com.musicmind.llm.OpenAiProvider;
 import com.musicmind.memory.Database;
@@ -27,6 +35,7 @@ import com.musicmind.tool.MemoryTool;
 import com.musicmind.tool.SpotifyTool;
 import com.musicmind.tool.ToolManager;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -39,6 +48,10 @@ import java.util.function.Supplier;
  * business logic of its own.
  */
 public class AppController {
+
+    /** The user id stamped on stored data when Spotify is not configured. */
+    private static final String LOCAL_USER = "local";
+    private static final String TRACK_URI_PREFIX = "spotify:track:";
 
     private final MusicService music; // null until Spotify is configured
     private final MemoryManager memory;
@@ -67,7 +80,9 @@ public class AppController {
             ResponseParser parser = new ResponseParser(config);
             this.facade = new MusicAgentFacade(tools, memory, profileBuilder,
                     new TrendComparator(profileBuilder, config), prompts, llm, config,
-                    new Planner(llm, prompts, parser, config), parser, new SearchRanker(config));
+                    new Planner(llm, prompts, parser, config), parser, new SearchRanker(config),
+                    new RecommendationEngine(tools, config),
+                    () -> currentUser == null ? null : currentUser.id());
         }
     }
 
@@ -91,7 +106,7 @@ public class AppController {
         // Repositories stamp the Spotify user id on writes. The adapter caches it after the first
         // GET /me, so once login() has run this costs nothing; without Spotify nothing is written under a name.
         MusicService music = null;
-        Supplier<String> userId = () -> "local";
+        Supplier<String> userId = () -> LOCAL_USER;
         if (config.spotifyConfigured()) {
             music = new RetryingMusicService(
                     new SpotifyAdapter(config.spotifyClientId(), config.spotifyRedirectUri()));
@@ -185,6 +200,98 @@ public class AppController {
     /** The "plain keyword search" label if the last search was not interpreted; otherwise null. */
     public String lastSearchLabel() {
         return facade == null ? null : facade.lastSearchLabel();
+    }
+
+    // ---- F4 ----
+
+    /**
+     * A discovery spec: the familiar share is {@code 1 - novelty} when a novelty is given, else the
+     * stored familiar-bias preference, else the configured default.
+     *
+     * @param novelty 0..1, or null to use the stored preference
+     * @throws IllegalArgumentException if novelty is outside 0..1
+     */
+    public PlaylistSpec discoverSpec(Double novelty) {
+        double ratio;
+        if (novelty != null) {
+            if (Double.isNaN(novelty) || novelty < 0 || novelty > 1) {
+                throw new IllegalArgumentException("Novelty must be between 0 and 1.");
+            }
+            ratio = 1 - novelty;
+        } else {
+            ratio = PreferenceSettings.from(memory.loadPreferences(userId())).familiarBias()
+                    .orElse(config.discoverDefaultFamiliarRatio());
+        }
+        return new PlaylistSpec(0, true, ratio, List.of(), null);
+    }
+
+    /**
+     * F4 — recommendations for the logged-in user (signing in if needed). The taste profile is the
+     * stored one, or is built when there is none yet. Nothing is persisted.
+     */
+    public List<Recommendation> discover(PlaylistSpec spec) {
+        requireSpotify();
+        User user = currentUser != null ? currentUser : login();
+        ListeningProfile profile = facade.lastProfile(user).filter(p -> !p.isEmpty())
+                .orElseGet(() -> facade.analyzeTaste(user));
+        return facade.discover(profile, spec);
+    }
+
+    /** What the user should be told about the last discovery (database warning, widening, filters); never null. */
+    public List<String> lastDiscoverNotices() {
+        return facade == null ? List.of() : facade.lastDiscoverNotices();
+    }
+
+    /** Why the last discovery chose what it did; null before one. */
+    public DecisionTrace lastDecisionTrace() {
+        return facade == null ? null : facade.lastDecisionTrace();
+    }
+
+    // ---- F8 ----
+
+    /**
+     * Stores a preference (an existing key is updated). With the database down the app keeps going and
+     * {@code memory().warning()} says it was not saved.
+     *
+     * @throws IllegalArgumentException for a blank key or a familiar bias outside 0..1
+     */
+    public void setPreference(UserPreference pref) {
+        memory.savePreference(pref);
+    }
+
+    /** The user's stored preferences; the safe defaults (and a warning) while the database is down. */
+    public List<UserPreference> getPreferences() {
+        return memory.loadPreferences(userId());
+    }
+
+    // ---- F9 ----
+
+    /**
+     * Records an accept or reject verdict on a track (a Spotify track URI is accepted too). A repeat
+     * verdict on the same track replaces the earlier one.
+     *
+     * @throws IllegalArgumentException if the track id is blank or the verdict is missing
+     */
+    public void recordFeedback(String trackId, Verdict verdict) {
+        if (trackId == null || trackId.isBlank()) {
+            throw new IllegalArgumentException("Give the id of the track.");
+        }
+        if (verdict == null) {
+            throw new IllegalArgumentException("Choose accept or reject.");
+        }
+        String id = trackId.strip();
+        if (id.startsWith(TRACK_URI_PREFIX)) {
+            id = id.substring(TRACK_URI_PREFIX.length());
+        }
+        memory.saveFeedback(new Feedback(id, verdict, Instant.now()));
+    }
+
+    /** The id data is stored under: the logged-in user (signing in if needed), or the local user without Spotify. */
+    private String userId() {
+        if (currentUser != null) {
+            return currentUser.id();
+        }
+        return music == null ? LOCAL_USER : login().id();
     }
 
     private void requireSpotify() {

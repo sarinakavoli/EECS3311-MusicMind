@@ -7,8 +7,10 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
 import com.musicmind.agent.Planner;
+import com.musicmind.agent.PreferenceSettings;
 import com.musicmind.agent.ProfileBuilder;
 import com.musicmind.agent.PromptBuilder;
+import com.musicmind.agent.RecommendationEngine;
 import com.musicmind.agent.ResponseParser;
 import com.musicmind.agent.SearchRanker;
 import com.musicmind.agent.TrendComparator;
@@ -16,13 +18,18 @@ import com.musicmind.config.Config;
 import com.musicmind.domain.AgentRequest;
 import com.musicmind.domain.AgentSession;
 import com.musicmind.domain.Artist;
+import com.musicmind.domain.DecisionTrace;
+import com.musicmind.domain.Feedback;
 import com.musicmind.domain.ListeningProfile;
+import com.musicmind.domain.PlaylistSpec;
+import com.musicmind.domain.Recommendation;
 import com.musicmind.domain.RequestKind;
 import com.musicmind.domain.SearchQuery;
 import com.musicmind.domain.TopItems;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.User;
+import com.musicmind.domain.UserPreference;
 import com.musicmind.llm.LLMProvider;
 import com.musicmind.memory.MemoryManager;
 import com.musicmind.music.MusicServiceException;
@@ -38,6 +45,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -47,6 +55,11 @@ import java.util.stream.Collectors;
  * {@link MemoryManager} saves the session) and the time-range variant for F2.
  * The GUI and the CLI both go through {@link AppController}, so neither
  * duplicates any of this.
+ *
+ * F4 follows SD04: the stored preferences and feedback are loaded through the
+ * {@link MemoryManager}, the strategy is chosen from the familiar ratio and the
+ * {@link RecommendationEngine} builds, filters, scores and explains the candidates.
+ * Discovery never calls the LLM and persists nothing.
  *
  * <p>The LLM only phrases results. With no provider, or when it fails or answers
  * with something unusable, the Stage 1 fallback applies: a sentence computed from
@@ -68,12 +81,17 @@ public class MusicAgentFacade {
     private final Planner planner;
     private final ResponseParser parser;
     private final SearchRanker ranker;
+    private final RecommendationEngine engine;
+    private final Supplier<String> currentUserId;
     private volatile String lastSearchNotice;
     private volatile String lastSearchLabel;
+    private volatile List<String> lastDiscoverNotices = List.of();
+    private volatile DecisionTrace lastDecisionTrace;
 
     public MusicAgentFacade(ToolManager tools, MemoryManager memory, ProfileBuilder profileBuilder,
                             TrendComparator trendComparator, PromptBuilder prompts, LLMProvider llm,
-                            Config config, Planner planner, ResponseParser parser, SearchRanker ranker) {
+                            Config config, Planner planner, ResponseParser parser, SearchRanker ranker,
+                            RecommendationEngine engine, Supplier<String> currentUserId) {
         this.tools = tools;
         this.memory = memory;
         this.profileBuilder = profileBuilder;
@@ -84,6 +102,8 @@ public class MusicAgentFacade {
         this.planner = planner;
         this.parser = parser;
         this.ranker = ranker;
+        this.engine = engine;
+        this.currentUserId = currentUserId;
     }
 
     // ---- F1 ----
@@ -231,6 +251,60 @@ public class MusicAgentFacade {
         }
         int cut = keywords.lastIndexOf(' ');
         return cut < 0 ? Optional.empty() : Optional.of(keywords.substring(0, cut).strip());
+    }
+
+    // ---- F4 ----
+
+    /**
+     * F4 per SD04. Loads the user's preferences and feedback, applies the preferences to the spec
+     * (blocked artists, explicit policy), picks the strategy from the familiar ratio and asks the
+     * engine for scored recommendations with reasons. Widening, shortfalls, filtered-out
+     * candidates and a database warning are in {@link #lastDiscoverNotices()}.
+     *
+     * @throws IllegalStateException if nobody is logged in
+     * @throws MusicServiceException if every Spotify read failed
+     */
+    public synchronized List<Recommendation> discover(ListeningProfile profile, PlaylistSpec spec) {
+        Objects.requireNonNull(profile, "profile");
+        Objects.requireNonNull(spec, "spec");
+        String userId = currentUserId.get();
+        if (userId == null) {
+            throw new IllegalStateException("Log in before asking for recommendations.");
+        }
+        lastDiscoverNotices = List.of();
+        lastDecisionTrace = null;
+        List<String> notices = new ArrayList<>();
+
+        List<UserPreference> preferences = memory.loadPreferences(userId);
+        addWarning(notices);
+        List<Feedback> feedback = memory.loadFeedback(userId);
+        addWarning(notices);
+
+        PlaylistSpec effective = PreferenceSettings.from(preferences).applyTo(spec);
+        engine.chooseStrategy(effective.familiarRatio());
+        List<Recommendation> recommendations = engine.recommend(profile, effective, feedback);
+        notices.addAll(engine.lastNotices());
+
+        lastDiscoverNotices = List.copyOf(notices);
+        lastDecisionTrace = engine.lastTrace();
+        return recommendations;
+    }
+
+    /** What the user should be told about the last discovery: database warning, widening, shortfalls, filters. */
+    public List<String> lastDiscoverNotices() {
+        return lastDiscoverNotices;
+    }
+
+    /** The strategy, reasons and satisfied constraints of the last discovery; null before one. */
+    public DecisionTrace lastDecisionTrace() {
+        return lastDecisionTrace;
+    }
+
+    private void addWarning(List<String> notices) {
+        String warning = memory.warning();
+        if (warning != null && !notices.contains(warning)) {
+            notices.add(warning);
+        }
     }
 
     // ---- helpers ----

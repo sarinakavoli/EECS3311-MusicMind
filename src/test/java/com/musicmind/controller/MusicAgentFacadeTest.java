@@ -122,7 +122,8 @@ class MusicAgentFacadeTest extends PostgresTestBase {
         PromptBuilder prompts = new PromptBuilder(config);
         return new MusicAgentFacade(tools, memory, builder, new TrendComparator(builder, config),
                 prompts, llm, config, new Planner(llm, prompts, new ResponseParser(config), config),
-                new ResponseParser(config), new SearchRanker(config));
+                new ResponseParser(config), new SearchRanker(config),
+                new com.musicmind.agent.RecommendationEngine(tools, config), currentUser::get);
     }
 
     private ToolManager tools(FakeMusic music, MemoryManager memory, List<String> toolLog) {
