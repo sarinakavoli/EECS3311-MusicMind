@@ -18,6 +18,7 @@ Dates are Toronto time. Each day ends with real commits pushed to GitHub, and a 
 | Fri Oct 30 | Tasks 1-5: PostgreSQL, Spotify API fix, OpenAI, tools, LLM parsing | `./gradlew build` passes |
 | Sat Oct 31 | Tasks 6-8: F1, F2, F3, F4, F8, F9 | `profile`, `trends`, `search`, `discover`, `prefs`, `feedback` |
 | Sat Oct 31 (added) | Task 18: MusicBrainz genres, run before Task 9 | `profile --refresh` shows genres |
+| Sat Oct 31 (added) | Task 19: search fix, run before Task 9 | `search` returns tracks |
 | Sun Nov 1 | Tasks 9-12: F5, F6, F7, F10, F11, F12, full CLI | `create`, `modify`, `undo`, `validate`, `explain`, `history`, `restore` |
 | Mon Nov 2 | Tasks 13-17: GUI, docs, UML, report, final review, merge | All GUI tabs, README setup, report PDF |
 | Nov 3-9 | Buffer: fixes from Sarina's testing (real code commits only), video links added to the report | Videos recorded |
@@ -84,6 +85,7 @@ Stage 1 is internally inconsistent or silent in these places. These decisions bi
 | R16 | Authentication (UC01) has no class method. | `AppController.login(): User` and `currentUser()`. |
 | R17 | Stage 1 lists `MockLLMProvider`; Stage 2 rejects hard-coded responses. | `MockLLMProvider` stays as a test double and is never created by `AppController`. With no `LLM_API_KEY`, features needing the LLM say so; features with a Stage 1 fallback (F1, F2 wording, F3 keyword search) use it and label it. |
 | R18 | Stage 1 takes genres from Spotify artist metadata, but live testing on Oct 31 showed Spotify returns no `genres` field to this Development Mode app. | Genres come from MusicBrainz through `GenreEnrichingMusicService`, a Decorator over `MusicService`. Aggregation stays deterministic and the LLM does not supply genres. Documented as a Stage 2 change. |
+| R19 | Stage 1 F3 and F4 use genre in Spotify searches, but live testing on Oct 31 showed the `genre:` filter returns 0-1 tracks where plain keywords return 20. | Genre stays a field of `SearchQuery` and in ranking, but is sent to Spotify as a plain keyword, never as a `genre:` filter. Documented as a Stage 2 change. |
 
 ## File map
 
@@ -247,6 +249,19 @@ Run before Task 9. Spotify returns no `genres` for this app (R18), so F1, F2, F4
 - `build.gradle` and `.env.example` need no key.
 
 Tests: local `HttpServer` for match, no match, alias, accent, low score, 503 retry, failure, ordering, User-Agent and pacing (with a clock/sleeper seam). Decorator delegation of every method. Cache hit makes no HTTP call; no-match is cached; expiry refetches. Partial-coverage notice. No network in tests.
+
+### Task 19: Search without the Spotify genre filter
+
+Run before Task 9. Live test: `upbeat indie running genre:indie` returned 1 track and `upbeat indie running` returned 20 (R19).
+
+- `SearchQuery.toSpotifyQuery()`: add the genre as a plain keyword, skipping it if the keywords already contain it. Never emit `genre:`. Other documented field filters (`year`, `artist`) stay.
+- Drop any LLM filter whose field is not in the allowed list in `musicmind.properties`, so an invented field cannot empty a search.
+- `buildSearchPrompt`: tell the model to keep keywords short and not to repeat the genre.
+- Check every Spotify search built by F4 (`CandidateRetriever` or equivalent) for the same filter and use plain keywords there too.
+- If a parsed query finds nothing, retry once with the keywords alone before reporting no results; label nothing as an LLM failure.
+- `suggestRelaxedQuery` stays for when that also finds nothing.
+
+Tests: exact query strings for genre, repeated genre and filters; unknown filter dropped; empty result retried with keywords and that the retry's results are returned; F4 search strings contain no `genre:`.
 
 ### Task 14: Documentation and conformance
 
