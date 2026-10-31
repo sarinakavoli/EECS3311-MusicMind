@@ -81,7 +81,7 @@ persistence, and one LLM behind the `LLMProvider` interface.
   <https://developer.spotify.com/dashboard>, note the Client ID/Secret, and add
   the redirect URI `http://127.0.0.1:8080/callback`. A Spotify **Premium**
   account is required for Web API access.
-- An **LLM API key** (any cheap/free model, e.g. Google Gemini free tier).
+- An **LLM API key** (OpenAI; default model `gpt-4o`).
 
 ### Local configuration (keys stay local — never committed)
 ```bash

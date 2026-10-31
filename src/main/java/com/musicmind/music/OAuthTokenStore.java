@@ -2,6 +2,7 @@ package com.musicmind.music;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import com.musicmind.config.Config;
 import com.sun.net.httpserver.HttpServer;
 
 import java.awt.Desktop;
@@ -40,7 +41,6 @@ import java.util.function.Consumer;
 public class OAuthTokenStore {
 
     private static final String AUTHORIZE_URL = "https://accounts.spotify.com/authorize";
-    private static final String DEFAULT_TOKEN_URL = "https://accounts.spotify.com/api/token";
     private static final String SCOPES = String.join(" ",
             "user-top-read",
             "user-library-read",
@@ -70,7 +70,7 @@ public class OAuthTokenStore {
     }
 
     public OAuthTokenStore(String clientId, String redirectUri, Path tokenCache) {
-        this(clientId, redirectUri, tokenCache, DEFAULT_TOKEN_URL);
+        this(clientId, redirectUri, tokenCache, Config.defaults().spotifyTokenUrl());
     }
 
     /** Token endpoint seam, so tests can point refresh/exchange at a local server. */
@@ -122,8 +122,14 @@ public class OAuthTokenStore {
         try {
             refresh();
         } catch (MusicServiceException e) {
-            refreshToken = null;
-            throw new AuthExpiredException(LOGIN_MESSAGE, e);
+            // Only a rejection of the refresh token itself means the user must log in
+            // again; anything else (429, 5xx, network) is left for the retry decorator.
+            if (e.statusCode() == 400 || e.statusCode() == 401) {
+                refreshToken = null;
+                saveCache();
+                throw new AuthExpiredException(LOGIN_MESSAGE, e);
+            }
+            throw e;
         }
         return accessToken;
     }
@@ -246,7 +252,7 @@ public class OAuthTokenStore {
             HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() / 100 != 2) {
                 throw new MusicServiceException("Spotify token request failed (HTTP "
-                        + response.statusCode() + "): " + response.body(), response.statusCode());
+                        + response.statusCode() + "): " + truncate(response.body()), response.statusCode());
             }
             return gson.fromJson(response.body(), JsonObject.class);
         } catch (MusicServiceException e) {
@@ -254,6 +260,11 @@ public class OAuthTokenStore {
         } catch (Exception e) {
             throw new MusicServiceException("Spotify token request failed.", e);
         }
+    }
+
+    private String truncate(String body) {
+        int limit = Config.defaults().errorBodyLimit();
+        return body == null || body.length() <= limit ? body : body.substring(0, limit) + "...";
     }
 
     private void storeTokens(JsonObject json, boolean expectRefresh) {

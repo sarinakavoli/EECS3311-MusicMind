@@ -382,4 +382,14 @@ class SpotifyAdapterTest {
         assertEquals(503, e.statusCode());
         assertEquals(3, e.retryAfterSeconds());
     }
+
+    @Test
+    void errorMessagesTruncateTheRawResponseBody() {
+        api.respond(r -> new Reply(500, "z".repeat(5000), java.util.Map.of()));
+
+        MusicServiceException e = assertThrows(MusicServiceException.class, () -> adapter.currentUserId());
+
+        assertTrue(e.getMessage().contains("zzz"));
+        assertTrue(e.getMessage().length() < 1000, "length " + e.getMessage().length());
+    }
 }

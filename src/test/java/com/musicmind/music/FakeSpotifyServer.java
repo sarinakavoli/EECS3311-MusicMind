@@ -36,6 +36,7 @@ final class FakeSpotifyServer implements AutoCloseable {
     private final AtomicInteger tokensIssued = new AtomicInteger();
     private final HttpServer server;
     private volatile Function<Req, Reply> handler = r -> Reply.status(404);
+    private volatile int tokenStatus = 200;
 
     FakeSpotifyServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -56,6 +57,13 @@ final class FakeSpotifyServer implements AutoCloseable {
         });
         server.createContext("/token", exchange -> {
             tokenRequests.add(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            if (tokenStatus != 200) {
+                byte[] err = "{\"error\":\"token endpoint says no\"}".getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(tokenStatus, err.length);
+                exchange.getResponseBody().write(err);
+                exchange.close();
+                return;
+            }
             byte[] bytes = ("{\"access_token\":\"tok" + tokensIssued.incrementAndGet()
                     + "\",\"expires_in\":3600,\"refresh_token\":\"refresh-1\"}").getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().add("Content-Type", "application/json");
@@ -68,6 +76,11 @@ final class FakeSpotifyServer implements AutoCloseable {
 
     void respond(Function<Req, Reply> handler) {
         this.handler = handler;
+    }
+
+    /** Makes the token endpoint answer with this status instead of issuing tokens. */
+    void failTokenEndpointWith(int status) {
+        this.tokenStatus = status;
     }
 
     String apiBase() {

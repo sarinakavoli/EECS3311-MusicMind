@@ -1,5 +1,6 @@
 package com.musicmind.music;
 
+import com.musicmind.config.Config;
 import com.musicmind.domain.Album;
 import com.musicmind.domain.Artist;
 import com.musicmind.domain.Playlist;
@@ -23,20 +24,20 @@ public class RetryingMusicService implements MusicService {
         void sleepSeconds(long seconds) throws InterruptedException;
     }
 
-    /** A server asking us to wait longer than this is treated as unavailable. */
-    private static final long MAX_WAIT_SECONDS = 60;
-
     private final MusicService delegate;
     private final int maxRetries;
+    /** A server asking us to wait longer than this is treated as unavailable. */
+    private final long maxWaitSeconds;
     private final Sleeper sleeper;
 
     public RetryingMusicService(MusicService delegate) {
-        this(delegate, 3, seconds -> Thread.sleep(seconds * 1000L));
+        this(delegate, Config.defaults().spotifyRetryCount(), seconds -> Thread.sleep(seconds * 1000L));
     }
 
     RetryingMusicService(MusicService delegate, int maxRetries, Sleeper sleeper) {
         this.delegate = delegate;
         this.maxRetries = maxRetries;
+        this.maxWaitSeconds = Config.defaults().spotifyMaxWaitSeconds();
         this.sleeper = sleeper;
     }
 
@@ -53,7 +54,7 @@ public class RetryingMusicService implements MusicService {
                 if (!retryable(e)) {
                     throw e;
                 }
-                if (e.retryAfterSeconds() > MAX_WAIT_SECONDS) {
+                if (e.retryAfterSeconds() > maxWaitSeconds) {
                     throw giveUp(e, "Spotify asked us to wait " + e.retryAfterSeconds()
                             + " seconds, which is too long. Please try again later.");
                 }

@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -59,6 +60,52 @@ class OAuthTokenStoreTest {
             assertTrue(e.getMessage().toLowerCase().contains("log in"), e.getMessage());
             assertTrue(server.tokenRequests.isEmpty());
         }
+    }
+
+    @Test
+    void forceRefreshRejectedWith400Or401ClearsTheRefreshTokenAndRaisesAuthExpired() throws Exception {
+        for (int status : new int[]{400, 401}) {
+            try (FakeSpotifyServer server = new FakeSpotifyServer()) {
+                OAuthTokenStore store = server.tokenStore(dir);
+                server.failTokenEndpointWith(status);
+
+                assertThrows(AuthExpiredException.class, store::forceRefresh);
+                assertEquals(1, server.tokenRequests.size());
+
+                // The refresh token is gone, so a second attempt does not even reach the endpoint.
+                assertThrows(AuthExpiredException.class, store::forceRefresh);
+                assertEquals(1, server.tokenRequests.size(), "HTTP " + status);
+            }
+        }
+    }
+
+    @Test
+    void forceRefreshFailingWithAnotherStatusIsRethrownUnchangedAndKeepsTheRefreshToken() throws Exception {
+        for (int status : new int[]{429, 500, 503}) {
+            try (FakeSpotifyServer server = new FakeSpotifyServer()) {
+                OAuthTokenStore store = server.tokenStore(dir);
+                server.failTokenEndpointWith(status);
+
+                MusicServiceException e = assertThrows(MusicServiceException.class, store::forceRefresh);
+                assertFalse(e instanceof AuthExpiredException, "HTTP " + status);
+                assertEquals(status, e.statusCode());
+
+                // The decorator may retry: the refresh token survived, and recovery works.
+                server.failTokenEndpointWith(200);
+                assertEquals("tok1", store.forceRefresh());
+                assertEquals(2, server.tokenRequests.size());
+            }
+        }
+    }
+
+    @Test
+    void forceRefreshFailingWithoutAResponseIsRethrownAndKeepsTheRefreshToken() throws Exception {
+        OAuthTokenStore store;
+        try (FakeSpotifyServer server = new FakeSpotifyServer()) {
+            store = server.tokenStore(dir);
+        }
+        MusicServiceException e = assertThrows(MusicServiceException.class, store::forceRefresh);
+        assertFalse(e instanceof AuthExpiredException);
     }
 
     @Test

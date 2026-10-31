@@ -3,9 +3,8 @@ package com.musicmind.controller;
 import com.musicmind.agent.ProfileBuilder;
 import com.musicmind.agent.ProfileSummarizer;
 import com.musicmind.config.Config;
-import com.musicmind.llm.GeminiLLMProvider;
+import com.musicmind.llm.OpenAiProvider;
 import com.musicmind.llm.LLMProvider;
-import com.musicmind.llm.MockLLMProvider;
 import com.musicmind.memory.Database;
 import com.musicmind.memory.MemoryManager;
 import com.musicmind.memory.PersistenceException;
@@ -22,7 +21,7 @@ import java.util.function.Supplier;
 /**
  * Application controller (MVC): the single wiring point shared by the GUI and
  * the CLI. It reads configuration, assembles the dependency graph (real Spotify
- * + Gemini when configured, otherwise graceful fallbacks), and exposes the
+ * + OpenAI when configured, otherwise graceful fallbacks), and exposes the
  * features as plain method calls that return result objects for a view to
  * render.
  */
@@ -45,9 +44,10 @@ public class AppController {
     public static AppController create() {
         Config config = Config.load();
 
+        // No key means no provider (R17): features with a documented fallback label it.
         LLMProvider llm = config.llmConfigured()
-                ? new GeminiLLMProvider(config.llmApiKey(), config.llmModel())
-                : new MockLLMProvider();
+                ? new OpenAiProvider(config.llmApiKey(), config.llmModel())
+                : null;
 
         // The database may be down: the app keeps running and MemoryManager warns (F8).
         Database db = new Database(config.databaseUrl(), config.databaseUser(), config.databasePassword());

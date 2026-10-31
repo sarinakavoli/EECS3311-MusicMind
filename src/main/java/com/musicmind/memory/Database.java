@@ -1,5 +1,7 @@
 package com.musicmind.memory;
 
+import com.musicmind.config.Config;
+
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -14,11 +16,10 @@ import java.util.Properties;
  */
 public class Database implements AutoCloseable {
 
-    private static final int CONNECT_TIMEOUT_SECONDS = 5;
-
     private final String url;
     private final String user;
     private final String password;
+    private final int connectTimeoutSeconds = Config.defaults().databaseConnectTimeoutSeconds();
     private Connection connection;
 
     public Database(String url, String user, String password) {
@@ -30,12 +31,12 @@ public class Database implements AutoCloseable {
     /** The live connection, opening it (and creating the schema) if needed. */
     public synchronized Connection connection() {
         try {
-            if (connection == null || connection.isClosed() || !connection.isValid(CONNECT_TIMEOUT_SECONDS)) {
+            if (connection == null || connection.isClosed() || !connection.isValid(connectTimeoutSeconds)) {
                 closeQuietly();
                 Properties props = new Properties();
                 props.setProperty("user", user == null ? "" : user);
                 props.setProperty("password", password == null ? "" : password);
-                props.setProperty("connectTimeout", String.valueOf(CONNECT_TIMEOUT_SECONDS));
+                props.setProperty("connectTimeout", String.valueOf(connectTimeoutSeconds));
                 Connection fresh = DriverManager.getConnection(url, props);
                 try {
                     createSchema(fresh);

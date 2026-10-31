@@ -1,5 +1,6 @@
 package com.musicmind.agent;
 
+import com.musicmind.config.Config;
 import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.ValidationResult;
@@ -17,8 +18,8 @@ import java.util.Set;
  */
 public class PlaylistValidator {
 
-    /** Allowed deviation from the target duration (±10%). */
-    private static final double DURATION_TOLERANCE = 0.10;
+    /** Allowed deviation from the target duration, from {@code playlist.durationTolerance}. */
+    private final double durationTolerance = Config.defaults().playlistDurationTolerance();
 
     public ValidationResult validate(List<Track> tracks, PlaylistSpec spec) {
         List<String> violations = new ArrayList<>();
@@ -57,12 +58,12 @@ public class PlaylistValidator {
         if (spec != null && spec.targetMinutes() > 0) {
             long targetMs = spec.targetMinutes() * 60_000L;
             long actualMs = tracks.stream().mapToLong(Track::durationMs).sum();
-            long low = Math.round(targetMs * (1 - DURATION_TOLERANCE));
-            long high = Math.round(targetMs * (1 + DURATION_TOLERANCE));
+            long low = Math.round(targetMs * (1 - durationTolerance));
+            long high = Math.round(targetMs * (1 + durationTolerance));
             if (actualMs < low || actualMs > high) {
                 violations.add(String.format(
                         "total duration %d min is outside the target of %d min (±%d%%)",
-                        actualMs / 60_000, spec.targetMinutes(), (int) (DURATION_TOLERANCE * 100)));
+                        actualMs / 60_000, spec.targetMinutes(), (int) (durationTolerance * 100)));
             }
         }
 

@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.musicmind.config.Config;
 import com.musicmind.domain.Album;
 import com.musicmind.domain.Artist;
 import com.musicmind.domain.Playlist;
@@ -30,15 +31,13 @@ import java.util.List;
  */
 public class SpotifyAdapter implements MusicService {
 
-    private static final String DEFAULT_API = "https://api.spotify.com/v1";
-    /** Spotify caps search pages at 10 in development mode. */
-    private static final int SEARCH_PAGE = 10;
-    private static final int LIBRARY_PAGE = 50;
     private static final int PLAYLIST_PAGE = 100;
     private static final int ADD_BATCH = 100;
-    /** Upper bound on items collected by any paged read. */
-    private static final int MAX_ITEMS = 500;
 
+    private final int searchPage;
+    private final int libraryPage;
+    private final int maxItems;
+    private final int errorBodyLimit;
     private final HttpClient http = HttpClient.newHttpClient();
     private final OAuthTokenStore auth;
     private final String api;
@@ -50,13 +49,18 @@ public class SpotifyAdapter implements MusicService {
     }
 
     public SpotifyAdapter(OAuthTokenStore auth) {
-        this(auth, DEFAULT_API);
+        this(auth, Config.defaults().spotifyApiBaseUrl());
     }
 
     /** API base URL seam, so tests can target a local server. */
     SpotifyAdapter(OAuthTokenStore auth, String apiBaseUrl) {
         this.auth = auth;
         this.api = apiBaseUrl;
+        Config config = Config.defaults();
+        this.searchPage = config.spotifySearchPageSize();
+        this.libraryPage = config.spotifyLibraryPageSize();
+        this.maxItems = config.spotifyMaxItems();
+        this.errorBodyLimit = config.errorBodyLimit();
     }
 
     // ---- read: listening data ----
@@ -82,7 +86,7 @@ public class SpotifyAdapter implements MusicService {
 
     @Override
     public List<Track> getSavedTracks() {
-        return pagedTracks("/me/tracks?limit=" + LIBRARY_PAGE, null);
+        return pagedTracks("/me/tracks?limit=" + libraryPage, null);
     }
 
     @Override
@@ -95,11 +99,11 @@ public class SpotifyAdapter implements MusicService {
 
     @Override
     public List<Track> search(String query, int limit) {
-        int wanted = Math.min(limit, MAX_ITEMS);
+        int wanted = Math.min(limit, maxItems);
         List<Track> out = new ArrayList<>();
         int offset = 0;
         while (out.size() < wanted) {
-            int size = Math.min(SEARCH_PAGE, wanted - out.size());
+            int size = Math.min(searchPage, wanted - out.size());
             JsonObject body = get("/search?type=track&limit=" + size + "&offset=" + offset + "&q=" + enc(query));
             JsonObject page = body.has("tracks") && body.get("tracks").isJsonObject()
                     ? body.getAsJsonObject("tracks") : new JsonObject();
@@ -202,13 +206,13 @@ public class SpotifyAdapter implements MusicService {
 
     /**
      * Follows {@code next} links from {@code firstPath} until none remain or
-     * {@link #MAX_ITEMS} entries are gathered. {@code forbiddenMessage}, when
+     * {@code spotify.maxItems} entries are gathered. {@code forbiddenMessage}, when
      * set, replaces the generic text of a 403.
      */
     private List<Track> pagedTracks(String firstPath, String forbiddenMessage) {
         List<Track> out = new ArrayList<>();
         String url = api + firstPath;
-        while (url != null && out.size() < MAX_ITEMS) {
+        while (url != null && out.size() < maxItems) {
             JsonObject page;
             try {
                 page = sendUrl("GET", url, null);
@@ -224,7 +228,7 @@ public class SpotifyAdapter implements MusicService {
                 throw new MusicServiceException("Spotify returned an unexpected next-page address; stopped paging.");
             }
         }
-        return out.size() > MAX_ITEMS ? new ArrayList<>(out.subList(0, MAX_ITEMS)) : out;
+        return out.size() > maxItems ? new ArrayList<>(out.subList(0, maxItems)) : out;
     }
 
     private JsonObject send(String method, String path, String jsonBody) {
@@ -247,7 +251,7 @@ public class SpotifyAdapter implements MusicService {
         }
         if (code / 100 != 2) {
             throw new MusicServiceException("Spotify API error (HTTP " + code + ") on " + where
-                    + ": " + response.body(), code, null, retryAfter(response));
+                    + ": " + truncate(response.body()), code, null, retryAfter(response));
         }
         String body = response.body();
         if (body == null || body.isBlank()) {
@@ -259,6 +263,13 @@ public class SpotifyAdapter implements MusicService {
         } catch (RuntimeException e) {
             throw new MusicServiceException("Spotify returned an unreadable response on " + where, e);
         }
+    }
+
+    private String truncate(String body) {
+        if (body == null || body.length() <= errorBodyLimit) {
+            return body;
+        }
+        return body.substring(0, errorBodyLimit) + "...";
     }
 
     private HttpResponse<String> execute(String method, String url, String jsonBody, String token) {

@@ -8,14 +8,18 @@ import java.util.stream.Collectors;
 
 /**
  * Turns a {@link ListeningProfile} into a one-line, human-friendly summary using
- * the {@link LLMProvider} (F1). If the LLM is unavailable or returns something
- * unusable, it falls back to a deterministic sentence built from the profile, so
- * the feature always produces a sensible result.
+ * the {@link LLMProvider} (F1). With no provider (null), or if the LLM fails or
+ * returns something unusable, it falls back to a sentence computed from the
+ * profile and labelled as such, so the feature always produces a sensible result.
  */
 public class ProfileSummarizer {
 
+    /** Appended to every computed (non-LLM) summary so it is never mistaken for AI output. */
+    public static final String COMPUTED_LABEL = " [computed from your listening data, not AI-written]";
+
     private final LLMProvider llm;
 
+    /** @param llm the provider, or null when none is configured */
     public ProfileSummarizer(LLMProvider llm) {
         this.llm = llm;
     }
@@ -33,13 +37,15 @@ public class ProfileSummarizer {
                 + "Top genres: " + (genres.isEmpty() ? "unknown" : genres) + ". "
                 + "Favourite artists: " + (artists.isEmpty() ? "various" : artists) + ".";
 
-        try {
-            String line = firstLine(llm.complete(prompt));
-            if (!line.isBlank() && !line.startsWith("{")) {
-                return line;
+        if (llm != null) {
+            try {
+                String line = firstLine(llm.complete(prompt));
+                if (!line.isBlank() && !line.startsWith("{")) {
+                    return line;
+                }
+            } catch (RuntimeException ignored) {
+                // fall back to the computed summary below
             }
-        } catch (RuntimeException ignored) {
-            // fall back to the deterministic summary below
         }
         return deterministic(profile, genres, artists);
     }
@@ -55,7 +61,7 @@ public class ProfileSummarizer {
         sb.append(top != null ? "toward " + top : "across a mix of genres");
         if (!genres.isBlank()) sb.append(" (with ").append(genres).append(")");
         if (!artists.isBlank()) sb.append(", built around artists like ").append(artists);
-        sb.append('.');
+        sb.append('.').append(COMPUTED_LABEL);
         return sb.toString();
     }
 

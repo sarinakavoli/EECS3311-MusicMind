@@ -1,5 +1,6 @@
 package com.musicmind.agent.strategy;
 
+import com.musicmind.config.Config;
 import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.Track;
 
@@ -17,7 +18,8 @@ import java.util.Set;
 public abstract class AbstractRecommendationStrategy implements RecommendationStrategy {
 
     /** Rough average track length used to turn a target duration into a count. */
-    private static final int AVG_TRACK_MINUTES = 4;
+    private final int avgTrackMinutes = Config.defaults().avgTrackMinutes();
+    private final int defaultTrackCount = Config.defaults().defaultTrackCount();
 
     /** Protected helper: 1.0 if the track is by a known artist, else 0.0. */
     protected double scoreFamiliarity(Track track, Set<String> knownArtistIds) {
@@ -39,9 +41,9 @@ public abstract class AbstractRecommendationStrategy implements RecommendationSt
     /** Number of tracks to aim for given the spec. */
     protected int targetCount(PlaylistSpec spec) {
         if (spec != null && spec.targetMinutes() > 0) {
-            return Math.max(1, spec.targetMinutes() / AVG_TRACK_MINUTES);
+            return Math.max(1, spec.targetMinutes() / avgTrackMinutes);
         }
-        return 20;
+        return defaultTrackCount;
     }
 
     protected List<Track> take(List<Track> list, int n) {
