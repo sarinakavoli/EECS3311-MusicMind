@@ -33,6 +33,7 @@ import com.musicmind.domain.UserPreference;
 import com.musicmind.llm.LLMProvider;
 import com.musicmind.memory.MemoryManager;
 import com.musicmind.music.MusicServiceException;
+import com.musicmind.music.TrackList;
 import com.musicmind.tool.ToolManager;
 import com.musicmind.tool.ToolResult;
 
@@ -131,12 +132,16 @@ public class MusicAgentFacade {
         Fetch<Track> saved = fetch(SAVED_TRACKS, Map.of(), "Saved tracks");
 
         List<String> errors = Fetch.errors(artists, topTracks, saved);
+        List<String> notices = new ArrayList<>(errors);
+        if (saved.items() instanceof TrackList list && list.isTruncated()) {
+            notices.add(savedTracksCappedNotice());
+        }
         if (errors.size() == 3) {
             throw new MusicServiceException("Could not read your Spotify listening data. "
                     + String.join(" ", errors));
         }
         ListeningProfile built = profileBuilder.build(
-                new TopItems(artists.items(), topTracks.items()), saved.items(), errors);
+                new TopItems(artists.items(), topTracks.items()), saved.items(), notices);
         ListeningProfile profile = withSummary(built);
         profile.setRange(r);
 
@@ -283,6 +288,9 @@ public class MusicAgentFacade {
         lastDiscoverNotices = List.of();
         lastDecisionTrace = null;
         List<String> notices = new ArrayList<>();
+        if (profile.notices().contains(savedTracksCappedNotice())) {
+            notices.add(savedTracksCappedNotice());
+        }
 
         List<UserPreference> preferences = memory.loadPreferences(userId);
         addWarning(notices);
@@ -308,6 +316,11 @@ public class MusicAgentFacade {
     /** The strategy, reasons and satisfied constraints of the last discovery; null before one. */
     public DecisionTrace lastDecisionTrace() {
         return lastDecisionTrace;
+    }
+
+    /** Told in the profile and in discovery when the saved-track read stopped at its cap. */
+    private String savedTracksCappedNotice() {
+        return String.format(config.wording("savedTracksCapped"), config.spotifyMaxSavedTracks());
     }
 
     private void addWarning(List<String> notices) {

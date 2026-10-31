@@ -185,6 +185,11 @@ public final class Config {
         return integer("spotify.maxItems");
     }
 
+    /** Most saved tracks read from the library; beyond it the profile says some were not checked. */
+    public int spotifyMaxSavedTracks() {
+        return integer("spotify.maxSavedTracks");
+    }
+
     public int spotifyRetryCount() {
         return integer("spotify.retryCount");
     }

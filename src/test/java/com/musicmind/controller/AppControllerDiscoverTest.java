@@ -176,6 +176,29 @@ class AppControllerDiscoverTest extends PostgresTestBase {
     }
 
     @Test
+    void discoverTellsTheUserWhenSomeSavedTracksWereNotChecked() {
+        AppController c = controller(new Music() {
+            @Override public List<Track> getSavedTracks() { return new com.musicmind.music.TrackList(List.of(), true); }
+        });
+        String notice = String.format(config.wording("savedTracksCapped"), config.spotifyMaxSavedTracks());
+
+        c.discover(c.discoverSpec(0.5));                 // profile built now
+        assertTrue(c.lastDiscoverNotices().contains(notice), c.lastDiscoverNotices().toString());
+        c.discover(c.discoverSpec(0.5));                 // profile read back from storage
+        assertTrue(c.lastDiscoverNotices().contains(notice), c.lastDiscoverNotices().toString());
+    }
+
+    @Test
+    void discoverShowsNoSavedTracksNoticeForACompleteLibrary() {
+        AppController c = controller(new Music());
+
+        c.discover(c.discoverSpec(0.5));
+
+        assertTrue(c.lastDiscoverNotices().stream().noneMatch(n -> n.contains("not checked")),
+                c.lastDiscoverNotices().toString());
+    }
+
+    @Test
     void discoverNeverCallsTheLlm() {
         AtomicInteger calls = new AtomicInteger();
         LLMProvider counting = prompt -> { calls.incrementAndGet(); return "A line about your taste."; };

@@ -34,6 +34,7 @@ public class SpotifyAdapter implements MusicService {
     private final int searchPage;
     private final int libraryPage;
     private final int maxItems;
+    private final int maxSavedTracks;
     private final int playlistPage;
     private final int addBatch;
     private final int topLimit;
@@ -57,9 +58,15 @@ public class SpotifyAdapter implements MusicService {
 
     /** API base URL seam, so tests can target a local server. */
     SpotifyAdapter(OAuthTokenStore auth, String apiBaseUrl) {
+        this(auth, apiBaseUrl, Config.defaults());
+    }
+
+    /** As above, with explicit configuration (tests of tunable limits). */
+    SpotifyAdapter(OAuthTokenStore auth, String apiBaseUrl, Config config) {
         this.auth = auth;
         this.api = apiBaseUrl;
-        this.config = Config.defaults();
+        this.config = config;
+        this.maxSavedTracks = config.spotifyMaxSavedTracks();
         this.searchPage = config.spotifySearchPageSize();
         this.libraryPage = config.spotifyLibraryPageSize();
         this.maxItems = config.spotifyMaxItems();
@@ -94,7 +101,7 @@ public class SpotifyAdapter implements MusicService {
 
     @Override
     public List<Track> getSavedTracks() {
-        return pagedTracks("/me/tracks?limit=" + libraryPage, null);
+        return pagedTracks("/me/tracks?limit=" + libraryPage, null, maxSavedTracks);
     }
 
     @Override
@@ -192,7 +199,7 @@ public class SpotifyAdapter implements MusicService {
     public List<Track> getPlaylistItems(String playlistId) {
         return pagedTracks("/playlists/" + enc(playlistId) + "/items?limit=" + playlistPage,
                 "Permission denied: Spotify only lets an app read the items of playlists that are owned or "
-                        + "collaborative, so this playlist cannot be read.");
+                        + "collaborative, so this playlist cannot be read.", maxItems);
     }
 
     @Override
@@ -215,14 +222,14 @@ public class SpotifyAdapter implements MusicService {
     }
 
     /**
-     * Follows {@code next} links from {@code firstPath} until none remain or
-     * {@code spotify.maxItems} entries are gathered. {@code forbiddenMessage}, when
-     * set, replaces the generic text of a 403.
+     * Follows {@code next} links from {@code firstPath} until none remain or {@code limit}
+     * entries are gathered; the result says whether it stopped at the limit with more left.
+     * {@code forbiddenMessage}, when set, replaces the generic text of a 403.
      */
-    private List<Track> pagedTracks(String firstPath, String forbiddenMessage) {
+    private TrackList pagedTracks(String firstPath, String forbiddenMessage, int limit) {
         List<Track> out = new ArrayList<>();
         String url = api + firstPath;
-        while (url != null && out.size() < maxItems) {
+        while (url != null && out.size() < limit) {
             JsonObject page;
             try {
                 page = sendUrl("GET", url, null);
@@ -238,7 +245,8 @@ public class SpotifyAdapter implements MusicService {
                 throw new MusicServiceException("Spotify returned an unexpected next-page address; stopped paging.");
             }
         }
-        return out.size() > maxItems ? new ArrayList<>(out.subList(0, maxItems)) : out;
+        boolean truncated = url != null || out.size() > limit;
+        return new TrackList(out.size() > limit ? out.subList(0, limit) : out, truncated);
     }
 
     private JsonObject send(String method, String path, String jsonBody) {

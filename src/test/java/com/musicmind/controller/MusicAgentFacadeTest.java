@@ -212,6 +212,29 @@ class MusicAgentFacadeTest extends PostgresTestBase {
     }
 
     @Test
+    void aCutShortSavedTracksListGivesAProfileNoticeThatIsStoredToo() {
+        FakeMusic music = new FakeMusic();
+        music.saved = new com.musicmind.music.TrackList(tracks(3), true);
+        MemoryManager memory = memory();
+
+        ListeningProfile profile = facade(music, null, memory, tools(music, memory, new ArrayList<>())).analyzeTaste(USER);
+
+        String notice = String.format(config.wording("savedTracksCapped"), config.spotifyMaxSavedTracks());
+        assertTrue(profile.notices().contains(notice), profile.notices().toString());
+        assertTrue(memory.loadHistory("user-1").get(0).derivedData().contains("were not checked"));
+    }
+
+    @Test
+    void aCompleteSavedTracksListAddsNoNotice() {
+        FakeMusic music = new FakeMusic();
+        music.saved = new com.musicmind.music.TrackList(tracks(3), false);
+
+        ListeningProfile profile = facade(music, null).analyzeTaste(USER);
+
+        assertTrue(profile.notices().isEmpty(), profile.notices().toString());
+    }
+
+    @Test
     void whenEveryReadFailsTheCallFailsWithTheReasons() {
         FakeMusic music = new FakeMusic();
         music.artistsFailure = new MusicServiceException("down A");

@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -122,16 +123,50 @@ class SpotifyAdapterTest {
         assertEquals("limit=50", api.requests.get(0).query());
     }
 
-    @Test
-    void getSavedTracksStopsAtFiveHundredItems() {
-        api.respond(r -> {
-            String items = IntStream.range(0, 50).mapToObj(i -> "{\"track\":" + trackJson(i) + "}")
-                    .collect(Collectors.joining(","));
-            return Reply.ok("{\"items\":[" + items + "],\"next\":\"" + api.apiBase() + "/me/tracks?offset=9&limit=50\"}");
-        });
+    private static String endlessPage(FakeSpotifyServer api, int items) {
+        String body = IntStream.range(0, items).mapToObj(i -> "{\"track\":" + trackJson(i) + "}")
+                .collect(Collectors.joining(","));
+        return "{\"items\":[" + body + "],\"next\":\"" + api.apiBase() + "/me/tracks?offset=9&limit=50\"}";
+    }
 
-        assertEquals(500, adapter.getSavedTracks().size());
-        assertEquals(10, api.requests.size());
+    private SpotifyAdapter adapterWith(com.musicmind.config.Config config) throws Exception {
+        return new SpotifyAdapter(api.tokenStore(dir), api.apiBase(), config);
+    }
+
+    @Test
+    void getSavedTracksStopsAtTheSavedTrackCapAndSaysItWasCut() throws Exception {
+        com.musicmind.config.Config capped = com.musicmind.config.Config.defaults()
+                .withTunables(java.util.Map.of("spotify.maxSavedTracks", "120"));
+        api.respond(r -> Reply.ok(endlessPage(api, 50)));
+
+        List<Track> tracks = adapterWith(capped).getSavedTracks();
+
+        assertEquals(120, tracks.size());
+        assertTrue(tracks instanceof TrackList list && list.isTruncated(), "the caller can tell tracks were left out");
+        assertEquals(3, api.requests.size());
+    }
+
+    @Test
+    void theSavedTrackCapDefaultsToFiveThousand() {
+        api.respond(r -> Reply.ok(endlessPage(api, 50)));
+
+        List<Track> tracks = adapter.getSavedTracks();
+
+        assertEquals(5000, tracks.size());
+        assertEquals(100, api.requests.size());
+        assertTrue(((TrackList) tracks).isTruncated());
+    }
+
+    @Test
+    void aLibraryThatEndsExactlyAtTheCapIsNotMarkedCut() throws Exception {
+        com.musicmind.config.Config capped = com.musicmind.config.Config.defaults()
+                .withTunables(java.util.Map.of("spotify.maxSavedTracks", "50"));
+        api.respond(r -> Reply.ok(endlessPage(api, 50).replaceAll("\"next\":\"[^\"]*\"", "\"next\":null")));
+
+        List<Track> tracks = adapterWith(capped).getSavedTracks();
+
+        assertEquals(50, tracks.size());
+        assertFalse(((TrackList) tracks).isTruncated());
     }
 
     @Test
