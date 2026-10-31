@@ -1,56 +1,93 @@
 package com.musicmind.agent;
 
+import com.musicmind.config.Config;
 import com.musicmind.domain.Artist;
 import com.musicmind.domain.ListeningProfile;
+import com.musicmind.domain.TopItems;
 import com.musicmind.domain.Track;
-import com.musicmind.music.MusicService;
-import com.musicmind.music.StubMusicService;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Verifies genre aggregation (rank-weighted, normalised, ordered) in ProfileBuilder. */
 class ProfileBuilderTest {
 
-    private static MusicService musicWith(List<Artist> artists) {
-        return new StubMusicService() {
-            @Override public List<Artist> getTopArtists(String timeRange) { return artists; }
-            @Override public List<Track> getTopItems(String type, String timeRange) { return List.of(); }
-        };
+    private final Config config = Config.of(Map.of());
+    private final ProfileBuilder builder = new ProfileBuilder(config);
+
+    static List<Artist> artists(int n) {
+        return IntStream.range(0, n).mapToObj(i -> new Artist("a" + i, "Artist " + i, List.of("pop"))).toList();
+    }
+
+    static List<Track> tracks(int n) {
+        return IntStream.range(0, n)
+                .mapToObj(i -> new Track("t" + i, "spotify:track:t" + i, "Title " + i, 1000, false, List.of("a" + i)))
+                .toList();
     }
 
     @Test
-    void aggregatesGenresRankWeightedAndNormalised() {
+    void genreHistogramIsRankWeightedNormalisedAndOrdered() {
         List<Artist> artists = List.of(
                 new Artist("a1", "A1", List.of("pop", "rock")),
                 new Artist("a2", "A2", List.of("pop")),
                 new Artist("a3", "A3", List.of("jazz")));
 
-        // aggregateGenres returns an ordered map (most-to-least prominent).
-        Map<String, Double> ordered = ProfileBuilder.aggregateGenres(artists);
-        assertEquals(List.of("pop", "rock", "jazz"), new ArrayList<>(ordered.keySet()),
-                "genres should be ordered most-to-least prominent");
-        assertEquals(1.0, ordered.values().stream().mapToDouble(Double::doubleValue).sum(), 1e-9,
-                "histogram should be normalised to 1.0");
+        Map<String, Double> ordered = builder.computeGenreHistogram(artists);
 
-        // The built profile exposes the same magnitudes and top genre.
-        ListeningProfile profile = new ProfileBuilder(musicWith(artists)).build("medium_term");
-        Map<String, Double> histogram = profile.genreHistogram();
-        assertEquals("pop", profile.topGenre());
-        assertTrue(histogram.get("pop") > histogram.get("rock"));
-        assertTrue(histogram.get("rock") > histogram.get("jazz"));
+        assertEquals(List.of("pop", "rock", "jazz"), new ArrayList<>(ordered.keySet()));
+        assertEquals(1.0, ordered.values().stream().mapToDouble(Double::doubleValue).sum(), 1e-9);
+        assertTrue(ordered.get("pop") > ordered.get("rock"));
     }
 
     @Test
-    void emptyWhenNoListeningHistory() {
-        ListeningProfile profile = new ProfileBuilder(musicWith(List.of())).build("short_term");
-        assertTrue(profile.isEmpty());
-        assertNull(profile.topGenre());
+    void genreHistogramOfNoArtistsIsEmpty() {
+        assertTrue(builder.computeGenreHistogram(List.of()).isEmpty());
+    }
+
+    @Test
+    void buildAggregatesTopItemsAndSavedIdsIntoAFullProfile() {
+        ListeningProfile p = builder.build(new TopItems(artists(6), tracks(6)), tracks(2));
+
+        assertEquals("pop", p.topGenre());
+        assertEquals(6, p.topArtists().size());
+        assertEquals(List.of("t0", "t1"), p.savedTrackIds());
+        assertFalse(p.isPartial());
+        assertTrue(p.notices().isEmpty());
+        assertNotNull(p.generatedAt());
+    }
+
+    @Test
+    void fewerItemsThanTheConfiguredThresholdMakeAPartialProfileWithANotice() {
+        int min = config.profileMinItems();
+        ListeningProfile few = builder.build(new TopItems(artists(min - 1), tracks(min)), List.of());
+        assertTrue(few.isPartial());
+        assertEquals(1, few.notices().size());
+        assertTrue(few.notices().get(0).contains(String.valueOf(min)), few.notices().get(0));
+
+        assertFalse(builder.build(new TopItems(artists(min), tracks(min)), List.of()).isPartial());
+    }
+
+    @Test
+    void anEmptyAccountIsPartialAndEmptyWithNoGenre() {
+        ListeningProfile p = builder.build(new TopItems(List.of(), List.of()), List.of());
+        assertTrue(p.isEmpty());
+        assertTrue(p.isPartial());
+        assertNull(p.topGenre());
+    }
+
+    @Test
+    void failedReadsAreAddedAsNoticesAndForcePartial() {
+        ListeningProfile p = builder.build(new TopItems(artists(8), tracks(8)), List.of(),
+                List.of("Saved tracks could not be read: boom"));
+        assertTrue(p.isPartial());
+        assertTrue(p.notices().contains("Saved tracks could not be read: boom"));
     }
 }
