@@ -6,4 +6,7 @@ package com.musicmind.domain;
  */
 public record UserPreference(String key, String value,
                              boolean explicitAllowed, double familiarBias) {
+
+    /** Key of the safe-defaults record that stands in while the database is unavailable. */
+    public static final String DEFAULTS_KEY = "default";
 }

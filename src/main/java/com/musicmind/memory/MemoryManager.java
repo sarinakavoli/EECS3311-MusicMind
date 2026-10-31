@@ -25,7 +25,7 @@ public class MemoryManager {
 
     /** Safe defaults used while the database is down: no explicit content, balanced familiarity. */
     private static final List<UserPreference> DEFAULT_PREFERENCES =
-            List.of(new UserPreference("default", "", false, 0.5));
+            List.of(new UserPreference(UserPreference.DEFAULTS_KEY, "", false, 0.5));
 
     private final Database db;
     private final PreferenceRepository preferences;
