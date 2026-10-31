@@ -236,6 +236,16 @@ public final class Config {
         return integer("musicbrainz.cacheDays");
     }
 
+    /** Failed lookups in a row after which MusicBrainz lookups pause. */
+    public int musicBrainzMaxConsecutiveFailures() {
+        return integer("musicbrainz.maxConsecutiveFailures");
+    }
+
+    /** How long, in seconds, lookups pause after too many failures in a row. */
+    public int musicBrainzCooldownSeconds() {
+        return integer("musicbrainz.cooldownSeconds");
+    }
+
     /** Credits MusicBrainz as the genre source; shown wherever genres are shown. */
     public String genreAttribution() {
         return text("text.genreAttribution");

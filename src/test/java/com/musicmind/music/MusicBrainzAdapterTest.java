@@ -332,4 +332,101 @@ class MusicBrainzAdapterTest {
         assertEquals(Optional.empty(), result);
         assertTrue((System.nanoTime() - start) / 1_000_000 < 5000, "should give up near the 1 second timeout");
     }
+
+    // ---- two artists with the same name ----
+
+    private static String candidate(String id, String name, int score) {
+        return "{\"id\":\"" + id + "\",\"name\":\"" + name + "\",\"score\":" + score + "}";
+    }
+
+    @Test
+    void twoExactNameCandidatesGiveNoGenresInsteadOfTheFirst() {
+        serve("{\"artists\":[" + candidate("mbid-1", "Nirvana", 100) + "," + candidate("mbid-2", "Nirvana", 98) + "]}");
+
+        assertEquals(Optional.of(List.<String>of()), adapter().lookup(artist("Nirvana")),
+                "a definite no-match, so it is cached");
+        assertEquals(1, requests.size(), "no genre request for a guess");
+    }
+
+    @Test
+    void aSecondCandidateThatFailsTheNameOrScoreCheckDoesNotMakeItAmbiguous() {
+        int min = Config.of(Map.of()).musicBrainzMinScore();
+        serve("{\"artists\":[" + candidate("mbid-1", "Nirvana", 100) + "," + candidate("mbid-2", "Nirvana", min - 1)
+                + "," + candidate("mbid-3", "Nirvana Quartet", 100) + "]}");
+
+        assertEquals(List.of("jazz", "folk", "rock"), adapter().genresFor(artist("Nirvana")));
+        assertEquals("/ws/2/artist/mbid-1", requests.get(1).path());
+    }
+
+    // ---- outage ----
+
+    private long cooldownMillis() {
+        return Config.of(Map.of()).musicBrainzCooldownSeconds() * 1000L;
+    }
+
+    @Test
+    void lookupsStopAfterTheFailureLimitAndResumeAfterTheCooldown() {
+        handler = r -> Reply.status(500);
+        MusicBrainzAdapter adapter = adapter();
+        int limit = Config.of(Map.of()).musicBrainzMaxConsecutiveFailures();
+
+        for (int i = 0; i < limit; i++) {
+            assertEquals(Optional.empty(), adapter.lookup(artist("Miles Davis")));
+        }
+        assertEquals(limit, requests.size());
+
+        assertEquals(Optional.empty(), adapter.lookup(artist("Miles Davis")), "skipped: unknown, so not cached");
+        assertEquals(limit, requests.size(), "no request during the cooldown");
+
+        time.nowMillis += cooldownMillis() - 1;
+        assertEquals(Optional.empty(), adapter.lookup(artist("Miles Davis")));
+        assertEquals(limit, requests.size(), "still cooling down");
+
+        time.nowMillis += 1;
+        serve(search("mbid-1", "Miles Davis", 100));
+        assertEquals(Optional.of(List.of("jazz", "folk", "rock")), adapter.lookup(artist("Miles Davis")));
+        assertTrue(requests.size() > limit, "lookups resumed");
+    }
+
+    @Test
+    void aSuccessResetsTheFailureCount() {
+        MusicBrainzAdapter adapter = adapter();
+        int limit = Config.of(Map.of()).musicBrainzMaxConsecutiveFailures();
+        for (int round = 0; round < 3; round++) {
+            handler = r -> Reply.status(500);
+            for (int i = 0; i < limit - 1; i++) {
+                adapter.lookup(artist("Miles Davis"));
+            }
+            serve(search("mbid-1", "Miles Davis", 100));
+            assertTrue(adapter.lookup(artist("Miles Davis")).isPresent(), "round " + round + " was not skipped");
+        }
+    }
+
+    @Test
+    void aNoMatchIsNotAFailureForTheOutageCount() {
+        serve("{\"artists\":[]}");
+        MusicBrainzAdapter adapter = adapter();
+
+        for (int i = 0; i < 5; i++) {
+            assertEquals(Optional.of(List.<String>of()), adapter.lookup(artist("Nobody " + i)));
+        }
+        assertEquals(5, requests.size());
+    }
+
+    @Test
+    void oneFailureAfterTheCooldownStartsTheNextPauseAtOnce() {
+        handler = r -> Reply.status(500);
+        MusicBrainzAdapter adapter = adapter();
+        int limit = Config.of(Map.of()).musicBrainzMaxConsecutiveFailures();
+        for (int i = 0; i < limit; i++) {
+            adapter.lookup(artist("A"));
+        }
+        time.nowMillis += cooldownMillis();
+
+        adapter.lookup(artist("A"));   // the probe after the cooldown fails
+        int sent = requests.size();
+        adapter.lookup(artist("A"));
+
+        assertEquals(sent, requests.size(), "paused again after a single failed probe");
+    }
 }

@@ -26,7 +26,9 @@ import java.util.Optional;
  * Adapter (GoF) from the MusicBrainz web service to {@link GenreService}. An artist
  * is looked up by name; a hit is accepted only if its name (or a listed alias)
  * equals the Spotify name ignoring case and accents and its score reaches the
- * configured minimum. Anything less certain yields no genres: it never guesses.
+ * configured minimum. Anything less certain, including two different artists with
+ * the same name, yields no genres: it never guesses. After too many failed lookups
+ * in a row it stops looking for a cooldown so a run finishes quickly during an outage.
  * Requests are paced to MusicBrainz's one-per-second limit across all lookups, a
  * 503 is retried once, and every other failure (including a timeout or a malformed
  * response) is reported as "unknown" so the caller does not cache it.
@@ -58,6 +60,9 @@ public class MusicBrainzAdapter implements GenreService {
     /** Time the last request was sent; guarded by {@code this}. */
     private long lastRequestMillis;
     private boolean anyRequestSent;
+    /** Failed lookups in a row, and when lookups may resume after too many; guarded by {@code this}. */
+    private int consecutiveFailures;
+    private long pausedUntilMillis;
 
     public MusicBrainzAdapter(Config config) {
         this(config, System::currentTimeMillis, Thread::sleep);
@@ -77,12 +82,38 @@ public class MusicBrainzAdapter implements GenreService {
         if (name.isEmpty()) {
             return Optional.of(List.of());
         }
+        if (paused()) {
+            return Optional.empty(); // unknown, like a failure: not cached, counted in the partial-genres notice
+        }
         try {
             String mbid = findMatch(name);
-            return Optional.of(mbid == null ? List.of() : genresOf(mbid));
+            Optional<List<String>> genres = Optional.of(mbid == null ? List.of() : genresOf(mbid));
+            recordSuccess();
+            return genres;
         } catch (LookupFailed | RuntimeException e) {
             // A failed or unreadable response is "unknown", not "no genres": it is retried, never cached.
+            recordFailure();
             return Optional.empty();
+        }
+    }
+
+    /** True while lookups are skipped after too many failures in a row. */
+    private synchronized boolean paused() {
+        return clock.millis() < pausedUntilMillis;
+    }
+
+    private synchronized void recordSuccess() {
+        consecutiveFailures = 0;
+    }
+
+    /**
+     * At the failure limit lookups pause for the cooldown. The count is not reset by the pause, so
+     * a single failed lookup after it ends starts the next pause instead of waiting out the limit again.
+     */
+    private synchronized void recordFailure() {
+        consecutiveFailures++;
+        if (consecutiveFailures >= config.musicBrainzMaxConsecutiveFailures()) {
+            pausedUntilMillis = clock.millis() + config.musicBrainzCooldownSeconds() * 1000L;
         }
     }
 
@@ -95,14 +126,19 @@ public class MusicBrainzAdapter implements GenreService {
             throw new LookupFailed("response has no artists list");
         }
         String wanted = normalise(name);
+        String match = null;
         for (JsonElement e : artists) {
             JsonObject candidate = e.getAsJsonObject();
             int score = candidate.has("score") ? candidate.get("score").getAsInt() : 0;
             if (score >= config.musicBrainzMinScore() && namesMatch(wanted, candidate)) {
-                return candidate.get("id").getAsString();
+                String id = candidate.get("id").getAsString();
+                if (match != null && !match.equals(id)) {
+                    return null; // several artists share this name: it never guesses which one is meant
+                }
+                match = id;
             }
         }
-        return null;
+        return match;
     }
 
     private static boolean namesMatch(String wanted, JsonObject candidate) {
