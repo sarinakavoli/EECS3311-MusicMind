@@ -28,8 +28,9 @@
 - **Auth is PKCE (public client)** — reason: no server to hold a client secret; impact: only `SPOTIFY_CLIENT_ID` is needed; `.env.example` dropped the secret/Postgres vars and added `DATABASE_PATH`.
 - **Gradle 8.14.3 → 9.1.0 + foojay toolchain resolver** — reason: Gradle 8.14.3 cannot run on JDK 25, and a machine with only JDK 25 has no Java 17 toolchain; impact: `./gradlew` works on JDK 25 with no `JAVA_HOME` setup, the project still compiles as Java 17, and the first build downloads a JDK 17 if none is found (needs network).
 - **JavaFX 17.0.6 → 21.0.13** — reason: on macOS 26 the 17.0.6 native window code crashed the app on launch (`NSTrackingRectTag` exception in `libglass`); impact: GUI launches; 21 is an LTS line that still supports Java 17, and no GUI code changed.
+- **Artist genres come from MusicBrainz, not Spotify (R18)** — Original: Stage 1 reads genres from Spotify artist metadata. Change: `GenreEnrichingMusicService` (Decorator over `MusicService`) fills `Artist.genres` through `GenreService`/`MusicBrainzAdapter` (Adapter), cached by artist id in `artist_genre`. Reason: live testing showed Spotify returns no `genres` to a Development Mode app. Impact: F1, F2, F4, F5 get a genre signal again; coverage can be partial, which `ProfileBuilder` reports, and the CLI credits MusicBrainz. Genres are derived data, so caching them respects the Spotify terms.
 - _(Add further changes here as they happen.)_
 
 ## Design patterns (must be evident in code)
 
-Adapter (`MusicService`/`SpotifyAdapter`), Strategy (`RecommendationStrategy` + Abstract + 3 concretes), Command (`PlaylistCommand` + concretes, `PlaylistManager`), State (`SessionState` + phases, `AgentSession`), Facade (`MusicAgentFacade`). Plus Repository (persistence) and Decorator (`RetryingMusicService`).
+Adapter (`MusicService`/`SpotifyAdapter`), Strategy (`RecommendationStrategy` + Abstract + 3 concretes), Command (`PlaylistCommand` + concretes, `PlaylistManager`), State (`SessionState` + phases, `AgentSession`), Facade (`MusicAgentFacade`). Plus Repository (persistence) and Decorator (`RetryingMusicService`, `GenreEnrichingMusicService`).

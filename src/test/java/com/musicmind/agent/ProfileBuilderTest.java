@@ -90,4 +90,27 @@ class ProfileBuilderTest {
         assertTrue(p.isPartial());
         assertTrue(p.notices().contains("Saved tracks could not be read: boom"));
     }
+
+    @Test
+    void someArtistsWithoutGenresAddACoverageNoticeWithCounts() {
+        List<Artist> artists = new ArrayList<>(artists(4));
+        artists.add(new Artist("x1", "X1", List.of()));
+        artists.add(new Artist("x2", "X2", List.of()));
+
+        ListeningProfile p = builder.build(new TopItems(artists, tracks(6)), tracks(1));
+
+        assertEquals(1, p.notices().size(), p.notices().toString());
+        assertTrue(p.notices().get(0).contains("4 of 6"), p.notices().get(0));
+        assertTrue(p.notices().get(0).contains("MusicBrainz"), p.notices().get(0));
+        assertTrue(p.isPartial());
+    }
+
+    @Test
+    void noGenresAtAllAddsNoCoverageNoticeSoTheNoDataLineStandsAlone() {
+        List<Artist> none = artists(6).stream().map(a -> new Artist(a.id(), a.name(), List.of())).toList();
+
+        ListeningProfile p = builder.build(new TopItems(none, tracks(6)), tracks(1));
+
+        assertTrue(p.notices().isEmpty(), p.notices().toString());
+    }
 }

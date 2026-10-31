@@ -81,8 +81,11 @@ public class PromptBuilder {
     public String buildSummaryPrompt(ListeningProfile profile) {
         StringBuilder p = start(Kind.SUMMARY);
         p.append("In one friendly sentence (no lists, no quotes), summarise this listener's taste from the facts below.\n")
-                .append("Genre weights: ").append(genres(profile.genreHistogram())).append('\n')
-                .append("Top artists counted: ").append(profile.topArtists().size())
+                .append("Genre weights: ").append(genres(profile.genreHistogram())).append('\n');
+        if (profile.genreHistogram().isEmpty()) {
+            p.append("No genre data is available. Do not make any claims about genres or genre variety.\n");
+        }
+        p.append("Top artists counted: ").append(profile.topArtists().size())
                 .append(", top tracks counted: ").append(profile.topTracks().size());
         return p.toString();
     }

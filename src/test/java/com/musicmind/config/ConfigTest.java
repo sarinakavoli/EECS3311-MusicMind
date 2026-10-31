@@ -141,4 +141,9 @@ class ConfigTest {
         assertTrue(c.discoverRejectPenalty() > 0 && c.discoverAcceptBoost() > 0);
         assertTrue(c.wording("discoverNoResults").length() > 0);
     }
+
+    @Test
+    void genreAttributionCreditsMusicBrainz() {
+        assertTrue(Config.of(Map.of()).genreAttribution().contains("MusicBrainz"));
+    }
 }

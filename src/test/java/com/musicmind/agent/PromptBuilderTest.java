@@ -94,4 +94,23 @@ class PromptBuilderTest {
         String opts = builder.buildOptionsPrompt(new FeasibilityReport(false, List.of("too short"), List.of("raise minutes")));
         assertTrue(opts.contains("too short") && opts.contains("raise minutes"));
     }
+
+    @Test
+    void summaryPromptForbidsGenreClaimsWhenThereAreNoGenres() {
+        ListeningProfile profile = new ListeningProfile(new LinkedHashMap<>(), List.of(), List.of(), Instant.EPOCH);
+
+        String p = builder.buildSummaryPrompt(profile);
+
+        assertTrue(p.contains("Do not make any claims about genres or genre variety"), p);
+    }
+
+    @Test
+    void summaryPromptDoesNotForbidGenreClaimsWhenGenresExist() {
+        Map<String, Double> hist = new LinkedHashMap<>();
+        hist.put("jazz", 1.0);
+
+        String p = builder.buildSummaryPrompt(new ListeningProfile(hist, List.of(), List.of(), Instant.EPOCH));
+
+        assertFalse(p.contains("Do not make any claims about genres"), p);
+    }
 }

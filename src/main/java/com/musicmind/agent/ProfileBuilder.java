@@ -17,13 +17,15 @@ import java.util.Map;
  * aggregated from the user's top artists, weighted by rank so that the artists
  * played most influence the profile more, then normalised into a histogram.
  * (Spotify does not expose a genre on tracks, so artists are the source of genre
- * signal.) The aggregation is deterministic; the LLM never touches it.
+ * signal, and the genres themselves come from MusicBrainz.) The aggregation is deterministic; the LLM never touches it.
  */
 public class ProfileBuilder {
 
     private final int minItems;
+    private final Config config;
 
     public ProfileBuilder(Config config) {
+        this.config = config;
         this.minItems = config.profileMinItems();
     }
 
@@ -41,6 +43,10 @@ public class ProfileBuilder {
         List<Track> savedTracks = saved == null ? List.of() : saved;
 
         List<String> notices = new ArrayList<>(readNotices);
+        long withGenres = artists.stream().filter(a -> !a.genres().isEmpty()).count();
+        if (withGenres > 0 && withGenres < artists.size()) {
+            notices.add(String.format(config.wording("genrePartial"), withGenres, artists.size()));
+        }
         if (artists.size() < minItems || tracks.size() < minItems) {
             notices.add("Little listening history: " + artists.size() + " top artists and " + tracks.size()
                     + " top tracks found, and a full profile needs at least " + minItems + " of each.");

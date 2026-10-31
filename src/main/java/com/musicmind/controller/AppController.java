@@ -26,9 +26,12 @@ import com.musicmind.memory.MemoryManager;
 import com.musicmind.memory.PersistenceException;
 import com.musicmind.memory.repository.FeedbackRepository;
 import com.musicmind.memory.repository.PlaylistHistoryRepository;
+import com.musicmind.memory.repository.GenreRepository;
 import com.musicmind.memory.repository.PreferenceRepository;
 import com.musicmind.memory.repository.SessionRepository;
 import com.musicmind.music.MusicService;
+import com.musicmind.music.GenreEnrichingMusicService;
+import com.musicmind.music.MusicBrainzAdapter;
 import com.musicmind.music.RetryingMusicService;
 import com.musicmind.music.SpotifyAdapter;
 import com.musicmind.tool.MemoryTool;
@@ -108,8 +111,10 @@ public class AppController {
         MusicService music = null;
         Supplier<String> userId = () -> LOCAL_USER;
         if (config.spotifyConfigured()) {
-            music = new RetryingMusicService(
-                    new SpotifyAdapter(config.spotifyClientId(), config.spotifyRedirectUri()));
+            // Spotify returns no artist genres to this app, so MusicBrainz supplies them (R18).
+            music = new GenreEnrichingMusicService(
+                    new RetryingMusicService(new SpotifyAdapter(config.spotifyClientId(), config.spotifyRedirectUri())),
+                    new MusicBrainzAdapter(config), new GenreRepository(db), config);
             userId = music::currentUserId;
         }
         MemoryManager memory = new MemoryManager(db,
@@ -135,6 +140,11 @@ public class AppController {
     /** The line both interfaces show to credit Spotify for the data. */
     public String spotifyAttribution() {
         return config.spotifyAttribution();
+    }
+
+    /** The line both interfaces show to credit MusicBrainz for the genres. */
+    public String genreAttribution() {
+        return config.genreAttribution();
     }
 
     /** The time ranges the views offer, most recent first. */

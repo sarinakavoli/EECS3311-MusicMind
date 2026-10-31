@@ -193,6 +193,45 @@ public final class Config {
         return integer("spotify.maxWaitSeconds");
     }
 
+    // ---- MusicBrainz (genre metadata) ----
+
+    public String musicBrainzBaseUrl() {
+        return text("musicbrainz.baseUrl");
+    }
+
+    public String musicBrainzUserAgent() {
+        return text("musicbrainz.userAgent");
+    }
+
+    public long musicBrainzMinIntervalMillis() {
+        return Long.parseLong(text("musicbrainz.minIntervalMillis"));
+    }
+
+    public int musicBrainzMinScore() {
+        return integer("musicbrainz.minScore");
+    }
+
+    public int musicBrainzResultLimit() {
+        return integer("musicbrainz.resultLimit");
+    }
+
+    public int musicBrainzRetryWaitSeconds() {
+        return integer("musicbrainz.retryWaitSeconds");
+    }
+
+    public int musicBrainzMaxWaitSeconds() {
+        return integer("musicbrainz.maxWaitSeconds");
+    }
+
+    public int musicBrainzCacheDays() {
+        return integer("musicbrainz.cacheDays");
+    }
+
+    /** Credits MusicBrainz as the genre source; shown wherever genres are shown. */
+    public String genreAttribution() {
+        return text("text.genreAttribution");
+    }
+
     /** Maximum characters of a raw HTTP response body to include in an error message. */
     public int errorBodyLimit() {
         return integer("http.errorBodyLimit");

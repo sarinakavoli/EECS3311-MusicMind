@@ -345,6 +345,7 @@ public class CliApp {
         System.out.println("Summary: " + profile.summary());
         System.out.println();
         System.out.println(controller.spotifyAttribution());
+        System.out.println(controller.genreAttribution());
     }
 
     private static void printTrends(TrendReport report, AppController controller) {
@@ -369,6 +370,7 @@ public class CliApp {
         System.out.println(report.narrative());
         System.out.println();
         System.out.println(controller.spotifyAttribution());
+        System.out.println(controller.genreAttribution());
     }
 
     private static void printList(String label, List<String> items) {

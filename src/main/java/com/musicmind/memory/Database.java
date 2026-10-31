@@ -109,6 +109,12 @@ public class Database implements AutoCloseable {
                         track_uris  TEXT NOT NULL,
                         created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
                     )""");
+            st.execute("""
+                    CREATE TABLE IF NOT EXISTS artist_genre (
+                        artist_id  TEXT PRIMARY KEY,
+                        genres     TEXT NOT NULL,
+                        fetched_at TIMESTAMPTZ NOT NULL
+                    )""");
         }
     }
 
