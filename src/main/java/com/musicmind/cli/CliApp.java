@@ -1,11 +1,15 @@
 package com.musicmind.cli;
 
+import com.musicmind.agent.PreferenceSettings;
 import com.musicmind.controller.AppController;
 import com.musicmind.domain.Artist;
 import com.musicmind.domain.ListeningProfile;
+import com.musicmind.domain.Recommendation;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.User;
+import com.musicmind.domain.UserPreference;
+import com.musicmind.domain.Verdict;
 import com.musicmind.music.AuthExpiredException;
 
 import java.util.Arrays;
@@ -28,12 +32,12 @@ public class CliApp {
             {"profile",   "Build and show your music taste profile (F1) [--refresh] [--range short|medium|long]"},
             {"trends",    "Show how your taste changed over time (F2)"},
             {"search",    "Search for music by a natural-language query (F3)"},
-            {"discover",  "Get personalised recommendations (F4)"},
+            {"discover",  "Get personalised recommendations (F4) [--novelty 0.3]"},
             {"create",    "Create a playlist from a goal (F5)"},
             {"modify",    "Modify an existing playlist (F6)"},
             {"validate",  "Validate a playlist against its constraints (F7)"},
-            {"prefs",     "View or set preferences (F8)"},
-            {"feedback",  "Accept or reject a track (F9)"},
+            {"prefs",     "View or set preferences (F8): prefs list | get <key> | set <key> <value>"},
+            {"feedback",  "Accept or reject a track (F9): feedback <trackId> accept|reject"},
             {"explain",   "Explain why tracks were chosen (F10)"},
             {"history",   "Show agent history / restore a snapshot (F12)"},
             {"help",      "Show this help"},
@@ -56,8 +60,11 @@ public class CliApp {
             case "profile" -> runProfile(rest);
             case "trends" -> runTrends();
             case "search" -> runSearch(rest);
-            case "discover", "create",
-                 "modify", "validate", "prefs", "feedback", "explain", "history" ->
+            case "discover" -> runDiscover(rest);
+            case "prefs" -> runPrefs(rest);
+            case "feedback" -> runFeedback(rest);
+            case "create",
+                 "modify", "validate", "explain", "history" ->
                     System.out.println("[musicmind] '" + command + "' "
                             + (rest.length == 0 ? "" : String.join(" ", rest))
                             + " — command recognised; implemented in a later phase.");
@@ -154,6 +161,130 @@ public class CliApp {
             System.out.println(controller.spotifyAttribution());
         } catch (RuntimeException e) {
             reportFailure("search", e);
+        }
+    }
+
+    /** F4 — personalised discovery: {@code discover [--novelty 0.3]}. */
+    private static void runDiscover(String[] rest) {
+        Double novelty = null;
+        for (int i = 0; i < rest.length; i++) {
+            if (!rest[i].equals("--novelty")) {
+                System.out.println("Unknown option for discover: " + rest[i]);
+                return;
+            }
+            if (i + 1 >= rest.length) {
+                System.out.println("--novelty needs a number from 0 (all familiar) to 1 (all new).");
+                return;
+            }
+            try {
+                novelty = Double.parseDouble(rest[++i]);
+            } catch (NumberFormatException e) {
+                System.out.println("--novelty needs a number from 0 (all familiar) to 1 (all new), got '" + rest[i] + "'.");
+                return;
+            }
+        }
+        AppController controller = AppController.create();
+        if (signIn(controller) == null) {
+            return;
+        }
+        try {
+            System.out.println("[musicmind] Finding music for you...");
+            List<Recommendation> recs = controller.discover(controller.discoverSpec(novelty));
+            System.out.println();
+            for (int i = 0; i < recs.size(); i++) {
+                Recommendation r = recs.get(i);
+                System.out.printf("%2d. %s  (%s)  score %.2f%n    %s%n", i + 1, r.track().title(),
+                        r.track().id(), r.score(), r.reason());
+            }
+            controller.lastDiscoverNotices().forEach(n -> System.out.println("Notice: " + n));
+            if (!recs.isEmpty()) {
+                System.out.println();
+                System.out.println("Give feedback with: feedback <trackId> accept|reject");
+                System.out.println(controller.spotifyAttribution());
+            }
+        } catch (RuntimeException e) {
+            reportFailure("find recommendations", e);
+        }
+    }
+
+    /** F8 — {@code prefs list}, {@code prefs get <key>}, {@code prefs set <key> <value>}. */
+    private static void runPrefs(String[] rest) {
+        String action = rest.length == 0 ? "" : rest[0].toLowerCase();
+        boolean valid = switch (action) {
+            case "list" -> rest.length == 1;
+            case "get" -> rest.length == 2;
+            case "set" -> rest.length >= 2;
+            default -> false;
+        };
+        if (!valid) {
+            System.out.println("Usage: prefs list | prefs get <key> | prefs set <key> <value>");
+            System.out.println("Keys: blockedArtists (artist ids, comma separated), explicitPolicy (allow|block),");
+            System.out.println("      familiarBias (0..1), preferredStyles (genres, comma separated)");
+            return;
+        }
+        AppController controller = AppController.create();
+        if (controller.isSpotifyConfigured() && signIn(controller) == null) {
+            return;
+        }
+        try {
+            switch (action) {
+                case "set" -> {
+                    UserPreference pref = PreferenceSettings.parse(rest[1],
+                            String.join(" ", Arrays.copyOfRange(rest, 2, rest.length)));
+                    controller.setPreference(pref);
+                    System.out.println(controller.memory().warning() == null
+                            ? "Saved " + pref.key() + " = " + PreferenceSettings.display(pref)
+                            : "(Not saved: " + controller.memory().warning() + ")");
+                }
+                case "get" -> {
+                    List<UserPreference> found = controller.getPreferences().stream()
+                            .filter(p -> p.key().equals(rest[1])).toList();
+                    if (found.isEmpty()) {
+                        System.out.println("No preference '" + rest[1] + "' is set.");
+                    }
+                    found.forEach(p -> System.out.println(p.key() + " = " + PreferenceSettings.display(p)));
+                    printMemoryWarning(controller, "Showing defaults");
+                }
+                default -> {
+                    List<UserPreference> all = controller.getPreferences();
+                    if (all.isEmpty()) {
+                        System.out.println("No preferences are set.");
+                    }
+                    all.forEach(p -> System.out.println(p.key() + " = " + PreferenceSettings.display(p)));
+                    printMemoryWarning(controller, "Showing defaults");
+                }
+            }
+        } catch (IllegalArgumentException e) {
+            System.out.println(e.getMessage());
+        } catch (RuntimeException e) {
+            reportFailure("use preferences", e);
+        }
+    }
+
+    /** F9 — {@code feedback <trackId> accept|reject}. */
+    private static void runFeedback(String[] rest) {
+        Verdict verdict = rest.length == 2 ? switch (rest[1].toLowerCase()) {
+            case "accept" -> Verdict.ACCEPT;
+            case "reject" -> Verdict.REJECT;
+            default -> null;
+        } : null;
+        if (verdict == null) {
+            System.out.println("Usage: feedback <trackId> accept|reject");
+            return;
+        }
+        AppController controller = AppController.create();
+        if (controller.isSpotifyConfigured() && signIn(controller) == null) {
+            return;
+        }
+        try {
+            controller.recordFeedback(rest[0], verdict);
+            System.out.println(controller.memory().warning() == null
+                    ? "Recorded: " + verdict.name().toLowerCase() + " for " + rest[0]
+                    : "(Not saved: " + controller.memory().warning() + ")");
+        } catch (IllegalArgumentException e) {
+            System.out.println(e.getMessage());
+        } catch (RuntimeException e) {
+            reportFailure("record your feedback", e);
         }
     }
 
@@ -254,6 +385,13 @@ public class CliApp {
         String warning = controller.memory().warning();
         if (warning != null) {
             System.out.println("(Not saved: " + warning + ")");
+        }
+    }
+
+    private static void printMemoryWarning(AppController controller, String consequence) {
+        String warning = controller.memory().warning();
+        if (warning != null) {
+            System.out.println("(" + consequence + ": " + warning + ")");
         }
     }
 
