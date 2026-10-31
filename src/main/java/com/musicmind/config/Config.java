@@ -241,6 +241,45 @@ public final class Config {
         return text("parser.defaultPlaylistName");
     }
 
+    // ---- Natural-language search (F3) ----
+
+    /** Total tracks requested per search; the adapter fetches them in pages of at most the search page size. */
+    public int searchResultLimit() {
+        return integer("search.resultLimit");
+    }
+
+    /** A parsed search query below this confidence falls back to a raw keyword search. */
+    public double searchMinConfidence() {
+        return Double.parseDouble(text("search.minConfidence"));
+    }
+
+    public double searchTitleMatchWeight() {
+        return Double.parseDouble(text("search.weight.titleMatch"));
+    }
+
+    public double searchSpotifyOrderWeight() {
+        return Double.parseDouble(text("search.weight.spotifyOrder"));
+    }
+
+    /** Shown whenever a search ran as a plain keyword search instead of an interpreted one. */
+    public String searchFallbackLabel() {
+        return text("text.searchFallbackLabel");
+    }
+
+    /** Template with one {@code %s}: the text that found nothing. */
+    public String searchNoResultsTemplate() {
+        return text("text.searchNoResults");
+    }
+
+    /** Template with one {@code %s}: the relaxed query to try. */
+    public String searchRelaxedHintTemplate() {
+        return text("text.searchRelaxedHint");
+    }
+
+    public String searchNoRelaxedHint() {
+        return text("text.searchNoRelaxedHint");
+    }
+
     // ---- Taste profile and trends ----
 
     /** Time ranges from most recent to oldest, as the user types them (short, medium, long). */

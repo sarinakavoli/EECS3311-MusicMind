@@ -93,6 +93,18 @@ class ConfigTest {
     }
 
     @Test
+    void searchTunablesComeFromTheBundledProperties() {
+        Config c = Config.of(Map.of());
+        assertEquals(20, c.searchResultLimit());
+        assertEquals(0.5, c.searchMinConfidence());
+        assertEquals(1.0, c.searchTitleMatchWeight() + c.searchSpotifyOrderWeight(), 1e-9);
+        assertTrue(c.searchFallbackLabel().contains("keyword"));
+        assertTrue(c.searchNoResultsTemplate().contains("%s"));
+        assertTrue(c.searchRelaxedHintTemplate().contains("%s"));
+        assertFalse(c.searchNoRelaxedHint().isBlank());
+    }
+
+    @Test
     void promptAndParserTunablesComeFromTheBundledProperties() {
         Config c = Config.of(Map.of());
         assertEquals(10, c.promptMaxGenres());
