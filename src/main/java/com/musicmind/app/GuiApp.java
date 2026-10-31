@@ -1,8 +1,9 @@
 package com.musicmind.app;
 
 import com.musicmind.controller.AppController;
-import com.musicmind.controller.TasteProfileResult;
 import com.musicmind.domain.Artist;
+import com.musicmind.domain.ListeningProfile;
+import com.musicmind.domain.User;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
@@ -95,10 +96,13 @@ public class GuiApp extends Application {
 
         Thread worker = new Thread(() -> {
             try {
-                TasteProfileResult result = controller.viewTasteProfile(range);
+                User user = controller.currentUser() != null ? controller.currentUser() : controller.login();
+                ListeningProfile result = controller.analyzeTaste(user, range);
                 Platform.runLater(() -> {
                     showResult(result);
-                    setBusy(false, "Done — saved to memory.");
+                    setBusy(false, result.isPartial()
+                            ? "Partial profile: " + String.join(" ", result.notices())
+                            : "Done — saved to memory.");
                 });
             } catch (RuntimeException ex) {
                 Platform.runLater(() -> setBusy(false, "Could not build your profile: " + ex.getMessage()));
@@ -108,7 +112,7 @@ public class GuiApp extends Application {
         worker.start();
     }
 
-    private void showResult(TasteProfileResult result) {
+    private void showResult(ListeningProfile result) {
         List<String> rows = result.rankedGenres(10).stream()
                 .map(g -> String.format("%-24s %5.1f%%", g.getKey(), g.getValue() * 100))
                 .collect(Collectors.toList());
@@ -117,12 +121,11 @@ public class GuiApp extends Application {
         }
         genres.setItems(FXCollections.observableArrayList(rows));
 
-        String names = result.profile().topArtists().stream()
+        String names = result.topArtists().stream()
                 .limit(8).map(Artist::name).collect(Collectors.joining(", "));
         artists.setText(names.isEmpty() ? "(none)" : names);
 
-        String prefix = controller.isLlmConfigured() ? "" : "(offline fallback — set LLM_API_KEY for an AI summary) ";
-        summary.setText(prefix + result.summary());
+        summary.setText(result.summary() + "\n\n" + controller.spotifyAttribution());
     }
 
     private void setBusy(boolean busy, String message) {
