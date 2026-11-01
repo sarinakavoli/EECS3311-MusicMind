@@ -1,5 +1,7 @@
 package com.musicmind.agent.strategy;
 
+import com.musicmind.config.Config;
+import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.Track;
 
@@ -16,32 +18,60 @@ import java.util.Set;
  */
 public abstract class AbstractRecommendationStrategy implements RecommendationStrategy {
 
-    /** Rough average track length used to turn a target duration into a count. */
-    private static final int AVG_TRACK_MINUTES = 4;
+    private final Config config;
+    private ListeningProfile profile;
 
-    /** Protected helper: 1.0 if the track is by a known artist, else 0.0. */
-    protected double scoreFamiliarity(Track track, Set<String> knownArtistIds) {
-        for (String a : track.artistIds()) {
-            if (knownArtistIds.contains(a)) return 1.0;
-        }
-        return 0.0;
+    protected AbstractRecommendationStrategy(Config config) {
+        this.config = config;
     }
 
-    /** Protected helper: drop tracks whose id is already in the user's library. */
-    protected List<Track> excludeKnown(List<Track> candidates, Set<String> knownTrackIds) {
+    protected AbstractRecommendationStrategy() {
+        this(Config.defaults());
+    }
+
+    protected Config config() {
+        return config;
+    }
+
+    /** R7: the engine binds the profile before it asks for candidates. */
+    @Override
+    public void bindProfile(ListeningProfile profile) {
+        this.profile = profile;
+    }
+
+    /** The bound profile; concrete strategies call the helpers with it. */
+    protected ListeningProfile profile() {
+        if (profile == null) {
+            throw new IllegalStateException("bindProfile(profile) must be called before selectCandidates.");
+        }
+        return profile;
+    }
+
+    /** Protected helper: 1.0 if the track is by an artist the profile knows, else 0.0. */
+    protected double scoreFamiliarity(Track track, ListeningProfile profile) {
+        return profile.familiarity(track);
+    }
+
+    /** Protected helper: drop tracks whose id is already in the user's library (top and saved tracks). */
+    protected List<Track> excludeKnown(List<Track> candidates, ListeningProfile profile) {
+        Set<String> known = profile.knownTrackIds();
         List<Track> out = new ArrayList<>();
         for (Track t : candidates) {
-            if (!knownTrackIds.contains(t.id())) out.add(t);
+            if (!known.contains(t.id())) out.add(t);
         }
         return out;
     }
 
-    /** Number of tracks to aim for given the spec. */
-    protected int targetCount(PlaylistSpec spec) {
+    /** Number of tracks to aim for given the spec: its duration over the average track length, else the default. */
+    public static int targetCount(PlaylistSpec spec, Config config) {
         if (spec != null && spec.targetMinutes() > 0) {
-            return Math.max(1, spec.targetMinutes() / AVG_TRACK_MINUTES);
+            return Math.max(1, spec.targetMinutes() / config.avgTrackMinutes());
         }
-        return 20;
+        return config.defaultTrackCount();
+    }
+
+    protected int targetCount(PlaylistSpec spec) {
+        return targetCount(spec, config);
     }
 
     protected List<Track> take(List<Track> list, int n) {

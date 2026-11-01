@@ -32,5 +32,8 @@ public class PlaylistSpec {
     public void setTargetMinutes(int m) { this.targetMinutes = m; }
     public void setAllowExplicit(boolean b) { this.allowExplicit = b; }
     public void setFamiliarRatio(double r) { this.familiarRatio = r; }
+    public void setBlockedArtists(List<String> ids) {
+        this.blockedArtists = ids == null ? List.of() : List.copyOf(ids);
+    }
     public void setName(String n) { this.name = n; }
 }

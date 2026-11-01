@@ -1,6 +1,7 @@
 package com.musicmind.music;
 
 import com.musicmind.domain.Album;
+import com.musicmind.domain.Artist;
 import com.musicmind.domain.Playlist;
 import com.musicmind.domain.Track;
 
@@ -15,7 +16,18 @@ import java.util.List;
 public interface MusicService {
 
     // ---- read: listening data ----
+    /** The user's top <em>tracks</em> for a time range; artists come from {@link #getTopArtists}. */
     List<Track> getTopItems(String type, String timeRange);
+
+    /**
+     * The user's top artists for a time range ({@code short_term},
+     * {@code medium_term}, {@code long_term}). Artists carry their genres, which
+     * {@code ProfileBuilder} aggregates into the taste profile (F1). This sits
+     * alongside {@link #getTopItems} because the Track-only return type there
+     * cannot express an artist's genres.
+     */
+    List<Artist> getTopArtists(String timeRange);
+
     List<Track> getSavedTracks();
     List<Track> getRecentlyPlayed();
 
@@ -30,6 +42,12 @@ public interface MusicService {
     void removeItems(String playlistId, List<String> uris);
     void reorderItems(String playlistId, int from, int to);
     List<Track> getPlaylistItems(String playlistId);
+
+    /**
+     * Removes a playlist from the user's library (Spotify has no hard delete for
+     * playlists; unfollowing is how a created playlist is undone).
+     */
+    void unfollowPlaylist(String playlistId);
 
     /** The current user's Spotify user id (needed to create playlists). */
     String currentUserId();

@@ -17,8 +17,8 @@
 
 | Stage | Deliverable | Status |
 |-------|-------------|--------|
-| Stage 1 | Design report (this repo, `docs/`) | In progress |
-| Stage 2 | Implementation | Not started |
+| Stage 1 | Design report (this repo, `docs/`) | Done |
+| Stage 2 | Implementation | In progress |
 | Stage 3 | Verification & testing | Not started |
 
 This is **one repository used across all three stages** (per the assignment).
@@ -71,9 +71,8 @@ All UML diagrams are authored in **UMLet**. The editable source files are in
 
 ## Build & run
 
-**Stack:** Java 17, JavaFX (GUI), a command-line interface (CLI), **SQLite** for
-persistence, and one LLM behind the `LLMProvider` interface.
-(SQLite replaces the PostgreSQL planned in Stage 1 — see `docs/STAGE2_PLAN.md`.)
+**Stack:** Java 17, JavaFX (GUI), a command-line interface (CLI), **PostgreSQL** for
+persistence, and one LLM (OpenAI) behind the `LLMProvider` interface.
 
 ### Prerequisites
 - **JDK 17+** (`java -version`).
@@ -81,7 +80,7 @@ persistence, and one LLM behind the `LLMProvider` interface.
   <https://developer.spotify.com/dashboard>, note the Client ID/Secret, and add
   the redirect URI `http://127.0.0.1:8080/callback`. A Spotify **Premium**
   account is required for Web API access.
-- An **LLM API key** (any cheap/free model, e.g. Google Gemini free tier).
+- An **LLM API key** (OpenAI; default model `gpt-4o`).
 
 ### Local configuration (keys stay local — never committed)
 ```bash

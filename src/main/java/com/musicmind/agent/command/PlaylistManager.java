@@ -1,0 +1,210 @@
+package com.musicmind.agent.command;
+
+import com.musicmind.config.Config;
+import com.musicmind.domain.Playlist;
+import com.musicmind.domain.Track;
+import com.musicmind.memory.MemoryManager;
+import com.musicmind.memory.PersistenceException;
+import com.musicmind.music.MusicService;
+import com.musicmind.music.TrackList;
+
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.List;
+
+/**
+ * Command-pattern invoker. Runs {@link PlaylistCommand}s against Spotify, keeps the applied
+ * ones on a bounded undo stack (newest first) and saves a snapshot before each modify so
+ * undo also works in a later run, when the in-memory stack is empty (R10). Each undo uses up one
+ * snapshot, so a later undo steps further back and never returns to a state already undone.
+ *
+ * <p>Callers editing an existing playlist use {@link #modify}, which snapshots first; a
+ * snapshot that cannot be saved stops the change, because undo would not be possible.
+ */
+public class PlaylistManager {
+
+    /** Applied commands, most recent first. */
+    final Deque<PlaylistCommand> history = new ArrayDeque<>();
+
+    private final Config config;
+    private final MusicService music;
+    private final MemoryManager memory;
+
+    public PlaylistManager(Config config, MusicService music, MemoryManager memory) {
+        this.config = config;
+        this.music = music;
+        this.memory = memory;
+    }
+
+    public void execute(PlaylistCommand command) {
+        command.execute();
+        push(command);
+    }
+
+    /**
+     * Applies the commands in order as one undoable step. If one fails, the ones already
+     * applied are undone and the failure is rethrown.
+     */
+    public void executeAll(List<PlaylistCommand> commands) {
+        if (commands.isEmpty()) {
+            return;
+        }
+        if (commands.size() == 1) {
+            execute(commands.get(0));
+            return;
+        }
+        BatchCommand batch = new BatchCommand(config, commands);
+        batch.execute();
+        push(batch);
+    }
+
+    /**
+     * Snapshots the playlist as it is now, then applies the commands as one undoable step.
+     *
+     * @param current the whole playlist, just read: the caller has refused one that was cut short
+     * @return the id of the snapshot taken first
+     */
+    public int modify(Playlist current, List<PlaylistCommand> commands) {
+        int snapshotId = snapshotBeforeModify(current);
+        try {
+            executeAll(commands);
+        } catch (RuntimeException e) {
+            memory.markLatestSnapshotUndone(current.spotifyId());
+            throw e;
+        }
+        return snapshotId;
+    }
+
+    /**
+     * Saves the playlist as it is now, then puts it back to a saved snapshot, as one undoable step (F12).
+     *
+     * @param current the whole playlist, just read: the caller has refused one that was cut short
+     * @return the id of the snapshot taken first
+     */
+    public int restoreFrom(Playlist current, int snapshotId) {
+        Playlist snapshot = load(snapshotId);
+        int saved = snapshotBeforeModify(current);
+        try {
+            run(snapshot);
+        } catch (RuntimeException e) {
+            memory.markLatestSnapshotUndone(current.spotifyId());
+            throw e;
+        }
+        return saved;
+    }
+
+    /**
+     * Saves the playlist's current ids and name so a later undo or restore can return to it.
+     *
+     * @return the snapshot id
+     * @throws PlaylistChangeException if the snapshot cannot be saved (database unavailable)
+     */
+    public int snapshotBeforeModify(Playlist current) {
+        try {
+            return memory.saveSnapshot(current);
+        } catch (PersistenceException e) {
+            throw new PlaylistChangeException(config.wording("snapshotSaveFailed"), e);
+        }
+    }
+
+    /**
+     * Reverts the most recent change to the playlist. With an empty stack (a new run) it
+     * restores the playlist's latest unused snapshot instead. Either way that snapshot is used up.
+     *
+     * @return how many changes this went back over: 1, or more when snapshots that already matched the
+     *         playlist (their change was reversed outside MusicMind) were skipped on the way
+     */
+    public int undo(String playlistId) {
+        PlaylistCommand latest = null;
+        for (PlaylistCommand c : history) {
+            if (playlistId.equals(c.playlistId())) {
+                latest = c;
+                break;
+            }
+        }
+        if (latest != null) {
+            requireComplete(playlistId);
+            latest.undo();
+            history.remove(latest);
+            memory.markLatestSnapshotUndone(playlistId);
+            return 1;
+        }
+        return undoFromSnapshots(playlistId);
+    }
+
+    private int undoFromSnapshots(String playlistId) {
+        Playlist snapshot = latestSnapshot(playlistId);
+        List<Track> now = music.getPlaylistItems(playlistId);
+        requireComplete(now);
+        List<String> current = now.stream().map(PlaylistOps::uri).toList();
+        for (int steps = 1; ; steps++) {
+            if (!snapshot.tracks().stream().map(PlaylistOps::uri).toList().equals(current)) {
+                // Not pushed: undoing this undo would bring back the change the user just reverted.
+                new RestoreSnapshotCommand(config, music, playlistId, snapshot.name(), snapshot.tracks()).execute();
+                memory.markLatestSnapshotUndone(playlistId);
+                return steps;
+            }
+            memory.markLatestSnapshotUndone(playlistId);
+            if (memory.warning() != null) {
+                throw new PlaylistChangeException(config.wording("snapshotUnavailable"));
+            }
+            snapshot = latestSnapshot(playlistId);
+        }
+    }
+
+    private Playlist latestSnapshot(String playlistId) {
+        Playlist snapshot;
+        try {
+            snapshot = memory.loadLatestSnapshot(playlistId);
+        } catch (PersistenceException e) {
+            throw new PlaylistChangeException(config.wording("snapshotUnavailable"), e);
+        }
+        if (snapshot == null) {
+            throw new PlaylistChangeException(config.wording("undoNothing"));
+        }
+        return snapshot;
+    }
+
+    /** Puts a playlist back to a saved snapshot (F12). */
+    public void restore(int snapshotId) {
+        Playlist snapshot = load(snapshotId);
+        requireComplete(snapshot.spotifyId());
+        run(snapshot);
+    }
+
+    private Playlist load(int snapshotId) {
+        Playlist snapshot;
+        try {
+            snapshot = memory.loadSnapshot(snapshotId);
+        } catch (PersistenceException e) {
+            throw new PlaylistChangeException(config.wording("snapshotUnavailable"), e);
+        }
+        if (snapshot == null) {
+            throw new PlaylistChangeException(String.format(config.wording("restoreUnknown"), snapshotId));
+        }
+        return snapshot;
+    }
+
+    /** Runs a {@link RestoreSnapshotCommand} for the snapshot, so a restore sits on the undo stack like any change. */
+    private void run(Playlist snapshot) {
+        execute(new RestoreSnapshotCommand(config, music, snapshot.spotifyId(), snapshot.name(), snapshot.tracks()));
+    }
+
+    /** Refuses to work on a playlist longer than one Spotify read returns: a partial list would corrupt the change. */
+    private void requireComplete(String playlistId) {
+        requireComplete(music.getPlaylistItems(playlistId));
+    }
+
+    private void requireComplete(List<Track> items) {
+        if (TrackList.isTruncated(items)) {
+            throw new PlaylistChangeException(String.format(config.wording("playlistTooLong"), config.spotifyMaxItems()));
+        }
+    }
+
+    private void push(PlaylistCommand command) {
+        history.addFirst(command);
+        while (history.size() > config.commandHistoryLimit()) {
+            history.removeLast();
+        }
+    }
+}

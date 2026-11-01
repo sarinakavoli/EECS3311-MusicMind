@@ -18,13 +18,13 @@ repositories {
 }
 
 javafx {
-    version = '17.0.6'
+    version = '21.0.13'
     modules = ['javafx.controls', 'javafx.fxml']
 }
 
 dependencies {
-    // Persistence (SQLite — see docs/stage2 change log: PostgreSQL -> SQLite)
-    implementation 'org.xerial:sqlite-jdbc:3.45.1.0'
+    // Persistence (PostgreSQL via JDBC, as in Stage 1)
+    implementation 'org.postgresql:postgresql:42.7.14'
     // JSON (parsing LLM output and Spotify responses)
     implementation 'com.google.code.gson:gson:2.10.1'
     // Loads the local .env file (keys never committed)
@@ -32,11 +32,56 @@ dependencies {
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testRuntimeOnly 'org.slf4j:slf4j-nop:1.7.36'
+
+    // Tests run against a real PostgreSQL started from embedded binaries (no server needed).
+    // Binaries for Linux, macOS and Windows on amd64 and arm64 (Zonky publishes no native
+    // Windows-arm64 build; Windows on ARM runs the amd64 one under emulation).
+    testImplementation 'io.zonky.test:embedded-postgres:2.2.2'
+    testImplementation enforcedPlatform('io.zonky.test.postgres:embedded-postgres-binaries-bom:17.6.0')
+    testRuntimeOnly 'io.zonky.test.postgres:embedded-postgres-binaries-linux-amd64'
+    testRuntimeOnly 'io.zonky.test.postgres:embedded-postgres-binaries-linux-arm64v8'
+    testRuntimeOnly 'io.zonky.test.postgres:embedded-postgres-binaries-darwin-amd64'
+    testRuntimeOnly 'io.zonky.test.postgres:embedded-postgres-binaries-darwin-arm64v8'
+    testRuntimeOnly 'io.zonky.test.postgres:embedded-postgres-binaries-windows-amd64'
 }
 
 application {
-    // Default `./gradlew run` launches the GUI.
+    // The installed `bin/musicmind` is the command-line interface (R15); `bin/musicmind-gui` is added below.
+    applicationName = 'musicmind'
+    mainClass = 'com.musicmind.cli.CliApp'
+}
+
+// `./gradlew run` keeps launching the GUI, even though the installed default script is the CLI.
+tasks.named('run') {
     mainClass = 'com.musicmind.app.GuiApp'
+}
+
+// Second start script for the installed distribution: bin/musicmind-gui. JavaFX 21 must be on the
+// module path for a class that extends Application, so the script passes it from the installed lib folder.
+tasks.register('guiStartScripts', CreateStartScripts) {
+    group = 'distribution'
+    description = 'Creates the bin/musicmind-gui start script.'
+    applicationName = 'musicmind-gui'
+    mainClass = 'com.musicmind.app.GuiApp'
+    outputDir = layout.buildDirectory.dir('guiScripts').get().asFile
+    classpath = tasks.named('startScripts').get().classpath
+    defaultJvmOpts = ['--module-path', 'APP_HOME_LIB', '--add-modules', 'javafx.controls,javafx.fxml', '--enable-native-access=javafx.graphics']
+    doLast {
+        // APP_HOME is only known when the script runs, so the placeholder becomes a shell/batch variable.
+        unixScript.text = unixScript.text.replace('APP_HOME_LIB', '\'"\$APP_HOME"/lib\'')
+        windowsScript.text = windowsScript.text.replace('APP_HOME_LIB', '%APP_HOME%\\lib')
+    }
+}
+
+distributions {
+    main {
+        contents {
+            into('bin') {
+                from(tasks.named('guiStartScripts'))
+            }
+        }
+    }
 }
 
 test {

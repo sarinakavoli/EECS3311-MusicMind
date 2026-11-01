@@ -11,6 +11,11 @@ public interface SessionState {
     /** Short machine-readable name of this phase (shown as progress in the GUI). */
     String name();
 
-    /** Perform this phase's behaviour for the given session. */
+    /** Perform this phase's behaviour for the given session; it sets the next state, unless this one is final. */
     void handle(AgentSession session);
+
+    /** True for the states a run ends in ({@code done} and {@code failed}); their {@link #handle} is the last step. */
+    default boolean isTerminal() {
+        return false;
+    }
 }

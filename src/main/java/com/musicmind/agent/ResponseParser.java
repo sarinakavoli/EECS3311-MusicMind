@@ -1,0 +1,507 @@
+package com.musicmind.agent;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.musicmind.agent.command.AddItemsCommand;
+import com.musicmind.agent.command.PlaylistCommand;
+import com.musicmind.agent.command.RemoveTrackCommand;
+import com.musicmind.agent.command.ReorderCommand;
+import com.musicmind.agent.command.ReplaceTrackCommand;
+import com.musicmind.config.Config;
+import com.musicmind.domain.DecisionTrace;
+import com.musicmind.domain.PlaylistSpec;
+import com.musicmind.domain.SearchQuery;
+import com.musicmind.domain.Track;
+import com.musicmind.llm.ParseException;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * Checks everything the LLM returns before the agent uses it. JSON may arrive in a code
+ * fence or with surrounding prose; malformed or unverifiable output raises
+ * {@link ParseException} so callers fall back. Numbers are clamped to the bounds in
+ * {@code musicmind.properties}. {@code parseCommands} turns the
+ * LLM's {@link CommandSpec}s into real playlist commands, finding tracks to add through Spotify
+ * search (the LLM never picks tracks).
+ */
+public class ResponseParser {
+
+    private static final Pattern BRACKETED = Pattern.compile("\\[([^\\]]+)]");
+    private static final Pattern TRACK_URI = Pattern.compile("spotify:track:([A-Za-z0-9]+)");
+    private static final Pattern BARE_ID = Pattern.compile("\\b[A-Za-z0-9]{22}\\b");
+
+    private static final Pattern NUMBER = Pattern.compile("\\d+(?:\\.\\d+)?");
+    private static final Pattern PREFERENCE_CLAIM = Pattern.compile(
+            "\\byou(?:['\u2019]ve|\\s+have)?(?:\\s+(?:always|really|clearly|obviously|truly))?\\s+"
+                    + "(?:love|loved|like|liked|enjoy|enjoyed|adore|adored|prefer|preferred)\\b"
+                    + "|\\byour\\s+(?:favou?rite|beloved|preferred)\\b",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern QUOTED = Pattern.compile("\"([^\"]+)\"|\u201c([^\u201d]+)\u201d");
+
+    private final Config config;
+    private final PlaylistContext context;
+    private final Set<String> knownGenres;
+
+    public ResponseParser(Config config) {
+        this(config, null, MoodGenreMap.load().genreNames());
+    }
+
+    private ResponseParser(Config config, PlaylistContext context, Set<String> knownGenres) {
+        if (config.parserMinTargetMinutes() > config.parserMaxTargetMinutes()) {
+            throw new IllegalStateException("parser.minTargetMinutes must not exceed parser.maxTargetMinutes");
+        }
+        this.config = config;
+        this.context = context;
+        this.knownGenres = knownGenres;
+    }
+
+    /** A parser bound to one playlist, so {@link #parseCommands} can resolve the edit against it. */
+    public ResponseParser forPlaylist(PlaylistContext playlist) {
+        return new ResponseParser(config, playlist, knownGenres);
+    }
+
+    public PlaylistSpec parsePlaylistSpec(String json) {
+        JsonObject o = object(json);
+        int minutes = o.has("targetMinutes") && !o.get("targetMinutes").isJsonNull()
+                ? wholeNumber(o, "targetMinutes") : config.parserDefaultTargetMinutes();
+        minutes = Math.max(config.parserMinTargetMinutes(), Math.min(config.parserMaxTargetMinutes(), minutes));
+        double ratio = o.has("familiarRatio") && !o.get("familiarRatio").isJsonNull()
+                ? number(o, "familiarRatio") : config.parserDefaultFamiliarRatio();
+        ratio = clamp01(ratio);
+        boolean explicit = o.has("allowExplicit") && !o.get("allowExplicit").isJsonNull()
+                && bool(o, "allowExplicit");
+        String name = text(o, "name");
+        return new PlaylistSpec(minutes, explicit, ratio, strings(o, "blockedArtists"),
+                name.isEmpty() ? config.parserDefaultPlaylistName() : name);
+    }
+
+    /** What a plan reply says beyond the constraints: how sure the model is, whether it stated a familiar share, the mood. */
+    public record PlanExtras(double confidence, boolean familiarStated, String mood) { }
+
+    /**
+     * The confidence (the configured default when the reply gives none), whether the request stated a
+     * familiar share, and the mood word (empty when none) of a plan reply.
+     */
+    public PlanExtras parsePlanExtras(String json) {
+        JsonObject o = object(json);
+        double confidence = o.has("confidence") && !o.get("confidence").isJsonNull()
+                ? clamp01(number(o, "confidence")) : config.planDefaultConfidence();
+        boolean stated = o.has("familiarRatio") && !o.get("familiarRatio").isJsonNull();
+        return new PlanExtras(confidence, stated, text(o, "mood"));
+    }
+
+    public SearchQuery parseSearchQuery(String json) {
+        JsonObject o = object(json);
+        String keywords = text(o, "keywords");
+        String genre = text(o, "genre");
+        Map<String, String> filters = new LinkedHashMap<>();
+        List<String> allowed = config.searchAllowedFilters();
+        if (o.has("filters") && !o.get("filters").isJsonNull()) {
+            if (!o.get("filters").isJsonObject()) {
+                throw new ParseException("'filters' must be an object");
+            }
+            o.getAsJsonObject("filters").entrySet().forEach(e -> {
+                if (allowed.contains(e.getKey().toLowerCase(Locale.ROOT))
+                        && e.getValue().isJsonPrimitive() && !e.getValue().getAsString().isBlank()) {
+                    filters.put(e.getKey().toLowerCase(Locale.ROOT), e.getValue().getAsString().trim());
+                }
+            });
+        }
+        if (keywords.isEmpty() && genre.isEmpty() && filters.isEmpty()) {
+            throw new ParseException("The search query had no keywords, genre or filters");
+        }
+        double confidence = o.has("confidence") && !o.get("confidence").isJsonNull()
+                ? clamp01(number(o, "confidence")) : 0.0;
+        return new SearchQuery(keywords, genre.isEmpty() ? null : genre, filters, confidence);
+    }
+
+    public List<CommandSpec> parseCommandSpecs(String json) {
+        JsonObject o = object(json);
+        if (!o.has("commands") || !o.get("commands").isJsonArray() || o.getAsJsonArray("commands").isEmpty()) {
+            throw new ParseException("Expected a non-empty 'commands' array");
+        }
+        List<CommandSpec> specs = new ArrayList<>();
+        for (JsonElement el : o.getAsJsonArray("commands")) {
+            if (!el.isJsonObject()) {
+                throw new ParseException("Each command must be an object");
+            }
+            specs.add(commandSpec(el.getAsJsonObject()));
+        }
+        return specs;
+    }
+
+    /**
+     * What an edit reply says besides its commands: whether it has any, the mood word and any question, and
+     * the length the edit states: a signed change in minutes ("15 minutes shorter" is -15) or a new total
+     * length, 0 for neither.
+     */
+    public record EditExtras(boolean hasCommands, String mood, String question, int lengthChangeMinutes,
+                             int targetMinutes) { }
+
+    /**
+     * The mood (lower case, empty when none), the clarifying question (empty when none), whether commands are
+     * present and the stated length. A length that is not a number or lies outside the configured bounds is
+     * ignored rather than trusted.
+     */
+    public EditExtras parseEditExtras(String json) {
+        JsonObject o = object(json);
+        boolean commands = o.has("commands") && o.get("commands").isJsonArray() && !o.getAsJsonArray("commands").isEmpty();
+        int change = wholeMinutes(o, "lengthChangeMinutes");
+        int target = wholeMinutes(o, "targetMinutes");
+        int max = config.parserMaxTargetMinutes();
+        return new EditExtras(commands, text(o, "mood").toLowerCase(Locale.ROOT), text(o, "question"),
+                Math.abs(change) <= max ? change : 0,
+                target >= config.parserMinTargetMinutes() && target <= max ? target : 0);
+    }
+
+    /** A JSON number as whole minutes; 0 if absent, null or not a number. */
+    private static int wholeMinutes(JsonObject o, String key) {
+        JsonElement el = o.get(key);
+        if (el == null || !el.isJsonPrimitive() || !el.getAsJsonPrimitive().isNumber()) {
+            return 0;
+        }
+        double v = el.getAsDouble();
+        return Double.isFinite(v) && Math.abs(v) < Integer.MAX_VALUE ? (int) Math.round(v) : 0;
+    }
+
+    /**
+     * Binds the LLM's edit commands to the playlist this parser was bound to with {@link #forPlaylist}. {@code track} references (a 1-based position
+     * or a track id/URI) are resolved against the playlist as the user saw it; tracks to add come
+     * from a Spotify search for the command's query, skipping tracks already in the playlist or
+     * already chosen. Anything that cannot be resolved raises {@link ParseException} before any
+     * change is made.
+     */
+    public List<PlaylistCommand> parseCommands(String json) {
+        if (context == null) {
+            throw new IllegalStateException(config.wording("cmdNoContext"));
+        }
+        List<PlaylistCommand> commands = new ArrayList<>();
+        Set<String> taken = new LinkedHashSet<>();
+        context.tracks().forEach(t -> taken.add(t.id()));
+        String pid = context.playlistId();
+        for (CommandSpec spec : parseCommandSpecs(json)) {
+            switch (spec.type()) {
+                case ADD -> commands.add(new AddItemsCommand(config, context.music(), pid,
+                        List.of(findNew(spec.query(), taken))));
+                case REMOVE -> commands.add(new RemoveTrackCommand(config, context.music(), pid,
+                        resolve(spec.track())));
+                case REPLACE -> commands.add(new ReplaceTrackCommand(config, context.music(), pid,
+                        resolve(spec.track()), findNew(spec.query(), taken)));
+                case REORDER -> commands.add(new ReorderCommand(config, context.music(), pid,
+                        resolve(spec.track()), spec.position()));
+            }
+        }
+        return commands;
+    }
+
+    private Track resolve(String reference) {
+        for (Track t : context.tracks()) {
+            if (reference.equals(t.id()) || reference.equals(t.uri())) {
+                return t;
+            }
+        }
+        if (reference.matches("\\d{1,6}")) {
+            int position = Integer.parseInt(reference);
+            if (position >= 1 && position <= context.tracks().size()) {
+                return context.tracks().get(position - 1);
+            }
+        }
+        throw new ParseException(String.format(config.wording("cmdRefUnknown"), reference));
+    }
+
+    private Track findNew(String query, Set<String> taken) {
+        for (Track t : context.music().search(query, config.commandSearchLimit())) {
+            if (taken.add(t.id())) {
+                return t;
+            }
+        }
+        throw new ParseException(String.format(config.wording("cmdNoTrackFound"), query));
+    }
+
+    private CommandSpec commandSpec(JsonObject c) {
+        CommandSpec.Type type;
+        try {
+            type = CommandSpec.Type.valueOf(text(c, "type").toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new ParseException("Unknown command type '" + text(c, "type") + "'");
+        }
+        String track = text(c, "track");
+        String query = text(c, "query");
+        boolean needsTrack = type != CommandSpec.Type.ADD;
+        boolean needsQuery = type == CommandSpec.Type.ADD || type == CommandSpec.Type.REPLACE;
+        if (needsTrack && track.isEmpty()) {
+            throw new ParseException(type + " needs a 'track'");
+        }
+        if (needsQuery && query.isEmpty()) {
+            throw new ParseException(type + " needs a 'query'");
+        }
+        Integer position = null;
+        if (type == CommandSpec.Type.REORDER) {
+            if (!c.has("position") || c.get("position").isJsonNull()) {
+                throw new ParseException("REORDER needs a 'position'");
+            }
+            position = Math.max(0, wholeNumber(c, "position"));
+        }
+        return new CommandSpec(type, needsTrack ? track : null, needsQuery ? query : null, position);
+    }
+
+    /** The relaxation options from an options reply (F11). */
+    public List<String> parseOptions(String json) {
+        List<String> options = strings(object(json), "options");
+        if (options.isEmpty()) {
+            throw new ParseException("The reply contained no options");
+        }
+        return options;
+    }
+
+    /** A plain-text reply (summary, trends): trimmed, and not blank or JSON. */
+    public String parseText(String reply) {
+        String t = reply == null ? "" : reply.strip();
+        if (t.isEmpty()) {
+            throw new ParseException("The reply was empty");
+        }
+        if (t.startsWith("{") || t.startsWith("[")) {
+            throw new ParseException("Expected prose but the reply was JSON");
+        }
+        return t;
+    }
+
+    /** Keeps, in order and without duplicates, only the proposed tracks that Spotify results confirm by id. */
+    public List<Track> verifyTracks(List<Track> tracks, List<Track> results) {
+        if (tracks == null || results == null) {
+            return List.of();
+        }
+        Set<String> real = new LinkedHashSet<>();
+        results.forEach(t -> real.add(t.id()));
+        Set<String> seen = new LinkedHashSet<>();
+        List<Track> kept = new ArrayList<>();
+        for (Track t : tracks) {
+            if (real.contains(t.id()) && seen.add(t.id())) {
+                kept.add(t);
+            }
+        }
+        return kept;
+    }
+
+    /**
+     * Returns the trimmed explanation if it states nothing the trace does not record, otherwise
+     * throws. Checked: every track id named (a bracketed token like {@code [id]}, a
+     * {@code spotify:track:} URI or a bare Spotify-style 22-character id) is in the trace; every
+     * number appears in the trace facts or is a count computed from them; every quoted name is
+     * quoted in the trace; and no genre from the curated genre list is mentioned unless the trace
+     * mentions it. A genre outside that list cannot be recognised, so the check is as wide as the list.
+     */
+    public String verifyExplanation(String text, DecisionTrace trace) {
+        if (trace == null) {
+            throw new ParseException("No decision trace to verify the explanation against");
+        }
+        String t = text == null ? "" : text.strip();
+        if (t.isEmpty()) {
+            throw new ParseException("The explanation was empty");
+        }
+        Set<String> named = new LinkedHashSet<>();
+        collect(BRACKETED, t, 1, named);
+        collect(TRACK_URI, t, 1, named);
+        Matcher m = BARE_ID.matcher(t);
+        while (m.find()) {
+            if (looksLikeId(m.group())) {
+                named.add(m.group());
+            }
+        }
+        for (String id : named) {
+            if (!trace.reasons().containsKey(id.trim())) {
+                throw new ParseException("The explanation names '" + id + "', which is not in the decision trace");
+            }
+        }
+        String facts = facts(trace);
+        String withoutIds = BRACKETED.matcher(TRACK_URI.matcher(t).replaceAll(" ")).replaceAll(" ");
+        checkQuotes(withoutIds, facts);
+        checkNumbers(withoutIds, trace, facts);
+        checkGenres(withoutIds, facts);
+        checkPreferenceClaims(withoutIds, facts);
+        return t;
+    }
+
+    /**
+     * Rewrites every track id in a verified explanation (bracketed, as a track URI, or bare) for display:
+     * {@code display} gives the text for an id, so a title can replace it or a general phrase stand in.
+     */
+    public String replaceTrackIds(String text, java.util.function.UnaryOperator<String> display) {
+        String bracketed = replaceAll(BRACKETED, text, display);
+        String uris = replaceAll(TRACK_URI, bracketed, display);
+        Matcher m = BARE_ID.matcher(uris);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            m.appendReplacement(out, Matcher.quoteReplacement(looksLikeId(m.group()) ? display.apply(m.group()) : m.group()));
+        }
+        m.appendTail(out);
+        return out.toString();
+    }
+
+    private static String replaceAll(Pattern pattern, String text, java.util.function.UnaryOperator<String> display) {
+        Matcher m = pattern.matcher(text);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            m.appendReplacement(out, Matcher.quoteReplacement(display.apply(m.group(1).trim())));
+        }
+        m.appendTail(out);
+        return out.toString();
+    }
+
+    /**
+     * The trace records where a track came from (the listener's history, a genre they asked for), never that
+     * they love or like anything. A sentence that says so (for example "the genres you love" about genres that
+     * came from the goal) is a claim the trace does not hold.
+     */
+    private static void checkPreferenceClaims(String text, String facts) {
+        Matcher m = PREFERENCE_CLAIM.matcher(text);
+        while (m.find()) {
+            if (!facts.contains(m.group().toLowerCase(Locale.ROOT))) {
+                throw new ParseException("The explanation says '" + m.group()
+                        + "', a preference the decision trace does not record");
+            }
+        }
+    }
+
+    /** Everything the trace records, as one lower-case text. */
+    private static String facts(DecisionTrace trace) {
+        StringBuilder sb = new StringBuilder(trace.strategyName() == null ? "" : trace.strategyName());
+        trace.requestedGenres().forEach(g -> sb.append(' ').append(g));
+        trace.reasons().values().forEach(r -> sb.append(' ').append(r));
+        trace.constraintsSatisfied().forEach(c -> sb.append(' ').append(c));
+        return sb.toString().toLowerCase(Locale.ROOT);
+    }
+
+    private static void checkQuotes(String text, String facts) {
+        Matcher m = QUOTED.matcher(text);
+        while (m.find()) {
+            String quoted = (m.group(1) != null ? m.group(1) : m.group(2)).strip().toLowerCase(Locale.ROOT);
+            if (!facts.contains(quoted)) {
+                throw new ParseException("The explanation quotes '" + quoted + "', which is not in the decision trace");
+            }
+        }
+    }
+
+    private static void checkNumbers(String text, DecisionTrace trace, String facts) {
+        Set<String> allowed = new LinkedHashSet<>();
+        Matcher in = NUMBER.matcher(facts);
+        while (in.find()) {
+            allowed.add(in.group());
+        }
+        allowed.add(String.valueOf(trace.reasons().size()));
+        Map<String, Integer> groups = new LinkedHashMap<>();
+        trace.reasons().values().forEach(r -> groups.merge(r, 1, Integer::sum));
+        groups.values().forEach(count -> allowed.add(String.valueOf(count)));
+        Matcher m = NUMBER.matcher(text);
+        while (m.find()) {
+            if (!allowed.contains(m.group())) {
+                throw new ParseException("The explanation states the number " + m.group()
+                        + ", which is not in the decision trace");
+            }
+        }
+    }
+
+    private void checkGenres(String text, String facts) {
+        String lower = text.toLowerCase(Locale.ROOT);
+        for (String genre : knownGenres) {
+            Pattern word = Pattern.compile("(?<![\\p{L}\\p{N}])" + Pattern.quote(genre) + "(?![\\p{L}\\p{N}])");
+            if (word.matcher(lower).find() && !word.matcher(facts).find()) {
+                throw new ParseException("The explanation mentions the genre '" + genre
+                        + "', which is not in the decision trace");
+            }
+        }
+    }
+
+    private static void collect(Pattern p, String text, int group, Set<String> out) {
+        Matcher m = p.matcher(text);
+        while (m.find()) {
+            out.add(m.group(group));
+        }
+    }
+
+    /** A real Spotify id mixes digits or capitals into the letters; plain long words do not. */
+    private static boolean looksLikeId(String token) {
+        return token.chars().anyMatch(Character::isDigit)
+                || token.substring(1).chars().anyMatch(Character::isUpperCase);
+    }
+
+    // ---- JSON helpers ----
+
+    private static JsonObject object(String reply) {
+        if (reply == null || reply.isBlank()) {
+            throw new ParseException("The reply was empty");
+        }
+        String body = reply.strip();
+        int start = body.indexOf('{');
+        int end = body.lastIndexOf('}');
+        if (start < 0 || end < start) {
+            throw new ParseException("The reply did not contain a JSON object");
+        }
+        try {
+            JsonElement el = JsonParser.parseString(body.substring(start, end + 1));
+            if (!el.isJsonObject()) {
+                throw new ParseException("The reply was not a JSON object");
+            }
+            return el.getAsJsonObject();
+        } catch (com.google.gson.JsonParseException e) {
+            throw new ParseException("The reply was not valid JSON: " + e.getMessage(), e);
+        }
+    }
+
+    private static double number(JsonObject o, String key) {
+        JsonElement el = o.get(key);
+        if (!el.isJsonPrimitive() || !el.getAsJsonPrimitive().isNumber()) {
+            throw new ParseException("'" + key + "' must be a number");
+        }
+        return el.getAsDouble();
+    }
+
+    private static int wholeNumber(JsonObject o, String key) {
+        double d = number(o, key);
+        return (int) Math.max(Integer.MIN_VALUE, Math.min(Integer.MAX_VALUE, Math.round(d)));
+    }
+
+    private static boolean bool(JsonObject o, String key) {
+        JsonElement el = o.get(key);
+        if (!el.isJsonPrimitive() || !el.getAsJsonPrimitive().isBoolean()) {
+            throw new ParseException("'" + key + "' must be true or false");
+        }
+        return el.getAsBoolean();
+    }
+
+    private static String text(JsonObject o, String key) {
+        JsonElement el = o.get(key);
+        return el == null || !el.isJsonPrimitive() ? "" : el.getAsString().trim();
+    }
+
+    private static List<String> strings(JsonObject o, String key) {
+        if (!o.has(key) || o.get(key).isJsonNull()) {
+            return List.of();
+        }
+        if (!o.get(key).isJsonArray()) {
+            throw new ParseException("'" + key + "' must be an array");
+        }
+        JsonArray arr = o.getAsJsonArray(key);
+        List<String> out = new ArrayList<>();
+        for (JsonElement el : arr) {
+            if (el.isJsonPrimitive() && !el.getAsString().isBlank()) {
+                out.add(el.getAsString().trim());
+            }
+        }
+        return out;
+    }
+
+    private static double clamp01(double v) {
+        return Math.max(0.0, Math.min(1.0, v));
+    }
+}

@@ -1,0 +1,18 @@
+{
+  "chill": ["chill", "ambient", "downtempo", "lo-fi", "acoustic"],
+  "upbeat": ["indie pop", "pop", "dance pop", "funk", "disco"],
+  "mellow": ["chill", "acoustic", "folk", "indie folk", "ambient"],
+  "relaxed": ["acoustic", "chill", "folk", "bossa nova", "ambient"],
+  "calm": ["ambient", "classical", "piano", "new age", "sleep"],
+  "sad": ["sad", "singer-songwriter", "indie", "blues", "acoustic"],
+  "happy": ["pop", "dance pop", "funk", "disco", "reggae"],
+  "energetic": ["dance", "edm", "electro", "house", "rock"],
+  "workout": ["edm", "hip hop", "trap", "drum and bass", "hard rock"],
+  "party": ["dance pop", "hip hop", "house", "reggaeton", "disco"],
+  "focus": ["ambient", "classical", "instrumental", "lo-fi", "study"],
+  "romantic": ["r&b", "soul", "jazz", "bossa nova", "singer-songwriter"],
+  "nostalgic": ["oldies", "classic rock", "80s", "90s", "soft rock"],
+  "dark": ["industrial", "darkwave", "goth", "metal", "trip hop"],
+  "uplifting": ["indie pop", "pop", "folk pop", "gospel", "synthpop"],
+  "angry": ["metal", "punk", "hardcore", "hard rock", "grunge"]
+}
