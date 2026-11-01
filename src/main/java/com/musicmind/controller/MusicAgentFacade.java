@@ -497,7 +497,7 @@ public class MusicAgentFacade {
                     summary, at, partial, strings(o, "notices"));
             stored.setRange(storedRange);
             return Optional.of(stored);
-        } catch (JsonSyntaxException | IllegalStateException | ClassCastException
+        } catch (JsonSyntaxException | IllegalStateException | ClassCastException | UnsupportedOperationException
                  | java.time.format.DateTimeParseException e) {
             return Optional.empty();
         }

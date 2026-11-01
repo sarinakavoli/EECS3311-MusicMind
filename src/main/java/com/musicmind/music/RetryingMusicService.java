@@ -38,10 +38,17 @@ public class RetryingMusicService implements MusicService {
     }
 
     RetryingMusicService(MusicService delegate, int maxRetries, Sleeper sleeper) {
+        this(delegate, maxRetries, sleeper, Config.defaults().spotifyAddBatchSize());
+    }
+
+    RetryingMusicService(MusicService delegate, int maxRetries, Sleeper sleeper, int batchSize) {
         this.delegate = delegate;
         this.maxRetries = maxRetries;
         this.maxWaitSeconds = Config.defaults().spotifyMaxWaitSeconds();
-        this.batchSize = Config.defaults().spotifyAddBatchSize();
+        if (batchSize < 1) {
+            throw new IllegalArgumentException("The batch size must be at least 1, got " + batchSize);
+        }
+        this.batchSize = batchSize;
         this.sleeper = sleeper;
     }
 

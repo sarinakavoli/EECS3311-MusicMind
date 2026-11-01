@@ -47,8 +47,16 @@ public class MusicBrainzAdapter implements GenreService {
 
     /** A failed call; carries the wording for the notice. */
     private static final class LookupFailed extends Exception {
+        /** True for a rate-limit 503: normal at MusicBrainz, so it never counts toward the outage pause. */
+        final boolean rateLimited;
+
         LookupFailed(String message) {
+            this(message, false);
+        }
+
+        LookupFailed(String message, boolean rateLimited) {
             super(message);
+            this.rateLimited = rateLimited;
         }
     }
 
@@ -90,8 +98,13 @@ public class MusicBrainzAdapter implements GenreService {
             Optional<List<String>> genres = Optional.of(mbid == null ? List.of() : genresOf(mbid));
             recordSuccess();
             return genres;
-        } catch (LookupFailed | RuntimeException e) {
+        } catch (LookupFailed e) {
             // A failed or unreadable response is "unknown", not "no genres": it is retried, never cached.
+            if (!e.rateLimited) {
+                recordFailure();
+            }
+            return Optional.empty();
+        } catch (RuntimeException e) {
             recordFailure();
             return Optional.empty();
         }
@@ -177,13 +190,13 @@ public class MusicBrainzAdapter implements GenreService {
                         .orElse((long) config.musicBrainzRetryWaitSeconds());
                 if (wait > config.musicBrainzMaxWaitSeconds()) {
                     throw new LookupFailed("MusicBrainz is rate limiting requests (HTTP 503) and asked for a "
-                            + wait + " second wait.");
+                            + wait + " second wait.", true);
                 }
                 sleeper.sleepMillis(wait * 1000L);
                 response = send(url);
             }
             if (response.statusCode() == 503) {
-                throw new LookupFailed("MusicBrainz is rate limiting requests (HTTP 503).");
+                throw new LookupFailed("MusicBrainz is rate limiting requests (HTTP 503).", true);
             }
             if (response.statusCode() / 100 != 2) {
                 throw new LookupFailed("HTTP " + response.statusCode() + " " + config.truncateBody(response.body()));

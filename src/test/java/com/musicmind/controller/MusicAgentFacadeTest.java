@@ -250,7 +250,7 @@ class MusicAgentFacadeTest extends PostgresTestBase {
     private static final String RAW = "Spotify API error (HTTP 503) on GET https://api.spotify.com/v1/me/top/artists?limit=20"
             + ": {\"error\":{\"status\":503,\"message\":\"upstream connect error\"}}";
 
-    private static final List<String> RAW_DETAILS = List.of("HTTP", "503", "http", "api.spotify", "upstream", "/v1", "GET");
+    private static final List<String> RAW_DETAILS = List.of("HTTP", "http", "api.spotify", "upstream", "/v1", "GET");
 
     /** No status, URL or response text; for stored JSON (which has braces of its own) only the details are checked. */
     private static void assertNoRawDetail(String text) {
@@ -261,6 +261,7 @@ class MusicAgentFacadeTest extends PostgresTestBase {
 
     private static void assertNothingRaw(String text) {
         assertNoRawDetail(text);
+        assertFalse(text.contains("503"), "status in: " + text); // not checked in stored JSON: a timestamp can hold these digits
         assertFalse(text.contains("{") || text.contains("}"), "JSON in: " + text);
     }
 
@@ -354,6 +355,23 @@ class MusicAgentFacadeTest extends PostgresTestBase {
         assertEquals("long", facade.lastProfile(USER).orElseThrow().range());
         facade.analyzeTaste(USER);
         assertEquals("medium", facade.lastProfile(USER).orElseThrow().range());
+    }
+
+    @Test
+    void aMalformedListInStoredJsonMeansNoProfileInsteadOfACrash() {
+        for (String broken : List.of("\"artistIds\":[{\"x\":1}]", "\"trackIds\":[null]",
+                "\"artistGenres\":{\"a\":[{\"g\":1}]}")) {
+            MemoryManager memory = memory();
+            AgentSession s = new AgentSession(java.util.UUID.randomUUID().toString(), java.time.Instant.now(), null);
+            s.setStatus("done");
+            s.setRequest(new com.musicmind.domain.AgentRequest("view taste profile", RequestKind.ANALYZE_TASTE));
+            s.setDerivedData("{\"genreHistogram\":{\"pop\":1.0}," + broken + "}");
+            memory.saveSession(s);
+            FakeMusic music = new FakeMusic();
+
+            assertTrue(facade(music, null, memory, tools(music, memory, new ArrayList<>()))
+                    .lastProfile(USER).isEmpty(), broken);
+        }
     }
 
     @Test

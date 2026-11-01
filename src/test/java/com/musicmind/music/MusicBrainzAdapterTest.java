@@ -429,4 +429,78 @@ class MusicBrainzAdapterTest {
 
         assertEquals(sent, requests.size(), "paused again after a single failed probe");
     }
+
+    @Test
+    void rateLimitRepliesNeverTriggerThePause() {
+        handler = r -> Reply.status(503);
+        MusicBrainzAdapter adapter = adapter();
+        int lookups = Config.of(Map.of()).musicBrainzMaxConsecutiveFailures() * 3;
+
+        for (int i = 0; i < lookups; i++) {
+            assertEquals(Optional.empty(), adapter.lookup(artist("Miles Davis")));
+        }
+
+        assertEquals(lookups * 2, requests.size(), "every lookup was tried, with its one retry");
+    }
+
+    @Test
+    void aRateLimitReplyDoesNotResetOrAddToTheFailureCount() {
+        MusicBrainzAdapter adapter = adapter();
+        int limit = Config.of(Map.of()).musicBrainzMaxConsecutiveFailures();
+        handler = r -> Reply.status(500);
+        for (int i = 0; i < limit - 1; i++) {
+            adapter.lookup(artist("A"));
+        }
+        handler = r -> Reply.status(503);
+        adapter.lookup(artist("A"));
+        handler = r -> Reply.status(500);
+        adapter.lookup(artist("A"));   // the limit-th real failure
+
+        int sent = requests.size();
+        adapter.lookup(artist("A"));
+        assertEquals(sent, requests.size(), "paused");
+    }
+
+    @Test
+    void repeatedConnectionFailuresStillTriggerThePause() {
+        Config config = Config.of(Map.of()).withTunables(Map.of("musicbrainz.baseUrl", "http://127.0.0.1:1/ws/2"));
+        MusicBrainzAdapter adapter = new MusicBrainzAdapter(config, time, time);
+        int limit = config.musicBrainzMaxConsecutiveFailures();
+
+        for (int i = 0; i < limit + 3; i++) {
+            assertEquals(Optional.empty(), adapter.lookup(artist("A")));
+        }
+
+        assertEquals(limit - 1, time.sleeps.size(), "only the first " + limit + " lookups sent a (paced) request");
+    }
+
+    @Test
+    void repeatedTimeoutsStillTriggerThePause() {
+        handler = r -> {
+            try {
+                Thread.sleep(1500);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+            return Reply.status(500);
+        };
+        Config config = Config.of(Map.of()).withTunables(Map.of(
+                "musicbrainz.baseUrl", "http://127.0.0.1:" + server.getAddress().getPort() + "/ws/2",
+                "musicbrainz.timeoutSeconds", "1"));
+        MusicBrainzAdapter adapter = new MusicBrainzAdapter(config, time, time);
+        int limit = config.musicBrainzMaxConsecutiveFailures();
+
+        for (int i = 0; i < limit + 2; i++) {
+            assertEquals(Optional.empty(), adapter.lookup(artist("A")));
+        }
+
+        assertEquals(limit - 1, time.sleeps.size(), "no request after the limit");
+    }
+
+    @Test
+    void theShippedPacingAndFailureLimitStayClearOfTheRateLimit() {
+        Config config = Config.of(Map.of());
+        assertEquals(1100, config.musicBrainzMinIntervalMillis());
+        assertEquals(3, config.musicBrainzMaxConsecutiveFailures());
+    }
 }

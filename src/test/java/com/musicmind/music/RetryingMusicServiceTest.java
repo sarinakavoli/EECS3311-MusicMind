@@ -230,6 +230,12 @@ class RetryingMusicServiceTest {
     }
 
     @Test
+    void aBatchSizeBelowOneIsRejectedInsteadOfLoopingForever() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new RetryingMusicService(new StubMusicService(), 3, s -> { }, 0));
+    }
+
+    @Test
     void retriesOverARealAdapterAgainstAFailingServer(@TempDir java.nio.file.Path dir) throws Exception {
         try (FakeSpotifyServer api = new FakeSpotifyServer()) {
             int[] hits = {0};
