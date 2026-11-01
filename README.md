@@ -71,9 +71,8 @@ All UML diagrams are authored in **UMLet**. The editable source files are in
 
 ## Build & run
 
-**Stack:** Java 17, JavaFX (GUI), a command-line interface (CLI), **SQLite** for
-persistence, and one LLM behind the `LLMProvider` interface.
-(SQLite replaces the PostgreSQL planned in Stage 1 — see `docs/STAGE2_PLAN.md`.)
+**Stack:** Java 17, JavaFX (GUI), a command-line interface (CLI), **PostgreSQL** for
+persistence, and one LLM (OpenAI) behind the `LLMProvider` interface.
 
 ### Prerequisites
 - **JDK 17+** (`java -version`).

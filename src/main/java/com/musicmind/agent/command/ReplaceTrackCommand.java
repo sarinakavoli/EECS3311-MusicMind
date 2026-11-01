@@ -30,8 +30,9 @@ public class ReplaceTrackCommand implements PlaylistCommand {
 
     @Override
     public void execute() {
-        oldIndexes = PlaylistOps.indexesOf(config, music, playlistId, oldTrack);
-        sizeWithout = music.getPlaylistItems(playlistId).size() - oldIndexes.size();
+        List<Track> items = music.getPlaylistItems(playlistId);
+        oldIndexes = PlaylistOps.indexesOf(config, items, oldTrack);
+        sizeWithout = items.size() - oldIndexes.size();
         music.removeItems(playlistId, List.of(PlaylistOps.uri(oldTrack)));
         try {
             music.addItems(playlistId, List.of(PlaylistOps.uri(newTrack)));

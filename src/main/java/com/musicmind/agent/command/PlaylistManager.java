@@ -61,10 +61,10 @@ public class PlaylistManager {
     /**
      * Snapshots the playlist as it is now, then applies the commands as one undoable step.
      *
+     * @param current the whole playlist, just read: the caller has refused one that was cut short
      * @return the id of the snapshot taken first
      */
     public int modify(Playlist current, List<PlaylistCommand> commands) {
-        requireComplete(current.spotifyId());
         int snapshotId = snapshotBeforeModify(current);
         try {
             executeAll(commands);
@@ -78,12 +78,14 @@ public class PlaylistManager {
     /**
      * Saves the playlist as it is now, then puts it back to a saved snapshot, as one undoable step (F12).
      *
+     * @param current the whole playlist, just read: the caller has refused one that was cut short
      * @return the id of the snapshot taken first
      */
     public int restoreFrom(Playlist current, int snapshotId) {
+        Playlist snapshot = load(snapshotId);
         int saved = snapshotBeforeModify(current);
         try {
-            restore(snapshotId);
+            run(snapshot);
         } catch (RuntimeException e) {
             memory.markLatestSnapshotUndone(current.spotifyId());
             throw e;
@@ -144,6 +146,12 @@ public class PlaylistManager {
 
     /** Puts a playlist back to a saved snapshot (F12). */
     public void restore(int snapshotId) {
+        Playlist snapshot = load(snapshotId);
+        requireComplete(snapshot.spotifyId());
+        run(snapshot);
+    }
+
+    private Playlist load(int snapshotId) {
         Playlist snapshot;
         try {
             snapshot = memory.loadSnapshot(snapshotId);
@@ -153,12 +161,11 @@ public class PlaylistManager {
         if (snapshot == null) {
             throw new PlaylistChangeException(String.format(config.wording("restoreUnknown"), snapshotId));
         }
-        restore(snapshot);
+        return snapshot;
     }
 
     /** Runs a {@link RestoreSnapshotCommand} for the snapshot, so a restore sits on the undo stack like any change. */
-    private void restore(Playlist snapshot) {
-        requireComplete(snapshot.spotifyId());
+    private void run(Playlist snapshot) {
         execute(new RestoreSnapshotCommand(config, music, snapshot.spotifyId(), snapshot.name(), snapshot.tracks()));
     }
 

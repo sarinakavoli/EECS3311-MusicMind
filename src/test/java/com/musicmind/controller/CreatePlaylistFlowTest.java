@@ -161,6 +161,15 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
     }
 
     @Test
+    void aCreationRunValidatesWithTheConfigItWasGiven() {
+        Config small = config.withTunables(Map.of("playlist.maxTracks", "5"));
+        AppController c = new AppController(new Music(), memory(), new MockLLMProvider(), small);
+
+        assertThrows(RuntimeException.class, () -> c.createPlaylist(request("a mix for working")));
+        assertEquals("failed", c.lastSession().status());
+    }
+
+    @Test
     void theFinishedSessionIsPersistedWithItsRequestPlanTraceAndSpec() {
         Music music = new Music();
         AppController c = controller(music, new MockLLMProvider());

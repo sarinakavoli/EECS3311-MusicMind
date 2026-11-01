@@ -25,8 +25,9 @@ public class RemoveTrackCommand implements PlaylistCommand {
 
     @Override
     public void execute() {
-        originalIndexes = PlaylistOps.indexesOf(config, music, playlistId, track);
-        sizeAfter = music.getPlaylistItems(playlistId).size() - originalIndexes.size();
+        List<Track> items = music.getPlaylistItems(playlistId);
+        originalIndexes = PlaylistOps.indexesOf(config, items, track);
+        sizeAfter = items.size() - originalIndexes.size();
         music.removeItems(playlistId, List.of(PlaylistOps.uri(track)));
     }
 

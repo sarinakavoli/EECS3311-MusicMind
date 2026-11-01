@@ -198,6 +198,25 @@ class PlaylistManagerTest extends PostgresTestBase {
     }
 
     @Test
+    void aModifyDoesNotReadThePlaylistAgainBeforeRunningItsCommands() {
+        java.util.concurrent.atomic.AtomicInteger reads = new java.util.concurrent.atomic.AtomicInteger();
+        FakeMusicService counting = new FakeMusicService() {
+            @Override public List<Track> getPlaylistItems(String playlistId) {
+                reads.incrementAndGet();
+                return super.getPlaylistItems(playlistId);
+            }
+        };
+        counting.seed("p", "a", "b");
+        PlaylistManager m = new PlaylistManager(config, counting, memory(db));
+        Playlist before = new Playlist("p", "Mix", counting.getPlaylistItems("p"));
+        reads.set(0);
+
+        m.modify(before, List.of(new RemoveTrackCommand(config, counting, "p", track("a"))));
+
+        assertEquals(1, reads.get(), "only the command's own read");
+    }
+
+    @Test
     void undoWithEmptyStackRestoresTheLatestSnapshot() {
         music.seed("p", "a", "b", "c");
         PlaylistManager first = manager();

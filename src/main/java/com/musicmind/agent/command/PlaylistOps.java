@@ -16,9 +16,8 @@ final class PlaylistOps {
     private PlaylistOps() {
     }
 
-    /** Index of the track in the playlist as it is now, or throws the "no longer in the playlist" message. */
-    static int indexOf(Config config, MusicService music, String playlistId, Track track) {
-        List<Track> items = music.getPlaylistItems(playlistId);
+    /** Index of the track in the items just read, or throws the "no longer in the playlist" message. */
+    static int indexOf(Config config, List<Track> items, Track track) {
         for (int i = 0; i < items.size(); i++) {
             if (items.get(i).id().equals(track.id())) {
                 return i;
@@ -28,8 +27,7 @@ final class PlaylistOps {
     }
 
     /** Every index holding the track (a playlist may contain copies), ascending; throws if there are none. */
-    static List<Integer> indexesOf(Config config, MusicService music, String playlistId, Track track) {
-        List<Track> items = music.getPlaylistItems(playlistId);
+    static List<Integer> indexesOf(Config config, List<Track> items, Track track) {
         List<Integer> found = new java.util.ArrayList<>();
         for (int i = 0; i < items.size(); i++) {
             if (items.get(i).id().equals(track.id())) {
@@ -59,7 +57,13 @@ final class PlaylistOps {
      */
     static void move(MusicService music, String playlistId, int from, int to) {
         if (from != to) {
-            List<Track> items = music.getPlaylistItems(playlistId);
+            move(music, playlistId, music.getPlaylistItems(playlistId), from, to);
+        }
+    }
+
+    /** As {@link #move(MusicService, String, int, int)}, with the playlist as it was just read. */
+    static void move(MusicService music, String playlistId, List<Track> items, int from, int to) {
+        if (from != to) {
             int target = TrackList.position(items, to);
             music.reorderItems(playlistId, TrackList.position(items, from), to > from ? target + 1 : target);
         }

@@ -428,7 +428,7 @@ public class MusicAgentFacade {
         }
         User user = new User(userId, userId, userId);
         RunServices services = new RunServices(config, planner, new ConstraintChecker(config),
-                new PlaylistValidator(), engine, create.playlists(), create.music(), memory,
+                playlistValidator, engine, create.playlists(), create.music(), memory,
                 create.explainer(), currentUserId, () -> profileFor(user), create.reauthenticator());
         AgentSession session = new AgentSession(UUID.randomUUID().toString(), Instant.now(), new IdleState());
         session.setRequest(request);
@@ -545,11 +545,6 @@ public class MusicAgentFacade {
             after = command.simulate(after);
         }
         return after;
-    }
-
-    /** The spec an edit is judged by: the playlist's rules without its old duration target, which the edit's own intent replaces. */
-    private static PlaylistSpec editSpec(PlaylistSpec spec) {
-        return new PlaylistSpec(0, spec.allowExplicit(), spec.familiarRatio(), spec.blockedArtists(), spec.name());
     }
 
     private static PlaylistSpec withTarget(PlaylistSpec spec, int targetMinutes) {

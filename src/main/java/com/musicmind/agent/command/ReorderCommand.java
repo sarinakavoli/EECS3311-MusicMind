@@ -4,6 +4,8 @@ import com.musicmind.config.Config;
 import com.musicmind.domain.Track;
 import com.musicmind.music.MusicService;
 
+import java.util.List;
+
 /** Moves a track to a 0-based position (clamped to the end of the list); undo moves it back. */
 public class ReorderCommand implements PlaylistCommand {
 
@@ -25,9 +27,10 @@ public class ReorderCommand implements PlaylistCommand {
 
     @Override
     public void execute() {
-        from = PlaylistOps.indexOf(config, music, playlistId, track);
-        to = Math.min(requestedPosition, music.getPlaylistItems(playlistId).size() - 1);
-        PlaylistOps.move(music, playlistId, from, to);
+        List<Track> items = music.getPlaylistItems(playlistId);
+        from = PlaylistOps.indexOf(config, items, track);
+        to = Math.min(requestedPosition, items.size() - 1);
+        PlaylistOps.move(music, playlistId, items, from, to);
     }
 
     @Override

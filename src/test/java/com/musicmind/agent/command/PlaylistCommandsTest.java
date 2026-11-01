@@ -229,4 +229,26 @@ class PlaylistCommandsTest {
         command.undo();
         assertEquals(List.of("local", "a", "b", "c"), music.ids("p"));
     }
+
+    /** Counts playlist reads, which are the costly paged calls. */
+    private static class CountingReads extends FakeMusicService {
+        int reads;
+        @Override public List<Track> getPlaylistItems(String playlistId) {
+            reads++;
+            return super.getPlaylistItems(playlistId);
+        }
+    }
+
+    @Test
+    void removingAndMovingEachReadThePlaylistOnce() {
+        CountingReads music = new CountingReads();
+        music.seed("p", "a", "b", "c");
+
+        new RemoveTrackCommand(config, music, "p", track("a")).execute();
+        assertEquals(1, music.reads);
+
+        music.reads = 0;
+        new ReorderCommand(config, music, "p", track("c"), 0).execute();
+        assertEquals(1, music.reads);
+    }
 }
