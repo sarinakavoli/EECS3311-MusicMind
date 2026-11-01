@@ -2,6 +2,7 @@ package com.musicmind.music;
 
 import com.musicmind.config.Config;
 import com.musicmind.domain.Artist;
+import com.musicmind.domain.Track;
 import com.musicmind.memory.Database;
 import com.musicmind.memory.PostgresTestBase;
 import com.musicmind.memory.repository.GenreRepository;
@@ -49,6 +50,18 @@ class GenreEnrichingMusicServiceTest extends PostgresTestBase {
 
     private GenreEnrichingMusicService service(MusicService delegate, FakeGenres genres) {
         return service(delegate, genres, Clock.systemUTC());
+    }
+
+    @Test
+    void theTruncationFlagSurvivesTheRealRetryingAndGenreDecorators() {
+        MusicService capped = new StubMusicService() {
+            @Override public List<Track> getSavedTracks() {
+                return new TrackList(List.of(new Track("t1", "spotify:track:t1", "T", 1, false, List.of())), true);
+            }
+        };
+        MusicService stack = service(new RetryingMusicService(capped, config), new FakeGenres());
+
+        assertTrue(TrackList.isTruncated(stack.getSavedTracks()), "the profile relies on this flag to say tracks were skipped");
     }
 
     @Test

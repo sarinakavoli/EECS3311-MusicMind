@@ -1,11 +1,13 @@
 package com.musicmind.music;
 
+import com.musicmind.config.Config;
 import com.musicmind.domain.Artist;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -18,6 +20,24 @@ class RetryingMusicServiceTest {
     private static class RecordingSleeper implements RetryingMusicService.Sleeper {
         final List<Long> sleeps = new ArrayList<>();
         @Override public void sleepSeconds(long seconds) { sleeps.add(seconds); }
+    }
+
+    /** The one Config the service reads its retry count (and batch size) from. */
+    private static Config retries(int count) {
+        return Config.of(Map.of()).withTunables(Map.of("spotify.retryCount", String.valueOf(count)));
+    }
+
+    @Test
+    void batchSizeComesFromTheInjectedConfigLikeTheAdapters() {
+        List<Integer> sizes = new ArrayList<>();
+        MusicService recorder = new StubMusicService() {
+            @Override public void addItems(String playlistId, List<String> uris) { sizes.add(uris.size()); }
+        };
+        Config config = Config.of(Map.of()).withTunables(Map.of("spotify.addBatchSize", "2"));
+
+        new RetryingMusicService(recorder, config, s -> { }).addItems("pl1", uris(5));
+
+        assertEquals(List.of(2, 2, 1), sizes);
     }
 
     @Test
@@ -33,7 +53,7 @@ class RetryingMusicServiceTest {
             }
         };
         RecordingSleeper sleeper = new RecordingSleeper();
-        RetryingMusicService service = new RetryingMusicService(flaky, 3, sleeper);
+        RetryingMusicService service = new RetryingMusicService(flaky, retries(3), sleeper);
 
         List<Artist> result = service.getTopArtists("medium_term");
 
@@ -52,7 +72,7 @@ class RetryingMusicServiceTest {
                 throw new RateLimitException("429", 1);
             }
         };
-        RetryingMusicService service = new RetryingMusicService(alwaysLimited, 2, s -> { });
+        RetryingMusicService service = new RetryingMusicService(alwaysLimited, retries(2), s -> { });
 
         assertThrows(RateLimitException.class, service::currentUserId);
         assertEquals(3, calls[0], "initial attempt plus two retries");
@@ -71,7 +91,7 @@ class RetryingMusicServiceTest {
         };
         RecordingSleeper sleeper = new RecordingSleeper();
 
-        assertEquals("sarina", new RetryingMusicService(flaky, 3, sleeper).currentUserId());
+        assertEquals("sarina", new RetryingMusicService(flaky, retries(3), sleeper).currentUserId());
 
         assertEquals(List.of(9L), sleeper.sleeps);
     }
@@ -87,7 +107,7 @@ class RetryingMusicServiceTest {
         };
         RecordingSleeper sleeper = new RecordingSleeper();
 
-        assertThrows(MusicServiceException.class, () -> new RetryingMusicService(notFound, 3, sleeper).currentUserId());
+        assertThrows(MusicServiceException.class, () -> new RetryingMusicService(notFound, retries(3), sleeper).currentUserId());
 
         assertEquals(1, calls[0]);
         assertTrue(sleeper.sleeps.isEmpty());
@@ -103,7 +123,7 @@ class RetryingMusicServiceTest {
             }
         };
 
-        assertThrows(AuthExpiredException.class, () -> new RetryingMusicService(expired, 3, s -> { }).currentUserId());
+        assertThrows(AuthExpiredException.class, () -> new RetryingMusicService(expired, retries(3), s -> { }).currentUserId());
         assertEquals(1, calls[0]);
     }
 
@@ -116,7 +136,7 @@ class RetryingMusicServiceTest {
         };
 
         MusicServiceException e = assertThrows(MusicServiceException.class,
-                () -> new RetryingMusicService(down, 2, s -> { }).currentUserId());
+                () -> new RetryingMusicService(down, retries(2), s -> { }).currentUserId());
 
         assertEquals(502, e.statusCode());
         assertTrue(e.getMessage().contains("temporarily unavailable"), e.getMessage());
@@ -132,7 +152,7 @@ class RetryingMusicServiceTest {
         };
 
         RateLimitException e = assertThrows(RateLimitException.class,
-                () -> new RetryingMusicService(limited, 1, s -> { }).currentUserId());
+                () -> new RetryingMusicService(limited, retries(1), s -> { }).currentUserId());
 
         assertTrue(e.getMessage().contains("rate limit"), e.getMessage());
     }
@@ -147,7 +167,7 @@ class RetryingMusicServiceTest {
         RecordingSleeper sleeper = new RecordingSleeper();
 
         RateLimitException e = assertThrows(RateLimitException.class,
-                () -> new RetryingMusicService(limited, 3, sleeper).currentUserId());
+                () -> new RetryingMusicService(limited, retries(3), sleeper).currentUserId());
 
         assertTrue(sleeper.sleeps.isEmpty());
         assertTrue(e.getMessage().contains("3600"), e.getMessage());
@@ -164,7 +184,7 @@ class RetryingMusicServiceTest {
             }
         };
 
-        new RetryingMusicService(flaky, 3, s -> { }).unfollowPlaylist("pl1");
+        new RetryingMusicService(flaky, retries(3), s -> { }).unfollowPlaylist("pl1");
 
         assertEquals(2, calls[0]);
     }
@@ -187,7 +207,7 @@ class RetryingMusicServiceTest {
         };
         List<String> all = uris(250);
 
-        new RetryingMusicService(flaky, 3, s -> { }).addItems("pl1", all);
+        new RetryingMusicService(flaky, retries(3), s -> { }).addItems("pl1", all);
 
         assertEquals(4, calls[0], "batch 1, batch 2 (429), batch 2 again, batch 3");
         assertEquals(List.of(all.subList(0, 100), all.subList(100, 200), all.subList(200, 250)), sent,
@@ -208,7 +228,7 @@ class RetryingMusicServiceTest {
         };
         List<String> all = uris(250);
 
-        new RetryingMusicService(flaky, 3, s -> { }).removeItems("pl1", all);
+        new RetryingMusicService(flaky, retries(3), s -> { }).removeItems("pl1", all);
 
         assertEquals(4, calls[0]);
         assertEquals(List.of(all.subList(0, 100), all.subList(100, 200), all.subList(200, 250)), sent);
@@ -224,7 +244,7 @@ class RetryingMusicServiceTest {
             }
         };
 
-        assertThrows(RateLimitException.class, () -> new RetryingMusicService(down, 2, s -> { }).addItems("pl1", uris(250)));
+        assertThrows(RateLimitException.class, () -> new RetryingMusicService(down, retries(2), s -> { }).addItems("pl1", uris(250)));
 
         assertEquals(3, calls[0], "first batch only: one attempt plus two retries");
     }
@@ -232,7 +252,7 @@ class RetryingMusicServiceTest {
     @Test
     void aBatchSizeBelowOneIsRejectedInsteadOfLoopingForever() {
         assertThrows(IllegalArgumentException.class,
-                () -> new RetryingMusicService(new StubMusicService(), 3, s -> { }, 0));
+                () -> new RetryingMusicService(new StubMusicService(), Config.of(Map.of()).withTunables(Map.of("spotify.addBatchSize", "0")), s -> { }));
     }
 
     @Test
@@ -244,7 +264,7 @@ class RetryingMusicServiceTest {
                     : FakeSpotifyServer.Reply.ok("{\"id\":\"sarina\"}"));
             RecordingSleeper sleeper = new RecordingSleeper();
 
-            assertEquals("sarina", new RetryingMusicService(api.adapter(dir), 3, sleeper).currentUserId());
+            assertEquals("sarina", new RetryingMusicService(api.adapter(dir), retries(3), sleeper).currentUserId());
 
             assertEquals(List.of(2L), sleeper.sleeps);
         }

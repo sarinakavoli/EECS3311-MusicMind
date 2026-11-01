@@ -140,7 +140,7 @@ public class AppController {
         if (config.spotifyConfigured()) {
             // Spotify returns no artist genres to this app, so MusicBrainz supplies them (R18).
             OAuthTokenStore auth = new OAuthTokenStore(config.spotifyClientId(), config.spotifyRedirectUri());
-            music = new GenreEnrichingMusicService(new RetryingMusicService(new SpotifyAdapter(auth)),
+            music = new GenreEnrichingMusicService(new RetryingMusicService(new SpotifyAdapter(auth, config), config),
                     new MusicBrainzAdapter(config), new GenreRepository(db), config);
             userId = music::currentUserId;
             reauthenticator = auth::login;

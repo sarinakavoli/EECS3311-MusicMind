@@ -33,22 +33,19 @@ public class RetryingMusicService implements MusicService {
     private final int batchSize;
     private final Sleeper sleeper;
 
-    public RetryingMusicService(MusicService delegate) {
-        this(delegate, Config.defaults().spotifyRetryCount(), seconds -> Thread.sleep(seconds * 1000L));
+    /** Reads the retry count, the longest wait and the batch size from the same {@link Config} as the adapter. */
+    public RetryingMusicService(MusicService delegate, Config config) {
+        this(delegate, config, seconds -> Thread.sleep(seconds * 1000L));
     }
 
-    RetryingMusicService(MusicService delegate, int maxRetries, Sleeper sleeper) {
-        this(delegate, maxRetries, sleeper, Config.defaults().spotifyAddBatchSize());
-    }
-
-    RetryingMusicService(MusicService delegate, int maxRetries, Sleeper sleeper, int batchSize) {
+    RetryingMusicService(MusicService delegate, Config config, Sleeper sleeper) {
         this.delegate = delegate;
-        this.maxRetries = maxRetries;
-        this.maxWaitSeconds = Config.defaults().spotifyMaxWaitSeconds();
+        this.maxRetries = config.spotifyRetryCount();
+        this.maxWaitSeconds = config.spotifyMaxWaitSeconds();
+        this.batchSize = config.spotifyAddBatchSize();
         if (batchSize < 1) {
             throw new IllegalArgumentException("The batch size must be at least 1, got " + batchSize);
         }
-        this.batchSize = batchSize;
         this.sleeper = sleeper;
     }
 

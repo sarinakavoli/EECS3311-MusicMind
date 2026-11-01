@@ -53,7 +53,12 @@ public class SpotifyAdapter implements MusicService {
     }
 
     public SpotifyAdapter(OAuthTokenStore auth) {
-        this(auth, Config.defaults().spotifyApiBaseUrl());
+        this(auth, Config.defaults());
+    }
+
+    /** The application's wiring: the same configuration also goes to {@link RetryingMusicService}. */
+    public SpotifyAdapter(OAuthTokenStore auth, Config config) {
+        this(auth, config.spotifyApiBaseUrl(), config);
     }
 
     /** API base URL seam, so tests can target a local server. */
