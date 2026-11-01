@@ -101,6 +101,15 @@ public class MemoryManager {
         return history.findById(String.valueOf(id));
     }
 
+    /**
+     * The newest snapshot of a playlist, or {@code null} if it was never snapshotted. Like the
+     * other snapshot calls it throws {@link PersistenceException} when the database is down,
+     * because undo depends on it.
+     */
+    public Playlist loadLatestSnapshot(String playlistId) {
+        return history.findLatestByPlaylist(playlistId);
+    }
+
     // ---- availability ----
 
     public boolean isAvailable() {

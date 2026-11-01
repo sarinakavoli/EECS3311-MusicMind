@@ -11,4 +11,7 @@ public interface PlaylistCommand {
 
     /** Human-readable summary used in change reports and history. */
     String describe();
+
+    /** The playlist this command changes, or {@code null} for a create that has not run yet. */
+    String playlistId();
 }

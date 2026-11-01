@@ -312,6 +312,18 @@ public final class Config {
         return text("parser.defaultPlaylistName");
     }
 
+    // ---- Playlist commands (F5, F6) ----
+
+    /** Undoable steps kept in memory per run; older ones fall off the end. */
+    public int commandHistoryLimit() {
+        return integer("command.historyLimit");
+    }
+
+    /** Results asked of Spotify when an edit instruction names a track to add or swap in (at most 10). */
+    public int commandSearchLimit() {
+        return integer("command.searchLimit");
+    }
+
     // ---- Natural-language search (F3) ----
 
     /** Total tracks requested per search; the adapter fetches them in pages of at most the search page size. */
