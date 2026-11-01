@@ -137,6 +137,8 @@ public class PlaylistManager {
             if (!wanted.isEmpty()) {
                 music.addItems(id, wanted);
             }
+            // Earlier commands described the old content; undo must now fall back to the snapshot taken before this.
+            history.removeIf(c -> id.equals(c.playlistId()));
         } catch (RuntimeException e) {
             PlaylistChangeException failure = new PlaylistChangeException(config.wording("restoreFailed"), e);
             putBack(id, now, failure);

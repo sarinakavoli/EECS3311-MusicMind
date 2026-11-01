@@ -209,4 +209,21 @@ class PlaylistManagerTest extends PostgresTestBase {
         PlaylistChangeException e = assertThrows(PlaylistChangeException.class, () -> m.restore(id));
         assertEquals(1, e.getSuppressed().length);
     }
+
+    @Test
+    void aRestoreDropsTheStaleUndoEntriesSoUndoGoesBackToTheStateBeforeTheRestore() {
+        music.seed("p", "a", "b", "c");
+        PlaylistManager m = manager();
+        m.modify(current("p"), List.of(new RemoveTrackCommand(config, music, "p", track("a"))));
+        int first = memory(db).loadSnapshotSummaries("user-1").get(0).id();
+        assertEquals(List.of("b", "c"), music.ids("p"));
+
+        m.snapshotBeforeModify(current("p"));          // the state a restore is about to replace
+        m.restore(first);
+        assertEquals(List.of("a", "b", "c"), music.ids("p"));
+        assertTrue(m.history.isEmpty(), "the remove can no longer be undone on top of the restored state");
+
+        m.undo("p");
+        assertEquals(List.of("b", "c"), music.ids("p"));
+    }
 }
