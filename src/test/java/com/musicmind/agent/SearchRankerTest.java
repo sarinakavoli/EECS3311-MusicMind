@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SearchRankerTest {
 
@@ -25,10 +26,42 @@ class SearchRankerTest {
     }
 
     @Test
-    void aTitleMatchingMoreOfTheQueryRanksHigher() {
-        List<Track> ranked = ranker.rank(q("mellow rain"),
-                List.of(t("a", "Sunshine"), t("b", "Mellow Rain"), t("c", "Rain Song")));
-        assertEquals(List.of("b", "c", "a"), ranked.stream().map(Track::id).toList());
+    void aTitleMatchingMoreOfTheQueryRanksHigherAmongNeighbours() {
+        // A full-page result list: adjacent hits differ little in Spotify's order, so a title match swaps them.
+        List<Track> results = new ArrayList<>();
+        results.add(t("a", "Sunshine"));
+        results.add(t("b", "Mellow Rain"));
+        for (int i = 2; i < 20; i++) {
+            results.add(t("x" + i, "Other " + i));
+        }
+
+        List<Track> ranked = ranker.rank(q("mellow rain"), results);
+
+        assertEquals(List.of("b", "a", "x2"), ranked.stream().limit(3).map(Track::id).toList());
+    }
+
+    @Test
+    void spotifysRelevanceOrderLeadsAndATitleMatchIsOnlyASmallBoost() {
+        // Live finding: a mood search put stock-music titles that repeat the query words above Spotify's own top hits.
+        List<Track> results = new ArrayList<>();
+        results.add(t("top", "Nights In Tokyo"));
+        for (int i = 1; i < 19; i++) {
+            results.add(t("m" + i, "Other " + i));
+        }
+        results.add(t("stock", "Calm Relaxing Study Music"));
+
+        List<Track> ranked = ranker.rank(q("calm relaxing study music"), results);
+
+        assertEquals("top", ranked.get(0).id(), "Spotify's first result stays first");
+        assertTrue(ranked.indexOf(ranked.stream().filter(x -> x.id().equals("stock")).findFirst().orElseThrow()) > 10,
+                "a title match at the bottom of Spotify's list does not jump to the top");
+    }
+
+    @Test
+    void theShippedWeightsPutSpotifyOrderWellAboveTitleMatch() {
+        Config c = Config.of(Map.of());
+        assertTrue(c.searchSpotifyOrderWeight() >= 4 * c.searchTitleMatchWeight(),
+                "title match is a small boost: " + c.searchTitleMatchWeight() + " vs " + c.searchSpotifyOrderWeight());
     }
 
     @Test
