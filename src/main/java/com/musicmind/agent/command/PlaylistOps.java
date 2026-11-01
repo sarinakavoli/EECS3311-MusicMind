@@ -3,6 +3,7 @@ package com.musicmind.agent.command;
 import com.musicmind.config.Config;
 import com.musicmind.domain.Track;
 import com.musicmind.music.MusicService;
+import com.musicmind.music.TrackList;
 
 import java.util.List;
 
@@ -52,10 +53,15 @@ final class PlaylistOps {
         }
     }
 
-    /** Moves the item at {@code from} so that it ends up at index {@code to}. */
+    /**
+     * Moves the track at {@code from} so that it ends up at index {@code to}. Both index the list a read
+     * returns; Spotify is given the real positions, which differ when the read left entries out.
+     */
     static void move(MusicService music, String playlistId, int from, int to) {
         if (from != to) {
-            music.reorderItems(playlistId, from, to > from ? to + 1 : to);
+            List<Track> items = music.getPlaylistItems(playlistId);
+            int target = TrackList.position(items, to);
+            music.reorderItems(playlistId, TrackList.position(items, from), to > from ? target + 1 : target);
         }
     }
 

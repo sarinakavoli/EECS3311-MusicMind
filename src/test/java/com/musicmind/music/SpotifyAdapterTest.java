@@ -147,6 +147,23 @@ class SpotifyAdapterTest {
     }
 
     @Test
+    void aPlaylistReadSaysWhereTheTracksReallyAreWhenEntriesAreSkipped() {
+        api.respond(r -> Reply.ok("""
+                {"items":[
+                  {"item":{"id":null,"is_local":true,"uri":"spotify:local:x","name":"x"}},
+                  {"item":{"id":"a","uri":"spotify:track:a","name":"A","duration_ms":1}},
+                  {"item":null},
+                  {"item":{"id":"b","uri":"spotify:track:b","name":"B","duration_ms":1}}
+                ],"next":null}"""));
+
+        List<Track> tracks = adapter.getPlaylistItems("p");
+
+        assertEquals(2, tracks.size());
+        assertEquals(1, TrackList.position(tracks, 0));
+        assertEquals(3, TrackList.position(tracks, 1));
+    }
+
+    @Test
     void theSavedTrackCapDefaultsToFiveThousand() {
         api.respond(r -> Reply.ok(endlessPage(api, 50)));
 

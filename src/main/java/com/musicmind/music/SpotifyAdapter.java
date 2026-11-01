@@ -233,6 +233,8 @@ public class SpotifyAdapter implements MusicService {
      */
     private TrackList pagedTracks(String firstPath, String forbiddenMessage, int limit) {
         List<Track> out = new ArrayList<>();
+        List<Integer> positions = new ArrayList<>();
+        int position = 0;
         String url = api + firstPath;
         while (url != null && out.size() < limit) {
             JsonObject page;
@@ -244,14 +246,22 @@ public class SpotifyAdapter implements MusicService {
                 }
                 throw e;
             }
-            out.addAll(tracksFromWrapped(array(page, "items")));
+            for (JsonElement entry : array(page, "items")) {
+                Track track = wrappedTrack(entry);
+                if (track != null) {
+                    out.add(track);
+                    positions.add(position);
+                }
+                position++;
+            }
             url = hasNext(page) ? page.get("next").getAsString() : null;
             if (url != null && !url.startsWith(api)) {
                 throw new MusicServiceException("Spotify returned an unexpected next-page address; stopped paging.");
             }
         }
         boolean truncated = url != null || out.size() > limit;
-        return new TrackList(out.size() > limit ? out.subList(0, limit) : out, truncated);
+        int kept = Math.min(out.size(), limit);
+        return new TrackList(out.subList(0, kept), truncated, positions.subList(0, kept));
     }
 
     private JsonObject send(String method, String path, String jsonBody) {
@@ -335,21 +345,27 @@ public class SpotifyAdapter implements MusicService {
     private List<Track> tracksFromWrapped(JsonArray items) {
         List<Track> out = new ArrayList<>();
         for (JsonElement e : items) {
-            if (!e.isJsonObject()) {
-                continue;
-            }
-            JsonObject entry = e.getAsJsonObject();
-            JsonElement wrapped = entry.has("item") && !entry.get("item").isJsonNull()
-                    ? entry.get("item") : entry.get("track");
-            if (wrapped == null || !wrapped.isJsonObject()) {
-                continue;
-            }
-            JsonObject t = wrapped.getAsJsonObject();
-            if (str(t, "id") != null) {
-                out.add(toTrack(t));
+            Track track = wrappedTrack(e);
+            if (track != null) {
+                out.add(track);
             }
         }
         return out;
+    }
+
+    /** The track an entry wraps, or null for an entry that holds none (see {@link #tracksFromWrapped}). */
+    private Track wrappedTrack(JsonElement e) {
+        if (!e.isJsonObject()) {
+            return null;
+        }
+        JsonObject entry = e.getAsJsonObject();
+        JsonElement wrapped = entry.has("item") && !entry.get("item").isJsonNull()
+                ? entry.get("item") : entry.get("track");
+        if (wrapped == null || !wrapped.isJsonObject()) {
+            return null;
+        }
+        JsonObject t = wrapped.getAsJsonObject();
+        return str(t, "id") != null ? toTrack(t) : null;
     }
 
     private Track toTrack(JsonObject t) {

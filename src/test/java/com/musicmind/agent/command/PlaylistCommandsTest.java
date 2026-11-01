@@ -188,4 +188,45 @@ class PlaylistCommandsTest {
         new RestoreSnapshotCommand(config, music, "p", "Mix", List.of()).execute();
         assertTrue(music.ids("p").isEmpty());
     }
+
+    /** Spotify holds a local file first; reads leave it out and say where the others really are. */
+    private static FakeMusicService withHiddenLocalFile() {
+        FakeMusicService music = new FakeMusicService() {
+            @Override public List<Track> getPlaylistItems(String playlistId) {
+                List<Track> all = super.getPlaylistItems(playlistId);
+                List<Track> shown = new java.util.ArrayList<>();
+                List<Integer> positions = new java.util.ArrayList<>();
+                for (int i = 0; i < all.size(); i++) {
+                    if (!all.get(i).id().equals("local")) {
+                        shown.add(all.get(i));
+                        positions.add(i);
+                    }
+                }
+                return new com.musicmind.music.TrackList(shown, false, positions);
+            }
+        };
+        music.seed("p", "local", "a", "b", "c");
+        return music;
+    }
+
+    @Test
+    void aMoveUsesTheRealPositionWhenAnEntryIsHiddenFromTheRead() {
+        FakeMusicService music = withHiddenLocalFile();
+        ReorderCommand command = new ReorderCommand(config, music, "p", track("c"), 0);
+
+        command.execute();
+        assertEquals(List.of("local", "c", "a", "b"), music.ids("p"));
+        command.undo();
+        assertEquals(List.of("local", "a", "b", "c"), music.ids("p"));
+    }
+
+    @Test
+    void undoOfARemovePutsTheTrackBackAroundAHiddenEntry() {
+        FakeMusicService music = withHiddenLocalFile();
+        RemoveTrackCommand command = new RemoveTrackCommand(config, music, "p", track("a"));
+
+        command.execute();
+        command.undo();
+        assertEquals(List.of("local", "a", "b", "c"), music.ids("p"));
+    }
 }
