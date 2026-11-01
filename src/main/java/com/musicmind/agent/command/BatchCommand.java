@@ -34,10 +34,30 @@ class BatchCommand implements PlaylistCommand {
         }
     }
 
+    /** Undoes in reverse order; if one fails, the ones already undone are applied again, so the undo can be repeated. */
     @Override
     public void undo() {
+        List<PlaylistCommand> undone = new ArrayList<>();
         for (int i = commands.size() - 1; i >= 0; i--) {
-            commands.get(i).undo();
+            try {
+                commands.get(i).undo();
+            } catch (RuntimeException e) {
+                rollForward(undone, e);
+                throw e;
+            }
+            undone.add(commands.get(i));
+        }
+    }
+
+    private static void rollForward(List<PlaylistCommand> undone, RuntimeException cause) {
+        for (int i = undone.size() - 1; i >= 0; i--) {
+            try {
+                undone.get(i).execute();
+            } catch (RuntimeException secondary) {
+                if (secondary != cause) {
+                    cause.addSuppressed(secondary);
+                }
+            }
         }
     }
 

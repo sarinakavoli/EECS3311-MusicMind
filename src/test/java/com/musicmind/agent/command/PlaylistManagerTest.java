@@ -181,6 +181,23 @@ class PlaylistManagerTest extends PostgresTestBase {
     }
 
     @Test
+    void aBatchUndoThatFailsPartWayPutsItsStepsBackSoTheUndoCanBeRepeated() {
+        music.seed("p", "a", "b", "c");
+        PlaylistManager m = manager();
+        m.modify(current("p"), List.of(new ReorderCommand(config, music, "p", track("c"), 0),
+                new RemoveTrackCommand(config, music, "p", track("a"))));
+        assertEquals(List.of("c", "b"), music.ids("p"));
+
+        music.failOn = "reorder p 0";   // the second step of the undo: moving c back
+        music.failOnce = true;
+        assertThrows(RuntimeException.class, () -> m.undo("p"));
+        assertEquals(List.of("c", "b"), music.ids("p"), "the step already undone was applied again");
+
+        m.undo("p");
+        assertEquals(List.of("a", "b", "c"), music.ids("p"));
+    }
+
+    @Test
     void undoWithEmptyStackRestoresTheLatestSnapshot() {
         music.seed("p", "a", "b", "c");
         PlaylistManager first = manager();
