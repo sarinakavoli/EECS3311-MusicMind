@@ -97,6 +97,7 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
             }
             uris.forEach(u -> playlists.get(playlistId).add(new Track(u.substring(u.lastIndexOf(':') + 1), u, "", 0, false, List.of())));
         }
+        @Override public List<Track> getPlaylistItems(String playlistId) { return List.copyOf(playlists.get(playlistId)); }
         @Override public void removeItems(String playlistId, List<String> uris) { calls.add("remove " + uris.size()); }
         @Override public void unfollowPlaylist(String playlistId) { calls.add("unfollow " + playlistId); }
 
@@ -337,6 +338,42 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
         assertEquals("pl1", playlist.spotifyId());
         assertEquals(15, music.playlists.get("pl1").size());
         assertEquals("done", c.lastSession().status());
+    }
+
+    @Test
+    void aResumeAfterAPartialAddFillsOnlyWhatIsMissingInOrder() {
+        AtomicInteger addAttempts = new AtomicInteger();
+        Music music = new Music() {
+            @Override public void addItems(String playlistId, List<String> uris) {
+                calls.add("add " + uris.size());
+                boolean firstAttempt = addAttempts.getAndIncrement() == 0;
+                for (int i = 0; i < uris.size(); i += 100) {
+                    if (firstAttempt && i == 100) {
+                        throw new AuthExpiredException("expired"); // batch 2 meets the expired token
+                    }
+                    for (String u : uris.subList(i, Math.min(i + 100, uris.size()))) {
+                        playlists.get(playlistId).add(new Track(u.substring(u.lastIndexOf(':') + 1), u, "", 0, false, List.of()));
+                    }
+                }
+            }
+            @Override public void unfollowPlaylist(String playlistId) {
+                throw new AuthExpiredException("expired");
+            }
+        };
+        music.libraryTracks = 100;
+        music.novelTracks = 100;
+        music.minutes = 1;
+        AtomicInteger reauth = new AtomicInteger();
+        AppController c = new AppController(music, memory(), new MockLLMProvider(), config, reauth::incrementAndGet);
+        PlaylistSpec flags = new PlaylistSpec(150, true, 0.5, List.of(), null);
+
+        Playlist playlist = c.createPlaylist(new AgentRequest("x", RequestKind.CREATE_PLAYLIST, flags));
+
+        List<String> held = music.playlists.get("pl1").stream().map(Track::id).toList();
+        assertTrue(playlist.tracks().size() > 100, "needs a second batch");
+        assertEquals(playlist.tracks().stream().map(Track::id).toList(), held);
+        assertEquals(1, music.calls.stream().filter(call -> call.startsWith("create")).count(), music.calls.toString());
+        assertEquals(1, reauth.get());
     }
 
     @Test

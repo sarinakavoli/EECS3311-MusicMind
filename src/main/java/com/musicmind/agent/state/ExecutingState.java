@@ -10,6 +10,8 @@ import com.musicmind.domain.Recommendation;
 import com.musicmind.domain.Track;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * The only state that writes to Spotify: a {@link CreatePlaylistCommand} and an {@link AddItemsCommand}
@@ -49,8 +51,14 @@ public class ExecutingState implements SessionState {
             }
             playlistId = create.playlistId();
         } else {
-            // Resuming after a re-login: the playlist from the interrupted attempt is filled, not duplicated.
-            services.playlists().executeAll(List.of(new AddItemsCommand(config, services.music(), ctx.leftoverPlaylistId, tracks)));
+            // Resuming after a re-login: fill the playlist from the interrupted attempt, adding only the
+            // tracks it does not already hold (an earlier batch may have gone through), in order.
+            Set<String> held = services.music().getPlaylistItems(playlistId).stream()
+                    .map(Track::id).collect(Collectors.toSet());
+            List<Track> missing = tracks.stream().filter(t -> !held.contains(t.id())).toList();
+            if (!missing.isEmpty()) {
+                services.playlists().executeAll(List.of(new AddItemsCommand(config, services.music(), playlistId, missing)));
+            }
         }
 
         ctx.playlist = new Playlist(playlistId, name, tracks);
