@@ -490,7 +490,9 @@ public class MusicAgentFacade {
             throw playlistAccess(e);
         }
         List<String> notices = new ArrayList<>();
-        plan = negotiateEdit(current, plan, notices);
+        PlaylistSpec editSpec = editSpec(specFor(userId, id).spec());
+        plan = replanWhileViolating(current, plan, instruction.strip(), editSpec, userId);
+        plan = negotiateEdit(current, plan, notices, editSpec);
         try {
             create.playlists().modify(current, plan.commands());
         } catch (MusicServiceException e) {
@@ -502,7 +504,7 @@ public class MusicAgentFacade {
             notices.add(String.format(config.wording("modifyApproximate"), plan.mood(),
                     String.join(", ", MoodGenreMap.load().genresFor(plan.mood()))));
         }
-        ValidationResult result = validate(updated, specFor(userId, id).spec());
+        ValidationResult result = validate(updated, editSpec);
         if (!result.passed()) {
             notices.add(String.format(config.wording("modifyViolations"), String.join("; ", result.violations())));
         }
@@ -514,13 +516,47 @@ public class MusicAgentFacade {
         return updated;
     }
 
+    /** The spec an edit is judged by: the playlist's rules without its old duration target, which the edit's own intent replaces. */
+    private static PlaylistSpec editSpec(PlaylistSpec spec) {
+        return new PlaylistSpec(0, spec.allowExplicit(), spec.familiarRatio(), spec.blockedArtists(), spec.name());
+    }
+
+    /**
+     * The F6 adjustment loop that F7 drives: while the simulated result of the edit introduces a violation,
+     * plan again with the violations stated, at most {@code plan.maxValidationRetries} times. Nothing is
+     * written. What still fails afterwards goes to {@link #negotiateEdit}.
+     */
+    private PlaylistEditor.EditPlan replanWhileViolating(Playlist current, PlaylistEditor.EditPlan plan,
+                                                         String instruction, PlaylistSpec editSpec, String userId) {
+        ConstraintChecker checker = new ConstraintChecker(config);
+        for (int attempt = 0; attempt < config.planMaxValidationRetries(); attempt++) {
+            List<Track> after = current.tracks();
+            for (PlaylistCommand command : plan.commands()) {
+                after = command.simulate(after);
+            }
+            List<String> introduced = checker.introduced(current.tracks(), after, editSpec);
+            if (introduced.isEmpty()) {
+                return plan;
+            }
+            String hint = String.format(config.wording("modifyReplanHint"), String.join("; ", introduced));
+            try {
+                plan = editor.plan(new PlaylistContext(current.spotifyId(), current.tracks(), create.music()),
+                        instruction + "\n" + hint, knownArtistGenres(userId));
+            } catch (MusicServiceException e) {
+                throw playlistAccess(e);
+            }
+        }
+        return plan;
+    }
+
     /**
      * F11 during modify: if the edit would leave the playlist outside its length limits, ask the handler
      * (set with {@link #setNegotiationHandler}) which smaller edit to apply. Everything here happens before
      * the first Spotify write, so declining or failing leaves the playlist untouched.
      */
-    private PlaylistEditor.EditPlan negotiateEdit(Playlist current, PlaylistEditor.EditPlan plan, List<String> notices) {
-        FeasibilityReport report = new ConstraintChecker(config).checkEdit(current.tracks(), plan.commands());
+    private PlaylistEditor.EditPlan negotiateEdit(Playlist current, PlaylistEditor.EditPlan plan, List<String> notices,
+                                                  PlaylistSpec editSpec) {
+        FeasibilityReport report = new ConstraintChecker(config).checkEdit(current.tracks(), plan.commands(), editSpec);
         if (report.feasible()) {
             return plan;
         }

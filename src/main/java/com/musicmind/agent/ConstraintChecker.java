@@ -81,30 +81,51 @@ public class ConstraintChecker {
                 relaxations);
     }
 
+    /** Length limits only; see {@link #checkEdit(List, List, PlaylistSpec)}. */
+    public FeasibilityReport checkEdit(List<Track> before, List<com.musicmind.agent.command.PlaylistCommand> commands) {
+        return checkEdit(before, commands, null);
+    }
+
     /**
      * Whether an edit can be applied: the playlist it would leave must hold between {@code playlist.minTracks}
-     * and {@code playlist.maxTracks} tracks (an edit that empties it is the usual case). When it would not, the
-     * relaxation is to apply only the first steps, the most that still leaves a valid playlist; none is offered
-     * if even the first step breaks the rule. Nothing is sent to Spotify.
+     * and {@code playlist.maxTracks} tracks (an edit that empties it is the usual case) and, when a spec is
+     * given, must not introduce an explicit, duplicate or blocked-artist violation (F7). The duration target is
+     * not part of this check: an edit states its own length. When the edit fails, the relaxation is to apply
+     * only the first steps, the most that still passes; none is offered if even the first step fails.
+     * Nothing is sent to Spotify.
      */
-    public FeasibilityReport checkEdit(List<Track> before, List<com.musicmind.agent.command.PlaylistCommand> commands) {
-        if (withinLimits(afterFirst(before, commands, commands.size()))) {
+    public FeasibilityReport checkEdit(List<Track> before, List<com.musicmind.agent.command.PlaylistCommand> commands,
+                                       PlaylistSpec spec) {
+        List<Track> all = afterFirst(before, commands, commands.size());
+        List<String> introduced = introduced(before, all, spec);
+        if (withinLimits(all) && introduced.isEmpty()) {
             return FeasibilityReport.ok();
         }
-        int resulting = afterFirst(before, commands, commands.size()).size();
-        String conflict = resulting < config.playlistMinTracks()
-                ? String.format(config.wording("conflictEditEmpty"), resulting, config.playlistMinTracks())
-                : String.format(config.wording("conflictEditFull"), resulting, config.playlistMaxTracks());
+        int resulting = all.size();
+        List<String> conflicts = new ArrayList<>();
+        if (resulting < config.playlistMinTracks()) {
+            conflicts.add(String.format(config.wording("conflictEditEmpty"), resulting, config.playlistMinTracks()));
+        } else if (resulting > config.playlistMaxTracks()) {
+            conflicts.add(String.format(config.wording("conflictEditFull"), resulting, config.playlistMaxTracks()));
+        }
+        if (!introduced.isEmpty()) {
+            conflicts.add(String.format(config.wording("conflictEditViolates"), String.join("; ", introduced)));
+        }
         List<Relaxation> relaxations = new ArrayList<>();
         for (int steps = commands.size() - 1; steps >= 1; steps--) {
             List<Track> left = afterFirst(before, commands, steps);
-            if (withinLimits(left)) {
+            if (withinLimits(left) && introduced(before, left, spec).isEmpty()) {
                 relaxations.add(new Relaxation(Relaxation.Kind.APPLY_PARTIAL, steps,
                         String.format(config.wording("relaxPartial"), steps, commands.size(), left.size())));
                 break;
             }
         }
-        return FeasibilityReport.infeasible(List.of(conflict), relaxations);
+        return FeasibilityReport.infeasible(conflicts, relaxations);
+    }
+
+    /** What the edit introduces against the spec; empty without a spec. */
+    public List<String> introduced(List<Track> before, List<Track> after, PlaylistSpec spec) {
+        return spec == null ? List.of() : new PlaylistValidator(config).introducedViolations(before, after, spec);
     }
 
     private boolean withinLimits(List<Track> tracks) {

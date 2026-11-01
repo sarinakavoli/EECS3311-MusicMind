@@ -119,4 +119,27 @@ public class PlaylistValidator {
 
         return violations.isEmpty() ? ValidationResult.ok() : ValidationResult.failed(violations, offending);
     }
+
+    /**
+     * The explicit, duplicate and blocked-artist violations that {@code after} has and {@code before} did not,
+     * each as {@code "rule: track ids"}. An edit is judged by what it introduces, so a problem the playlist
+     * already had cannot make an unrelated edit fail. Length rules are left to {@link ConstraintChecker}.
+     */
+    public List<String> introducedViolations(List<Track> before, List<Track> after, PlaylistSpec spec) {
+        Map<String, List<String>> old = validate(before, spec).offending();
+        List<String> introduced = new ArrayList<>();
+        for (Map.Entry<String, List<String>> rule : validate(after, spec).offending().entrySet()) {
+            String name = rule.getKey();
+            if (!name.equals(RULE_EXPLICIT) && !name.equals(RULE_DUPLICATES) && !name.equals(RULE_BLOCKED_ARTIST)) {
+                continue;
+            }
+            Set<String> known = new HashSet<>(old.getOrDefault(name, List.of()));
+            List<String> fresh = new ArrayList<>(new LinkedHashSet<>(rule.getValue()));
+            fresh.removeAll(known);
+            if (!fresh.isEmpty()) {
+                introduced.add(name + ": " + String.join(", ", fresh));
+            }
+        }
+        return introduced;
+    }
 }

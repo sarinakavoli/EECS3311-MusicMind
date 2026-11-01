@@ -224,6 +224,128 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
         assertTrue(c.lastModifyNotices().stream().anyMatch(n -> n.contains("undo")));
     }
 
+    // ---- F6 adjustment loop (F7 drives it, then F11) ----
+
+    private static final String ADD_ROCK = "{\"commands\":[{\"type\":\"add\",\"query\":\"rock\"}]}";
+    private static final String ADD_CLEAN = "{\"commands\":[{\"type\":\"add\",\"query\":\"clean\"}]}";
+
+    /** Answers {@code first} to the instruction as given and {@code afterHint} once the violations are stated. */
+    private static LLMProvider replanning(String first, String afterHint, List<String> prompts) {
+        return p -> {
+            if (!p.startsWith("MUSICMIND_TASK: EDIT")) {
+                return "Both came from your own data.";
+            }
+            prompts.add(p);
+            return p.contains("explicit") && p.contains("would leave") ? afterHint : first;
+        };
+    }
+
+    private Music withExplicitRockAndCleanSearch() {
+        Music music = new Music();
+        put(music, "p", t("a", false, "x"), t("b", false, "x"));
+        music.searchResults.put("rock", List.of(t("e1", true, "y")));
+        music.searchResults.put("clean", List.of(t("c1", false, "y")));
+        return music;
+    }
+
+    @Test
+    void anEditThatBreaksTheConstraintsIsReplannedWithTheViolationsThenApplied() {
+        Music music = withExplicitRockAndCleanSearch();
+        List<String> prompts = new ArrayList<>();
+        AppController c = controller(music, replanning(ADD_ROCK, ADD_CLEAN, prompts));
+        c.setPreference(c.parsePreference("explicitPolicy", "block"));
+
+        c.modifyPlaylist("p", "add a rock track");
+
+        assertEquals(2, prompts.size());
+        assertTrue(prompts.get(1).contains("e1"), "the re-plan names the offending track");
+        assertEquals(List.of("a", "b", "c1"), ids(music, "p"));
+        assertTrue(c.lastModifyNotices().isEmpty(), c.lastModifyNotices().toString());
+    }
+
+    @Test
+    void replanningIsBoundedAndWhenNothingFitsTheEditIsRefusedWithoutWrites() {
+        Music music = withExplicitRockAndCleanSearch();
+        List<String> prompts = new ArrayList<>();
+        Config cfg = config.withTunables(Map.of("plan.maxValidationRetries", "2"));
+        AppController c = new AppController(music, memory(db), replanning(ADD_ROCK, ADD_ROCK, prompts), cfg);
+        c.login();
+        c.setPreference(c.parsePreference("explicitPolicy", "block"));
+
+        assertThrows(com.musicmind.agent.InfeasibleRequestException.class, () -> c.modifyPlaylist("p", "add rock"));
+
+        assertEquals(3, prompts.size(), "one plan and two re-plans");
+        assertEquals(List.of("a", "b"), ids(music, "p"));
+        assertTrue(music.calls.stream().noneMatch(x -> x.startsWith("remove") || x.startsWith("add")), music.calls.toString());
+    }
+
+    private static final String REMOVE_A_ADD_ROCK = "{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"},"
+            + "{\"type\":\"add\",\"query\":\"rock\"}]}";
+
+    @Test
+    void anEditThatStillFailsAfterReplanningGoesToNegotiationAndAppliesTheChosenPart() {
+        Music music = withExplicitRockAndCleanSearch();
+        AppController c = controller(music, replanning(REMOVE_A_ADD_ROCK, REMOVE_A_ADD_ROCK, new ArrayList<>()));
+        c.setPreference(c.parsePreference("explicitPolicy", "block"));
+        List<com.musicmind.domain.FeasibilityReport> asked = new ArrayList<>();
+        c.setNegotiationHandler((report, options) -> {
+            asked.add(report);
+            return java.util.Optional.of(report.relaxations().get(0));
+        });
+
+        c.modifyPlaylist("p", "swap a for rock");
+
+        assertEquals(1, asked.size());
+        assertTrue(asked.get(0).conflicts().get(0).contains("e1"), asked.get(0).conflicts().toString());
+        assertEquals(List.of("b"), ids(music, "p"), "only the removal was applied");
+    }
+
+    @Test
+    void cancellingTheNegotiationAfterReplanningMakesZeroWrites() {
+        Music music = withExplicitRockAndCleanSearch();
+        AppController c = controller(music, replanning(REMOVE_A_ADD_ROCK, REMOVE_A_ADD_ROCK, new ArrayList<>()));
+        c.setPreference(c.parsePreference("explicitPolicy", "block"));
+        c.setNegotiationHandler((report, options) -> java.util.Optional.empty());
+
+        assertThrows(com.musicmind.agent.NegotiationCancelledException.class, () -> c.modifyPlaylist("p", "swap a for rock"));
+
+        assertEquals(List.of("a", "b"), ids(music, "p"));
+        assertTrue(music.calls.stream().noneMatch(x -> x.startsWith("remove") || x.startsWith("add") || x.startsWith("reorder")),
+                music.calls.toString());
+        assertTrue(memory(db).loadSnapshotSummaries("sp-user").isEmpty());
+    }
+
+    @Test
+    void aViolationThePlaylistAlreadyHadDoesNotBlockAnUnrelatedEdit() {
+        Music music = new Music();
+        put(music, "p", t("a", true, "x"), t("b", false, "x"), t("c", false, "x"));
+        List<String> prompts = new ArrayList<>();
+        AppController c = controller(music, replanning("{\"commands\":[{\"type\":\"remove\",\"track\":\"3\"}]}", "", prompts));
+        c.setPreference(c.parsePreference("explicitPolicy", "block"));
+
+        c.modifyPlaylist("p", "drop the last one");
+
+        assertEquals(1, prompts.size());
+        assertEquals(List.of("a", "b"), ids(music, "p"));
+    }
+
+    @Test
+    void aShorterByNEditIsNotBlockedByTheOldTargetLength() {
+        Music music = new Music();
+        put(music, "p", t("a", false, "x"), t("b", false, "x"), t("c", false, "x"), t("d", false, "x"));
+        storeCreatedSession("p", "{\"spec\":{\"targetMinutes\":12,\"allowExplicit\":true,\"familiarRatio\":0.5,"
+                + "\"blockedArtists\":[],\"name\":\"Mix\"}}", null);
+        List<String> prompts = new ArrayList<>();
+        AppController c = controller(music, replanning(
+                "{\"commands\":[{\"type\":\"remove\",\"track\":\"3\"},{\"type\":\"remove\",\"track\":\"4\"}]}", "", prompts));
+
+        c.modifyPlaylist("p", "make it 6 minutes shorter");
+
+        assertEquals(1, prompts.size(), "no re-plan: the old 12 minute target does not apply to this edit");
+        assertEquals(List.of("a", "b"), ids(music, "p"));
+        assertTrue(c.lastModifyNotices().isEmpty(), c.lastModifyNotices().toString());
+    }
+
     @Test
     void aMoodEditWithNoReliableSignalIsFlaggedApproximate() {
         Music music = new Music();
