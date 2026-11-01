@@ -144,4 +144,30 @@ class MemoryManagerTest extends PostgresTestBase {
         assertEquals(1, memory.loadPreferences("user-1").size());
         assertNull(memory.warning());
     }
+
+    @Test
+    void findsASessionByIdForItsOwnerOnly() {
+        MemoryManager memory = manager(db);
+        memory.saveSession(new AgentSession("s-1", Instant.now(), null));
+        assertEquals("s-1", memory.findSession("s-1").id());
+        assertNull(memory.findSession("nope"));
+        currentUser.set("user-2");
+        assertNull(memory.findSession("s-1"));
+    }
+
+    @Test
+    void snapshotSummariesFallBackToEmptyWithAWarningWhenTheDatabaseIsDown() {
+        MemoryManager memory = manager(deadDatabase());
+        assertNull(memory.findSession("s-1"));
+        assertTrue(memory.loadSnapshotSummaries("user-1").isEmpty());
+        assertNotNull(memory.warning());
+    }
+
+    @Test
+    void snapshotSummariesListWhatWasSnapshotted() {
+        MemoryManager memory = manager(db);
+        int id = memory.saveSnapshot(new com.musicmind.domain.Playlist("pl-1", "Mix", List.of()));
+        assertEquals(List.of(id), memory.loadSnapshotSummaries("user-1").stream()
+                .map(com.musicmind.domain.SnapshotInfo::id).toList());
+    }
 }

@@ -72,4 +72,20 @@ class PlaylistHistoryRepositoryTest extends PostgresTestBase {
         assertThrows(IllegalArgumentException.class,
                 () -> repo().saveSnapshot(new Playlist("unsaved")));
     }
+
+    @Test
+    void summariesListIdNameCountAndTimeNewestFirstForTheUserOnly() {
+        PlaylistHistoryRepository repo = repo();
+        int first = repo.saveSnapshot(playlist("v1", "a"));
+        int second = repo.saveSnapshot(playlist("v2", "a", "b"));
+        currentUser.set("user-2");
+        repo.saveSnapshot(playlist("other", "z"));
+
+        List<com.musicmind.domain.SnapshotInfo> mine = repo.summariesByUser("user-1");
+        assertEquals(List.of(second, first), mine.stream().map(com.musicmind.domain.SnapshotInfo::id).toList());
+        assertEquals("pl-1", mine.get(0).playlistId());
+        assertEquals("v2", mine.get(0).name());
+        assertEquals(2, mine.get(0).trackCount());
+        assertNotNull(mine.get(0).createdAt());
+    }
 }

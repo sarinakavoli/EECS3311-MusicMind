@@ -3,6 +3,7 @@ package com.musicmind.memory.repository;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.musicmind.domain.Playlist;
+import com.musicmind.domain.SnapshotInfo;
 import com.musicmind.domain.Track;
 import com.musicmind.memory.Database;
 import com.musicmind.memory.PersistenceException;
@@ -110,6 +111,26 @@ public class PlaylistHistoryRepository implements Repository<Playlist> {
             }
         } catch (SQLException e) {
             throw new PersistenceException("Failed to load snapshots for " + userId, e);
+        }
+    }
+
+    /** The user's snapshots, newest first, as id, playlist, name, size and time (no track list). */
+    public List<SnapshotInfo> summariesByUser(String userId) {
+        try (PreparedStatement ps = db.connection().prepareStatement(
+                "SELECT id, playlist_id, name, track_uris, created_at FROM playlist_snapshot "
+                        + "WHERE user_id = ? ORDER BY id DESC")) {
+            ps.setString(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                List<SnapshotInfo> out = new ArrayList<>();
+                while (rs.next()) {
+                    List<String> uris = gson.fromJson(rs.getString("track_uris"), STRING_LIST);
+                    out.add(new SnapshotInfo(rs.getInt("id"), rs.getString("playlist_id"), rs.getString("name"),
+                            uris.size(), rs.getTimestamp("created_at").toInstant()));
+                }
+                return out;
+            }
+        } catch (SQLException e) {
+            throw new PersistenceException("Failed to list snapshots for " + userId, e);
         }
     }
 

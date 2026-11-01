@@ -3,6 +3,7 @@ package com.musicmind.memory;
 import com.musicmind.domain.AgentSession;
 import com.musicmind.domain.Feedback;
 import com.musicmind.domain.Playlist;
+import com.musicmind.domain.SnapshotInfo;
 import com.musicmind.domain.UserPreference;
 import com.musicmind.memory.repository.FeedbackRepository;
 import com.musicmind.memory.repository.PlaylistHistoryRepository;
@@ -89,6 +90,11 @@ public class MemoryManager {
         return guarded("look up the session", () -> sessions.findByPlaylist(playlistId), null);
     }
 
+    /** The current user's session with this id, or {@code null} (also while the database is down). */
+    public AgentSession findSession(String sessionId) {
+        return guarded("look up the session", () -> sessions.findById(sessionId), null);
+    }
+
     // ---- snapshots (F12) ----
 
     /** @return the new snapshot's id */
@@ -108,6 +114,11 @@ public class MemoryManager {
      */
     public Playlist loadLatestSnapshot(String playlistId) {
         return history.findLatestByPlaylist(playlistId);
+    }
+
+    /** The user's saved playlist versions for the history list, newest first; empty (with a warning) while the database is down. */
+    public List<SnapshotInfo> loadSnapshotSummaries(String userId) {
+        return guarded("load saved playlist versions", () -> history.summariesByUser(userId), List.of());
     }
 
     // ---- availability ----

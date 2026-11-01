@@ -70,10 +70,14 @@ public class SessionRepository implements Repository<AgentSession> {
         return queryOne("WHERE id = ? AND user_id = ?", id, currentUser.get());
     }
 
-    /** The user's most recent session that produced this playlist, or {@code null}. */
+    /**
+     * The user's most recent session that <em>created</em> this playlist, or {@code null}. Later edits of
+     * the playlist are sessions too but do not replace it: the creating session holds the spec and the
+     * decision trace that validation and explanation read.
+     */
     public AgentSession findByPlaylist(String playlistId) {
-        return queryOne("WHERE playlist_id = ? AND user_id = ? ORDER BY started_at DESC LIMIT 1",
-                playlistId, currentUser.get());
+        return queryOne("WHERE playlist_id = ? AND user_id = ? AND request_kind = ? ORDER BY started_at DESC LIMIT 1",
+                playlistId, currentUser.get(), RequestKind.CREATE_PLAYLIST.name());
     }
 
     @Override

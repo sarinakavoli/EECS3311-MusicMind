@@ -90,4 +90,17 @@ class SessionRepositoryTest extends PostgresTestBase {
         repo.delete("s1");
         assertNull(repo.findById("s1"));
     }
+
+    @Test
+    void findByPlaylistFindsTheCreatingSessionNotLaterEdits() {
+        SessionRepository repo = repo();
+        repo.save(session("created", Instant.parse("2026-01-01T00:00:00Z")));
+        AgentSession edit = session("edit", Instant.parse("2026-02-01T00:00:00Z"));
+        edit.setRequest(new AgentRequest("remove explicit", RequestKind.MODIFY_PLAYLIST));
+        edit.setTrace(null);
+        repo.save(edit);
+
+        assertEquals("created", repo.findByPlaylist("pl-9").id());
+        assertEquals(2, repo.findByUser("user-1").size(), "the edit is still in the history");
+    }
 }
