@@ -37,6 +37,8 @@ public final class RunContext {
     DecisionTrace trace;
     /** The length (minutes) the recommender is asked for; validation moves it when the result misses the target. */
     int engineMinutes;
+    /** Notices the latest selection added; the next selection replaces them so a retry does not show both. */
+    List<String> selectionNotices = List.of();
     int retries;
     int negotiationRounds;
     Playlist playlist;

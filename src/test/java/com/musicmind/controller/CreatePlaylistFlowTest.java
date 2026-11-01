@@ -224,6 +224,22 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
     }
 
     @Test
+    void aValidationRetryShowsOnlyTheLatestSelectionsGenreNotice() {
+        Music music = new Music();
+        music.minutes = 5; // the first, 15-track selection is too long and is reselected with 12
+        AppController c = controller(music, new MockLLMProvider());
+        c.setPreference(c.parsePreference("preferredStyles", "jazz"));
+
+        Playlist playlist = c.createPlaylist(request("x"));
+
+        assertEquals(12, playlist.tracks().size());
+        List<String> genreNotices = c.lastSession().notices().stream()
+                .filter(n -> n.startsWith("Only ") && n.contains("match the genres")).toList();
+        assertEquals(1, genreNotices.size(), c.lastSession().notices().toString());
+        assertTrue(genreNotices.get(0).contains(" of 12 tracks"), genreNotices.get(0));
+    }
+
+    @Test
     void anInfeasibleRequestIsNegotiatedRelaxedAndRegenerated() {
         Music music = new Music();
         music.libraryTracks = 5;

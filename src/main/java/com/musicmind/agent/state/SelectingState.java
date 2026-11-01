@@ -27,7 +27,9 @@ public class SelectingState implements SessionState {
             services.engine().setStrategy(new BalancedStrategy(services.config()));
             ctx.recommendations = services.engine().recommend(ctx.retrieval, asked, ctx.feedback);
             ctx.trace = services.engine().lastTrace();
-            services.engine().lastNotices().forEach(session::addNotice);
+            ctx.selectionNotices.forEach(session::removeNotice);
+            ctx.selectionNotices = services.engine().lastNotices();
+            ctx.selectionNotices.forEach(session::addNotice);
         }
         session.setState(new ValidatingState());
     }

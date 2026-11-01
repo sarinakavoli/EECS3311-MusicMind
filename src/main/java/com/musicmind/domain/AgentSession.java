@@ -123,6 +123,7 @@ public class AgentSession {
 
     /** What the user should be told about the run: adjustments made, a database warning. */
     public List<String> notices() { return List.copyOf(notices); }
+    public void removeNotice(String notice) { notices.remove(notice); }
     public void addNotice(String notice) {
         if (notice != null && !notices.contains(notice)) {
             notices.add(notice);
