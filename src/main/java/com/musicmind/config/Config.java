@@ -485,6 +485,11 @@ public final class Config {
         return Double.parseDouble(text("discover.feedback.rejectPenalty"));
     }
 
+    /** What a track id or Spotify track URI typed for feedback must look like. */
+    public java.util.regex.Pattern feedbackTrackIdPattern() {
+        return java.util.regex.Pattern.compile(text("feedback.trackIdPattern"));
+    }
+
     /** Wording template or phrase from {@code musicmind.properties}; keys are {@code text.*}. */
     public String wording(String key) {
         return text("text." + key);
