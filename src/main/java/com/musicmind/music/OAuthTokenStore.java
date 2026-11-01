@@ -94,6 +94,11 @@ public class OAuthTokenStore {
         loadCache();
     }
 
+    /** True when signing in will open the browser: there is no refresh token to sign in with silently. */
+    public synchronized boolean needsBrowserLogin() {
+        return refreshToken == null && (accessToken == null || !Instant.now().isBefore(expiresAt.minusSeconds(60)));
+    }
+
     /** A valid bearer access token, refreshing or running the full flow as needed. */
     public synchronized String accessToken() {
         if (accessToken != null && Instant.now().isBefore(expiresAt.minusSeconds(60))) {

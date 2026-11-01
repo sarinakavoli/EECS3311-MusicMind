@@ -42,6 +42,17 @@ class OAuthTokenStoreTest {
     }
 
     @Test
+    void aBrowserLoginIsNeededOnlyWhenThereIsNoCachedRefreshToken() throws Exception {
+        try (FakeSpotifyServer server = new FakeSpotifyServer()) {
+            assertFalse(server.tokenStore(dir).needsBrowserLogin(), "a cached refresh token signs in silently");
+
+            Path empty = dir.resolve("none.json");
+            OAuthTokenStore fresh = new OAuthTokenStore("client", "http://127.0.0.1:8080/callback", empty, server.tokenUrl());
+            assertTrue(fresh.needsBrowserLogin());
+        }
+    }
+
+    @Test
     void forceRefreshUsesTheCachedRefreshTokenAndIssuesANewAccessToken() throws Exception {
         try (FakeSpotifyServer server = new FakeSpotifyServer()) {
             OAuthTokenStore store = server.tokenStore(dir);

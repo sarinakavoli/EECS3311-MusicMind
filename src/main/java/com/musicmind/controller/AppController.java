@@ -52,6 +52,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -73,6 +74,7 @@ public class AppController {
     private final ExplanationService explainer;
     private final boolean llmConfigured;
     private final Config config;
+    private final BooleanSupplier browserLoginNeeded;
     private volatile User currentUser;
 
     /**
@@ -89,6 +91,16 @@ public class AppController {
      */
     public AppController(MusicService music, MemoryManager memory, LLMProvider llm, Config config,
                          Runnable reauthenticator) {
+        this(music, memory, llm, config, reauthenticator, () -> false);
+    }
+
+    /**
+     * @param browserLoginNeeded says whether signing in will open the browser (no saved Spotify login),
+     *                           so a view can warn the user only when that really happens
+     */
+    public AppController(MusicService music, MemoryManager memory, LLMProvider llm, Config config,
+                         Runnable reauthenticator, BooleanSupplier browserLoginNeeded) {
+        this.browserLoginNeeded = browserLoginNeeded;
         this.music = music;
         this.memory = memory;
         this.llmConfigured = llm != null;
@@ -136,6 +148,7 @@ public class AppController {
         // GET /me, so once login() has run this costs nothing; without Spotify nothing is written under a name.
         MusicService music = null;
         Runnable reauthenticator = null;
+        BooleanSupplier browserLoginNeeded = () -> false;
         Supplier<String> userId = () -> LOCAL_USER;
         if (config.spotifyConfigured()) {
             // Spotify returns no artist genres to this app, so MusicBrainz supplies them (R18).
@@ -144,17 +157,23 @@ public class AppController {
                     new MusicBrainzAdapter(config), new GenreRepository(db), config);
             userId = music::currentUserId;
             reauthenticator = auth::login;
+            browserLoginNeeded = auth::needsBrowserLogin;
         }
         MemoryManager memory = new MemoryManager(db,
                 new PreferenceRepository(db, userId),
                 new FeedbackRepository(db, userId),
                 new SessionRepository(db, userId),
                 new PlaylistHistoryRepository(db, userId));
-        return new AppController(music, memory, llm, config, reauthenticator);
+        return new AppController(music, memory, llm, config, reauthenticator, browserLoginNeeded);
     }
 
     public boolean isSpotifyConfigured() {
         return music != null;
+    }
+
+    /** True when {@link #login()} will open the browser, because there is no saved Spotify login. */
+    public boolean willOpenBrowser() {
+        return music != null && currentUser == null && browserLoginNeeded.getAsBoolean();
     }
 
     public boolean isLlmConfigured() {
