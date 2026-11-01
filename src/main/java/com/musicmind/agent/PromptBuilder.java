@@ -84,7 +84,8 @@ public class PromptBuilder {
         StringBuilder p = start(Kind.EXPLAIN);
         p.append("Explain in a few friendly sentences why these tracks were chosen, using only the facts below. ")
                 .append("Refer to a track only by its id in square brackets, like [id]. ")
-                .append("Do not mention any other track, artist or id.\n")
+                .append("Do not mention any other track, artist or id, and do not state any genre, number or quoted name ")
+                .append("that does not appear in the facts.\n")
                 .append("Strategy: ").append(trace.strategyName()).append('\n');
         trace.reasons().forEach((id, reason) -> p.append('[').append(id).append("]: ").append(reason).append('\n'));
         p.append("Constraints satisfied: ").append(String.join("; ", trace.constraintsSatisfied()));

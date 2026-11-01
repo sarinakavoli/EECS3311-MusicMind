@@ -197,4 +197,36 @@ class ResponseParserTest {
         assertThrows(ParseException.class, () -> parser.verifyExplanation("   ", TRACE));
         assertThrows(ParseException.class, () -> parser.verifyExplanation("[t1] ok", null));
     }
+
+    private static final DecisionTrace GENRE_TRACE = new DecisionTrace("DiscoveryStrategy",
+            Map.of("t1", "found by searching your \"jazz\" genre", "t2", "found by searching your \"jazz\" genre",
+                    "t3", "from your own listening history"),
+            List.of("total length within 10% of the 60 minute target", "no duplicate tracks"));
+
+    @Test
+    void acceptsProseUsingOnlyGenresNumbersAndQuotesFromTheTrace() {
+        String text = "Three picks, [t1] and [t2], came from your \"jazz\" genre, [t3] from your history, "
+                + "and the total is within 10% of 60 minutes. 2 tracks matched jazz.";
+        assertEquals(text, parser.verifyExplanation(text, GENRE_TRACE));
+    }
+
+    @Test
+    void rejectsAGenreThatIsNotInTheTrace() {
+        assertThrows(ParseException.class,
+                () -> parser.verifyExplanation("These are [t1] and other classical picks.", GENRE_TRACE));
+    }
+
+    @Test
+    void rejectsANumberThatIsNotInTheTrace() {
+        assertThrows(ParseException.class,
+                () -> parser.verifyExplanation("All 12 tracks come from your jazz genre.", GENRE_TRACE));
+        assertThrows(ParseException.class,
+                () -> parser.verifyExplanation("The playlist is 45 minutes long.", GENRE_TRACE));
+    }
+
+    @Test
+    void rejectsAQuotedNameThatIsNotInTheTrace() {
+        assertThrows(ParseException.class,
+                () -> parser.verifyExplanation("[t1] is \"Blue in Green\", a classic.", GENRE_TRACE));
+    }
 }

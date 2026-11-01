@@ -40,24 +40,29 @@ public class ResponseParser {
     private static final Pattern TRACK_URI = Pattern.compile("spotify:track:([A-Za-z0-9]+)");
     private static final Pattern BARE_ID = Pattern.compile("\\b[A-Za-z0-9]{22}\\b");
 
+    private static final Pattern NUMBER = Pattern.compile("\\d+(?:\\.\\d+)?");
+    private static final Pattern QUOTED = Pattern.compile("\"([^\"]+)\"|\u201c([^\u201d]+)\u201d");
+
     private final Config config;
     private final PlaylistContext context;
+    private final Set<String> knownGenres;
 
     public ResponseParser(Config config) {
-        this(config, null);
+        this(config, null, MoodGenreMap.load().genreNames());
     }
 
-    private ResponseParser(Config config, PlaylistContext context) {
+    private ResponseParser(Config config, PlaylistContext context, Set<String> knownGenres) {
         if (config.parserMinTargetMinutes() > config.parserMaxTargetMinutes()) {
             throw new IllegalStateException("parser.minTargetMinutes must not exceed parser.maxTargetMinutes");
         }
         this.config = config;
         this.context = context;
+        this.knownGenres = knownGenres;
     }
 
     /** A parser bound to one playlist, so {@link #parseCommands} can resolve the edit against it. */
     public ResponseParser forPlaylist(PlaylistContext playlist) {
-        return new ResponseParser(config, playlist);
+        return new ResponseParser(config, playlist, knownGenres);
     }
 
     public PlaylistSpec parsePlaylistSpec(String json) {
@@ -250,9 +255,12 @@ public class ResponseParser {
     }
 
     /**
-     * Returns the trimmed explanation if every track id it names is in the trace; otherwise
-     * throws. An id is a bracketed token like {@code [id]}, a {@code spotify:track:} URI, or a
-     * bare Spotify-style 22-character id.
+     * Returns the trimmed explanation if it states nothing the trace does not record, otherwise
+     * throws. Checked: every track id named (a bracketed token like {@code [id]}, a
+     * {@code spotify:track:} URI or a bare Spotify-style 22-character id) is in the trace; every
+     * number appears in the trace facts or is a count computed from them; every quoted name is
+     * quoted in the trace; and no genre from the curated genre list is mentioned unless the trace
+     * mentions it. A genre outside that list cannot be recognised, so the check is as wide as the list.
      */
     public String verifyExplanation(String text, DecisionTrace trace) {
         if (trace == null) {
@@ -276,7 +284,60 @@ public class ResponseParser {
                 throw new ParseException("The explanation names '" + id + "', which is not in the decision trace");
             }
         }
+        String facts = facts(trace);
+        String withoutIds = BRACKETED.matcher(TRACK_URI.matcher(t).replaceAll(" ")).replaceAll(" ");
+        checkQuotes(withoutIds, facts);
+        checkNumbers(withoutIds, trace, facts);
+        checkGenres(withoutIds, facts);
         return t;
+    }
+
+    /** Everything the trace records, as one lower-case text. */
+    private static String facts(DecisionTrace trace) {
+        StringBuilder sb = new StringBuilder(trace.strategyName() == null ? "" : trace.strategyName());
+        trace.reasons().values().forEach(r -> sb.append(' ').append(r));
+        trace.constraintsSatisfied().forEach(c -> sb.append(' ').append(c));
+        return sb.toString().toLowerCase(Locale.ROOT);
+    }
+
+    private static void checkQuotes(String text, String facts) {
+        Matcher m = QUOTED.matcher(text);
+        while (m.find()) {
+            String quoted = (m.group(1) != null ? m.group(1) : m.group(2)).strip().toLowerCase(Locale.ROOT);
+            if (!facts.contains(quoted)) {
+                throw new ParseException("The explanation quotes '" + quoted + "', which is not in the decision trace");
+            }
+        }
+    }
+
+    private static void checkNumbers(String text, DecisionTrace trace, String facts) {
+        Set<String> allowed = new LinkedHashSet<>();
+        Matcher in = NUMBER.matcher(facts);
+        while (in.find()) {
+            allowed.add(in.group());
+        }
+        allowed.add(String.valueOf(trace.reasons().size()));
+        Map<String, Integer> groups = new LinkedHashMap<>();
+        trace.reasons().values().forEach(r -> groups.merge(r, 1, Integer::sum));
+        groups.values().forEach(count -> allowed.add(String.valueOf(count)));
+        Matcher m = NUMBER.matcher(text);
+        while (m.find()) {
+            if (!allowed.contains(m.group())) {
+                throw new ParseException("The explanation states the number " + m.group()
+                        + ", which is not in the decision trace");
+            }
+        }
+    }
+
+    private void checkGenres(String text, String facts) {
+        String lower = text.toLowerCase(Locale.ROOT);
+        for (String genre : knownGenres) {
+            Pattern word = Pattern.compile("(?<![\\p{L}\\p{N}])" + Pattern.quote(genre) + "(?![\\p{L}\\p{N}])");
+            if (word.matcher(lower).find() && !word.matcher(facts).find()) {
+                throw new ParseException("The explanation mentions the genre '" + genre
+                        + "', which is not in the decision trace");
+            }
+        }
     }
 
     private static void collect(Pattern p, String text, int group, Set<String> out) {

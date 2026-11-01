@@ -67,6 +67,14 @@ public class MoodGenreMap {
         return mood == null ? List.of() : genresByMood.getOrDefault(key(mood), List.of());
     }
 
+    /** Every genre name the map lists (lower case), except those that are also mood words. */
+    public java.util.Set<String> genreNames() {
+        java.util.Set<String> names = new java.util.TreeSet<>();
+        genresByMood.values().forEach(list -> list.forEach(g -> names.add(key(g))));
+        names.removeAll(genresByMood.keySet());
+        return names;
+    }
+
     /** The moods this map knows, alphabetically. */
     public List<String> moods() {
         return genresByMood.keySet().stream().sorted().toList();
