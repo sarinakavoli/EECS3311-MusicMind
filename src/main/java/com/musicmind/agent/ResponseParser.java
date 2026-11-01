@@ -135,6 +135,16 @@ public class ResponseParser {
         return specs;
     }
 
+    /** What an edit reply says besides its commands: whether it has any, the mood word and any question. */
+    public record EditExtras(boolean hasCommands, String mood, String question) { }
+
+    /** The mood (lower case, empty when none), the clarifying question (empty when none) and whether commands are present. */
+    public EditExtras parseEditExtras(String json) {
+        JsonObject o = object(json);
+        boolean commands = o.has("commands") && o.get("commands").isJsonArray() && !o.getAsJsonArray("commands").isEmpty();
+        return new EditExtras(commands, text(o, "mood").toLowerCase(Locale.ROOT), text(o, "question"));
+    }
+
     /**
      * Binds the LLM's edit commands to the playlist this parser was bound to with {@link #forPlaylist}. {@code track} references (a 1-based position
      * or a track id/URI) are resolved against the playlist as the user saw it; tracks to add come

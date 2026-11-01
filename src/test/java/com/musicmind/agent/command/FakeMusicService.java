@@ -15,26 +15,26 @@ import java.util.Map;
  * range-move with insert_before semantics) and records every call, so command tests can check
  * both the calls made and the resulting order.
  */
-class FakeMusicService extends StubMusicService {
+public class FakeMusicService extends StubMusicService {
 
-    final Map<String, List<Track>> playlists = new HashMap<>();
-    final List<String> calls = new ArrayList<>();
-    final Map<String, List<Track>> searchResults = new HashMap<>();
+    public final Map<String, List<Track>> playlists = new HashMap<>();
+    public final List<String> calls = new ArrayList<>();
+    public final Map<String, List<Track>> searchResults = new HashMap<>();
     /** When set, the call whose recorded text starts with this prefix throws. */
-    String failOn;
+    public String failOn;
     /** When true the failure happens once, then {@code failOn} is cleared. */
-    boolean failOnce;
+    public boolean failOnce;
     private int nextId = 1;
 
-    static Track track(String id) {
+    public static Track track(String id) {
         return new Track(id, "spotify:track:" + id, "Title " + id, 180000, false, List.of());
     }
 
-    List<String> ids(String playlistId) {
+    public List<String> ids(String playlistId) {
         return playlists.get(playlistId).stream().map(Track::id).toList();
     }
 
-    void seed(String playlistId, String... trackIds) {
+    public void seed(String playlistId, String... trackIds) {
         List<Track> list = new ArrayList<>();
         for (String id : trackIds) {
             list.add(track(id));

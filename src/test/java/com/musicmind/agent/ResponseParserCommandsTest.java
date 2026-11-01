@@ -103,4 +103,19 @@ class ResponseParserCommandsTest {
         assertThrows(MusicServiceException.class, () -> bound.parseCommands(
                 "{\"commands\":[{\"type\":\"add\",\"query\":\"down\"}]}"));
     }
+
+    @Test
+    void editExtrasReadTheMoodTheQuestionAndWhetherThereAreCommands() {
+        ResponseParser.EditExtras none = parser.parseEditExtras("{\"commands\":[],\"mood\":\" Calm \",\"question\":\"\"}");
+        assertEquals(false, none.hasCommands());
+        assertEquals("calm", none.mood());
+        assertEquals("", none.question());
+        ResponseParser.EditExtras some = parser.parseEditExtras(
+                "{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"}],\"question\":\"Which?\"}");
+        assertTrue(some.hasCommands());
+        assertEquals("", some.mood());
+        assertEquals("Which?", some.question());
+        assertEquals(false, parser.parseEditExtras("{}").hasCommands());
+        assertThrows(ParseException.class, () -> parser.parseEditExtras("nope"));
+    }
 }

@@ -334,6 +334,16 @@ public final class Config {
         return integer("command.searchLimit");
     }
 
+    /** Most tracks a mood edit swaps out (F6 genre heuristic). */
+    public int editMoodMaxChanges() {
+        return integer("edit.mood.maxChanges");
+    }
+
+    /** Tracks a mood edit adds when it cannot tell which existing tracks misfit. */
+    public int editMoodAddCount() {
+        return integer("edit.mood.addCount");
+    }
+
     // ---- Playlist creation (F5) and negotiation (F11) ----
 
     /** Validation failures that send a run back to selection before it gives up. */

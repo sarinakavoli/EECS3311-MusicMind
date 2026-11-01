@@ -32,7 +32,7 @@ class PromptBuilderTest {
                 PromptBuilder.kindOf(builder.buildPlanPrompt(new AgentRequest("focus", RequestKind.CREATE_PLAYLIST))));
         assertEquals(Optional.of(PromptBuilder.Kind.SEARCH), PromptBuilder.kindOf(builder.buildSearchPrompt("jazz")));
         assertEquals(Optional.of(PromptBuilder.Kind.EDIT),
-                PromptBuilder.kindOf(builder.buildEditPrompt("drop one", List.of("t1"))));
+                PromptBuilder.kindOf(builder.buildEditPrompt("drop one", editContext("t1"))));
         assertEquals(Optional.empty(), PromptBuilder.kindOf("Create a playlist plan"));
         assertEquals(Optional.empty(), PromptBuilder.kindOf(null));
     }
@@ -92,8 +92,11 @@ class PromptBuilderTest {
         String prompt = builder.buildSearchPrompt("sad 90s songs");
         assertTrue(prompt.contains("short"), prompt);
         assertTrue(prompt.contains("do not repeat the genre"), prompt);
-        String edit = builder.buildEditPrompt("remove the second", List.of("idA", "idB"));
+        String edit = builder.buildEditPrompt("remove the second", editContext("idA", "idB"));
         assertTrue(edit.contains("remove the second") && edit.contains("1: idA") && edit.contains("2: idB"));
+        assertTrue(edit.contains("1: idA, clean, 3.0 min"), edit);
+        assertTrue(edit.contains("2: idB, explicit, 3.0 min"), edit);
+        assertFalse(edit.contains("Title"), "no track titles go to the model");
         String opts = builder.buildOptionsPrompt(new FeasibilityReport(false, List.of("too short"), List.of("raise minutes")));
         assertTrue(opts.contains("too short") && opts.contains("raise minutes"));
     }
@@ -115,5 +118,14 @@ class PromptBuilderTest {
         String p = builder.buildSummaryPrompt(new ListeningProfile(hist, List.of(), List.of(), Instant.EPOCH));
 
         assertFalse(p.contains("Do not make any claims about genres"), p);
+    }
+
+    private static PlaylistContext editContext(String... ids) {
+        List<com.musicmind.domain.Track> tracks = new java.util.ArrayList<>();
+        for (int i = 0; i < ids.length; i++) {
+            tracks.add(new com.musicmind.domain.Track(ids[i], "spotify:track:" + ids[i], "Title " + ids[i], 180_000,
+                    i == 1, List.of()));
+        }
+        return new PlaylistContext("pl", tracks, null);
     }
 }

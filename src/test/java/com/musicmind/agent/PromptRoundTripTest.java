@@ -41,7 +41,7 @@ class PromptRoundTripTest {
 
     @Test
     void editPromptRoundTrips() {
-        assertFalse(parser.parseCommandSpecs(llm.complete(builder.buildEditPrompt("drop one", List.of("t1")))).isEmpty());
+        assertFalse(parser.parseCommandSpecs(llm.complete(builder.buildEditPrompt("drop one", new PlaylistContext("pl", List.of(new com.musicmind.domain.Track("t1", "spotify:track:t1", "T", 1000, false, List.of())), null)))).isEmpty());
     }
 
     @Test

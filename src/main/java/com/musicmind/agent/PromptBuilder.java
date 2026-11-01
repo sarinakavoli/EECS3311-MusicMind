@@ -130,17 +130,30 @@ public class PromptBuilder {
                 + "\"confidence\": number from 0 to 1}";
     }
 
-    /** @param trackRefs the playlist's track ids in order; the model refers to them by 1-based position */
-    public String buildEditPrompt(String instruction, List<String> trackRefs) {
+    /**
+     * The edit prompt: the instruction and, per track, its position, id, explicit flag and length, so the
+     * model can act on "remove explicit" or "15 minutes shorter" without being given any titles or names.
+     */
+    public String buildEditPrompt(String instruction, PlaylistContext playlist) {
         StringBuilder p = start(Kind.EDIT);
-        p.append("Turn the edit instruction into commands for a playlist. Do not name specific songs.\n")
+        p.append("Turn the edit instruction into commands for a playlist. Do not name specific songs. ")
+                .append("If the instruction is ambiguous, choose the smallest change that fits it. ")
+                .append("If it only asks for a feeling (calmer, more upbeat) that no command can express, ")
+                .append("leave the commands empty and set the mood. If you cannot tell what is wanted, ")
+                .append("leave the commands empty and ask one short question.\n")
                 .append("Instruction: ").append(instruction).append('\n')
-                .append("Tracks (position: id):\n");
-        IntStream.range(0, trackRefs.size())
-                .forEach(i -> p.append(i + 1).append(": ").append(trackRefs.get(i)).append('\n'));
+                .append("Tracks (position: id, explicit?, minutes):\n");
+        List<com.musicmind.domain.Track> tracks = playlist.tracks();
+        IntStream.range(0, tracks.size()).forEach(i -> {
+            com.musicmind.domain.Track t = tracks.get(i);
+            p.append(i + 1).append(": ").append(t.id()).append(t.isExplicit() ? ", explicit, " : ", clean, ")
+                    .append(Math.round(t.durationMs() / 6000.0) / 10.0).append(" min\n");
+        });
         p.append("Reply with JSON only: {\"commands\": [{\"type\": \"remove\"|\"add\"|\"replace\"|\"reorder\", ")
                 .append("\"track\": position or id (remove, replace, reorder), ")
-                .append("\"query\": search text (add, replace), \"position\": new 0-based index (reorder)}]}");
+                .append("\"query\": search text (add, replace), \"position\": new 0-based index (reorder)}], ")
+                .append("\"mood\": one of [").append(String.join(", ", moods.moods()))
+                .append("] or \"\", \"question\": \"\" or one short clarifying question}");
         return p.toString();
     }
 
