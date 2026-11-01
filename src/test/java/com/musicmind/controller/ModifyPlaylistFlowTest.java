@@ -504,9 +504,9 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
         String expected = String.format(config.wording("playlistTooLong"), config.spotifyMaxItems());
 
         assertEquals(expected, assertThrows(PlaylistChangeException.class, () -> c.modifyPlaylist("p", "drop")).getMessage());
-        assertEquals(expected, assertThrows(PlaylistChangeException.class, () -> c.undo("p")).getMessage());
         // a snapshot of this playlist exists from when it was short enough to read in full
         int snapshot = memory(db).saveSnapshot(new Playlist("p", "Mix", List.of(t("t0", false, "x"))));
+        assertEquals(expected, assertThrows(PlaylistChangeException.class, () -> c.undo("p")).getMessage());
         assertEquals(expected, assertThrows(PlaylistChangeException.class, () -> c.restore(snapshot)).getMessage());
 
         assertEquals(original, ids(music, "p"));
