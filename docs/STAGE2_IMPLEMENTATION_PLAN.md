@@ -22,6 +22,7 @@ Dates are Toronto time. Each day ends with real commits pushed to GitHub, and a 
 | Sat Oct 31 (added) | Task 20: discovery fix, run before Task 9 | `discover` shows only tracks new to you |
 | Sat Oct 31 (added) | Task 21: PR review fixes, run before Task 9 | `discover` and `profile` still work |
 | Sun Nov 1 | Tasks 9-12: F5, F6, F7, F10, F11, F12, full CLI | `create`, `modify`, `undo`, `validate`, `explain`, `history`, `restore` |
+| Sun Nov 1 (added) | Task 22: F5 result matches the Stage 1 goal, run before Task 13 | `create` includes new artists |
 | Mon Nov 2 | Tasks 13-17: GUI, docs, UML, report, final review, merge | All GUI tabs, README setup, report PDF |
 | Nov 3-9 | Buffer: fixes from Sarina's testing (real code commits only), video links added to the report | Videos recorded |
 | Tue Nov 10 | Final submission check | Repository URL submitted |
@@ -296,6 +297,18 @@ Run before Task 9. Fix all ten findings from the PR #1 code review. All numbers 
 10. **Callback page.** HTML-escape everything put in the page. Also ignore a callback whose `state` does not match instead of aborting the login.
 
 Tests for each item, including: stored and fresh profiles give equal scores; profile older than the limit is rebuilt; a 429 on batch 2 re-sends only batch 2; removing 250 URIs sends 3 requests; a 500 on refresh opens no browser; saved-track cap notice; two exact-name candidates give no genres; no status, URL or JSON in F1, F2 or F3 output or `derived_json`; token file permissions; lookups stop after the failure limit and resume after the cooldown; script in `error` is escaped; wrong `state` does not abort login.
+
+### Task 22: F5 result matches the Stage 1 goal
+
+Run before Task 13. Live test of Stage 1's own example, "a 90-minute study playlist, no explicit songs, mostly familiar but with some new artists" (`--familiar 0.7`): the playlist passed validation but all 22 tracks were by known artists (15 from the library, 7 new tracks by top artists). Seed genres were ambient, classical, instrumental and lo-fi, yet no genre-search track was picked. `explain` showed raw track ids.
+
+- With library tracks allowed, the familiar share means tracks by known artists, and the rest must be tracks by artists new to the user, so a 0.7 ratio gives about 30% new artists when candidates exist. Keep the F4 meaning unchanged.
+- The novel pool for F5 must prefer genre-search tracks by unknown artists. A known artist's unheard album track counts as familiar, not novel.
+- Mood goals must influence selection, per Stage 1's "curated mood→genre mapping": candidates that match the goal's seed genres rank above ones that do not, within each pool. Report honestly when too few new-artist or mood-matching candidates exist, with a notice; never fill silently.
+- Selection stays deterministic. The LLM never picks tracks.
+- `explain` output and the create explanation must show track titles, not raw ids, when printing. Titles are read for display only and never stored. Keep `verifyExplanation` grounded on ids. When titles are unavailable (F10 with stored data), refer to the tracks generally, without ids.
+
+Tests: 0.7 ratio with candidates gives about 30% unknown-artist tracks and `novelSelected` reflects them; a known artist's new track is familiar in F5; seed-genre tracks outrank non-matching ones; a shortfall of new artists gives a notice; F4 behaviour unchanged; printed explanation has no 22-character ids.
 
 ### Task 14: Documentation and conformance
 
