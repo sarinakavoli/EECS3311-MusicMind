@@ -48,6 +48,9 @@ public class ResponseParser {
     }
 
     private ResponseParser(Config config, PlaylistContext context) {
+        if (config.parserMinTargetMinutes() > config.parserMaxTargetMinutes()) {
+            throw new IllegalStateException("parser.minTargetMinutes must not exceed parser.maxTargetMinutes");
+        }
         this.config = config;
         this.context = context;
     }
@@ -70,6 +73,21 @@ public class ResponseParser {
         String name = text(o, "name");
         return new PlaylistSpec(minutes, explicit, ratio, strings(o, "blockedArtists"),
                 name.isEmpty() ? config.parserDefaultPlaylistName() : name);
+    }
+
+    /** What a plan reply says beyond the constraints: how sure the model is, whether it stated a familiar share, the mood. */
+    public record PlanExtras(double confidence, boolean familiarStated, String mood) { }
+
+    /**
+     * The confidence (the configured default when the reply gives none), whether the request stated a
+     * familiar share, and the mood word (empty when none) of a plan reply.
+     */
+    public PlanExtras parsePlanExtras(String json) {
+        JsonObject o = object(json);
+        double confidence = o.has("confidence") && !o.get("confidence").isJsonNull()
+                ? clamp01(number(o, "confidence")) : config.planDefaultConfidence();
+        boolean stated = o.has("familiarRatio") && !o.get("familiarRatio").isJsonNull();
+        return new PlanExtras(confidence, stated, text(o, "mood"));
     }
 
     public SearchQuery parseSearchQuery(String json) {

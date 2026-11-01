@@ -29,6 +29,12 @@ class ResponseParserTest {
     // ---- parsePlaylistSpec ----
 
     @Test
+    void aClampRangeWhoseMinimumExceedsItsMaximumIsRejectedUpFront() {
+        Config broken = config.withTunables(Map.of("parser.minTargetMinutes", "700"));
+        assertThrows(IllegalStateException.class, () -> new ResponseParser(broken));
+    }
+
+    @Test
     void parsesAValidPlaylistSpec() {
         PlaylistSpec s = parser.parsePlaylistSpec("{\"targetMinutes\":90,\"allowExplicit\":true,"
                 + "\"familiarRatio\":0.25,\"blockedArtists\":[\"a1\",\"a2\"],\"name\":\"Focus\"}");
