@@ -157,6 +157,16 @@ public final class Config {
         return Double.parseDouble(text("playlist.durationTolerance"));
     }
 
+    /** Fewest tracks a valid playlist holds (F7 minimum-length rule). */
+    public int playlistMinTracks() {
+        return integer("playlist.minTracks");
+    }
+
+    /** Most tracks a valid playlist holds (F7 maximum-length rule); Spotify's own limit by default. */
+    public int playlistMaxTracks() {
+        return integer("playlist.maxTracks");
+    }
+
     public int avgTrackMinutes() {
         return integer("strategy.avgTrackMinutes");
     }

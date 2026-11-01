@@ -1,5 +1,6 @@
 package com.musicmind.agent;
 
+import com.musicmind.config.Config;
 import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.ValidationResult;
@@ -70,5 +71,45 @@ class PlaylistValidatorTest {
         assertEquals(PlaylistValidator.DurationStatus.TOO_LONG, validator.durationStatus(longList, spec));
         assertTrue(validator.validate(within, spec).passed());
         assertFalse(validator.validate(longList, spec).passed());
+    }
+
+    @Test
+    void tooFewTracksFailsTheMinimumLengthRule() {
+        PlaylistSpec spec = new PlaylistSpec(0, true, 0.5, List.of(), "Empty");
+        ValidationResult r = validator.validate(List.of(), spec);
+        assertFalse(r.passed());
+        assertEquals(1, r.violations().size());
+        assertTrue(r.violations().get(0).contains("at least 1"));
+    }
+
+    @Test
+    void tooManyTracksFailsTheMaximumLengthRule() {
+        Config config = Config.of(java.util.Map.of()).withTunables(java.util.Map.of("playlist.maxTracks", "2"));
+        PlaylistValidator small = new PlaylistValidator(config);
+        PlaylistSpec spec = new PlaylistSpec(0, true, 0.5, List.of(), "Big");
+        ValidationResult r = small.validate(
+                List.of(track("a", 1000, false), track("b", 1000, false), track("c", 1000, false)), spec);
+        assertFalse(r.passed());
+        assertTrue(r.violations().get(0).contains("at most 2"));
+        assertTrue(small.validate(List.of(track("a", 1000, false), track("b", 1000, false)), spec).passed());
+    }
+
+    @Test
+    void everyRuleListsItsOffendingTrackIds() {
+        PlaylistSpec spec = new PlaylistSpec(0, false, 0.5, List.of("bad"), "Mixed");
+        List<Track> tracks = List.of(track("e1", 1000, true), track("d", 1000, false),
+                track("d", 1000, false), track("b1", 1000, false, "bad"));
+        ValidationResult r = validator.validate(tracks, spec);
+        assertFalse(r.passed());
+        assertEquals(List.of("e1"), r.offending().get(PlaylistValidator.RULE_EXPLICIT));
+        assertEquals(List.of("d"), r.offending().get(PlaylistValidator.RULE_DUPLICATES));
+        assertEquals(List.of("b1"), r.offending().get(PlaylistValidator.RULE_BLOCKED_ARTIST));
+        assertFalse(r.offending().containsKey(PlaylistValidator.RULE_DURATION));
+    }
+
+    @Test
+    void aPassingResultOffendsNothing() {
+        PlaylistSpec spec = new PlaylistSpec(0, true, 0.5, List.of(), "Fine");
+        assertTrue(validator.validate(List.of(track("a", 1000, false)), spec).offending().isEmpty());
     }
 }
