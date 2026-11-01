@@ -92,7 +92,7 @@ public class PromptBuilder {
         if (!trace.requestedGenres().isEmpty()) {
             p.append("\nGenres asked for in the goal, not the listener's taste: ")
                     .append(String.join(", ", trace.requestedGenres()))
-                    .append(". Say the listener asked for them. Never say the listener loves, likes, enjoys or listens to them.");
+                    .append(". Say they came from the goal, the mood or the style requested. Never say the listener loves, likes, enjoys or listens to them.");
         }
         return p.toString();
     }

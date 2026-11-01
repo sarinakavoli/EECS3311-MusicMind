@@ -59,14 +59,19 @@ final class PlaylistTargets {
         return OptionalInt.empty();
     }
 
-    /** The newest edit or restore that no undo has reverted. */
-    Optional<Change> lastUnreverted() {
+    private Set<String> reverted() {
         Set<String> reverted = new HashSet<>();
         for (JsonObject o : records) {
             if (o.has("reverts")) {
                 reverted.add(o.get("reverts").getAsString());
             }
         }
+        return reverted;
+    }
+
+    /** The newest edit or restore that no undo has reverted: what an undo of the last command in this run reverts. */
+    Optional<Change> lastUnreverted() {
+        Set<String> reverted = reverted();
         for (int i = 0; i < records.size(); i++) {
             JsonObject o = records.get(i);
             if (o.has("previousTarget") && !reverted.contains(ids.get(i))) {
@@ -76,14 +81,47 @@ final class PlaylistTargets {
         return Optional.empty();
     }
 
-    /** The target in force when the given snapshot was saved, if the edit or restore that saved it recorded one. */
-    OptionalInt targetAt(int snapshotId) {
-        for (JsonObject o : records) {
-            if (o.has("snapshotId") && o.has("previousTarget") && o.get("snapshotId").getAsInt() == snapshotId) {
-                return OptionalInt.of(o.get("previousTarget").getAsInt());
+    /**
+     * What an undo that fell back on the latest saved snapshot reverts: the edit or restore that saved the
+     * newest snapshot, and only if no undo has reverted it already (the snapshot is then restored again
+     * without changing anything, and the target must not move).
+     */
+    Optional<Change> latestSnapshotChange() {
+        Set<String> reverted = reverted();
+        int best = -1;
+        for (int i = 0; i < records.size(); i++) {
+            JsonObject o = records.get(i);
+            if (o.has("previousTarget") && o.has("snapshotId")
+                    && (best < 0 || o.get("snapshotId").getAsInt() > records.get(best).get("snapshotId").getAsInt())) {
+                best = i;
             }
         }
-        return OptionalInt.empty();
+        if (best < 0 || reverted.contains(ids.get(best))) {
+            return Optional.empty();
+        }
+        return Optional.of(new Change(ids.get(best), records.get(best).get("previousTarget").getAsInt()));
+    }
+
+    /**
+     * The target in force when the given snapshot was saved. The edit or restore that saved it recorded the
+     * target before it. A snapshot with no record of its own (saved before targets were recorded) was saved
+     * before the next recorded change with a later snapshot, so that change's earlier target applied then.
+     * Empty if neither exists, as for a snapshot newer than every record.
+     */
+    OptionalInt targetAt(int snapshotId) {
+        int nextId = Integer.MAX_VALUE;
+        OptionalInt target = OptionalInt.empty();
+        for (JsonObject o : records) {
+            if (!o.has("snapshotId") || !o.has("previousTarget")) {
+                continue;
+            }
+            int id = o.get("snapshotId").getAsInt();
+            if (id >= snapshotId && id < nextId) {
+                nextId = id;
+                target = OptionalInt.of(o.get("previousTarget").getAsInt());
+            }
+        }
+        return target;
     }
 
     /** Derived data for an edit or restore: the targets around it and the snapshot saved just before. */

@@ -584,7 +584,7 @@ public class MusicAgentFacade {
             if (describe(next).equals(describe(plan))) {
                 return plan;
             }
-            plan = next;
+            plan = next.keepingLengthOf(plan);   // a re-plan that leaves the length out still means it
         }
         return plan;
     }
@@ -643,15 +643,18 @@ public class MusicAgentFacade {
      */
     public synchronized void undo(String playlistId) {
         String id = requirePlaylistId(playlistId);
+        boolean fromStack;
         try {
-            create.playlists().undo(id);
+            fromStack = create.playlists().undo(id);
         } catch (MusicServiceException e) {
             throw playlistAccess(e);
         }
         String userId = currentUserId.get();
         if (userId != null) {
-            targets(userId, id).lastUnreverted().ifPresent(change -> saveChangeSession(id,
-                    config.wording("undoRecordText"), PlaylistTargets.revert(change.before(), change.sessionId())));
+            PlaylistTargets targets = targets(userId, id);
+            (fromStack ? targets.lastUnreverted() : targets.latestSnapshotChange()).ifPresent(change ->
+                    saveChangeSession(id, config.wording("undoRecordText"),
+                            PlaylistTargets.revert(change.before(), change.sessionId())));
         }
     }
 

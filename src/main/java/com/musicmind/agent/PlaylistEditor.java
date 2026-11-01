@@ -42,6 +42,12 @@ public class PlaylistEditor {
             return lengthChangeMinutes != 0 || targetMinutes != 0;
         }
 
+        /** This plan's commands with the length another plan stated, when this one states none. */
+        public EditPlan keepingLengthOf(EditPlan earlier) {
+            return statesLength() ? this
+                    : new EditPlan(commands, approximate, mood, earlier.lengthChangeMinutes, earlier.targetMinutes);
+        }
+
         /** The same commands without the stated length, for when only part of the edit is applied. */
         public EditPlan withCommands(List<PlaylistCommand> kept) {
             return new EditPlan(kept, approximate, mood, 0, 0);

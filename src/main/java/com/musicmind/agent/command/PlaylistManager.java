@@ -86,8 +86,10 @@ public class PlaylistManager {
     /**
      * Reverts the most recent change to the playlist. With an empty stack (a new run) it
      * restores the playlist's latest snapshot instead.
+     *
+     * @return true if a command of this run was undone, false if the latest snapshot was restored
      */
-    public void undo(String playlistId) {
+    public boolean undo(String playlistId) {
         PlaylistCommand latest = null;
         for (PlaylistCommand c : history) {
             if (playlistId.equals(c.playlistId())) {
@@ -99,7 +101,7 @@ public class PlaylistManager {
             requireComplete(playlistId);
             latest.undo();
             history.remove(latest);
-            return;
+            return true;
         }
         Playlist snapshot;
         try {
@@ -111,6 +113,7 @@ public class PlaylistManager {
             throw new PlaylistChangeException(config.wording("undoNothing"));
         }
         restore(snapshot);
+        return false;
     }
 
     /** Puts a playlist back to a saved snapshot (F12). */

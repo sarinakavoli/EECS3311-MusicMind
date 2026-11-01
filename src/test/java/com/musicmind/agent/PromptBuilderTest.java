@@ -62,6 +62,8 @@ class PromptBuilderTest {
         String p = builder.buildExplainPrompt(trace);
         assertTrue(p.contains("dance, edm"), p);
         assertTrue(p.contains("asked for") && p.contains("not") && p.contains("taste"), p);
+        assertTrue(p.contains("came from the goal, the mood or the style requested"), p);
+        assertFalse(p.contains("Say the listener asked"), p);
         assertFalse(builder.buildExplainPrompt(new DecisionTrace("Balanced", Map.of("t1", "x"), List.of()))
                 .contains("asked for in the goal"));
     }

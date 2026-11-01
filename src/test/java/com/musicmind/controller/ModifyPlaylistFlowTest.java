@@ -505,6 +505,68 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
         assertTrue(durationProblems(second).contains("target of 15"), durationProblems(second));
     }
 
+    private static LLMProvider inOrder(List<String> replies) {
+        List<String> left = new ArrayList<>(replies);
+        return p -> p.startsWith("MUSICMIND_TASK: EDIT") ? left.remove(0) : "ok";
+    }
+
+    private static String dropTrack(String position, int minutes) {
+        return "{\"commands\":[{\"type\":\"remove\",\"track\":\"" + position + "\"}],\"lengthChangeMinutes\":-" + minutes + "}";
+    }
+
+    @Test
+    void restoringAnOlderSnapshotAfterTwoEditsBringsBackTheTargetOfThatTime() {
+        // The live case: a snapshot saved before targets were recorded (1), then two length edits (2 and 3).
+        Music music = fourTracksTwelveMinutes();
+        int original = memory(db).saveSnapshot(new Playlist("p", "Mix", music.getPlaylistItems("p")));
+        AppController c = controller(music, inOrder(List.of(dropTrack("4", 3), dropTrack("3", 3))));
+        c.modifyPlaylist("p", "3 minutes shorter");   // 12 -> 9, saves snapshot 2
+        c.modifyPlaylist("p", "3 minutes shorter");   // 9 -> 6, saves snapshot 3
+        assertEquals(List.of("a", "b"), ids(music, "p"));
+
+        c.restore(original);
+
+        assertEquals(4, ids(music, "p").size());
+        assertTrue(c.validatePlaylist("p").passed(), c.validatePlaylist("p").violations().toString());
+        // Every saved version returns the target that applied when it was saved.
+        int second = c.getSnapshots(c.currentUser()).stream().filter(x -> x.trackCount() == 3).findFirst().orElseThrow().id();
+        c.restore(second);
+        assertEquals(3, ids(music, "p").size());
+        assertTrue(c.validatePlaylist("p").passed(), c.validatePlaylist("p").violations().toString());
+        AppController later = controller(music, null);
+        assertTrue(later.validatePlaylist("p").passed(), "a new process reads the same target");
+    }
+
+    @Test
+    void editUndoUndoGivesTheMatchingTargetAndAnUndoWithNothingBehindItLeavesItAlone() {
+        Music music = fourTracksTwelveMinutes();
+        controller(music, editReply(dropTrack("4", 3))).modifyPlaylist("p", "3 minutes shorter");   // 12 -> 9, earlier process
+        AppController c = controller(music, editReply(dropTrack("3", 3)));
+        c.modifyPlaylist("p", "3 minutes shorter");   // 9 -> 6
+
+        c.undo("p");   // the edit of this run: back to 9
+        assertTrue(c.validatePlaylist("p").passed(), c.validatePlaylist("p").violations().toString());
+        c.undo("p");   // nothing of this run is left; the snapshot is restored again and changes nothing
+        assertEquals(3, ids(music, "p").size());
+        assertTrue(c.validatePlaylist("p").passed(), "the earlier edit's target (9) was not reverted: "
+                + c.validatePlaylist("p").violations());
+    }
+
+    @Test
+    void aReplanThatLeavesTheLengthOutKeepsTheLengthTheFirstPlanStated() {
+        Music music = withExplicitRockAndCleanSearch();   // two clean 3 minute tracks
+        storeCreatedSession("p", "{\"spec\":{\"targetMinutes\":6,\"allowExplicit\":false,\"familiarRatio\":0.5,"
+                + "\"blockedArtists\":[],\"name\":\"Mix\"}}", null);
+        AppController c = controller(music, replanning(
+                "{\"commands\":[{\"type\":\"add\",\"query\":\"rock\"}],\"lengthChangeMinutes\":3}", ADD_CLEAN, new ArrayList<>()));
+
+        c.modifyPlaylist("p", "add a track");
+
+        assertEquals(List.of("a", "b", "c1"), ids(music, "p"));
+        assertTrue(c.lastModifyNotices().isEmpty(), c.lastModifyNotices().toString());
+        assertTrue(c.validatePlaylist("p").passed(), c.validatePlaylist("p").violations().toString());
+    }
+
     @Test
     void anEditThatDidNotAskToChangeTheLengthKeepsTheDurationNotice() {
         Music music = fourTracksTwelveMinutes();
