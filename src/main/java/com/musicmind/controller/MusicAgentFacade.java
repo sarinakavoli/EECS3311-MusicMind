@@ -503,25 +503,48 @@ public class MusicAgentFacade {
         } catch (MusicServiceException e) {
             throw playlistAccess(e);
         }
+        // The change is on Spotify from here on: record it first, so a failed read below cannot hide it.
         int target = targetAfter(stored, plan, current);
-        PlaylistSpec judged = withTarget(stored, target);
-
-        Playlist updated = loadPlaylist(id);
-        if (plan.approximate()) {
-            notices.add(String.format(config.wording("modifyApproximate"), plan.mood(),
-                    String.join(", ", MoodGenreMap.load().genresFor(plan.mood()))));
-        }
-        ValidationResult result = validate(updated, judged);
-        if (!result.passed()) {
-            notices.add(String.format(config.wording("modifyViolations"), String.join("; ", result.violations())));
-        }
         lastChangeSummary = plan.commands().stream().map(PlaylistCommand::describe)
                 .collect(Collectors.joining(config.wording("cmdBatchSeparator") + " "));
         record(userId, id, instruction.strip(), plan,
                 PlaylistTargets.change(target, stored.targetMinutes(), snapshotId));
+        if (plan.approximate()) {
+            notices.add(String.format(config.wording("modifyApproximate"), plan.mood(),
+                    String.join(", ", MoodGenreMap.load().genresFor(plan.mood()))));
+        }
+        Optional<Playlist> readBack = readBack(id);
+        Playlist updated;
+        if (readBack.isPresent()) {
+            updated = readBack.get();
+            ValidationResult result = validate(updated, withTarget(stored, target));
+            if (!result.passed()) {
+                notices.add(String.format(config.wording("modifyViolations"), String.join("; ", result.violations())));
+            }
+        } else {
+            updated = new Playlist(id, current.name(), afterCommands(current.tracks(), plan.commands()));
+            notices.add(config.wording("modifyReadBackFailed"));
+        }
         addWarning(notices);
         lastModifyNotices = List.copyOf(notices);
         return updated;
+    }
+
+    /** The playlist after a write that already went through; empty if it cannot be read just now. */
+    private Optional<Playlist> readBack(String id) {
+        try {
+            return Optional.of(loadPlaylist(id));
+        } catch (PlaylistChangeException | MusicServiceException e) {
+            return Optional.empty();
+        }
+    }
+
+    private static List<Track> afterCommands(List<Track> tracks, List<PlaylistCommand> commands) {
+        List<Track> after = tracks;
+        for (PlaylistCommand command : commands) {
+            after = command.simulate(after);
+        }
+        return after;
     }
 
     /** The spec an edit is judged by: the playlist's rules without its old duration target, which the edit's own intent replaces. */
@@ -563,10 +586,7 @@ public class MusicAgentFacade {
                                                          String instruction, PlaylistSpec editSpec, String userId) {
         ConstraintChecker checker = new ConstraintChecker(config);
         for (int attempt = 0; attempt < config.planMaxValidationRetries(); attempt++) {
-            List<Track> after = current.tracks();
-            for (PlaylistCommand command : plan.commands()) {
-                after = command.simulate(after);
-            }
+            List<Track> after = afterCommands(current.tracks(), plan.commands());
             List<String> introduced = checker.introduced(current.tracks(), after, editSpec);
             if (introduced.isEmpty()) {
                 return plan;
@@ -762,11 +782,15 @@ public class MusicAgentFacade {
 
     /** A MODIFY_PLAYLIST session for the history: the words, the playlist id and MusicMind's own numbers. */
     private void saveChangeSession(String playlistId, String text, Map<String, Object> derived) {
+        saveDoneSession(RequestKind.MODIFY_PLAYLIST, playlistId, text, GSON.toJson(derived));
+    }
+
+    private void saveDoneSession(RequestKind kind, String playlistId, String text, String derivedJson) {
         AgentSession session = new AgentSession(UUID.randomUUID().toString(), Instant.now(), null);
         session.setStatus("done");
-        session.setRequest(new AgentRequest(text, RequestKind.MODIFY_PLAYLIST));
+        session.setRequest(new AgentRequest(text, kind));
         session.setPlaylistId(playlistId);
-        session.setDerivedData(GSON.toJson(derived));
+        session.setDerivedData(derivedJson);
         memory.saveSession(session);
     }
 
@@ -842,12 +866,14 @@ public class MusicAgentFacade {
             int back = targets(userId, id).targetAt(snapshotId).orElse(current);
             saveChangeSession(id, config.wording("restoreRecordText"), PlaylistTargets.change(back, current, saved));
         }
-        return loadPlaylist(id);
+        return readBack(id).orElseGet(() -> new Playlist(id, snapshot.name(), snapshot.tracks()));
     }
 
     /**
      * Creates a new playlist from a snapshot whose Spotify playlist was deleted, with the saved name and
-     * tracks, through the same {@link CreatePlaylistCommand} F5 uses.
+     * tracks, through the same {@link CreatePlaylistCommand} F5 uses. A creation session is stored for it,
+     * carrying the old playlist's constraints and the target of that version, so it is validated, named and
+     * listed like any other playlist.
      */
     public synchronized Playlist recreateFromSnapshot(int snapshotId) {
         Playlist snapshot = loadSnapshot(snapshotId);
@@ -855,6 +881,10 @@ public class MusicAgentFacade {
         if (userId == null) {
             throw new IllegalStateException(config.wording("modifyNeedsLogin"));
         }
+        PlaylistSpec old = specFor(userId, snapshot.spotifyId()).spec();
+        int target = targets(userId, snapshot.spotifyId()).targetAt(snapshotId).orElse(old.targetMinutes());
+        PlaylistSpec spec = new PlaylistSpec(target, old.allowExplicit(), old.familiarRatio(), old.blockedArtists(),
+                snapshot.name());
         CreatePlaylistCommand command = new CreatePlaylistCommand(config, create.music(), userId, snapshot.name(),
                 snapshot.tracks().stream().map(Track::uri).toList());
         try {
@@ -862,7 +892,9 @@ public class MusicAgentFacade {
         } catch (MusicServiceException e) {
             throw playlistAccess(e);
         }
-        return loadPlaylist(command.playlistId());
+        saveDoneSession(RequestKind.CREATE_PLAYLIST, command.playlistId(), config.wording("recreateRecordText"),
+                SessionRecord.derivedData(spec, snapshot.tracks().stream().map(Track::id).toList()));
+        return new Playlist(command.playlistId(), snapshot.name(), snapshot.tracks());
     }
 
     /** Whether the last {@link #restore} changed the playlist; false when it already matched the saved version. */

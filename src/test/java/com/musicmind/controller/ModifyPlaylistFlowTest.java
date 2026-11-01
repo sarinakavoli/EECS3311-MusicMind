@@ -902,6 +902,64 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
     }
 
     @Test
+    void anEditThatWentThroughIsRecordedEvenIfReadingItBackFails() {
+        Music music = new Music() {
+            @Override public void removeItems(String playlistId, List<String> uris) {
+                super.removeItems(playlistId, uris);
+                failRead = new MusicServiceException("Spotify is down", 502);
+            }
+        };
+        put(music, "p", t("a", false, "x"), t("b", false, "x"), t("c", false, "x"));
+        AppController c = controller(music, editReply("{\"commands\":[{\"type\":\"remove\",\"track\":\"2\"}]}"));
+
+        Playlist updated = c.modifyPlaylist("p", "remove the second track");
+
+        assertEquals(List.of("a", "c"), updated.tracks().stream().map(Track::id).toList());
+        assertTrue(c.lastChangeSummary().contains("Title b"), c.lastChangeSummary());
+        assertTrue(c.lastModifyNotices().contains(config.wording("modifyReadBackFailed")), c.lastModifyNotices().toString());
+        assertTrue(memory(db).loadHistory("sp-user").stream().anyMatch(s -> "p".equals(s.playlistId())
+                && s.request().kind() == RequestKind.MODIFY_PLAYLIST), "the history holds the edit");
+    }
+
+    @Test
+    void aRestoreThatWentThroughIsNotReportedAsFailedWhenReadingItBackFails() {
+        Music music = new Music() {
+            @Override public void addItems(String playlistId, List<String> uris) {
+                super.addItems(playlistId, uris);
+                failRead = new MusicServiceException("Spotify is down", 502);
+            }
+        };
+        put(music, "p", t("a", false, "x"), t("b", false, "x"));
+        AppController c = controller(music, editReply("{\"commands\":[{\"type\":\"remove\",\"track\":\"2\"}]}"));
+        c.modifyPlaylist("p", "remove the second track");
+        int snapshot = c.getSnapshots(c.currentUser()).get(0).id();
+
+        Playlist restored = c.restore(snapshot);
+
+        assertEquals(2, restored.tracks().size());
+        assertEquals(List.of("a", "b"), ids(music, "p"));
+    }
+
+    @Test
+    void aRecreatedPlaylistKeepsItsNameConstraintsAndTheTargetOfThatVersion() {
+        Music music = fourTracksTwelveMinutes();
+        AppController c = controller(music, editReply(dropTrack("4", 3)));
+        c.modifyPlaylist("p", "3 minutes shorter");   // 12 -> 9; the snapshot holds the 12 minute version
+        SnapshotInfo version = c.getSnapshots(c.currentUser()).get(0);
+        music.playlists.remove("p");
+
+        Playlist recreated = c.recreateFromSnapshot(version.id());
+
+        assertEquals(version.name(), recreated.name());
+        assertEquals(4, recreated.tracks().size());
+        assertTrue(c.validatePlaylist(recreated.spotifyId()).passed(), c.validatePlaylist(recreated.spotifyId()).violations().toString());
+        assertEquals(config.wording("validateAgainstSession"), c.lastValidationNote());
+        AppController later = controller(music, editReply(dropTrack("4", 3)));
+        later.modifyPlaylist(recreated.spotifyId(), "3 minutes shorter");
+        assertEquals(version.name(), later.getSnapshots(later.currentUser()).get(0).name(), "the name survives into later versions");
+    }
+
+    @Test
     void restoreOfADeletedPlaylistOffersToRecreateItFromTheSnapshot() {
         Music music = new Music();
         put(music, "p", t("a", false, "x"), t("b", false, "x"));

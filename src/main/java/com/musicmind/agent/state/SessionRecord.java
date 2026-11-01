@@ -29,20 +29,31 @@ public final class SessionRecord {
     static String derivedData(RunContext ctx) {
         Map<String, Object> derived = new LinkedHashMap<>();
         if (ctx.plan != null) {
-            PlaylistSpec spec = ctx.spec();
-            Map<String, Object> s = new LinkedHashMap<>();
-            s.put("targetMinutes", spec.targetMinutes());
-            s.put("allowExplicit", spec.allowExplicit());
-            s.put("familiarRatio", spec.familiarRatio());
-            s.put("blockedArtists", spec.blockedArtists());
-            s.put("name", spec.name());
-            derived.put("spec", s);
+            derived.put("spec", specData(ctx.spec()));
             derived.put("seedGenres", ctx.plan.seedGenres());
         }
         if (ctx.playlist != null) {
             derived.put("trackIds", ctx.recommendations.stream().map(r -> r.track().id()).toList());
         }
         return GSON.toJson(derived);
+    }
+
+    /** The derived data of a playlist made without a planning run: its spec and track ids. */
+    public static String derivedData(PlaylistSpec spec, List<String> trackIds) {
+        Map<String, Object> derived = new LinkedHashMap<>();
+        derived.put("spec", specData(spec));
+        derived.put("trackIds", trackIds);
+        return GSON.toJson(derived);
+    }
+
+    private static Map<String, Object> specData(PlaylistSpec spec) {
+        Map<String, Object> s = new LinkedHashMap<>();
+        s.put("targetMinutes", spec.targetMinutes());
+        s.put("allowExplicit", spec.allowExplicit());
+        s.put("familiarRatio", spec.familiarRatio());
+        s.put("blockedArtists", spec.blockedArtists());
+        s.put("name", spec.name());
+        return s;
     }
 
     /**
