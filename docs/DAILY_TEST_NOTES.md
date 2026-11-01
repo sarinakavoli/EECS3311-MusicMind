@@ -159,3 +159,161 @@ brew services start postgresql@17
 - `blockedArtists` takes Spotify artist ids, not names.
 - `profile --range` always rebuilds.
 - `trends` compares the newest and oldest ranges that have data, so medium is shown but not compared when all three exist.
+
+## Sun Nov 1: the complete CLI (Tasks 10-12)
+
+**Before you start:** `.env` needs `SPOTIFY_CLIENT_ID` and `LLM_API_KEY`, and PostgreSQL must be running (`brew services start postgresql@17`). Log in to Spotify when the browser opens. This section runs `create`, `modify`, `undo`, `validate`, `explain`, `history` and `restore` against real Spotify and OpenAI for the first time.
+
+**Warning: `create` makes a real private playlist in your Spotify library.** `modify`, `undo` and `restore` then change that playlist. Run those three only on the playlist that step 3 creates. Delete it in Spotify when you are done (MusicMind never deletes a playlist except to roll back a failed run). The playlist is private and only you can see it.
+
+### 1. Build the commands
+
+```bash
+env -u JAVA_HOME ./gradlew build
+env -u JAVA_HOME ./gradlew installDist
+```
+
+**Expected:** `BUILD SUCCESSFUL` both times, with about 565 tests passing in the first. The second creates `build/install/musicmind/bin/musicmind` (CLI) and `build/install/musicmind/bin/musicmind-gui` (GUI). The rest of this section uses the CLI script; `./gradlew runCli --args="..."` takes the same arguments.
+
+```bash
+build/install/musicmind/bin/musicmind help
+```
+
+**Expected:** every command with its syntax: `login`, `help`, `exit`, `profile`, `trends`, `search`, `discover`, `create`, `modify`, `undo`, `validate`, `prefs`, `feedback`, `explain`, `history`, `restore`.
+
+### 2. Login and exit codes
+
+```bash
+build/install/musicmind/bin/musicmind login
+```
+
+**Expected:** `Logged in to Spotify as <your Spotify user id>.` The line `Opening your browser to connect Spotify...` appears only on a run that really opens the browser (the first, or after your saved login is rejected), and not on later runs.
+
+```bash
+build/install/musicmind/bin/musicmind frobnicate; echo "status: $?"
+```
+
+**Expected:** `Unknown command: frobnicate`, the help list, and `status: 2`. A command that fails (for example Spotify is unreachable) gives `status: 1`; success gives `status: 0`.
+
+### 3. Create a playlist (F5, F11): makes a real private playlist
+
+```bash
+build/install/musicmind/bin/musicmind create "a calm 30 minute mix for studying" --minutes 30 --no-explicit --name "MusicMind test"
+```
+
+**Expected:** progress lines (`planning...`, `retrieving...`, and so on), then `Created "MusicMind test" (<playlist id>) with N tracks:` with a numbered list, any `Notice:` lines, an explanation, and the Spotify attribution. Total length is within 10% of 30 minutes. Copy the playlist id from the `Created` line. **Every later step that says `<playlist id>` needs that id typed in place of the placeholder**, so nothing is left to guess.
+
+To see the negotiation prompt, ask for something impossible:
+
+```bash
+build/install/musicmind/bin/musicmind create "an energetic workout mix" --minutes 600 --familiar 1
+```
+
+**Expected:** `Problem:` lines and a numbered list of changes, then a prompt `Choose an option (1-N), or anything else to cancel:`. Type `x` and Enter: `Cancelled. Nothing was created or changed on Spotify.` and `status: 1`. Check your Spotify library: no new playlist.
+
+### 4. Validate and explain (F7, F10)
+
+Replace `<playlist id>` with the id from step 3.
+
+```bash
+build/install/musicmind/bin/musicmind validate <playlist id>
+```
+
+**Expected:** `Checked against the constraints saved when this playlist was created.` and `PASS: the playlist meets every constraint.` (status 0).
+
+```bash
+build/install/musicmind/bin/musicmind explain <playlist id>
+```
+
+**Expected:** a short paragraph about why tracks were chosen, mentioning only the strategy, the counts and the reasons recorded at creation. A line ending in `[computed from your listening data, not AI-written]` means the LLM text was rejected or unavailable; that fallback is correct.
+
+### 5. Modify and undo (F6)
+
+Replace `<playlist id>` with the id from step 3. This changes the playlist.
+
+```bash
+build/install/musicmind/bin/musicmind modify <playlist id> "remove the first track"
+```
+
+**Expected:** `Changed: ...` naming one removal, `The playlist now has N-1 tracks`, and the attribution. Open the playlist in Spotify: one track fewer.
+
+```bash
+build/install/musicmind/bin/musicmind undo <playlist id>
+```
+
+**Expected:** `Undone: the playlist is back as it was before the last change.` and the track is back in its old place. Because each CLI run is a new process, this uses the snapshot saved before the change.
+
+```bash
+build/install/musicmind/bin/musicmind modify <playlist id> "make it calmer"
+```
+
+**Expected:** a mood edit labelled `Approximate: Spotify gives no mood data to this app ...`.
+
+### 6. History and restore (F12)
+
+```bash
+build/install/musicmind/bin/musicmind history
+```
+
+**Expected:** the sessions you just ran (`CREATE_PLAYLIST`, `MODIFY_PLAYLIST`, and the earlier profile builds), then `Saved playlist versions (restore <id>):` with a number, time, playlist id, name and track count per line. Copy the number of the oldest version of your test playlist.
+
+Replace `<snapshot id>` with that number. This changes the playlist.
+
+```bash
+build/install/musicmind/bin/musicmind restore <snapshot id>
+```
+
+**Expected:** `Restored "MusicMind test" (<playlist id>): N tracks. Undo with: undo <playlist id>`. To check the deleted-playlist path, delete the test playlist in Spotify and run the same command again: it says the playlist no longer exists and asks `Recreate it now? (y/N):`; `y` creates a new playlist from the saved version.
+
+### 7. Feedback validation (F9)
+
+```bash
+build/install/musicmind/bin/musicmind feedback TRACK_ID reject; echo "status: $?"
+```
+
+**Expected:** this is the failing case on purpose. It prints `That is not a Spotify track id...`, `Usage: feedback <trackId> accept|reject`, `status: 2`, and saves nothing. (`TRACK_ID` is typed literally here.) To save a real verdict, take an id from `discover` or `create` output and replace `<track id>`:
+
+```bash
+build/install/musicmind/bin/musicmind feedback <track id> reject
+```
+
+**Expected:** `Recorded: reject for <track id>`.
+
+### 8. Interactive session
+
+```bash
+build/install/musicmind/bin/musicmind
+```
+
+Type `prefs list`, press Enter, then `exit`, press Enter.
+
+**Expected:** the help list, a `musicmind>` prompt that runs each line as a command, and `Goodbye.` on `exit`.
+
+### 9. Trends coverage and search order (live fixes)
+
+```bash
+build/install/musicmind/bin/musicmind trends
+```
+
+**Expected:** under each range a line like `genre data: 12 of 20 artists`. When a range has genre data for fewer than half of its artists you also see a `Notice:` that says genre coverage is partial, and the narrative says so instead of claiming a change in genres. Many Persian artists have no MusicBrainz genres, so partial coverage is likely on your account.
+
+```bash
+build/install/musicmind/bin/musicmind search "calm music for studying"
+```
+
+**Expected:** Spotify's own best matches first. A track whose title only repeats your words should no longer jump to the top.
+
+**Built today:** F5 create with F11 negotiation, F6 modify and undo, F7 validate, F10 explain, F12 history and restore, the `login` and `exit` commands, an interactive session, exit statuses, track-id validation for `feedback`, genre coverage in `trends`, retuned search ranking, and `bin/musicmind` and `bin/musicmind-gui` from `installDist`.
+
+**Verified:** the build and the automated tests (stand-in Spotify and LLM services, embedded database). On the real scripts only `help`, an unknown command (status 2), `feedback` with a bad id (status 2, nothing saved), and the GUI script starting (JavaFX loads) were run. The GUI window was not exercised.
+
+**Not verified live:**
+- `create` (including the F11 prompt), `modify`, `undo`, `validate`, `explain`, `history` and `restore` against your real Spotify account and OpenAI. Expect surprises in how well the LLM reads edits, in mood edits, and in how Spotify answers for playlists you do not own.
+- Whether the browser warning prints exactly once on your machine, and not on later runs.
+- The coverage threshold (`trends.minGenreCoverage`, 0.5) and the new search weights (0.9 Spotify order, 0.1 title match) on your real data. Tell me if `trends` is too cautious or `search` still puts odd titles first.
+- `restore` for a deleted playlist, and the interactive session on a real terminal.
+
+**Known limits for now:**
+- A playlist saved before `savedCapped` was stored is treated as not cut short.
+- `modify` does not ask questions through the F11 prompt; an unclear edit stops with a message asking you to rephrase.
+- `explain` and `history` work from stored data, so the track titles are not shown (only ids and counts).
