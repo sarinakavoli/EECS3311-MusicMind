@@ -187,7 +187,7 @@ build/install/musicmind/bin/musicmind help
 build/install/musicmind/bin/musicmind login
 ```
 
-**Expected:** `Logged in to Spotify as <your Spotify user id>.` The line `Opening your browser to connect Spotify...` appears only on a run that really opens the browser (the first, or after your saved login is rejected), and not on later runs.
+**Expected:** `Logged in to Spotify as <your Spotify user id>.` The line `Opening your browser to connect Spotify...` appears only when no saved login exists (the first run), and not on later runs. If a saved login exists but Spotify rejects it, the browser still opens, with no warning line.
 
 ```bash
 build/install/musicmind/bin/musicmind frobnicate; echo "status: $?"
@@ -249,6 +249,14 @@ build/install/musicmind/bin/musicmind modify <playlist id> "make it calmer"
 
 **Expected:** a mood edit labelled `Approximate: Spotify gives no mood data to this app ...`.
 
+Modify can also run into F11. Ask for an edit that cannot be applied as asked:
+
+```bash
+build/install/musicmind/bin/musicmind modify <playlist id> "shorten it by 600 minutes"
+```
+
+**Expected:** if the edit would remove every track, a `Problem:` line and an option such as `Apply only the first N of M changes, leaving K track(s)` with the prompt `Choose an option (1-1), or anything else to cancel:`. Type `x` and Enter: `Cancelled. The playlist was not changed.` and nothing changes in Spotify. Run it again and type `1`: the smaller edit is applied (undo it with `undo <playlist id>`). If the model answers with a smaller edit that is fine, you will see no prompt. Replace `<playlist id>` with the id from step 3 first.
+
 ### 6. History and restore (F12)
 
 ```bash
@@ -298,22 +306,23 @@ build/install/musicmind/bin/musicmind trends
 **Expected:** under each range a line like `genre data: 12 of 20 artists`. When a range has genre data for fewer than half of its artists you also see a `Notice:` that says genre coverage is partial, and the narrative says so instead of claiming a change in genres. Many Persian artists have no MusicBrainz genres, so partial coverage is likely on your account.
 
 ```bash
-build/install/musicmind/bin/musicmind search "calm music for studying"
+build/install/musicmind/bin/musicmind search "upbeat indie songs for running"
 ```
 
-**Expected:** Spotify's own best matches first. A track whose title only repeats your words should no longer jump to the top.
+**Expected:** results for indie and pop music, not titles such as "Upbeat Corporate Inspiration". Mood words like `upbeat` are no longer sent to Spotify (it matches them against track titles); MusicMind replaces them with a genre from its mood map (for `upbeat`, `indie pop`). The LLM is also told not to put mood words in the search. With no LLM key, or when the reply is unclear, the text is searched exactly as typed and labelled, so stock titles can still appear then.
 
-**Built today:** F5 create with F11 negotiation, F6 modify and undo, F7 validate, F10 explain, F12 history and restore, the `login` and `exit` commands, an interactive session, exit statuses, track-id validation for `feedback`, genre coverage in `trends`, retuned search ranking, and `bin/musicmind` and `bin/musicmind-gui` from `installDist`.
+**Built today:** F5 create with F11 negotiation, F6 modify and undo, F7 validate, F10 explain, F12 history and restore, F11 prompts during `modify`, the `login` and `exit` commands, mood words kept out of Spotify searches, an interactive session, exit statuses, track-id validation for `feedback`, genre coverage in `trends`, retuned search ranking, and `bin/musicmind` and `bin/musicmind-gui` from `installDist`.
 
 **Verified:** the build and the automated tests (stand-in Spotify and LLM services, embedded database). On the real scripts only `help`, an unknown command (status 2), `feedback` with a bad id (status 2, nothing saved), and the GUI script starting (JavaFX loads) were run. The GUI window was not exercised.
 
 **Not verified live:**
 - `create` (including the F11 prompt), `modify`, `undo`, `validate`, `explain`, `history` and `restore` against your real Spotify account and OpenAI. Expect surprises in how well the LLM reads edits, in mood edits, and in how Spotify answers for playlists you do not own.
 - Whether the browser warning prints exactly once on your machine, and not on later runs.
+- How the LLM turns real instructions such as "shorten it by 600 minutes" into steps, and whether the new search query text gives good results on your account.
 - The coverage threshold (`trends.minGenreCoverage`, 0.5) and the new search weights (0.9 Spotify order, 0.1 title match) on your real data. Tell me if `trends` is too cautious or `search` still puts odd titles first.
 - `restore` for a deleted playlist, and the interactive session on a real terminal.
 
 **Known limits for now:**
 - A playlist saved before `savedCapped` was stored is treated as not cut short.
-- `modify` does not ask questions through the F11 prompt; an unclear edit stops with a message asking you to rephrase.
+- The F11 prompt in `modify` covers edits that would leave the playlist outside its length limits (for example empty). An unclear edit still stops with a message asking you to rephrase.
 - `explain` and `history` work from stored data, so the track titles are not shown (only ids and counts).
