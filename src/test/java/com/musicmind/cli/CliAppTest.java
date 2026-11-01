@@ -493,11 +493,11 @@ class CliAppTest extends PostgresTestBase {
     void feedbackWithAnIdThatIsNotATrackIdSavesNothingAndShowsTheUsage() {
         AppController c = controller(new Music(), null);
 
-        for (String bad : List.of("TRACK_ID", "t1", "spotify:album:" + TRACK_ID, TRACK_ID + "x", "")) {
+        for (String bad : List.of("TRACK_ID", "t1", "spotify:album:" + TRACK_ID, TRACK_ID + "x")) {
             Result r = run(c, "", "feedback", bad, "accept");
 
             assertEquals(CliApp.USAGE, r.status(), bad);
-            assertTrue(r.err().contains(config.wording("cliBadTrackId")), r.err());
+            assertTrue(r.err().contains(config.wording("feedbackBadTrackId")), r.err());
             assertTrue(r.err().contains(usage("feedback")), r.err());
         }
         assertTrue(c.memory().loadFeedback("sp-user").isEmpty(), "nothing was saved");

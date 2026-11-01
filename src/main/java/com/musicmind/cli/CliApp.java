@@ -479,10 +479,12 @@ public class CliApp {
         if (verdict == null) {
             return usage("feedback", null);
         }
-        if (!config.feedbackTrackIdPattern().matcher(rest[0].strip()).matches()) {
-            return usage("feedback", config.wording("cliBadTrackId"));
-        }
         AppController c = controller();
+        try {
+            c.requireTrackId(rest[0]);   // before signing in: a bad id needs no Spotify
+        } catch (IllegalArgumentException e) {
+            return usage("feedback", e.getMessage());
+        }
         if (c.isSpotifyConfigured() && signIn() == null) {
             return FAILED;
         }

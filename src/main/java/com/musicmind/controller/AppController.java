@@ -486,17 +486,28 @@ public class AppController {
      * @throws IllegalArgumentException if the track id is blank or the verdict is missing
      */
     public void recordFeedback(String trackId, Verdict verdict) {
-        if (trackId == null || trackId.isBlank()) {
-            throw new IllegalArgumentException("Give the id of the track.");
-        }
+        String id = requireTrackId(trackId);
         if (verdict == null) {
             throw new IllegalArgumentException("Choose accept or reject.");
         }
-        String id = trackId.strip();
-        if (id.startsWith(TRACK_URI_PREFIX)) {
-            id = id.substring(TRACK_URI_PREFIX.length());
-        }
         memory.saveFeedback(new Feedback(id, verdict, Instant.now()));
+    }
+
+    /**
+     * The bare track id for a typed id or {@code spotify:track:} URI, stripped of spaces. Views call this to
+     * reject a bad id before doing anything else.
+     *
+     * @throws IllegalArgumentException with a message fit to show if it is blank or not shaped like a Spotify track id
+     */
+    public String requireTrackId(String trackId) {
+        if (trackId == null || trackId.isBlank()) {
+            throw new IllegalArgumentException("Give the id of the track.");
+        }
+        String id = trackId.strip();
+        if (!config.feedbackTrackIdPattern().matcher(id).matches()) {
+            throw new IllegalArgumentException(config.wording("feedbackBadTrackId"));
+        }
+        return id.startsWith(TRACK_URI_PREFIX) ? id.substring(TRACK_URI_PREFIX.length()) : id;
     }
 
     /** The id data is stored under: the logged-in user (signing in if needed), or the local user without Spotify. */

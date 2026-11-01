@@ -56,7 +56,7 @@ class AppControllerDiscoverTest extends PostgresTestBase {
             calls.add("search " + query);
             if (!query.equals("rock")) return List.of();
             return IntStream.range(0, 12).mapToObj(i ->
-                    new Track("n" + i, "spotify:track:n" + i, "N" + i, 1000, i == 3, List.of("x" + i))).toList();
+                    new Track(nid(i), "spotify:track:" + nid(i), "N" + i, 1000, i == 3, List.of("x" + i))).toList();
         }
         @Override public List<com.musicmind.domain.Album> getArtistAlbums(String id) { return List.of(); }
     }
@@ -123,7 +123,7 @@ class AppControllerDiscoverTest extends PostgresTestBase {
             return List.of(new Track("new-" + artist, "spotify:track:new-" + artist, "New", 1000, false, List.of(artist)));
         }
         @Override public List<Track> search(String query, int limit) {
-            return IntStream.range(0, 12).mapToObj(i -> new Track("n" + i, "spotify:track:n" + i, "N" + i, 1000, false,
+            return IntStream.range(0, 12).mapToObj(i -> new Track(nid(i), "spotify:track:" + nid(i), "N" + i, 1000, false,
                     List.of(i % 3 == 0 ? "a" + (i % 6) : "x" + i))).toList();
         }
     }
@@ -232,18 +232,18 @@ class AppControllerDiscoverTest extends PostgresTestBase {
 
         List<Recommendation> recs = c.discover(c.discoverSpec(0.5));
 
-        assertFalse(ids(recs).contains("n0") || ids(recs).contains("n1") || ids(recs).contains("t0"), ids(recs).toString());
+        assertFalse(ids(recs).contains(nid(0)) || ids(recs).contains(nid(1)) || ids(recs).contains("t0"), ids(recs).toString());
         assertFalse(recs.isEmpty());
     }
 
     @Test
     void explicitPolicyBlockRemovesExplicitTracks() {
         AppController c = controller(new Music());
-        assertTrue(ids(c.discover(c.discoverSpec(1.0))).contains("n3"), "explicit allowed by default");
+        assertTrue(ids(c.discover(c.discoverSpec(1.0))).contains(nid(3)), "explicit allowed by default");
 
         c.setPreference(new UserPreference("explicitPolicy", "block", false, 0.5));
 
-        assertFalse(ids(c.discover(c.discoverSpec(1.0))).contains("n3"));
+        assertFalse(ids(c.discover(c.discoverSpec(1.0))).contains(nid(3)));
     }
 
     @Test
@@ -281,33 +281,59 @@ class AppControllerDiscoverTest extends PostgresTestBase {
         assertThrows(IllegalArgumentException.class, () -> c.setPreference(new UserPreference(" ", "x", false, 0.5)));
     }
 
+    /** A syntactically valid Spotify track id (22 characters) for the test track number {@code i}. */
+    private static String nid(int i) {
+        return String.format("n%021d", i);
+    }
+
     @Test
     void feedbackIsStoredOncePerTrackAndChangesLaterRecommendations() {
         AppController c = controller(new Music());
         PlaylistSpec spec = c.discoverSpec(1.0);
         List<String> before = ids(c.discover(spec));
-        assertTrue(before.contains("n7"));
+        assertTrue(before.contains(nid(7)));
 
-        c.recordFeedback("n7", Verdict.REJECT);
-        c.recordFeedback("spotify:track:n7", Verdict.REJECT);
-        c.recordFeedback("n8", Verdict.ACCEPT);
+        c.recordFeedback(nid(7), Verdict.REJECT);
+        c.recordFeedback("spotify:track:" + nid(7), Verdict.REJECT);
+        c.recordFeedback(nid(8), Verdict.ACCEPT);
 
         List<Feedback> stored = c.memory().loadFeedback("sp-user");
         assertEquals(2, stored.size(), "repeat feedback on a track is an upsert");
         List<String> after = ids(c.discover(spec));
-        assertEquals("n7", after.get(after.size() - 1), "a rejected track sinks to the bottom: " + after);
-        assertEquals("n8", after.get(0));
+        assertEquals(nid(7), after.get(after.size() - 1), "a rejected track sinks to the bottom: " + after);
+        assertEquals(nid(8), after.get(0));
 
-        c.recordFeedback("n7", Verdict.ACCEPT);
+        c.recordFeedback(nid(7), Verdict.ACCEPT);
         assertEquals(Verdict.ACCEPT, c.memory().loadFeedback("sp-user").stream()
-                .filter(f -> f.trackId().equals("n7")).findFirst().orElseThrow().verdict());
+                .filter(f -> f.trackId().equals(nid(7))).findFirst().orElseThrow().verdict());
+    }
+
+    @Test
+    void feedbackRejectsAnIdThatIsNotATrackIdAndSavesNothing() {
+        AppController c = controller(new Music());
+
+        for (String bad : List.of("TRACK_ID", "n7", "spotify:album:" + nid(7), nid(7) + "x")) {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                    () -> c.recordFeedback(bad, Verdict.ACCEPT), bad);
+            assertEquals(config.wording("feedbackBadTrackId"), e.getMessage());
+        }
+        assertTrue(c.memory().loadFeedback("sp-user").isEmpty());
+    }
+
+    @Test
+    void feedbackSavesTheStrippedIdWithoutTheUriPrefix() {
+        AppController c = controller(new Music());
+
+        c.recordFeedback("  spotify:track:" + nid(5) + " ", Verdict.ACCEPT);
+
+        assertEquals(nid(5), c.memory().loadFeedback("sp-user").get(0).trackId());
     }
 
     @Test
     void feedbackNeedsATrackAndAVerdict() {
         AppController c = controller(new Music());
         assertThrows(IllegalArgumentException.class, () -> c.recordFeedback(" ", Verdict.ACCEPT));
-        assertThrows(IllegalArgumentException.class, () -> c.recordFeedback("n1", null));
+        assertThrows(IllegalArgumentException.class, () -> c.recordFeedback(nid(1), null));
     }
 
     @Test
@@ -344,7 +370,7 @@ class AppControllerDiscoverTest extends PostgresTestBase {
         assertNotNull(c.memory().warning());
         c.setPreference(new UserPreference("familiarBias", "0.3", false, 0.3));
         assertTrue(c.memory().warning().toLowerCase().contains("unavailable"));
-        c.recordFeedback("n1", Verdict.REJECT);
+        c.recordFeedback(nid(1), Verdict.REJECT);
         assertTrue(c.memory().warning().toLowerCase().contains("unavailable"));
     }
 
