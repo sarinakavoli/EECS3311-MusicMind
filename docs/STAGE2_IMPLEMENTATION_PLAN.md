@@ -7,7 +7,14 @@ Plain-text extracts for implementers live beside the task briefs in `spec/` (pat
 patterns, commands and GUI screens match Stage 1. Where this plan and the report disagree, the report wins,
 except for the rulings in "Resolved Stage 1 conflicts" below.
 
-**Branch:** `phase1-spine-f1` (open PR #1). Never commit to `main` directly. Merge at the end with a merge commit (never squash) so every commit keeps its real date for the weekly summary.
+**Branches and PRs:** never commit to `main` directly. Always merge with a merge commit, never squash, so every commit keeps its real date for the weekly summary. Sarina approves each merge.
+
+| PR | Branch | Holds | Tasks |
+|---|---|---|---|
+| #1 | `phase1-spine-f1` | CLI and all 12 features | 1-12, 18-24 |
+| Next | `stage2-gui`, from `main` after PR #1 merges | GUI | 13 |
+| Next | `stage2-docs`, from `main` after the GUI merges | Docs, UML, report, final verification | 14-17 |
+
 
 ## Daily schedule
 
@@ -321,6 +328,21 @@ Run before Task 13. Stage 1 F7 says the validator's result "drives the adjustmen
 - Fix the duplicated `createFewGenreMatches` notice: a run shows the latest selection's notice once.
 
 Tests: a violating edit is re-planned then applied; retries are bounded; still failing goes to negotiation; cancel gives zero writes; a shorter-by-N edit is not blocked by the old target; no duplicate notice in a validation-retry run.
+
+### Task 24: Items before merging PR #1
+
+Run before PR #1 merges. Fixes from live testing and reviews.
+
+1. `restore` on a playlist that already matches the snapshot says so, with no undo hint.
+2. After a deliberate length change, `validate` must not report a duration failure against the old target. An edit that states a new length updates the playlist's stored target; `undo` and `restore` put the earlier target back.
+3. Keep the duration notice for edits that did not ask to change length.
+4. An LLM failure during a re-plan falls through to negotiation with the current plan instead of aborting. Stop re-planning when a new plan equals the previous one.
+5. `verifyExplanation` must reject claims of user preference not in the trace, such as "genres you love" when the genres came from the goal. Add the goal's seed genres to the trace as requested genres, and have the prompt say so.
+6. The genre-match count means tracks found through a requested genre, or by an artist whose leading genre (first in the ordered list) is requested, so "129 of 150" cannot overstate.
+7. `discover` and F5: a genre search result whose title is only the genre word ranks below other results from the same search, as a small config-weighted penalty. Nothing is filtered.
+8. `SearchRanker` and Task 12 keep working.
+
+Tests for each item.
 
 ### Task 14: Documentation and conformance
 
