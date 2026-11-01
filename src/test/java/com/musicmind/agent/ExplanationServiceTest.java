@@ -143,4 +143,13 @@ class ExplanationServiceTest {
 
         assertFalse(text.contains(ID1) || text.contains(ID2), text);
     }
+
+    @Test
+    void aTitleWithDoubleQuotesCannotBreakTheQuotedForm() {
+        String reply = "[" + ID1 + "] is new to you.";
+
+        String text = service(p -> reply).explain(session(LONG_IDS), Map.of(ID1, "The \"Big\" One"));
+
+        assertEquals("\"The 'Big' One\" is new to you.", text);
+    }
 }

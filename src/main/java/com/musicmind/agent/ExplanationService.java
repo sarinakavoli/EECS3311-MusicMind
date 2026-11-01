@@ -48,7 +48,7 @@ public class ExplanationService {
             try {
                 String verified = parser.verifyExplanation(llm.complete(prompts.buildExplainPrompt(trace)), trace);
                 return parser.replaceTrackIds(verified, id -> titles.containsKey(id)
-                        ? "\"" + titles.get(id) + "\"" : config.wording("explainTrackGeneral"));
+                        ? "\"" + titles.get(id).replace('"', '\'') + "\"" : config.wording("explainTrackGeneral"));
             } catch (RuntimeException e) {
                 // fall back to the computed explanation below
             }

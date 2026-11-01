@@ -203,22 +203,26 @@ public class RecommendationEngine {
             genres.subList(0, Math.min(genreLimit, genres.size()))
                     .forEach(g -> novel.addAll(retrieval.genreTracks.get(g)));
             selection = select(retrieval.library, retrieval.libraryIds, novel, working);
+            // F5 (library allowed) only reads more genres; the familiar ratio and strategy are the user's.
+            // Lowering the novelty target is F4's.
             boolean canWiden = steps < config.discoverWidenSteps()
-                    && (genreLimit < genres.size() || ratio < 1.0);
+                    && (genreLimit < genres.size() || (!allowLibraryTracks && ratio < 1.0));
             if (enough(selection, working) || !canWiden) {
                 break;
             }
             steps++;
             genreLimit += config.discoverWidenGenresPerStep();
-            ratio = Math.min(1.0, ratio + config.discoverWidenNoveltyStep());
-            runStrategy = selector.select(ratio);
+            if (!allowLibraryTracks) {
+                ratio = Math.min(1.0, ratio + config.discoverWidenNoveltyStep());
+                runStrategy = selector.select(ratio);
+            }
         }
 
         if (retriever.successes() == 0 && !retriever.errors().isEmpty()) {
             throw new MusicServiceException(String.format(config.wording("discoverAllReadsFailed"), retriever.errors().size()));
         }
         this.searchedSeeds = retrieval.seedGenres.stream().filter(retrieval.genreTracks::containsKey).toList();
-        if (steps > 0) {
+        if (steps > 0 && !allowLibraryTracks) {
             notes.add(String.format(config.wording("discoverWidened"), Math.min(genreLimit, genres.size()),
                     percent(1 - startRatio), percent(1 - ratio)));
         }
@@ -227,13 +231,12 @@ public class RecommendationEngine {
             notes.add(selection.removedBlocked() + selection.removedExplicit() > 0
                     ? String.format(config.wording("discoverAllFiltered"), filterSummary(selection))
                     : config.wording("discoverNoResults"));
-        } else if (steps > 0 && !enough(selection, withRatio(spec, ratio))) {
+        } else if (steps > 0 && !allowLibraryTracks && !enough(selection, withRatio(spec, ratio))) {
             notes.add(String.format(config.wording("discoverFewResults"), result.size()));
         }
         if (allowLibraryTracks && !result.isEmpty()) {
             int wantedNew = (int) Math.round(result.size() * (1 - spec.familiarRatio()));
-            // A widening notice already says the novelty target was lowered; say it here when nothing widened.
-            if (steps == 0 && selection.novelSelected() < wantedNew) {
+            if (selection.novelSelected() < wantedNew) {
                 notes.add(String.format(config.wording("createFewNewArtists"), selection.novelSelected(), wantedNew));
             }
             if (!seedGenres.isEmpty() && selection.seedMatched() < result.size()) {

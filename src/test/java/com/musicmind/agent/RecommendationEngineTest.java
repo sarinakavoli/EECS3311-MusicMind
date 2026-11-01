@@ -328,7 +328,7 @@ class RecommendationEngineTest {
         RecommendationEngine e = engine(m);
         e.setStrategy(new BalancedStrategy());
 
-        List<Recommendation> recs = e.recommend(profile(), spec(0.3), List.of());
+        List<Recommendation> recs = e.recommend(profile(), spec(0.3), List.of(), false);
 
         assertEquals(10, recs.size());
         assertEquals(6, m.searches.size(), "initial 3 genres, then 3 more");
@@ -356,11 +356,11 @@ class RecommendationEngineTest {
         m.byGenre.put("rock", unknownTracks("g0-", 1));
         RecommendationEngine e = engine(m);
 
-        List<Recommendation> recs = e.recommend(profile(), spec(0.5), List.of());
+        List<Recommendation> recs = e.recommend(profile(), spec(0.5), List.of(), false);
 
-        assertEquals(2, recs.size());
+        assertEquals(1, recs.size());
         assertEquals(2, e.lastNotices().size());
-        assertTrue(e.lastNotices().get(1).contains("Only 2"), e.lastNotices().toString());
+        assertTrue(e.lastNotices().get(1).contains("Only 1"), e.lastNotices().toString());
         assertEquals(6, m.searches.size(), "6 genres in all: 3 initial plus two steps capped by what the profile has");
     }
 
@@ -595,9 +595,9 @@ class RecommendationEngineTest {
         FamiliarStrategy mine = new FamiliarStrategy();
         e.setStrategy(mine);
 
-        e.recommend(profile(), spec(0.5), List.of()); // too few: widens, ratio rises
+        e.recommend(profile(), spec(0.5), List.of(), false); // too few: widens, ratio rises
         assertFalse(e.lastNotices().isEmpty(), "widening happened");
-        e.recommend(profile(), spec(0.5), List.of());
+        e.recommend(profile(), spec(0.5), List.of(), false);
 
         assertEquals("FamiliarStrategy", e.lastTrace().strategyName());
         try {
@@ -738,14 +738,53 @@ class RecommendationEngineTest {
     }
 
     @Test
-    void tooFewNewArtistsSaysSoInsteadOfFillingSilently() {
+    void tooFewNewArtistsKeepsTheOneThatExistsAndSaysSoInsteadOfFillingSilently() {
         FakeMusic m = knownArtistAlbumMusic();
         m.byGenre.clear();
         m.byGenre.put("rock", unknownTracks("r", 1));
         RecommendationEngine e = engine(m);
 
-        e.recommend(profile(), spec(0.7), List.of(), true);
+        List<Recommendation> recs = e.recommend(profile(), spec(0.7), List.of(), true);
 
+        assertEquals(10, recs.size());
+        assertEquals(1, unknownArtistCount(recs), ids(recs) + " " + e.lastNotices());
+        assertTrue(ids(recs).contains("r0"));
+        assertTrue(e.lastNotices().stream().anyMatch(n -> n.contains("1 of 3") && n.contains("new to you")),
+                e.lastNotices().toString());
+        assertTrue(e.lastNotices().stream().noneMatch(n -> n.contains("novelty target")), e.lastNotices().toString());
+    }
+
+    @Test
+    void f5ReadsMoreGenresBeforeGivingUpOnNewArtists() {
+        FakeMusic m = knownArtistAlbumMusic();
+        m.byGenre.clear();
+        m.byGenre.put("rock", unknownTracks("r", 1));
+        m.byGenre.put("soul", unknownTracks("s", 4)); // the sixth genre, read only after widening
+        RecommendationEngine e = engine(m);
+
+        List<Recommendation> recs = e.recommend(profile(), spec(0.7), List.of(), true);
+
+        assertEquals(6, m.searches.size(), m.searches.toString());
+        assertEquals(3, unknownArtistCount(recs), ids(recs).toString());
+        assertTrue(e.lastNotices().isEmpty(), e.lastNotices().toString());
+    }
+
+    @Test
+    void f4WideningStillLowersTheNoveltyTarget() {
+        FakeMusic m = new FakeMusic();
+        m.byGenre.put("rock", unknownTracks("g0-", 1));
+        m.byGenre.put("indie", unknownTracks("g1-", 1));
+        m.byGenre.put("jazz", unknownTracks("g2-", 1));
+        m.byGenre.put("blues", unknownTracks("g3-", 1));
+        m.byGenre.put("folk", unknownTracks("g4-", 1));
+        m.byGenre.put("soul", unknownTracks("g5-", 1));
+        m.albumsByArtist.put("a1", List.of(new Album("alb1", "Album", "2020")));
+        m.tracksByAlbum.put("alb1", IntStream.range(0, 8).mapToObj(i -> track("deep" + i, "a1")).toList());
+        RecommendationEngine e = engine(m);
+
+        e.recommend(profile(), spec(0.3), List.of(), false);
+
+        assertEquals(6, m.searches.size());
         assertTrue(e.lastNotices().stream().anyMatch(n -> n.contains("novelty target")), e.lastNotices().toString());
     }
 
