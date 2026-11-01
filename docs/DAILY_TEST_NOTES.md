@@ -326,3 +326,9 @@ build/install/musicmind/bin/musicmind search "upbeat indie songs for running"
 - A playlist saved before `savedCapped` was stored is treated as not cut short.
 - The F11 prompt in `modify` covers edits that would leave the playlist outside its length limits (for example empty). An unclear edit still stops with a message asking you to rephrase.
 - `explain` and `history` work from stored data, so the track titles are not shown (only ids and counts).
+
+### Update after live checks (Nov 1)
+
+Already run live on the test playlists: `create`, `validate`, `explain`, `history`, `modify` and `undo`. Stage 1's example gave 27 tracks with 8 by new artists (30%), and "make it 15 minutes shorter" removed 3 tracks and `undo` put them back.
+
+**Known limit:** after a deliberate length change, `validate` still compares against the original target, so it reports a duration failure. Still to check live: `restore` and the negotiation prompt.
