@@ -17,6 +17,7 @@ public class ListeningProfile {
     private final List<String> notices;
     private String summary;
     private String range;
+    private boolean savedCapped;
 
     public ListeningProfile(Map<String, Double> genreHistogram,
                             List<Artist> topArtists,
@@ -129,4 +130,7 @@ public class ListeningProfile {
     /** The time range this profile covers (short, medium or long), or null if unknown. */
     public String range() { return range; }
     public void setRange(String range) { this.range = range; }
+    /** True when the saved-track read stopped at its cap, so a track the user saved may be missing from the profile. */
+    public boolean isSavedCapped() { return savedCapped; }
+    public void setSavedCapped(boolean savedCapped) { this.savedCapped = savedCapped; }
 }

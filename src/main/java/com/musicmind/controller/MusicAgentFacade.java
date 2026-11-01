@@ -182,7 +182,8 @@ public class MusicAgentFacade {
 
         List<String> errors = Fetch.errors(artists, topTracks, saved);
         List<String> notices = new ArrayList<>(errors);
-        if (saved.items() instanceof TrackList list && list.isTruncated()) {
+        boolean savedCapped = TrackList.isTruncated(saved.items());
+        if (savedCapped) {
             notices.add(savedTracksCappedNotice());
         }
         if (errors.size() == 3) {
@@ -193,6 +194,7 @@ public class MusicAgentFacade {
                 new TopItems(artists.items(), topTracks.items()), saved.items(), notices);
         ListeningProfile profile = withSummary(built);
         profile.setRange(r);
+        profile.setSavedCapped(savedCapped);
 
         AgentSession session = new AgentSession(UUID.randomUUID().toString(), Instant.now(), null);
         session.setStatus("done");
@@ -337,7 +339,7 @@ public class MusicAgentFacade {
         lastDiscoverNotices = List.of();
         lastDecisionTrace = null;
         List<String> notices = new ArrayList<>();
-        if (profile.notices().contains(savedTracksCappedNotice())) {
+        if (profile.isSavedCapped()) {
             notices.add(savedTracksCappedNotice());
         }
 
@@ -850,6 +852,7 @@ public class MusicAgentFacade {
         derived.put("savedTrackIds", p.savedTrackIds());
         derived.put("summary", p.summary());
         derived.put("partial", p.isPartial());
+        derived.put("savedCapped", p.isSavedCapped());
         derived.put("notices", p.notices());
         derived.put("generatedAt", p.generatedAt() == null ? null : p.generatedAt().toString());
         return GSON.toJson(derived);
@@ -883,6 +886,8 @@ public class MusicAgentFacade {
             ListeningProfile stored = new ListeningProfile(histogram, artists, tracks, strings(o, "savedTrackIds"),
                     summary, at, partial, strings(o, "notices"));
             stored.setRange(storedRange);
+            // Profiles stored before the flag existed carry none and load as not cut short.
+            stored.setSavedCapped(o.has("savedCapped") && o.get("savedCapped").getAsBoolean());
             return Optional.of(stored);
         } catch (JsonSyntaxException | IllegalStateException | ClassCastException | UnsupportedOperationException
                  | java.time.format.DateTimeParseException e) {

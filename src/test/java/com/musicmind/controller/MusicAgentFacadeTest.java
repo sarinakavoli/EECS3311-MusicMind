@@ -230,6 +230,27 @@ class MusicAgentFacadeTest extends PostgresTestBase {
     }
 
     @Test
+    void theCutShortFlagIsStoredAsAFieldAndSurvivesALoad() {
+        FakeMusic music = new FakeMusic();
+        music.saved = new com.musicmind.music.TrackList(tracks(3), true);
+        MemoryManager memory = memory();
+        MusicAgentFacade facade = facade(music, null, memory, tools(music, memory, new ArrayList<>()));
+
+        assertTrue(facade.analyzeTaste(USER).isSavedCapped());
+
+        assertTrue(memory.loadHistory("user-1").get(0).derivedData().contains("\"savedCapped\":true"));
+        assertTrue(facade.lastProfile(USER).orElseThrow().isSavedCapped());
+    }
+
+    @Test
+    void aCompleteSavedTracksListIsNotFlaggedAsCut() {
+        FakeMusic music = new FakeMusic();
+        music.saved = new com.musicmind.music.TrackList(tracks(3), false);
+
+        assertFalse(facade(music, null).analyzeTaste(USER).isSavedCapped());
+    }
+
+    @Test
     void aCompleteSavedTracksListAddsNoNotice() {
         FakeMusic music = new FakeMusic();
         music.saved = new com.musicmind.music.TrackList(tracks(3), false);
