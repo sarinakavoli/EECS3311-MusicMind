@@ -4,6 +4,11 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.musicmind.agent.command.AddItemsCommand;
+import com.musicmind.agent.command.PlaylistCommand;
+import com.musicmind.agent.command.RemoveTrackCommand;
+import com.musicmind.agent.command.ReorderCommand;
+import com.musicmind.agent.command.ReplaceTrackCommand;
 import com.musicmind.config.Config;
 import com.musicmind.domain.DecisionTrace;
 import com.musicmind.domain.PlaylistSpec;
@@ -25,8 +30,9 @@ import java.util.regex.Pattern;
  * Checks everything the LLM returns before the agent uses it. JSON may arrive in a code
  * fence or with surrounding prose; malformed or unverifiable output raises
  * {@link ParseException} so callers fall back. Numbers are clamped to the bounds in
- * {@code musicmind.properties}. {@code parseCommands} (which needs real playlist commands)
- * is added with those commands; this class yields {@link CommandSpec}s.
+ * {@code musicmind.properties}. {@code parseCommands} turns the
+ * LLM's {@link CommandSpec}s into real playlist commands, finding tracks to add through Spotify
+ * search (the LLM never picks tracks).
  */
 public class ResponseParser {
 
@@ -93,6 +99,57 @@ public class ResponseParser {
             specs.add(commandSpec(el.getAsJsonObject()));
         }
         return specs;
+    }
+
+    /**
+     * Binds the LLM's edit commands to the playlist. {@code track} references (a 1-based position
+     * or a track id/URI) are resolved against the playlist as the user saw it; tracks to add come
+     * from a Spotify search for the command's query, skipping tracks already in the playlist or
+     * already chosen. Anything that cannot be resolved raises {@link ParseException} before any
+     * change is made.
+     */
+    public List<PlaylistCommand> parseCommands(String json, PlaylistContext context) {
+        List<PlaylistCommand> commands = new ArrayList<>();
+        Set<String> taken = new LinkedHashSet<>();
+        context.tracks().forEach(t -> taken.add(t.id()));
+        String pid = context.playlistId();
+        for (CommandSpec spec : parseCommandSpecs(json)) {
+            switch (spec.type()) {
+                case ADD -> commands.add(new AddItemsCommand(config, context.music(), pid,
+                        List.of(findNew(spec.query(), context, taken))));
+                case REMOVE -> commands.add(new RemoveTrackCommand(config, context.music(), pid,
+                        resolve(spec.track(), context)));
+                case REPLACE -> commands.add(new ReplaceTrackCommand(config, context.music(), pid,
+                        resolve(spec.track(), context), findNew(spec.query(), context, taken)));
+                case REORDER -> commands.add(new ReorderCommand(config, context.music(), pid,
+                        resolve(spec.track(), context), spec.position()));
+            }
+        }
+        return commands;
+    }
+
+    private Track resolve(String reference, PlaylistContext context) {
+        for (Track t : context.tracks()) {
+            if (reference.equals(t.id()) || reference.equals(t.uri())) {
+                return t;
+            }
+        }
+        if (reference.matches("\\d{1,6}")) {
+            int position = Integer.parseInt(reference);
+            if (position >= 1 && position <= context.tracks().size()) {
+                return context.tracks().get(position - 1);
+            }
+        }
+        throw new ParseException(String.format(config.wording("cmdRefUnknown"), reference));
+    }
+
+    private Track findNew(String query, PlaylistContext context, Set<String> taken) {
+        for (Track t : context.music().search(query, config.commandSearchLimit())) {
+            if (taken.add(t.id())) {
+                return t;
+            }
+        }
+        throw new ParseException(String.format(config.wording("cmdNoTrackFound"), query));
     }
 
     private CommandSpec commandSpec(JsonObject c) {
