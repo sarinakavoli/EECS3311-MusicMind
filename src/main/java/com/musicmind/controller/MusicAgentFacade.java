@@ -637,22 +637,20 @@ public class MusicAgentFacade {
 
     /**
      * Reverts the most recent change to the playlist: the last applied command of this run, else the latest
-     * saved snapshot.
+     * saved snapshot not yet used by an undo.
      *
      * @throws PlaylistChangeException if there is nothing to undo, the history is unavailable or the playlist cannot be changed
      */
     public synchronized void undo(String playlistId) {
         String id = requirePlaylistId(playlistId);
-        boolean fromStack;
         try {
-            fromStack = create.playlists().undo(id);
+            create.playlists().undo(id);
         } catch (MusicServiceException e) {
             throw playlistAccess(e);
         }
         String userId = currentUserId.get();
         if (userId != null) {
-            PlaylistTargets targets = targets(userId, id);
-            (fromStack ? targets.lastUnreverted() : targets.latestSnapshotChange()).ifPresent(change ->
+            targets(userId, id).lastUnreverted().ifPresent(change ->
                     saveChangeSession(id, config.wording("undoRecordText"),
                             PlaylistTargets.revert(change.before(), change.sessionId())));
         }
@@ -833,8 +831,7 @@ public class MusicAgentFacade {
         }
         int saved;
         try {
-            saved = create.playlists().snapshotBeforeModify(new Playlist(id, snapshot.name(), now));
-            create.playlists().restore(snapshotId);
+            saved = create.playlists().restoreFrom(new Playlist(id, snapshot.name(), now), snapshotId);
         } catch (MusicServiceException e) {
             throw playlistAccess(e);
         }

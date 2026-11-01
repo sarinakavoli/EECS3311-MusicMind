@@ -82,11 +82,11 @@ public class PlaylistHistoryRepository implements Repository<Playlist> {
         }
     }
 
-    /** The most recent snapshot of this playlist, or {@code null} if none was saved. */
+    /** The most recent snapshot of this playlist that undo has not used, or {@code null} if there is none. */
     public Playlist findLatestByPlaylist(String playlistId) {
         try (PreparedStatement ps = db.connection().prepareStatement(
                 "SELECT playlist_id, name, track_uris FROM playlist_snapshot "
-                        + "WHERE playlist_id = ? AND user_id = ? ORDER BY id DESC LIMIT 1")) {
+                        + "WHERE playlist_id = ? AND user_id = ? AND NOT undone ORDER BY id DESC LIMIT 1")) {
             ps.setString(1, playlistId);
             ps.setString(2, currentUser.get());
             try (ResultSet rs = ps.executeQuery()) {
@@ -94,6 +94,19 @@ public class PlaylistHistoryRepository implements Repository<Playlist> {
             }
         } catch (SQLException e) {
             throw new PersistenceException("Failed to load the latest snapshot of playlist " + playlistId, e);
+        }
+    }
+
+    /** Marks this playlist's most recent unused snapshot as used by undo; it stays available to restore by id. */
+    public void markLatestUndone(String playlistId) {
+        try (PreparedStatement ps = db.connection().prepareStatement(
+                "UPDATE playlist_snapshot SET undone = TRUE WHERE id = (SELECT max(id) FROM playlist_snapshot "
+                        + "WHERE playlist_id = ? AND user_id = ? AND NOT undone)")) {
+            ps.setString(1, playlistId);
+            ps.setString(2, currentUser.get());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new PersistenceException("Failed to mark the snapshot of playlist " + playlistId, e);
         }
     }
 

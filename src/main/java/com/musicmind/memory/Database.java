@@ -109,6 +109,7 @@ public class Database implements AutoCloseable {
                         track_uris  TEXT NOT NULL,
                         created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
                     )""");
+            st.execute("ALTER TABLE playlist_snapshot ADD COLUMN IF NOT EXISTS undone BOOLEAN NOT NULL DEFAULT FALSE");
             st.execute("""
                     CREATE TABLE IF NOT EXISTS artist_genre (
                         artist_id  TEXT PRIMARY KEY,

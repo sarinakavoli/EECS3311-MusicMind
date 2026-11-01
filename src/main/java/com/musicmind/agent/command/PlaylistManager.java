@@ -15,7 +15,8 @@ import java.util.List;
 /**
  * Command-pattern invoker. Runs {@link PlaylistCommand}s against Spotify, keeps the applied
  * ones on a bounded undo stack (newest first) and saves a snapshot before each modify so
- * undo also works in a later run, when the in-memory stack is empty (R10).
+ * undo also works in a later run, when the in-memory stack is empty (R10). Each undo uses up one
+ * snapshot, so a later undo steps further back and never returns to a state already undone.
  *
  * <p>Callers editing an existing playlist use {@link #modify}, which snapshots first; a
  * snapshot that cannot be saved stops the change, because undo would not be possible.
@@ -65,8 +66,29 @@ public class PlaylistManager {
     public int modify(Playlist current, List<PlaylistCommand> commands) {
         requireComplete(current.spotifyId());
         int snapshotId = snapshotBeforeModify(current);
-        executeAll(commands);
+        try {
+            executeAll(commands);
+        } catch (RuntimeException e) {
+            memory.markLatestSnapshotUndone(current.spotifyId());
+            throw e;
+        }
         return snapshotId;
+    }
+
+    /**
+     * Saves the playlist as it is now, then puts it back to a saved snapshot, as one undoable step (F12).
+     *
+     * @return the id of the snapshot taken first
+     */
+    public int restoreFrom(Playlist current, int snapshotId) {
+        int saved = snapshotBeforeModify(current);
+        try {
+            restore(snapshotId);
+        } catch (RuntimeException e) {
+            memory.markLatestSnapshotUndone(current.spotifyId());
+            throw e;
+        }
+        return saved;
     }
 
     /**
@@ -85,9 +107,9 @@ public class PlaylistManager {
 
     /**
      * Reverts the most recent change to the playlist. With an empty stack (a new run) it
-     * restores the playlist's latest snapshot instead.
+     * restores the playlist's latest unused snapshot instead. Either way that snapshot is used up.
      *
-     * @return true if a command of this run was undone, false if the latest snapshot was restored
+     * @return true if a command of this run was undone, false if a snapshot was restored
      */
     public boolean undo(String playlistId) {
         PlaylistCommand latest = null;
@@ -101,6 +123,7 @@ public class PlaylistManager {
             requireComplete(playlistId);
             latest.undo();
             history.remove(latest);
+            memory.markLatestSnapshotUndone(playlistId);
             return true;
         }
         Playlist snapshot;
@@ -112,7 +135,10 @@ public class PlaylistManager {
         if (snapshot == null) {
             throw new PlaylistChangeException(config.wording("undoNothing"));
         }
-        restore(snapshot);
+        requireComplete(playlistId);
+        // Not pushed: undoing this undo would bring back the change the user just reverted.
+        new RestoreSnapshotCommand(config, music, playlistId, snapshot.name(), snapshot.tracks()).execute();
+        memory.markLatestSnapshotUndone(playlistId);
         return false;
     }
 

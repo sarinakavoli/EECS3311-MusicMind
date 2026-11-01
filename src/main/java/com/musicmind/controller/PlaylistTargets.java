@@ -69,7 +69,7 @@ final class PlaylistTargets {
         return reverted;
     }
 
-    /** The newest edit or restore that no undo has reverted: what an undo of the last command in this run reverts. */
+    /** The newest edit or restore that no undo has reverted: what the next undo reverts. */
     Optional<Change> lastUnreverted() {
         Set<String> reverted = reverted();
         for (int i = 0; i < records.size(); i++) {
@@ -79,27 +79,6 @@ final class PlaylistTargets {
             }
         }
         return Optional.empty();
-    }
-
-    /**
-     * What an undo that fell back on the latest saved snapshot reverts: the edit or restore that saved the
-     * newest snapshot, and only if no undo has reverted it already (the snapshot is then restored again
-     * without changing anything, and the target must not move).
-     */
-    Optional<Change> latestSnapshotChange() {
-        Set<String> reverted = reverted();
-        int best = -1;
-        for (int i = 0; i < records.size(); i++) {
-            JsonObject o = records.get(i);
-            if (o.has("previousTarget") && o.has("snapshotId")
-                    && (best < 0 || o.get("snapshotId").getAsInt() > records.get(best).get("snapshotId").getAsInt())) {
-                best = i;
-            }
-        }
-        if (best < 0 || reverted.contains(ids.get(best))) {
-            return Optional.empty();
-        }
-        return Optional.of(new Change(ids.get(best), records.get(best).get("previousTarget").getAsInt()));
     }
 
     /**

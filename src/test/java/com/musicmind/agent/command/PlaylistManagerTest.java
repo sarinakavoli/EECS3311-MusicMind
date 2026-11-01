@@ -127,6 +127,60 @@ class PlaylistManagerTest extends PostgresTestBase {
     }
 
     @Test
+    void undoStopsAtTheOriginalInsteadOfReapplyingAnEdit() {
+        music.seed("p", "a", "b", "c");
+        PlaylistManager m = manager();
+        m.modify(current("p"), List.of(new RemoveTrackCommand(config, music, "p", track("a"))));
+        m.modify(current("p"), List.of(new RemoveTrackCommand(config, music, "p", track("b"))));
+
+        m.undo("p");
+        m.undo("p");
+        assertEquals(List.of("a", "b", "c"), music.ids("p"));
+
+        assertThrows(PlaylistChangeException.class, () -> m.undo("p"));
+        assertEquals(List.of("a", "b", "c"), music.ids("p"));
+    }
+
+    @Test
+    void undoInALaterRunStepsBackOneEditEachTime() {
+        music.seed("p", "a", "b", "c");
+        PlaylistManager first = manager();
+        first.modify(current("p"), List.of(new RemoveTrackCommand(config, music, "p", track("a"))));
+        first.modify(current("p"), List.of(new RemoveTrackCommand(config, music, "p", track("b"))));
+
+        PlaylistManager later = manager();
+        later.undo("p");
+        assertEquals(List.of("b", "c"), music.ids("p"));
+        later.undo("p");
+        assertEquals(List.of("a", "b", "c"), music.ids("p"));
+        assertThrows(PlaylistChangeException.class, () -> later.undo("p"));
+    }
+
+    @Test
+    void aFailedChangeLeavesNoSnapshotForUndoToReuse() {
+        music.seed("p", "a", "b");
+        PlaylistManager m = manager();
+        music.failOn = "remove";
+        assertThrows(RuntimeException.class,
+                () -> m.modify(current("p"), List.of(new RemoveTrackCommand(config, music, "p", track("a")))));
+        music.failOn = null;
+
+        assertThrows(PlaylistChangeException.class, () -> manager().undo("p"));
+    }
+
+    @Test
+    void anUndoneSnapshotCanStillBeRestoredByItsId() {
+        music.seed("p", "a", "b");
+        PlaylistManager m = manager();
+        int id = m.modify(current("p"), List.of(new RemoveTrackCommand(config, music, "p", track("a"))));
+        m.undo("p");
+        m.modify(current("p"), List.of(new RemoveTrackCommand(config, music, "p", track("b"))));
+
+        m.restore(id);
+        assertEquals(List.of("a", "b"), music.ids("p"));
+    }
+
+    @Test
     void undoWithEmptyStackRestoresTheLatestSnapshot() {
         music.seed("p", "a", "b", "c");
         PlaylistManager first = manager();

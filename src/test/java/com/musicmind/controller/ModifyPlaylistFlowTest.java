@@ -538,7 +538,7 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
     }
 
     @Test
-    void editUndoUndoGivesTheMatchingTargetAndAnUndoWithNothingBehindItLeavesItAlone() {
+    void undoStepsBackThroughEditsOfEveryRunWithTheMatchingTargetAndThenStops() {
         Music music = fourTracksTwelveMinutes();
         controller(music, editReply(dropTrack("4", 3))).modifyPlaylist("p", "3 minutes shorter");   // 12 -> 9, earlier process
         AppController c = controller(music, editReply(dropTrack("3", 3)));
@@ -546,10 +546,12 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
 
         c.undo("p");   // the edit of this run: back to 9
         assertTrue(c.validatePlaylist("p").passed(), c.validatePlaylist("p").violations().toString());
-        c.undo("p");   // nothing of this run is left; the snapshot is restored again and changes nothing
-        assertEquals(3, ids(music, "p").size());
-        assertTrue(c.validatePlaylist("p").passed(), "the earlier edit's target (9) was not reverted: "
+        c.undo("p");   // nothing of this run is left; the earlier run's snapshot gives back the original
+        assertEquals(4, ids(music, "p").size());
+        assertTrue(c.validatePlaylist("p").passed(), "the earlier edit's target went back to 12: "
                 + c.validatePlaylist("p").violations());
+        assertThrows(PlaylistChangeException.class, () -> c.undo("p"));
+        assertEquals(4, ids(music, "p").size());
     }
 
     @Test

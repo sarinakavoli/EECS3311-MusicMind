@@ -108,12 +108,23 @@ public class MemoryManager {
     }
 
     /**
-     * The newest snapshot of a playlist, or {@code null} if it was never snapshotted. Like the
+     * The newest snapshot of a playlist that undo has not used, or {@code null} if there is none. Like the
      * other snapshot calls it throws {@link PersistenceException} when the database is down,
      * because undo depends on it.
      */
     public Playlist loadLatestSnapshot(String playlistId) {
         return history.findLatestByPlaylist(playlistId);
+    }
+
+    /**
+     * Takes the playlist's newest unused snapshot out of the undo chain, once its change was undone or never
+     * happened. It can still be restored by id. With the database down this only sets the warning.
+     */
+    public void markLatestSnapshotUndone(String playlistId) {
+        guarded("update the saved playlist version", () -> {
+            history.markLatestUndone(playlistId);
+            return null;
+        }, null);
     }
 
     /** The user's saved playlist versions for the history list, newest first; empty (with a warning) while the database is down. */
