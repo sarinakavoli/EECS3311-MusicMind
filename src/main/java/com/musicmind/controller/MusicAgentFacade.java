@@ -247,7 +247,15 @@ public class MusicAgentFacade {
                     + "to describe a change in your taste.");
         }
         String narrative = fromLlm(prompts.buildTrendPrompt(report));
-        return report.withNarrative(narrative != null ? narrative : fallbackNarrative(report, config.profileRanges()));
+        if (narrative == null) {
+            return report.withNarrative(fallbackNarrative(report, config.profileRanges()));
+        }
+        if (report.genreCoveragePartial(config.trendMinGenreCoverage()) && !narrative.toLowerCase().contains("partial")) {
+            // The model was told to say coverage is partial; if it did not, the user still must be told.
+            narrative += " " + String.format(config.wording("trendCoveragePartial"),
+                    report.coverageSummary(config.profileRanges()));
+        }
+        return report.withNarrative(narrative);
     }
 
     // ---- F3 ----
@@ -842,7 +850,7 @@ public class MusicAgentFacade {
         StringBuilder sb = new StringBuilder();
         if (partial) {
             // Genre data is missing for many artists, so a genre "change" may be missing data: say so, claim nothing.
-            sb.append(String.format(config.wording("trendCoveragePartial"), report.coverageSummary())).append(' ');
+            sb.append(String.format(config.wording("trendCoveragePartial"), report.coverageSummary(config.profileRanges()))).append(' ');
             sb.append("Genres found only in your ").append(newest).append("-term data: ")
                     .append(report.addedGenres().isEmpty() ? "none" : limited(report.addedGenres()))
                     .append("; only in your ").append(oldest).append("-term data: ")

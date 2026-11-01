@@ -35,14 +35,28 @@ public record TrendReport(Map<String, List<Artist>> artistsByRange,
 
     /** True when some range that has artists has genre data for a smaller share of them than {@code minShare}. */
     public boolean genreCoveragePartial(double minShare) {
-        return artistsByRange.keySet().stream()
-                .anyMatch(r -> artistCount(r) > 0 && artistsWithGenres(r) < minShare * artistCount(r));
+        return genreCoveragePartial(artistsByRange, minShare);
     }
 
-    /** Per range, as "short: 12 of 20 artists, long: 3 of 20 artists", skipping empty ranges. */
-    public String coverageSummary() {
-        return artistsByRange.keySet().stream().filter(r -> artistCount(r) > 0)
-                .map(r -> r + ": " + artistsWithGenres(r) + " of " + artistCount(r) + " artists")
+    /** As the instance method, for artists not yet in a report. */
+    public static boolean genreCoveragePartial(Map<String, List<Artist>> artistsByRange, double minShare) {
+        return artistsByRange.values().stream().anyMatch(artists -> !artists.isEmpty()
+                && artists.stream().filter(a -> !a.genres().isEmpty()).count() < minShare * artists.size());
+    }
+
+    /** Per range, in the given order (the configured ranges, newest first), as "short: 12 of 20 artists, ...". */
+    public String coverageSummary(List<String> rangeOrder) {
+        return coverageSummary(artistsByRange, rangeOrder);
+    }
+
+    /** As the instance method, for artists not yet in a report. */
+    public static String coverageSummary(Map<String, List<Artist>> artistsByRange, List<String> rangeOrder) {
+        return rangeOrder.stream().filter(r -> !artistsByRange.getOrDefault(r, List.of()).isEmpty())
+                .map(r -> {
+                    List<Artist> artists = artistsByRange.get(r);
+                    return r + ": " + artists.stream().filter(a -> !a.genres().isEmpty()).count()
+                            + " of " + artists.size() + " artists";
+                })
                 .collect(java.util.stream.Collectors.joining(", "));
     }
 

@@ -503,6 +503,19 @@ class MusicAgentFacadeTest extends PostgresTestBase {
     }
 
     @Test
+    void anLlmNarrativeThatIgnoresPartialCoverageGetsTheNoticeAppended() {
+        FakeMusic music = trendMusic();
+        music.artistsByRange.put("long", artists(8));
+
+        String silent = facade(music, p -> "Your taste moved toward synthwave.").analyzeTrends(USER).narrative();
+        String aware = facade(music, p -> "Coverage is partial, so treat this loosely.").analyzeTrends(USER).narrative();
+
+        assertTrue(silent.startsWith("Your taste moved toward synthwave."), silent);
+        assertTrue(silent.contains("Genre coverage is partial") && silent.contains("long: 0 of 8"), silent);
+        assertEquals("Coverage is partial, so treat this loosely.", aware, "not repeated when the model already said so");
+    }
+
+    @Test
     void theLlmIsToldAboutPartialCoverage() {
         FakeMusic music = trendMusic();
         music.artistsByRange.put("long", artists(8));

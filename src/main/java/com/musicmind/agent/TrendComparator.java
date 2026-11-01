@@ -71,16 +71,12 @@ public class TrendComparator {
             addedArtists = difference(ids(artistsByRange.get(newest)), ids(artistsByRange.get(oldest)));
             droppedArtists = difference(ids(artistsByRange.get(oldest)), ids(artistsByRange.get(newest)));
         }
-        TrendReport report = new TrendReport(artistsByRange, genresByRange, addedGenres, droppedGenres,
-                addedArtists, droppedArtists, gaps, null);
-        if (report.genreCoveragePartial(config.trendMinGenreCoverage())) {
-            // Added last, so the report that is returned already carries the coverage notice.
-            List<String> withCoverage = new ArrayList<>(gaps);
-            withCoverage.add(String.format(config.wording("trendCoveragePartial"), report.coverageSummary()));
-            return new TrendReport(artistsByRange, genresByRange, addedGenres, droppedGenres,
-                    addedArtists, droppedArtists, withCoverage, null);
+        if (TrendReport.genreCoveragePartial(artistsByRange, config.trendMinGenreCoverage())) {
+            gaps.add(String.format(config.wording("trendCoveragePartial"),
+                    TrendReport.coverageSummary(artistsByRange, config.profileRanges())));
         }
-        return report;
+        return new TrendReport(artistsByRange, genresByRange, addedGenres, droppedGenres,
+                addedArtists, droppedArtists, gaps, null);
     }
 
     private static Set<String> ids(List<Artist> artists) {

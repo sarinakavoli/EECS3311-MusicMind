@@ -133,4 +133,14 @@ class TrendComparatorTest {
         assertTrue(!r.genreCoveragePartial(config.trendMinGenreCoverage()));
         assertTrue(r.gaps().stream().noneMatch(g -> g.contains("of ")), r.gaps().toString());
     }
+
+    @Test
+    void theCoverageSummaryFollowsTheConfiguredRangeOrder() {
+        TrendReport r = comparator.compare(ranges(noGenres("s", 8), full(artist("m1", "pop")), noGenres("l", 8)), Map.of());
+
+        String summary = r.coverageSummary(config.profileRanges());
+
+        assertEquals("short: 0 of 8 artists, medium: " + config.profileMinItems() + " of " + config.profileMinItems()
+                + " artists, long: 0 of 8 artists", summary);
+    }
 }
