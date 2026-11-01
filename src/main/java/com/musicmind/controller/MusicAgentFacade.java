@@ -658,16 +658,19 @@ public class MusicAgentFacade {
      */
     public synchronized void undo(String playlistId) {
         String id = requirePlaylistId(playlistId);
+        int changes;
         try {
-            create.playlists().undo(id);
+            changes = create.playlists().undo(id);
         } catch (MusicServiceException e) {
             throw playlistAccess(e);
         }
         String userId = currentUserId.get();
         if (userId != null) {
-            targets(userId, id).lastUnreverted().ifPresent(change ->
-                    saveChangeSession(id, config.wording("undoRecordText"),
-                            PlaylistTargets.revert(change.before(), change.sessionId())));
+            for (int i = 0; i < changes; i++) {
+                targets(userId, id).lastUnreverted().ifPresent(change ->
+                        saveChangeSession(id, config.wording("undoRecordText"),
+                                PlaylistTargets.revert(change.before(), change.sessionId())));
+            }
         }
     }
 

@@ -297,6 +297,19 @@ class RetryingMusicServiceTest {
     }
 
     @Test
+    void anAddThatGetsA502OverARealAdapterIsSentOnceAndTheUserIsTold(@TempDir java.nio.file.Path dir) throws Exception {
+        try (FakeSpotifyServer api = new FakeSpotifyServer()) {
+            api.respond(r -> FakeSpotifyServer.Reply.status(502));
+            RetryingMusicService service = new RetryingMusicService(api.adapter(dir), retries(3), s -> { });
+
+            MusicServiceException e = assertThrows(MusicServiceException.class, () -> service.addItems("pl1", uris(1)));
+
+            assertEquals(1, api.requests.size());
+            assertTrue(e.getMessage().contains("may or may not"), e.getMessage());
+        }
+    }
+
+    @Test
     void retriesOverARealAdapterAgainstAFailingServer(@TempDir java.nio.file.Path dir) throws Exception {
         try (FakeSpotifyServer api = new FakeSpotifyServer()) {
             int[] hits = {0};

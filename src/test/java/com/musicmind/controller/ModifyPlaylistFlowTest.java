@@ -555,6 +555,21 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
     }
 
     @Test
+    void anUndoThatSkipsAVersionAlsoTakesBackThatVersionsTarget() {
+        Music music = fourTracksTwelveMinutes();
+        Track third = music.playlists.get("p").get(2);
+        controller(music, inOrder(List.of(dropTrack("4", 3), dropTrack("3", 3)))).modifyPlaylist("p", "3 minutes shorter");   // 12 -> 9
+        controller(music, editReply(dropTrack("3", 3))).modifyPlaylist("p", "3 minutes shorter");   // 9 -> 6
+        music.playlists.get("p").add(third);   // the second edit was reversed outside MusicMind
+
+        AppController later = controller(music, null);
+        later.undo("p");
+
+        assertEquals(4, ids(music, "p").size());
+        assertTrue(later.validatePlaylist("p").passed(), later.validatePlaylist("p").violations().toString());
+    }
+
+    @Test
     void aReplanThatLeavesTheLengthOutKeepsTheLengthTheFirstPlanStated() {
         Music music = withExplicitRockAndCleanSearch();   // two clean 3 minute tracks
         storeCreatedSession("p", "{\"spec\":{\"targetMinutes\":6,\"allowExplicit\":false,\"familiarRatio\":0.5,"

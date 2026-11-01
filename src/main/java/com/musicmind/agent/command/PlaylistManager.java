@@ -111,9 +111,10 @@ public class PlaylistManager {
      * Reverts the most recent change to the playlist. With an empty stack (a new run) it
      * restores the playlist's latest unused snapshot instead. Either way that snapshot is used up.
      *
-     * @return true if a command of this run was undone, false if a snapshot was restored
+     * @return how many changes this went back over: 1, or more when snapshots that already matched the
+     *         playlist (their change was reversed outside MusicMind) were skipped on the way
      */
-    public boolean undo(String playlistId) {
+    public int undo(String playlistId) {
         PlaylistCommand latest = null;
         for (PlaylistCommand c : history) {
             if (playlistId.equals(c.playlistId())) {
@@ -126,8 +127,32 @@ public class PlaylistManager {
             latest.undo();
             history.remove(latest);
             memory.markLatestSnapshotUndone(playlistId);
-            return true;
+            return 1;
         }
+        return undoFromSnapshots(playlistId);
+    }
+
+    private int undoFromSnapshots(String playlistId) {
+        Playlist snapshot = latestSnapshot(playlistId);
+        List<Track> now = music.getPlaylistItems(playlistId);
+        requireComplete(now);
+        List<String> current = now.stream().map(PlaylistOps::uri).toList();
+        for (int steps = 1; ; steps++) {
+            if (!snapshot.tracks().stream().map(PlaylistOps::uri).toList().equals(current)) {
+                // Not pushed: undoing this undo would bring back the change the user just reverted.
+                new RestoreSnapshotCommand(config, music, playlistId, snapshot.name(), snapshot.tracks()).execute();
+                memory.markLatestSnapshotUndone(playlistId);
+                return steps;
+            }
+            memory.markLatestSnapshotUndone(playlistId);
+            if (memory.warning() != null) {
+                throw new PlaylistChangeException(config.wording("snapshotUnavailable"));
+            }
+            snapshot = latestSnapshot(playlistId);
+        }
+    }
+
+    private Playlist latestSnapshot(String playlistId) {
         Playlist snapshot;
         try {
             snapshot = memory.loadLatestSnapshot(playlistId);
@@ -137,11 +162,7 @@ public class PlaylistManager {
         if (snapshot == null) {
             throw new PlaylistChangeException(config.wording("undoNothing"));
         }
-        requireComplete(playlistId);
-        // Not pushed: undoing this undo would bring back the change the user just reverted.
-        new RestoreSnapshotCommand(config, music, playlistId, snapshot.name(), snapshot.tracks()).execute();
-        memory.markLatestSnapshotUndone(playlistId);
-        return false;
+        return snapshot;
     }
 
     /** Puts a playlist back to a saved snapshot (F12). */
@@ -171,7 +192,11 @@ public class PlaylistManager {
 
     /** Refuses to work on a playlist longer than one Spotify read returns: a partial list would corrupt the change. */
     private void requireComplete(String playlistId) {
-        if (TrackList.isTruncated(music.getPlaylistItems(playlistId))) {
+        requireComplete(music.getPlaylistItems(playlistId));
+    }
+
+    private void requireComplete(List<Track> items) {
+        if (TrackList.isTruncated(items)) {
             throw new PlaylistChangeException(String.format(config.wording("playlistTooLong"), config.spotifyMaxItems()));
         }
     }

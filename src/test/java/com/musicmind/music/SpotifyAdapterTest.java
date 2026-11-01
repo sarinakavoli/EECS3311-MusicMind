@@ -164,6 +164,22 @@ class SpotifyAdapterTest {
     }
 
     @Test
+    void aMoveOverTheRealAdapterSendsTheRealPositionsPastALocalFile() {
+        api.respond(r -> Reply.ok(r.method().equals("GET")
+                ? "{\"items\":[{\"item\":{\"id\":null,\"is_local\":true,\"uri\":\"spotify:local:x\"}},"
+                        + "{\"item\":" + trackJson(1) + "},{\"item\":" + trackJson(2) + "},{\"item\":" + trackJson(3) + "}],\"next\":null}"
+                : "{\"snapshot_id\":\"s\"}"));
+        Track third = adapter.getPlaylistItems("p").get(2);
+
+        new com.musicmind.agent.command.ReorderCommand(com.musicmind.config.Config.of(java.util.Map.of()),
+                adapter, "p", third, 0).execute();
+
+        Req put = api.requests.stream().filter(r -> r.method().equals("PUT")).findFirst().orElseThrow();
+        assertEquals(3, json(put.body()).get("range_start").getAsInt());
+        assertEquals(1, json(put.body()).get("insert_before").getAsInt());
+    }
+
+    @Test
     void theSavedTrackCapDefaultsToFiveThousand() {
         api.respond(r -> Reply.ok(endlessPage(api, 50)));
 

@@ -217,6 +217,28 @@ class PlaylistManagerTest extends PostgresTestBase {
     }
 
     @Test
+    void undoSkipsASnapshotThatAlreadyMatchesThePlaylistInsteadOfChangingNothing() {
+        music.seed("p", "a", "b", "c");
+        PlaylistManager first = manager();
+        first.modify(current("p"), List.of(new RemoveTrackCommand(config, music, "p", track("a"))));
+        first.modify(current("p"), List.of(new RemoveTrackCommand(config, music, "p", track("b"))));
+        music.playlists.get("p").add(0, track("b"));   // the second edit was reversed outside MusicMind
+
+        assertEquals(2, manager().undo("p"));
+
+        assertEquals(List.of("a", "b", "c"), music.ids("p"));
+    }
+
+    @Test
+    void undoSaysThereIsNothingToUndoWhenEverySnapshotAlreadyMatches() {
+        music.seed("p", "a", "b");
+        manager().modify(current("p"), List.of(new RemoveTrackCommand(config, music, "p", track("a"))));
+        music.playlists.get("p").add(0, track("a"));
+
+        assertThrows(PlaylistChangeException.class, () -> manager().undo("p"));
+    }
+
+    @Test
     void undoWithEmptyStackRestoresTheLatestSnapshot() {
         music.seed("p", "a", "b", "c");
         PlaylistManager first = manager();
