@@ -23,6 +23,7 @@ Dates are Toronto time. Each day ends with real commits pushed to GitHub, and a 
 | Sat Oct 31 (added) | Task 21: PR review fixes, run before Task 9 | `discover` and `profile` still work |
 | Sun Nov 1 | Tasks 9-12: F5, F6, F7, F10, F11, F12, full CLI | `create`, `modify`, `undo`, `validate`, `explain`, `history`, `restore` |
 | Sun Nov 1 (added) | Task 22: F5 result matches the Stage 1 goal, run before Task 13 | `create` includes new artists |
+| Sun Nov 1 (added) | Task 23: F6 adjustment loop, run before Task 13 | `modify` adjusts or asks |
 | Mon Nov 2 | Tasks 13-17: GUI, docs, UML, report, final review, merge | All GUI tabs, README setup, report PDF |
 | Nov 3-9 | Buffer: fixes from Sarina's testing (real code commits only), video links added to the report | Videos recorded |
 | Tue Nov 10 | Final submission check | Repository URL submitted |
@@ -309,6 +310,17 @@ Run before Task 13. Live test of Stage 1's own example, "a 90-minute study playl
 - `explain` output and the create explanation must show track titles, not raw ids, when printing. Titles are read for display only and never stored. Keep `verifyExplanation` grounded on ids. When titles are unavailable (F10 with stored data), refer to the tracks generally, without ids.
 
 Tests: 0.7 ratio with candidates gives about 30% unknown-artist tracks and `novelSelected` reflects them; a known artist's new track is familiar in F5; seed-genre tracks outrank non-matching ones; a shortfall of new artists gives a notice; F4 behaviour unchanged; printed explanation has no 22-character ids.
+
+### Task 23: F6 adjustment loop
+
+Run before Task 13. Stage 1 F7 says the validator's result "drives the adjustment loops in F5 and F6"; F6 currently applies an edit that misses its constraints and only reports the violations.
+
+- Before any Spotify write, validate the simulated result of an edit against the playlist's spec. If it violates a constraint, adjust within `playlist.maxValidationRetries` by re-planning the edit with the violations stated, and if it still fails use the F11 negotiation already built for modify. Cancel makes zero writes.
+- A spec exists only for playlists MusicMind created; otherwise use preferences, as `validate` does, and do not invent a duration target.
+- The stated target of the edit wins over the original spec: "make it 15 minutes shorter" must not be refused because the new length misses the old target. Bounded retries only.
+- Fix the duplicated `createFewGenreMatches` notice: a run shows the latest selection's notice once.
+
+Tests: a violating edit is re-planned then applied; retries are bounded; still failing goes to negotiation; cancel gives zero writes; a shorter-by-N edit is not blocked by the old target; no duplicate notice in a validation-retry run.
 
 ### Task 14: Documentation and conformance
 
