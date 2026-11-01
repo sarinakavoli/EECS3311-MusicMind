@@ -25,6 +25,7 @@ class ResponseParserCommandsTest {
 
     private final Config config = Config.of(Map.of());
     private final ResponseParser parser = new ResponseParser(config);
+    private ResponseParser bound;
     private final List<String> searches = new ArrayList<>();
     private final Map<String, List<Track>> results = Map.of(
             "mellow piano", List.of(t("a"), t("n1"), t("n2")),
@@ -41,17 +42,27 @@ class ResponseParserCommandsTest {
     };
     private final PlaylistContext context = new PlaylistContext("p", List.of(t("a"), t("b"), t("c")), music);
 
+    @org.junit.jupiter.api.BeforeEach
+    void bind() {
+        bound = parser.forPlaylist(context);
+    }
+
+    @Test
+    void anUnboundParserRefusesToParseCommands() {
+        assertThrows(IllegalStateException.class, () -> parser.parseCommands("{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"}]}"));
+    }
+
     private static Track t(String id) {
         return new Track(id, "spotify:track:" + id, "T" + id, 1000, false, List.of());
     }
 
     @Test
     void bindsEveryCommandTypeToTheRealPlaylist() {
-        List<PlaylistCommand> cmds = parser.parseCommands("{\"commands\":["
+        List<PlaylistCommand> cmds = bound.parseCommands("{\"commands\":["
                 + "{\"type\":\"remove\",\"track\":\"2\"},"
                 + "{\"type\":\"add\",\"query\":\"mellow piano\"},"
                 + "{\"type\":\"replace\",\"track\":\"c\",\"query\":\"upbeat\"},"
-                + "{\"type\":\"reorder\",\"track\":\"spotify:track:a\",\"position\":2}]}", context);
+                + "{\"type\":\"reorder\",\"track\":\"spotify:track:a\",\"position\":2}]}");
         assertEquals(4, cmds.size());
         assertInstanceOf(RemoveTrackCommand.class, cmds.get(0));
         assertTrue(cmds.get(0).describe().contains("Tb"), "position 2 is track b");
@@ -67,9 +78,9 @@ class ResponseParserCommandsTest {
 
     @Test
     void aTrackIsNeverChosenTwiceInOneEdit() {
-        List<PlaylistCommand> cmds = parser.parseCommands("{\"commands\":["
+        List<PlaylistCommand> cmds = bound.parseCommands("{\"commands\":["
                 + "{\"type\":\"add\",\"query\":\"mellow piano\"},"
-                + "{\"type\":\"add\",\"query\":\"mellow piano\"}]}", context);
+                + "{\"type\":\"add\",\"query\":\"mellow piano\"}]}");
         assertTrue(cmds.get(0).describe().contains("Tn1"));
         assertTrue(cmds.get(1).describe().contains("Tn2"));
     }
@@ -83,13 +94,13 @@ class ResponseParserCommandsTest {
                 "{\"commands\":[{\"type\":\"add\",\"query\":\"no such song\"}]}",
                 "{\"commands\":[{\"type\":\"replace\",\"track\":\"1\",\"query\":\"no such song\"}]}",
                 "{\"commands\":[]}"}) {
-            assertThrows(ParseException.class, () -> parser.parseCommands(bad, context), bad);
+            assertThrows(ParseException.class, () -> bound.parseCommands(bad), bad);
         }
     }
 
     @Test
     void aSearchFailureIsNotHiddenAsAParseProblem() {
-        assertThrows(MusicServiceException.class, () -> parser.parseCommands(
-                "{\"commands\":[{\"type\":\"add\",\"query\":\"down\"}]}", context));
+        assertThrows(MusicServiceException.class, () -> bound.parseCommands(
+                "{\"commands\":[{\"type\":\"add\",\"query\":\"down\"}]}"));
     }
 }

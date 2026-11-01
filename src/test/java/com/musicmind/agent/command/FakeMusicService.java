@@ -22,6 +22,8 @@ class FakeMusicService extends StubMusicService {
     final Map<String, List<Track>> searchResults = new HashMap<>();
     /** When set, the call whose recorded text starts with this prefix throws. */
     String failOn;
+    /** When true the failure happens once, then {@code failOn} is cleared. */
+    boolean failOnce;
     private int nextId = 1;
 
     static Track track(String id) {
@@ -43,6 +45,9 @@ class FakeMusicService extends StubMusicService {
     private void record(String call) {
         calls.add(call);
         if (failOn != null && call.startsWith(failOn)) {
+            if (failOnce) {
+                failOn = null;
+            }
             throw new MusicServiceException("boom on " + call);
         }
     }

@@ -119,7 +119,10 @@ public class PlaylistManager {
         restore(snapshot);
     }
 
-    /** Makes the playlist hold exactly the snapshot's tracks in its order; the playlist's name is not changed. */
+    /**
+     * Makes the playlist hold exactly the snapshot's tracks in its order; the name is not changed.
+     * If that fails part way, the playlist's previous tracks are put back and the failure is reported.
+     */
     private void restore(Playlist snapshot) {
         String id = snapshot.spotifyId();
         List<String> wanted = snapshot.tracks().stream().map(PlaylistOps::uri).toList();
@@ -127,11 +130,32 @@ public class PlaylistManager {
         if (now.equals(wanted)) {
             return;
         }
-        if (!now.isEmpty()) {
-            music.removeItems(id, now);
+        try {
+            if (!now.isEmpty()) {
+                music.removeItems(id, now);
+            }
+            if (!wanted.isEmpty()) {
+                music.addItems(id, wanted);
+            }
+        } catch (RuntimeException e) {
+            PlaylistChangeException failure = new PlaylistChangeException(config.wording("restoreFailed"), e);
+            putBack(id, now, failure);
+            throw failure;
         }
-        if (!wanted.isEmpty()) {
-            music.addItems(id, wanted);
+    }
+
+    /** Returns the playlist to the tracks it had before a failed restore; a failure here is kept as suppressed. */
+    private void putBack(String id, List<String> before, PlaylistChangeException failure) {
+        try {
+            List<String> left = music.getPlaylistItems(id).stream().map(PlaylistOps::uri).toList();
+            if (!left.isEmpty()) {
+                music.removeItems(id, left);
+            }
+            if (!before.isEmpty()) {
+                music.addItems(id, before);
+            }
+        } catch (RuntimeException secondary) {
+            failure.addSuppressed(secondary);
         }
     }
 

@@ -26,6 +26,32 @@ final class PlaylistOps {
         throw new PlaylistChangeException(String.format(config.wording("cmdTrackMissing"), label(track)));
     }
 
+    /** Every index holding the track (a playlist may contain copies), ascending; throws if there are none. */
+    static List<Integer> indexesOf(Config config, MusicService music, String playlistId, Track track) {
+        List<Track> items = music.getPlaylistItems(playlistId);
+        List<Integer> found = new java.util.ArrayList<>();
+        for (int i = 0; i < items.size(); i++) {
+            if (items.get(i).id().equals(track.id())) {
+                found.add(i);
+            }
+        }
+        if (found.isEmpty()) {
+            throw new PlaylistChangeException(String.format(config.wording("cmdTrackMissing"), label(track)));
+        }
+        return found;
+    }
+
+    /**
+     * Re-adds one copy of the track per index (they land at the end of a playlist of {@code size}
+     * items) and moves each to its original index, earliest first.
+     */
+    static void restoreCopies(MusicService music, String playlistId, Track track, List<Integer> indexes, int size) {
+        music.addItems(playlistId, java.util.Collections.nCopies(indexes.size(), uri(track)));
+        for (int j = 0; j < indexes.size(); j++) {
+            move(music, playlistId, size + j, indexes.get(j));
+        }
+    }
+
     /** Moves the item at {@code from} so that it ends up at index {@code to}. */
     static void move(MusicService music, String playlistId, int from, int to) {
         if (from != to) {

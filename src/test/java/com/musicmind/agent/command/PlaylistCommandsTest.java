@@ -142,4 +142,24 @@ class PlaylistCommandsTest {
         assertTrue(new RemoveTrackCommand(config, music, "p", track("a")).describe().contains("Title a"));
         assertTrue(new RemoveTrackCommand(config, music, "p", untitled).describe().contains("zz"));
     }
+
+    @Test
+    void removeUndoRestoresEveryDuplicateCopyInPlace() {
+        music.seed("p", "a", "b", "c", "b", "d", "b");
+        RemoveTrackCommand c = new RemoveTrackCommand(config, music, "p", track("b"));
+        c.execute();
+        assertEquals(List.of("a", "c", "d"), music.ids("p"));
+        c.undo();
+        assertEquals(List.of("a", "b", "c", "b", "d", "b"), music.ids("p"));
+    }
+
+    @Test
+    void replaceWithDuplicatesUndoesToTheOriginalOrder() {
+        music.seed("p", "a", "b", "c", "b", "d");
+        ReplaceTrackCommand c = new ReplaceTrackCommand(config, music, "p", track("b"), track("n"));
+        c.execute();
+        assertEquals(List.of("a", "n", "c", "d"), music.ids("p"));
+        c.undo();
+        assertEquals(List.of("a", "b", "c", "b", "d"), music.ids("p"));
+    }
 }

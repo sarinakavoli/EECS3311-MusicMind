@@ -6,7 +6,10 @@ import com.musicmind.music.MusicService;
 
 import java.util.List;
 
-/** Swaps one track for another at the same position; undo swaps them back. */
+/**
+ * Swaps a track (all its copies) for one new track at the first copy's position; undo removes the
+ * new track and puts every old copy back at its original index.
+ */
 public class ReplaceTrackCommand implements PlaylistCommand {
 
     private final Config config;
@@ -14,8 +17,8 @@ public class ReplaceTrackCommand implements PlaylistCommand {
     private final String playlistId;
     private final Track oldTrack;
     private final Track newTrack;
-    private int index = -1;
-    private int size;
+    private List<Integer> oldIndexes = List.of();
+    private int sizeWithout;
 
     public ReplaceTrackCommand(Config config, MusicService music, String playlistId, Track oldTrack, Track newTrack) {
         this.config = config;
@@ -27,37 +30,38 @@ public class ReplaceTrackCommand implements PlaylistCommand {
 
     @Override
     public void execute() {
-        index = PlaylistOps.indexOf(config, music, playlistId, oldTrack);
-        size = music.getPlaylistItems(playlistId).size();
-        swap(oldTrack, newTrack);
+        oldIndexes = PlaylistOps.indexesOf(config, music, playlistId, oldTrack);
+        sizeWithout = music.getPlaylistItems(playlistId).size() - oldIndexes.size();
+        music.removeItems(playlistId, List.of(PlaylistOps.uri(oldTrack)));
+        try {
+            music.addItems(playlistId, List.of(PlaylistOps.uri(newTrack)));
+        } catch (RuntimeException e) {
+            try {
+                PlaylistOps.restoreCopies(music, playlistId, oldTrack, oldIndexes, sizeWithout);
+            } catch (RuntimeException secondary) {
+                e.addSuppressed(secondary);
+            }
+            throw e;
+        }
+        PlaylistOps.move(music, playlistId, sizeWithout, oldIndexes.get(0));
     }
 
     @Override
     public void undo() {
-        if (index < 0) {
+        if (oldIndexes.isEmpty()) {
             throw new PlaylistChangeException(config.wording("cmdNotRun"));
         }
-        swap(newTrack, oldTrack);
-    }
-
-    /** Removes {@code out}, appends {@code in}, moves it to the index; if the add fails the removed track is put back. */
-    private void swap(Track out, Track in) {
-        music.removeItems(playlistId, List.of(PlaylistOps.uri(out)));
+        music.removeItems(playlistId, List.of(PlaylistOps.uri(newTrack)));
         try {
-            music.addItems(playlistId, List.of(PlaylistOps.uri(in)));
+            PlaylistOps.restoreCopies(music, playlistId, oldTrack, oldIndexes, sizeWithout);
         } catch (RuntimeException e) {
-            putBack(out, e);
+            try {
+                music.addItems(playlistId, List.of(PlaylistOps.uri(newTrack)));
+                PlaylistOps.move(music, playlistId, sizeWithout, oldIndexes.get(0));
+            } catch (RuntimeException secondary) {
+                e.addSuppressed(secondary);
+            }
             throw e;
-        }
-        PlaylistOps.move(music, playlistId, size - 1, index);
-    }
-
-    private void putBack(Track out, RuntimeException cause) {
-        try {
-            music.addItems(playlistId, List.of(PlaylistOps.uri(out)));
-            PlaylistOps.move(music, playlistId, size - 1, index);
-        } catch (RuntimeException secondary) {
-            cause.addSuppressed(secondary);
         }
     }
 

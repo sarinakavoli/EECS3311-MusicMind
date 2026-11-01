@@ -41,9 +41,20 @@ public class ResponseParser {
     private static final Pattern BARE_ID = Pattern.compile("\\b[A-Za-z0-9]{22}\\b");
 
     private final Config config;
+    private final PlaylistContext context;
 
     public ResponseParser(Config config) {
+        this(config, null);
+    }
+
+    private ResponseParser(Config config, PlaylistContext context) {
         this.config = config;
+        this.context = context;
+    }
+
+    /** A parser bound to one playlist, so {@link #parseCommands} can resolve the edit against it. */
+    public ResponseParser forPlaylist(PlaylistContext playlist) {
+        return new ResponseParser(config, playlist);
     }
 
     public PlaylistSpec parsePlaylistSpec(String json) {
@@ -102,13 +113,16 @@ public class ResponseParser {
     }
 
     /**
-     * Binds the LLM's edit commands to the playlist. {@code track} references (a 1-based position
+     * Binds the LLM's edit commands to the playlist this parser was bound to with {@link #forPlaylist}. {@code track} references (a 1-based position
      * or a track id/URI) are resolved against the playlist as the user saw it; tracks to add come
      * from a Spotify search for the command's query, skipping tracks already in the playlist or
      * already chosen. Anything that cannot be resolved raises {@link ParseException} before any
      * change is made.
      */
-    public List<PlaylistCommand> parseCommands(String json, PlaylistContext context) {
+    public List<PlaylistCommand> parseCommands(String json) {
+        if (context == null) {
+            throw new IllegalStateException(config.wording("cmdNoContext"));
+        }
         List<PlaylistCommand> commands = new ArrayList<>();
         Set<String> taken = new LinkedHashSet<>();
         context.tracks().forEach(t -> taken.add(t.id()));
@@ -116,19 +130,19 @@ public class ResponseParser {
         for (CommandSpec spec : parseCommandSpecs(json)) {
             switch (spec.type()) {
                 case ADD -> commands.add(new AddItemsCommand(config, context.music(), pid,
-                        List.of(findNew(spec.query(), context, taken))));
+                        List.of(findNew(spec.query(), taken))));
                 case REMOVE -> commands.add(new RemoveTrackCommand(config, context.music(), pid,
-                        resolve(spec.track(), context)));
+                        resolve(spec.track())));
                 case REPLACE -> commands.add(new ReplaceTrackCommand(config, context.music(), pid,
-                        resolve(spec.track(), context), findNew(spec.query(), context, taken)));
+                        resolve(spec.track()), findNew(spec.query(), taken)));
                 case REORDER -> commands.add(new ReorderCommand(config, context.music(), pid,
-                        resolve(spec.track(), context), spec.position()));
+                        resolve(spec.track()), spec.position()));
             }
         }
         return commands;
     }
 
-    private Track resolve(String reference, PlaylistContext context) {
+    private Track resolve(String reference) {
         for (Track t : context.tracks()) {
             if (reference.equals(t.id()) || reference.equals(t.uri())) {
                 return t;
@@ -143,7 +157,7 @@ public class ResponseParser {
         throw new ParseException(String.format(config.wording("cmdRefUnknown"), reference));
     }
 
-    private Track findNew(String query, PlaylistContext context, Set<String> taken) {
+    private Track findNew(String query, Set<String> taken) {
         for (Track t : context.music().search(query, config.commandSearchLimit())) {
             if (taken.add(t.id())) {
                 return t;

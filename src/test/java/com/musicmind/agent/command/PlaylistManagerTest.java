@@ -184,4 +184,29 @@ class PlaylistManagerTest extends PostgresTestBase {
         assertEquals(List.of("a", "b"), music.ids("p"));
         assertTrue(m.history.isEmpty());
     }
+
+    @Test
+    void failedRestorePutsTheCurrentTracksBackAndSaysSo() {
+        music.seed("p", "a", "b", "c");
+        PlaylistManager m = manager();
+        int id = m.snapshotBeforeModify(current("p"));
+        music.seed("p", "z", "y");
+        music.failOn = "add p [spotify:track:a";
+        music.failOnce = true;
+        PlaylistChangeException e = assertThrows(PlaylistChangeException.class, () -> m.restore(id));
+        assertEquals(config.wording("restoreFailed"), e.getMessage());
+        assertTrue(e.getCause().getMessage().contains("boom"));
+        assertEquals(List.of("z", "y"), music.ids("p"), "the playlist is not left empty");
+    }
+
+    @Test
+    void failedRestoreKeepsASecondFailureAsSuppressed() {
+        music.seed("p", "a", "b");
+        PlaylistManager m = manager();
+        int id = m.snapshotBeforeModify(current("p"));
+        music.seed("p", "z");
+        music.failOn = "add p";   // every add fails, including the put-back
+        PlaylistChangeException e = assertThrows(PlaylistChangeException.class, () -> m.restore(id));
+        assertEquals(1, e.getSuppressed().length);
+    }
 }
