@@ -437,7 +437,7 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
         AppController c = controller(music, llm);
 
         String byPlaylist = c.explain("p");
-        assertEquals("[t1] came from your \"jazz\" genre and [t2] from your history.", byPlaylist);
+        assertEquals("one of the tracks came from your \"jazz\" genre and one of the tracks from your history.", byPlaylist);
         assertEquals(byPlaylist, c.explain("create-p"));
     }
 

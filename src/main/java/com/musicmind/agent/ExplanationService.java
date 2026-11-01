@@ -30,14 +30,25 @@ public class ExplanationService {
         this.config = Objects.requireNonNull(config, "config");
     }
 
+    /** As {@link #explain(AgentSession, Map)} with no titles known, as when only stored data is available. */
     public String explain(AgentSession session) {
+        return explain(session, Map.of());
+    }
+
+    /**
+     * @param titles track titles by id, read for display only and never stored; the verified text shows a
+     *               title where one is known and refers to the track generally otherwise, never an id
+     */
+    public String explain(AgentSession session, Map<String, String> titles) {
         DecisionTrace trace = session.trace();
         if (trace == null || trace.reasons().isEmpty()) {
             return config.wording("explainNoTrace");
         }
         if (llm != null) {
             try {
-                return parser.verifyExplanation(llm.complete(prompts.buildExplainPrompt(trace)), trace);
+                String verified = parser.verifyExplanation(llm.complete(prompts.buildExplainPrompt(trace)), trace);
+                return parser.replaceTrackIds(verified, id -> titles.containsKey(id)
+                        ? "\"" + titles.get(id) + "\"" : config.wording("explainTrackGeneral"));
             } catch (RuntimeException e) {
                 // fall back to the computed explanation below
             }

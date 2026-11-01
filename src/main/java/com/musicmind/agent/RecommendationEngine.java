@@ -230,6 +230,17 @@ public class RecommendationEngine {
         } else if (steps > 0 && !enough(selection, withRatio(spec, ratio))) {
             notes.add(String.format(config.wording("discoverFewResults"), result.size()));
         }
+        if (allowLibraryTracks && !result.isEmpty()) {
+            int wantedNew = (int) Math.round(result.size() * (1 - spec.familiarRatio()));
+            // A widening notice already says the novelty target was lowered; say it here when nothing widened.
+            if (steps == 0 && selection.novelSelected() < wantedNew) {
+                notes.add(String.format(config.wording("createFewNewArtists"), selection.novelSelected(), wantedNew));
+            }
+            if (!seedGenres.isEmpty() && selection.seedMatched() < result.size()) {
+                notes.add(String.format(config.wording("createFewGenreMatches"), selection.seedMatched(),
+                        result.size(), String.join(", ", seedGenres)));
+            }
+        }
         if (!retriever.errors().isEmpty()) {
             notes.add(String.format(config.wording("discoverReadFailed"), retriever.errors().size()));
         }
@@ -270,7 +281,7 @@ public class RecommendationEngine {
     // ---- selection ----
 
     private record Selection(List<Recommendation> recommendations, int novelSelected,
-                             int removedBlocked, int removedExplicit) {
+                             int removedBlocked, int removedExplicit, int seedMatched) {
     }
 
     /** Enough picks, and enough of them new, for the novelty the spec asked for. */
@@ -304,7 +315,9 @@ public class RecommendationEngine {
                 (isFamiliar(t, libraryIds) ? familiar : novel).add(t);
             }
         }
-        Comparator<Track> best = Comparator.<Track>comparingDouble(t -> score(t, spec)).reversed();
+        // Tracks that match the genres the user asked for (a mood) rank first inside each pool, then by score.
+        Comparator<Track> best = Comparator.<Track>comparingInt(t -> matchesSeed(t) ? 0 : 1)
+                .thenComparing(Comparator.<Track>comparingDouble(t -> score(t, spec)).reversed());
         familiar.sort(best);
         novel.sort(best);
 
@@ -317,22 +330,39 @@ public class RecommendationEngine {
 
         List<Recommendation> recs = new ArrayList<>();
         int novelSelected = 0;
+        int seedMatched = 0;
         for (Track t : picked.values()) {
+            if (matchesSeed(t)) {
+                seedMatched++;
+            }
             if (!isFamiliar(t, libraryIds)) {
                 novelSelected++;
             }
             recs.add(new Recommendation(t, reason(t), familiarity(t), score(t, spec)));
         }
         recs.sort(Comparator.comparingDouble(Recommendation::score).reversed());
-        return new Selection(recs, novelSelected, blocked, explicit);
+        return new Selection(recs, novelSelected, blocked, explicit, seedMatched);
     }
 
     /**
-     * Familiar tracks are the user's own when library tracks are allowed, else the not-yet-known
-     * tracks by artists the user already listens to. Ties in score keep source order (sorts are stable).
+     * Familiar tracks are the user's own and any track by an artist the user already listens to; the
+     * rest are by artists new to the user. Ties in score keep source order (sorts are stable).
      */
     private boolean isFamiliar(Track track, Set<String> libraryIds) {
-        return allowLibraryTracks ? libraryIds.contains(track.id()) : familiarity(track) >= 1.0;
+        return libraryIds.contains(track.id()) || familiarity(track) >= 1.0;
+    }
+
+    /** True if the track was found for one of the requested genres or is by a known artist of one. */
+    private boolean matchesSeed(Track track) {
+        if (seedGenres.isEmpty()) {
+            return false;
+        }
+        Origin origin = origins.get(track.id());
+        if (origin != null && origin.genre() != null && seedGenres.contains(origin.genre())) {
+            return true;
+        }
+        return profile.topArtists().stream().filter(a -> track.artistIds().contains(a.id()))
+                .anyMatch(a -> a.genres().stream().anyMatch(seedGenres::contains));
     }
 
     // ---- scoring inputs ----

@@ -87,10 +87,14 @@ class RecommendationEngineTest {
         }
     }
 
-    private RecommendationEngine engine(FakeMusic music) {
+    private static ToolManager toolsFor(FakeMusic music) {
         ToolManager tools = new ToolManager();
         SpotifyTool.allFor(music).forEach(tools::register);
-        return new RecommendationEngine(tools, config);
+        return tools;
+    }
+
+    private RecommendationEngine engine(FakeMusic music) {
+        return new RecommendationEngine(toolsFor(music), config);
     }
 
     /** Knows artists a1 and a2; genres rock > indie > jazz > blues > folk > soul, one weight each step. */
@@ -660,5 +664,123 @@ class RecommendationEngineTest {
         m.libraryFailure = new MusicServiceException("offline");
         m.searchFailure = new MusicServiceException("offline");
         assertTrue(engine(m).retrieve(profile(), spec(0.5), true, List.of()).allReadsFailed());
+    }
+
+    // ---- F5: the familiar share means known artists, the rest must be new artists (Task 22) ----
+
+    /** Library of 5, five more tracks by known artists on an album, and 20 rock tracks by strangers. */
+    private static FakeMusic knownArtistAlbumMusic() {
+        FakeMusic m = richMusic();
+        m.albumsByArtist.put("a1", List.of(new Album("alb1", "Album", "2020")));
+        m.tracksByAlbum.put("alb1", List.of(track("deep1", "a1"), track("deep2", "a1"), track("deep3", "a1"),
+                track("deep4", "a1"), track("deep5", "a1")));
+        return m;
+    }
+
+    private static long unknownArtistCount(List<Recommendation> recs) {
+        return recs.stream().filter(r -> r.familiarity() < 1.0).count();
+    }
+
+    @Test
+    void aSeventyPercentFamiliarPlaylistHasAboutThirtyPercentTracksByNewArtists() {
+        RecommendationEngine e = engine(knownArtistAlbumMusic());
+
+        List<Recommendation> recs = e.recommend(profile(), spec(0.7), List.of(), true);
+
+        assertEquals(10, recs.size());
+        assertEquals(3, unknownArtistCount(recs), ids(recs).toString());
+        assertTrue(e.lastNotices().isEmpty(), e.lastNotices().toString());
+    }
+
+    @Test
+    void aKnownArtistsUnheardTrackIsFamiliarNotNovelWhenLibraryTracksAreAllowed() {
+        RecommendationEngine e = engine(knownArtistAlbumMusic());
+
+        CandidatePool pool = e.retrieve(profile(), spec(0.7), true, List.of()).pool();
+
+        List<String> familiar = pool.familiar().stream().map(Track::id).toList();
+        List<String> novel = pool.novel().stream().map(Track::id).toList();
+        assertTrue(familiar.containsAll(List.of("deep1", "deep5", "top0")), familiar.toString());
+        assertTrue(novel.stream().noneMatch(id -> id.startsWith("deep")), novel.toString());
+        assertEquals(20, novel.size());
+    }
+
+    @Test
+    void seedGenreMatchesRankAboveNonMatchesInsideTheFamiliarPool() {
+        FakeMusic m = knownArtistAlbumMusic();
+        m.albumsByArtist.put("a2", List.of(new Album("alb2", "Jazz", "2021")));
+        m.tracksByAlbum.put("alb2", List.of(track("j1", "a2"), track("j2", "a2")));
+        RecommendationEngine e = engine(m);
+        e.setStrategy(new FamiliarStrategy());
+        PlaylistSpec five = new PlaylistSpec(20, true, 1.0, List.of(), "x");
+
+        List<Recommendation> recs = e.recommend(profile(), five, List.of(), true, List.of("jazz"));
+
+        // The jazz artist a2 has top2, saved0, j1 and j2; a1 (rock) has more tracks and a higher taste affinity.
+        assertTrue(ids(recs).containsAll(List.of("top2", "saved0", "j1", "j2")), ids(recs).toString());
+        assertTrue(e.lastNotices().stream().anyMatch(n -> n.contains("4 of 5") && n.contains("jazz")),
+                e.lastNotices().toString());
+    }
+
+    @Test
+    void seedGenreTracksByNewArtistsAreTheOnesChosenForTheNewShare() {
+        FakeMusic m = knownArtistAlbumMusic();
+        m.byGenre.clear();
+        m.byGenre.put("rock", unknownTracks("r", 20));
+        m.byGenre.put("lo-fi", unknownTracks("l", 4));
+        RecommendationEngine e = engine(m);
+
+        List<Recommendation> recs = e.recommend(profile(), spec(0.7), List.of(), true, List.of("lo-fi"));
+
+        List<String> fresh = recs.stream().filter(r -> r.familiarity() < 1.0).map(r -> r.track().id()).toList();
+        assertEquals(3, fresh.size());
+        assertTrue(fresh.stream().allMatch(id -> id.startsWith("l")), fresh.toString());
+    }
+
+    @Test
+    void tooFewNewArtistsSaysSoInsteadOfFillingSilently() {
+        FakeMusic m = knownArtistAlbumMusic();
+        m.byGenre.clear();
+        m.byGenre.put("rock", unknownTracks("r", 1));
+        RecommendationEngine e = engine(m);
+
+        e.recommend(profile(), spec(0.7), List.of(), true);
+
+        assertTrue(e.lastNotices().stream().anyMatch(n -> n.contains("novelty target")), e.lastNotices().toString());
+    }
+
+    @Test
+    void aShortfallOfNewArtistsIsReportedWhenNothingCouldBeWidened() {
+        FakeMusic m = knownArtistAlbumMusic();
+        m.byGenre.clear();
+        m.byGenre.put("rock", unknownTracks("r", 1));
+        RecommendationEngine e = new RecommendationEngine(toolsFor(m), config.withTunables(Map.of("discover.widenSteps", "0")));
+
+        List<Recommendation> recs = e.recommend(profile(), spec(0.7), List.of(), true);
+
+        assertEquals(1, unknownArtistCount(recs), ids(recs) + " " + e.lastNotices());
+        assertTrue(e.lastNotices().stream().anyMatch(n -> n.contains("1 of 3") && n.contains("new to you")),
+                e.lastNotices().toString());
+    }
+
+    @Test
+    void tooFewMoodMatchingTracksSaysSo() {
+        FakeMusic m = knownArtistAlbumMusic();
+        RecommendationEngine e = engine(m);
+
+        e.recommend(profile(), spec(0.7), List.of(), true, List.of("lo-fi"));
+
+        assertTrue(e.lastNotices().stream().anyMatch(n -> n.contains("lo-fi") && n.contains("match")),
+                e.lastNotices().toString());
+    }
+
+    @Test
+    void discoveryStillExcludesTheLibraryAndTheNoveltyMeaningIsUnchanged() {
+        RecommendationEngine e = engine(knownArtistAlbumMusic());
+
+        List<Recommendation> recs = e.recommend(profile(), spec(0.0), List.of(), false);
+
+        assertTrue(ids(recs).stream().noneMatch(id -> List.of("top0", "top1", "top2", "saved0", "rec0").contains(id)));
+        assertEquals(10, unknownArtistCount(recs));
     }
 }

@@ -68,15 +68,13 @@ public final class Retrieval {
     }
 
     /**
-     * Familiar tracks are the user's own when library tracks are allowed, else the not-yet-known
-     * tracks by artists the user already listens to.
+     * Familiar tracks are the user's own and any track by an artist the user already listens to;
+     * novel tracks are by artists new to the user.
      */
     boolean isFamiliar(Track track) {
-        if (allowLibraryTracks) {
-            return libraryIds.contains(track.id());
-        }
         RecommendationEngine.Origin origin = origins.get(track.id());
-        return (origin != null && origin.source() == RecommendationEngine.Source.LIBRARY)
+        return libraryIds.contains(track.id())
+                || (origin != null && origin.source() == RecommendationEngine.Source.LIBRARY)
                 || profile.familiarity(track) >= 1.0;
     }
 }

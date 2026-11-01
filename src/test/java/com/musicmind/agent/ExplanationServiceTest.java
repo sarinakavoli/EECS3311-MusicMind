@@ -40,7 +40,8 @@ class ExplanationServiceTest {
     @Test
     void usesTheLlmWordingWhenItStaysInsideTheTrace() {
         String reply = "[t1] came from your \"jazz\" genre and [t2] from your history.";
-        assertEquals(reply, service(p -> reply).explain(session(TRACE)));
+        assertEquals("\"Blue\" came from your \"jazz\" genre and \"Red\" from your history.",
+                service(p -> reply).explain(session(TRACE), Map.of("t1", "Blue", "t2", "Red")));
     }
 
     @Test
@@ -98,5 +99,48 @@ class ExplanationServiceTest {
         assertEquals(none, svc.explain(session(new DecisionTrace("Balanced", Map.of(), List.of()))));
         assertTrue(prompted.isEmpty());
         assertTrue(none.contains("only a general explanation"));
+    }
+
+    private static final String ID1 = "4uLU6hMCjMI75M1A2tKUQC";
+    private static final String ID2 = "7ouMYWpwJ422jRcDASZB7P";
+    private static final DecisionTrace LONG_IDS = new DecisionTrace("BalancedStrategy",
+            Map.of(ID1, "by an artist new to you", ID2, "from your own listening history"), List.of());
+
+    @Test
+    void anExplanationWithoutKnownTitlesRefersToTracksGenerallyWithNoIds() {
+        String reply = "[" + ID1 + "] is new to you and spotify:track:" + ID2 + " comes from your history.";
+
+        String text = service(p -> reply).explain(session(LONG_IDS));
+
+        assertFalse(text.contains(ID1) || text.contains(ID2) || text.contains("["), text);
+        assertTrue(text.contains("new to you") && text.contains("from your history"), text);
+    }
+
+    @Test
+    void knownTitlesReplaceIdsAndOtherIdsAreStillRemoved() {
+        String reply = "[" + ID1 + "] is new to you and [" + ID2 + "] comes from your history.";
+
+        String text = service(p -> reply).explain(session(LONG_IDS), Map.of(ID1, "Blue"));
+
+        assertTrue(text.startsWith("\"Blue\" is new to you and "), text);
+        assertFalse(text.contains(ID2), text);
+    }
+
+    @Test
+    void theIdsStayInThePromptAndTheVerificationEvenWhenTitlesAreGiven() {
+        List<String> seen = new ArrayList<>();
+        service(p -> {
+            seen.add(p);
+            return "[" + ID1 + "] and [" + ID2 + "] were chosen.";
+        }).explain(session(LONG_IDS), Map.of(ID1, "Blue", ID2, "Red"));
+
+        assertTrue(seen.get(0).contains("[" + ID1 + "]") && !seen.get(0).contains("Blue"));
+    }
+
+    @Test
+    void theComputedExplanationNeverShowsIds() {
+        String text = service(null).explain(session(LONG_IDS), Map.of(ID1, "Blue"));
+
+        assertFalse(text.contains(ID1) || text.contains(ID2), text);
     }
 }

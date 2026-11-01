@@ -302,6 +302,32 @@ public class ResponseParser {
         return t;
     }
 
+    /**
+     * Rewrites every track id in a verified explanation (bracketed, as a track URI, or bare) for display:
+     * {@code display} gives the text for an id, so a title can replace it or a general phrase stand in.
+     */
+    public String replaceTrackIds(String text, java.util.function.UnaryOperator<String> display) {
+        String bracketed = replaceAll(BRACKETED, text, display);
+        String uris = replaceAll(TRACK_URI, bracketed, display);
+        Matcher m = BARE_ID.matcher(uris);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            m.appendReplacement(out, Matcher.quoteReplacement(looksLikeId(m.group()) ? display.apply(m.group()) : m.group()));
+        }
+        m.appendTail(out);
+        return out.toString();
+    }
+
+    private static String replaceAll(Pattern pattern, String text, java.util.function.UnaryOperator<String> display) {
+        Matcher m = pattern.matcher(text);
+        StringBuilder out = new StringBuilder();
+        while (m.find()) {
+            m.appendReplacement(out, Matcher.quoteReplacement(display.apply(m.group(1).trim())));
+        }
+        m.appendTail(out);
+        return out.toString();
+    }
+
     /** Everything the trace records, as one lower-case text. */
     private static String facts(DecisionTrace trace) {
         StringBuilder sb = new StringBuilder(trace.strategyName() == null ? "" : trace.strategyName());
