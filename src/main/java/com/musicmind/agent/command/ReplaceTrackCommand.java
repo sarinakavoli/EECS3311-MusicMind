@@ -44,7 +44,17 @@ public class ReplaceTrackCommand implements PlaylistCommand {
             }
             throw e;
         }
-        PlaylistOps.move(music, playlistId, sizeWithout, oldIndexes.get(0));
+        try {
+            PlaylistOps.move(music, playlistId, sizeWithout, oldIndexes.get(0));
+        } catch (RuntimeException e) {
+            try {
+                music.removeItems(playlistId, List.of(PlaylistOps.uri(newTrack)));
+                PlaylistOps.restoreCopies(music, playlistId, oldTrack, oldIndexes, sizeWithout);
+            } catch (RuntimeException secondary) {
+                e.addSuppressed(secondary);
+            }
+            throw e;
+        }
     }
 
     @Override

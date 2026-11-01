@@ -8,8 +8,8 @@ import java.util.List;
 
 /**
  * Sets a playlist to exactly a snapshot's tracks in its order (F12 restore, replayed through the Command
- * mechanism); undo sets it back to the tracks it held before. If setting it fails part way, the previous
- * tracks are put back and the failure is reported.
+ * mechanism); undo sets it back to the tracks it held before. If either fails part way, the tracks it held
+ * just before that step are put back and the failure is reported.
  */
 public class RestoreSnapshotCommand implements PlaylistCommand {
 
@@ -30,15 +30,8 @@ public class RestoreSnapshotCommand implements PlaylistCommand {
 
     @Override
     public void execute() {
-        List<String> now = currentUris();
-        before = now;
-        try {
-            set(now, wanted);
-        } catch (RuntimeException e) {
-            PlaylistChangeException failure = new PlaylistChangeException(config.wording("restoreFailed"), e);
-            putBack(failure);
-            throw failure;
-        }
+        before = currentUris();
+        change(before, wanted);
     }
 
     @Override
@@ -46,7 +39,17 @@ public class RestoreSnapshotCommand implements PlaylistCommand {
         if (before == null) {
             throw new PlaylistChangeException(config.wording("cmdNotRun"));
         }
-        set(currentUris(), before);
+        change(currentUris(), before);
+    }
+
+    private void change(List<String> now, List<String> target) {
+        try {
+            set(now, target);
+        } catch (RuntimeException e) {
+            PlaylistChangeException failure = new PlaylistChangeException(config.wording("restoreFailed"), e);
+            putBack(now, failure);
+            throw failure;
+        }
     }
 
     private void set(List<String> now, List<String> target) {
@@ -61,10 +64,10 @@ public class RestoreSnapshotCommand implements PlaylistCommand {
         }
     }
 
-    /** Returns the playlist to its tracks from before the failed restore; a failure here is kept as suppressed. */
-    private void putBack(PlaylistChangeException failure) {
+    /** Returns the playlist to the tracks it held before the failed step; a failure here is kept as suppressed. */
+    private void putBack(List<String> previous, PlaylistChangeException failure) {
         try {
-            set(currentUris(), before);
+            set(currentUris(), previous);
         } catch (RuntimeException secondary) {
             failure.addSuppressed(secondary);
         }

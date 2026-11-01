@@ -42,12 +42,22 @@ final class PlaylistOps {
 
     /**
      * Re-adds one copy of the track per index (they land at the end of a playlist of {@code size}
-     * items) and moves each to its original index, earliest first.
+     * items) and moves each to its original index, earliest first. If a move fails, the copies are taken
+     * out again, so the caller can try the whole step once more without adding extra copies.
      */
     static void restoreCopies(MusicService music, String playlistId, Track track, List<Integer> indexes, int size) {
         music.addItems(playlistId, java.util.Collections.nCopies(indexes.size(), uri(track)));
-        for (int j = 0; j < indexes.size(); j++) {
-            move(music, playlistId, size + j, indexes.get(j));
+        try {
+            for (int j = 0; j < indexes.size(); j++) {
+                move(music, playlistId, size + j, indexes.get(j));
+            }
+        } catch (RuntimeException e) {
+            try {
+                music.removeItems(playlistId, List.of(uri(track)));
+            } catch (RuntimeException secondary) {
+                e.addSuppressed(secondary);
+            }
+            throw e;
         }
     }
 

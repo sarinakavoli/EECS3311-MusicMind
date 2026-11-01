@@ -251,4 +251,47 @@ class PlaylistCommandsTest {
         new ReorderCommand(config, music, "p", track("c"), 0).execute();
         assertEquals(1, music.reads);
     }
+
+    @Test
+    void aFailedMoveDuringUndoOfARemoveLeavesNoExtraCopySoTheUndoCanBeRepeated() {
+        FakeMusicService music = new FakeMusicService();
+        music.seed("p", "a", "b", "c");
+        RemoveTrackCommand command = new RemoveTrackCommand(config, music, "p", track("a"));
+        command.execute();
+
+        music.failOn = "reorder";
+        music.failOnce = true;
+        assertThrows(RuntimeException.class, command::undo);
+        assertEquals(List.of("b", "c"), music.ids("p"));
+
+        command.undo();
+        assertEquals(List.of("a", "b", "c"), music.ids("p"));
+    }
+
+    @Test
+    void aFailedFinalMoveOfAReplaceLeavesThePlaylistAsItWas() {
+        FakeMusicService music = new FakeMusicService();
+        music.seed("p", "a", "b", "c");
+        ReplaceTrackCommand command = new ReplaceTrackCommand(config, music, "p", track("a"), track("x"));
+
+        music.failOn = "reorder";
+        music.failOnce = true;
+        assertThrows(RuntimeException.class, command::execute);
+
+        assertEquals(List.of("a", "b", "c"), music.ids("p"));
+    }
+
+    @Test
+    void aFailedUndoOfARestorePutsTheRestoredTracksBack() {
+        FakeMusicService music = new FakeMusicService();
+        music.seed("p", "a", "b");
+        RestoreSnapshotCommand command = new RestoreSnapshotCommand(config, music, "p", "Mix", List.of(track("c")));
+        command.execute();
+
+        music.failOn = "add";
+        music.failOnce = true;
+        assertThrows(RuntimeException.class, command::undo);
+
+        assertEquals(List.of("c"), music.ids("p"));
+    }
 }
