@@ -266,9 +266,19 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
     @Test
     void replanningIsBoundedAndWhenNothingFitsTheEditIsRefusedWithoutWrites() {
         Music music = withExplicitRockAndCleanSearch();
+        for (int i = 1; i <= 3; i++) {
+            music.searchResults.put("rock" + i, List.of(t("e" + i, true, "y")));
+        }
         List<String> prompts = new ArrayList<>();
+        LLMProvider differentEachTime = p -> {
+            if (!p.startsWith("MUSICMIND_TASK: EDIT")) {
+                return "ok";
+            }
+            prompts.add(p);
+            return "{\"commands\":[{\"type\":\"add\",\"query\":\"rock" + prompts.size() + "\"}]}";
+        };
         Config cfg = config.withTunables(Map.of("plan.maxValidationRetries", "2"));
-        AppController c = new AppController(music, memory(db), replanning(ADD_ROCK, ADD_ROCK, prompts), cfg);
+        AppController c = new AppController(music, memory(db), differentEachTime, cfg);
         c.login();
         c.setPreference(c.parsePreference("explicitPolicy", "block"));
 
@@ -277,6 +287,18 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
         assertEquals(3, prompts.size(), "one plan and two re-plans");
         assertEquals(List.of("a", "b"), ids(music, "p"));
         assertTrue(music.calls.stream().noneMatch(x -> x.startsWith("remove") || x.startsWith("add")), music.calls.toString());
+    }
+
+    @Test
+    void replanningStopsWhenTheNewPlanEqualsThePreviousOne() {
+        Music music = withExplicitRockAndCleanSearch();
+        List<String> prompts = new ArrayList<>();
+        AppController c = controller(music, replanning(ADD_ROCK, ADD_ROCK, prompts));
+        c.setPreference(c.parsePreference("explicitPolicy", "block"));
+
+        assertThrows(com.musicmind.agent.InfeasibleRequestException.class, () -> c.modifyPlaylist("p", "add rock"));
+
+        assertEquals(2, prompts.size(), "one plan and one re-plan that changed nothing, so no third attempt");
     }
 
     private static final String REMOVE_A_ADD_ROCK = "{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"},"
@@ -337,13 +359,200 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
                 + "\"blockedArtists\":[],\"name\":\"Mix\"}}", null);
         List<String> prompts = new ArrayList<>();
         AppController c = controller(music, replanning(
-                "{\"commands\":[{\"type\":\"remove\",\"track\":\"3\"},{\"type\":\"remove\",\"track\":\"4\"}]}", "", prompts));
+                "{\"commands\":[{\"type\":\"remove\",\"track\":\"3\"},{\"type\":\"remove\",\"track\":\"4\"}],"
+                        + "\"lengthChangeMinutes\":-6}", "", prompts));
 
         c.modifyPlaylist("p", "make it 6 minutes shorter");
 
         assertEquals(1, prompts.size(), "no re-plan: the old 12 minute target does not apply to this edit");
         assertEquals(List.of("a", "b"), ids(music, "p"));
         assertTrue(c.lastModifyNotices().isEmpty(), c.lastModifyNotices().toString());
+    }
+
+    @Test
+    void anLlmFailureWhileReplanningFallsThroughToNegotiationWithTheCurrentPlan() {
+        Music music = withExplicitRockAndCleanSearch();
+        List<String> prompts = new ArrayList<>();
+        LLMProvider failsOnReplan = p -> {
+            if (!p.startsWith("MUSICMIND_TASK: EDIT")) {
+                return "ok";
+            }
+            prompts.add(p);
+            if (prompts.size() > 1) {
+                throw new com.musicmind.llm.LLMException("rate limited");
+            }
+            return REMOVE_A_ADD_ROCK;
+        };
+        AppController c = controller(music, failsOnReplan);
+        c.setPreference(c.parsePreference("explicitPolicy", "block"));
+        List<com.musicmind.domain.FeasibilityReport> asked = new ArrayList<>();
+        c.setNegotiationHandler((report, options) -> {
+            asked.add(report);
+            return java.util.Optional.of(report.relaxations().get(0));
+        });
+
+        c.modifyPlaylist("p", "swap a for rock");
+
+        assertEquals(2, prompts.size());
+        assertEquals(1, asked.size(), "negotiation ran instead of the whole edit failing");
+        assertEquals(List.of("b"), ids(music, "p"));
+    }
+
+    // ---- the playlist's target length (items 2 and 3) ----
+
+    private static final String FOUR_TRACKS_12_MIN_SPEC = "{\"spec\":{\"targetMinutes\":12,\"allowExplicit\":true,"
+            + "\"familiarRatio\":0.5,\"blockedArtists\":[],\"name\":\"Mix\"}}";
+    private static final String DROP_TWO_STATING = "{\"commands\":[{\"type\":\"remove\",\"track\":\"3\"},"
+            + "{\"type\":\"remove\",\"track\":\"4\"}],\"lengthChangeMinutes\":-6}";
+    private static final String DROP_ONE_SILENT = "{\"commands\":[{\"type\":\"remove\",\"track\":\"4\"}]}";
+
+    private Music fourTracksTwelveMinutes() {
+        Music music = new Music();
+        put(music, "p", t("a", false, "x"), t("b", false, "x"), t("c", false, "x"), t("d", false, "x"));
+        storeCreatedSession("p", FOUR_TRACKS_12_MIN_SPEC, null);
+        return music;
+    }
+
+    /** The duration failures validate reports now, as text. */
+    private static String durationProblems(AppController c) {
+        return c.validatePlaylist("p").violations().stream().filter(v -> v.contains("duration")).toList().toString();
+    }
+
+    @Test
+    void aDeliberateLengthChangeMovesTheStoredTargetSoValidateDoesNotFailAgainstTheOldOne() {
+        Music music = fourTracksTwelveMinutes();
+        AppController c = controller(music, editReply(DROP_TWO_STATING));
+
+        c.modifyPlaylist("p", "make it 6 minutes shorter");
+
+        assertTrue(c.lastModifyNotices().isEmpty(), c.lastModifyNotices().toString());
+        assertTrue(c.validatePlaylist("p").passed(), c.validatePlaylist("p").violations().toString());
+        AppController later = controller(music, null);   // a new process reads the stored target
+        assertTrue(later.validatePlaylist("p").passed());
+    }
+
+    @Test
+    void anAbsoluteLengthStatedByTheEditBecomesTheTarget() {
+        Music music = fourTracksTwelveMinutes();
+        AppController c = controller(music, editReply("{\"commands\":[{\"type\":\"remove\",\"track\":\"4\"},"
+                + "{\"type\":\"remove\",\"track\":\"3\"}],\"targetMinutes\":6}"));
+
+        c.modifyPlaylist("p", "make it 6 minutes long");
+
+        assertTrue(c.lastModifyNotices().isEmpty(), c.lastModifyNotices().toString());
+        assertTrue(c.validatePlaylist("p").passed());
+    }
+
+    @Test
+    void undoPutsTheEarlierTargetBack() {
+        Music music = fourTracksTwelveMinutes();
+        AppController c = controller(music, editReply(DROP_TWO_STATING));
+        c.modifyPlaylist("p", "make it 6 minutes shorter");
+
+        c.undo("p");
+
+        music.playlists.get("p").remove(3);   // 9 minutes now: outside the original 12 minute target
+        assertTrue(durationProblems(c).contains("target of 12"), durationProblems(c));
+    }
+
+    @Test
+    void undoInANewRunAlsoPutsTheEarlierTargetBack() {
+        Music music = fourTracksTwelveMinutes();
+        controller(music, editReply(DROP_TWO_STATING)).modifyPlaylist("p", "make it 6 minutes shorter");
+        AppController later = controller(music, null);
+
+        later.undo("p");
+
+        music.playlists.get("p").remove(3);
+        assertTrue(durationProblems(later).contains("target of 12"), durationProblems(later));
+    }
+
+    @Test
+    void restorePutsTheEarlierTargetBackAndUndoingTheRestoreReturnsTheNewOne() {
+        Music music = fourTracksTwelveMinutes();
+        AppController c = controller(music, editReply(DROP_TWO_STATING));
+        c.modifyPlaylist("p", "make it 6 minutes shorter");
+        int snapshot = c.getSnapshots(c.currentUser()).get(0).id();
+
+        c.restore(snapshot);
+        assertEquals(4, ids(music, "p").size());
+        music.playlists.get("p").remove(3);
+        assertTrue(durationProblems(c).contains("target of 12"), durationProblems(c));
+        music.playlists.get("p").add(t("d", false, "x"));
+
+        c.undo("p");   // undoes the restore: two tracks and the shortened target again
+        assertEquals(List.of("a", "b"), ids(music, "p"));
+        assertTrue(c.validatePlaylist("p").passed(), c.validatePlaylist("p").violations().toString());
+    }
+
+    @Test
+    void twoEditsAreUndoneOneTargetAtATime() {
+        Music music = new Music();
+        put(music, "p", t("a", false, "x"), t("b", false, "x"), t("c", false, "x"), t("d", false, "x"), t("e", false, "x"));
+        storeCreatedSession("p", FOUR_TRACKS_12_MIN_SPEC.replace("\"targetMinutes\":12", "\"targetMinutes\":15"), null);
+        List<String> edits = new ArrayList<>(List.of(
+                "{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"},{\"type\":\"remove\",\"track\":\"2\"}],"
+                        + "\"lengthChangeMinutes\":-6}",
+                "{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"}],\"lengthChangeMinutes\":-3}"));
+        AppController second = controller(music, p -> p.startsWith("MUSICMIND_TASK: EDIT") ? edits.remove(0) : "ok");
+        second.modifyPlaylist("p", "6 minutes shorter");                    // 15 -> 9
+        second.modifyPlaylist("p", "3 minutes shorter");                    // 9 -> 6
+
+        second.undo("p");   // back to 9
+        assertTrue(second.validatePlaylist("p").passed(), second.validatePlaylist("p").violations().toString());
+        second.undo("p");   // back to 15
+        music.playlists.get("p").remove(0);
+        assertTrue(durationProblems(second).contains("target of 15"), durationProblems(second));
+    }
+
+    @Test
+    void anEditThatDidNotAskToChangeTheLengthKeepsTheDurationNotice() {
+        Music music = fourTracksTwelveMinutes();
+        AppController c = controller(music, editReply(DROP_ONE_SILENT));
+
+        c.modifyPlaylist("p", "remove the last track");
+
+        assertTrue(c.lastModifyNotices().stream().anyMatch(n -> n.contains("target of 12")), c.lastModifyNotices().toString());
+    }
+
+    @Test
+    void aStatedLengthThatTheChosenPartialEditDoesNotReachDoesNotMoveTheTarget() {
+        Music music = fourTracksTwelveMinutes();
+        String removeAllStating = "{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"},{\"type\":\"remove\",\"track\":\"2\"},"
+                + "{\"type\":\"remove\",\"track\":\"3\"},{\"type\":\"remove\",\"track\":\"4\"}],\"lengthChangeMinutes\":-12}";
+        AppController c = controller(music, editReply(removeAllStating));
+        c.setNegotiationHandler((report, options) -> java.util.Optional.of(report.relaxations().get(0)));
+
+        c.modifyPlaylist("p", "remove everything");
+
+        assertTrue(durationProblems(c).contains("target of 12"), "the target stayed: " + durationProblems(c));
+    }
+
+    @Test
+    void sessionsStoredBeforeTargetsWereRecordedStillLoadAndValidate() {
+        Music music = fourTracksTwelveMinutes();
+        AgentSession legacy = new AgentSession("old-edit", Instant.now(), null);
+        legacy.setStatus("done");
+        legacy.setRequest(new AgentRequest("drop one", RequestKind.MODIFY_PLAYLIST));
+        legacy.setPlaylistId("p");
+        legacy.setDerivedData("{\"approximate\":false,\"mood\":\"\",\"commands\":1}");
+        memory(db).saveSession(legacy);
+        AppController c = controller(music, null);
+
+        assertTrue(c.validatePlaylist("p").passed());
+        assertEquals(config.wording("validateAgainstSession"), c.lastValidationNote());
+        assertThrows(PlaylistChangeException.class, () -> c.undo("p"), "no snapshot exists, and the old record is not a target change");
+    }
+
+    @Test
+    void theStoredTargetAndTheEditsRecordHoldNoSpotifyContent() {
+        Music music = fourTracksTwelveMinutes();
+        controller(music, editReply(DROP_TWO_STATING)).modifyPlaylist("p", "make it 6 minutes shorter");
+
+        for (AgentSession s : memory(db).loadHistory("sp-user")) {
+            String data = s.derivedData() == null ? "" : s.derivedData();
+            assertFalse(data.contains("Title"), data);
+        }
     }
 
     @Test
@@ -608,6 +817,7 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
 
         Playlist restored = c.restore(snapshot);
 
+        assertTrue(c.lastRestoreChanged());
         assertEquals(List.of("a", "b", "c"), restored.tracks().stream().map(Track::id).toList());
         assertEquals(List.of("a", "b", "c"), ids(music, "p"));
         c.undo("p");
@@ -762,8 +972,26 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
 
         c.restore(snapshot);
 
+        assertFalse(c.lastRestoreChanged(), "a restore that finds the playlist already matching reports no change");
         assertEquals(1, memory(db).loadSnapshotSummaries("sp-user").size());
         assertTrue(music.calls.isEmpty(), music.calls.toString());
+    }
+
+    @Test
+    void aSecondRestoreOfTheSameSnapshotReportsNoChangeAndSavesNothingMore() {
+        Music music = new Music();
+        put(music, "p", t("a", false, "x"), t("b", false, "x"), t("c", false, "x"));
+        AppController c = controller(music, editReply("{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"}]}"));
+        c.modifyPlaylist("p", "drop a");
+        int snapshot = c.getSnapshots(c.currentUser()).get(0).id();
+
+        c.restore(snapshot);
+        assertTrue(c.lastRestoreChanged());
+        int saved = c.getSnapshots(c.currentUser()).size();
+        c.restore(snapshot);
+
+        assertFalse(c.lastRestoreChanged());
+        assertEquals(saved, c.getSnapshots(c.currentUser()).size());
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
+import com.musicmind.agent.ClarificationNeededException;
 import com.musicmind.agent.ConstraintChecker;
 import com.musicmind.agent.ExplanationService;
 import com.musicmind.agent.MoodGenreMap;
@@ -52,6 +53,7 @@ import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.User;
 import com.musicmind.domain.UserPreference;
 import com.musicmind.domain.ValidationResult;
+import com.musicmind.llm.LLMException;
 import com.musicmind.llm.LLMProvider;
 import com.musicmind.memory.MemoryManager;
 import com.musicmind.memory.PersistenceException;
@@ -71,6 +73,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -127,6 +130,7 @@ public class MusicAgentFacade {
     private final PlaylistEditor editor;
     private final PlaylistValidator playlistValidator;
     private volatile String lastChangeSummary = "";
+    private volatile boolean lastRestoreChanged;
     private volatile List<String> lastModifyNotices = List.of();
     private volatile String lastValidationNote;
 
@@ -490,27 +494,31 @@ public class MusicAgentFacade {
             throw playlistAccess(e);
         }
         List<String> notices = new ArrayList<>();
-        PlaylistSpec editSpec = editSpec(specFor(userId, id).spec());
-        plan = replanWhileViolating(current, plan, instruction.strip(), editSpec, userId);
-        plan = negotiateEdit(current, plan, notices, editSpec);
+        PlaylistSpec stored = specFor(userId, id).spec();
+        plan = replanWhileViolating(current, plan, instruction.strip(), stored, userId);
+        plan = negotiateEdit(current, plan, notices, stored);
+        int snapshotId;
         try {
-            create.playlists().modify(current, plan.commands());
+            snapshotId = create.playlists().modify(current, plan.commands());
         } catch (MusicServiceException e) {
             throw playlistAccess(e);
         }
+        int target = targetAfter(stored, plan, current);
+        PlaylistSpec judged = withTarget(stored, target);
 
         Playlist updated = loadPlaylist(id);
         if (plan.approximate()) {
             notices.add(String.format(config.wording("modifyApproximate"), plan.mood(),
                     String.join(", ", MoodGenreMap.load().genresFor(plan.mood()))));
         }
-        ValidationResult result = validate(updated, editSpec);
+        ValidationResult result = validate(updated, judged);
         if (!result.passed()) {
             notices.add(String.format(config.wording("modifyViolations"), String.join("; ", result.violations())));
         }
         lastChangeSummary = plan.commands().stream().map(PlaylistCommand::describe)
                 .collect(Collectors.joining(config.wording("cmdBatchSeparator") + " "));
-        record(userId, id, instruction.strip(), plan);
+        record(userId, id, instruction.strip(), plan,
+                PlaylistTargets.change(target, stored.targetMinutes(), snapshotId));
         addWarning(notices);
         lastModifyNotices = List.copyOf(notices);
         return updated;
@@ -521,10 +529,35 @@ public class MusicAgentFacade {
         return new PlaylistSpec(0, spec.allowExplicit(), spec.familiarRatio(), spec.blockedArtists(), spec.name());
     }
 
+    private static PlaylistSpec withTarget(PlaylistSpec spec, int targetMinutes) {
+        return new PlaylistSpec(targetMinutes, spec.allowExplicit(), spec.familiarRatio(), spec.blockedArtists(), spec.name());
+    }
+
+    /**
+     * The playlist's target length after the edit. An edit that states a length (a change such as "15 minutes
+     * shorter", or a new total) moves it: the stored target (or, with none, the playlist's current length) plus
+     * the change. An edit that does not state one, or states one outside the allowed range, leaves it as it was.
+     */
+    private int targetAfter(PlaylistSpec stored, PlaylistEditor.EditPlan plan, Playlist before) {
+        if (plan.targetMinutes() > 0) {
+            return plan.targetMinutes();
+        }
+        if (plan.lengthChangeMinutes() == 0) {
+            return stored.targetMinutes();
+        }
+        int base = stored.targetMinutes() > 0 ? stored.targetMinutes()
+                : (int) Math.round(before.totalDuration() / 60_000.0);
+        long moved = (long) base + plan.lengthChangeMinutes();
+        return moved >= config.parserMinTargetMinutes() && moved <= config.parserMaxTargetMinutes()
+                ? (int) moved : stored.targetMinutes();
+    }
+
     /**
      * The F6 adjustment loop that F7 drives: while the simulated result of the edit introduces a violation,
      * plan again with the violations stated, at most {@code plan.maxValidationRetries} times. Nothing is
-     * written. What still fails afterwards goes to {@link #negotiateEdit}.
+     * written. It stops early, keeping the current plan, when the LLM fails or cannot produce a plan, or when
+     * the new plan is the same as the previous one (asking again would only repeat). What still fails afterwards
+     * goes to {@link #negotiateEdit}.
      */
     private PlaylistEditor.EditPlan replanWhileViolating(Playlist current, PlaylistEditor.EditPlan plan,
                                                          String instruction, PlaylistSpec editSpec, String userId) {
@@ -539,14 +572,25 @@ public class MusicAgentFacade {
                 return plan;
             }
             String hint = String.format(config.wording("modifyReplanHint"), String.join("; ", introduced));
+            PlaylistEditor.EditPlan next;
             try {
-                plan = editor.plan(new PlaylistContext(current.spotifyId(), current.tracks(), create.music()),
+                next = editor.plan(new PlaylistContext(current.spotifyId(), current.tracks(), create.music()),
                         instruction + "\n" + hint, knownArtistGenres(userId));
             } catch (MusicServiceException e) {
                 throw playlistAccess(e);
+            } catch (LLMException | ClarificationNeededException e) {
+                return plan;   // the plan already made is still a valid one to negotiate over
             }
+            if (describe(next).equals(describe(plan))) {
+                return plan;
+            }
+            plan = next;
         }
         return plan;
+    }
+
+    private static List<String> describe(PlaylistEditor.EditPlan plan) {
+        return plan.commands().stream().map(PlaylistCommand::describe).toList();
     }
 
     /**
@@ -578,7 +622,7 @@ public class MusicAgentFacade {
             throw new IllegalArgumentException(config.wording("modifyBadChoice"));
         }
         notices.add(String.format(config.wording("modifyAdjusted"), chosen.description()));
-        return new PlaylistEditor.EditPlan(plan.commands().subList(0, (int) chosen.value()), plan.approximate(), plan.mood());
+        return plan.withCommands(plan.commands().subList(0, (int) chosen.value()));
     }
 
     /** What the last {@link #modifyPlaylist} changed, in words; empty before one or when nothing was changed. */
@@ -598,10 +642,16 @@ public class MusicAgentFacade {
      * @throws PlaylistChangeException if there is nothing to undo, the history is unavailable or the playlist cannot be changed
      */
     public synchronized void undo(String playlistId) {
+        String id = requirePlaylistId(playlistId);
         try {
-            create.playlists().undo(requirePlaylistId(playlistId));
+            create.playlists().undo(id);
         } catch (MusicServiceException e) {
             throw playlistAccess(e);
+        }
+        String userId = currentUserId.get();
+        if (userId != null) {
+            targets(userId, id).lastUnreverted().ifPresent(change -> saveChangeSession(id,
+                    config.wording("undoRecordText"), PlaylistTargets.revert(change.before(), change.sessionId())));
         }
     }
 
@@ -640,14 +690,27 @@ public class MusicAgentFacade {
 
     private record SpecChoice(PlaylistSpec spec, boolean fromSession) { }
 
+    /**
+     * The constraints a playlist is judged by: the spec saved with the session that created it, else one built
+     * from the stored preferences. Either way the target length is the one the latest edit, undo or restore
+     * left ({@link PlaylistTargets}), not necessarily the creation-time one.
+     */
     private SpecChoice specFor(String userId, String playlistId) {
         AgentSession created = memory.findSessionByPlaylist(playlistId);
         Optional<PlaylistSpec> saved = created == null ? Optional.empty() : SessionRecord.specOf(created.derivedData());
+        SpecChoice choice;
         if (saved.isPresent()) {
-            return new SpecChoice(saved.get(), true);
+            choice = new SpecChoice(saved.get(), true);
+        } else {
+            PlaylistSpec base = new PlaylistSpec(0, true, config.discoverDefaultFamiliarRatio(), List.of(), null);
+            choice = new SpecChoice(PreferenceSettings.from(memory.loadPreferences(userId)).applyTo(base), false);
         }
-        PlaylistSpec base = new PlaylistSpec(0, true, config.discoverDefaultFamiliarRatio(), List.of(), null);
-        return new SpecChoice(PreferenceSettings.from(memory.loadPreferences(userId)).applyTo(base), false);
+        OptionalInt target = targets(userId, playlistId).current();
+        return target.isPresent() ? new SpecChoice(withTarget(choice.spec(), target.getAsInt()), choice.fromSession()) : choice;
+    }
+
+    private PlaylistTargets targets(String userId, String playlistId) {
+        return new PlaylistTargets(memory.loadHistory(userId), playlistId);
     }
 
     /** The playlist as Spotify holds it, named after the spec saved when it was created. */
@@ -686,15 +749,22 @@ public class MusicAgentFacade {
     }
 
     /** Stores the edit in the history: the user's words, the playlist id and MusicMind's own flags, no Spotify content. */
-    private void record(String userId, String playlistId, String instruction, PlaylistEditor.EditPlan plan) {
-        AgentSession session = new AgentSession(UUID.randomUUID().toString(), Instant.now(), null);
-        session.setStatus("done");
-        session.setRequest(new AgentRequest(instruction, RequestKind.MODIFY_PLAYLIST));
-        session.setPlaylistId(playlistId);
+    private void record(String userId, String playlistId, String instruction, PlaylistEditor.EditPlan plan,
+                        Map<String, Object> targetChange) {
         Map<String, Object> derived = new LinkedHashMap<>();
         derived.put("approximate", plan.approximate());
         derived.put("mood", plan.mood());
         derived.put("commands", plan.commands().size());
+        derived.putAll(targetChange);
+        saveChangeSession(playlistId, instruction, derived);
+    }
+
+    /** A MODIFY_PLAYLIST session for the history: the words, the playlist id and MusicMind's own numbers. */
+    private void saveChangeSession(String playlistId, String text, Map<String, Object> derived) {
+        AgentSession session = new AgentSession(UUID.randomUUID().toString(), Instant.now(), null);
+        session.setStatus("done");
+        session.setRequest(new AgentRequest(text, RequestKind.MODIFY_PLAYLIST));
+        session.setPlaylistId(playlistId);
         session.setDerivedData(GSON.toJson(derived));
         memory.saveSession(session);
     }
@@ -741,6 +811,7 @@ public class MusicAgentFacade {
      * @throws PlaylistChangeException if the snapshot is unknown or unavailable, or the playlist cannot be changed
      */
     public synchronized Playlist restore(int snapshotId) {
+        lastRestoreChanged = false;
         Playlist snapshot = loadSnapshot(snapshotId);
         String id = snapshot.spotifyId();
         List<Track> now;
@@ -757,11 +828,19 @@ public class MusicAgentFacade {
         if (now.stream().map(Track::uri).toList().equals(snapshot.tracks().stream().map(Track::uri).toList())) {
             return named(id, now);   // already identical: nothing to save or change
         }
+        int saved;
         try {
-            create.playlists().snapshotBeforeModify(new Playlist(id, snapshot.name(), now));
+            saved = create.playlists().snapshotBeforeModify(new Playlist(id, snapshot.name(), now));
             create.playlists().restore(snapshotId);
         } catch (MusicServiceException e) {
             throw playlistAccess(e);
+        }
+        lastRestoreChanged = true;
+        String userId = currentUserId.get();
+        if (userId != null) {
+            int current = specFor(userId, id).spec().targetMinutes();
+            int back = targets(userId, id).targetAt(snapshotId).orElse(current);
+            saveChangeSession(id, config.wording("restoreRecordText"), PlaylistTargets.change(back, current, saved));
         }
         return loadPlaylist(id);
     }
@@ -784,6 +863,11 @@ public class MusicAgentFacade {
             throw playlistAccess(e);
         }
         return loadPlaylist(command.playlistId());
+    }
+
+    /** Whether the last {@link #restore} changed the playlist; false when it already matched the saved version. */
+    public boolean lastRestoreChanged() {
+        return lastRestoreChanged;
     }
 
     private Playlist loadSnapshot(int snapshotId) {

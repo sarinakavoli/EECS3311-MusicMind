@@ -636,7 +636,11 @@ public class CliApp {
         AppController c = controller();
         try {
             Playlist restored = c.restore(snapshotId);
-            out.println(w("Restored", restored.name(), restored.spotifyId(), restored.tracks().size(), restored.spotifyId()));
+            if (c.lastRestoreChanged()) {
+                out.println(w("Restored", restored.name(), restored.spotifyId(), restored.tracks().size(), restored.spotifyId()));
+            } else {
+                out.println(w("RestoredUnchanged", restored.name(), restored.spotifyId()));
+            }
             return OK;
         } catch (PlaylistMissingException e) {
             out.println(e.getMessage());

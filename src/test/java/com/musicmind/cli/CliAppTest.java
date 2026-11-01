@@ -382,10 +382,34 @@ class CliAppTest extends PostgresTestBase {
         String snapshotId = c.getSnapshots(c.currentUser()).get(0).id() + "";
         assertTrue(history.out().contains("  " + snapshotId + "  "), history.out());
 
+        // The undo already put the playlist back to that saved version, so restoring it changes nothing.
         Result restore = run(c, "", "restore", snapshotId);
         assertEquals(CliApp.OK, restore.status(), restore.err());
-        assertTrue(restore.out().contains("Restored"), restore.out());
+        assertTrue(restore.out().contains("already matches that saved version"), restore.out());
+        assertFalse(restore.out().contains("Undo with"), restore.out());
     }
+
+    @Test
+    void restoreSaysWhatChangedOnlyTheFirstTimeAndOffersUndoOnlyThen() {
+        Music music = new Music();
+        music.seed("p", "a", "b", "c");
+        AppController c = controller(music, REMOVE_ALL_BUT_ONE);
+        assertEquals(CliApp.OK, run(c, "", "modify", "p", "drop the first").status());
+        String snapshotId = c.getSnapshots(c.currentUser()).get(0).id() + "";
+
+        Result first = run(c, "", "restore", snapshotId);
+        Result second = run(c, "", "restore", snapshotId);
+
+        assertEquals(CliApp.OK, first.status(), first.err());
+        assertTrue(first.out().contains("Restored") && first.out().contains("Undo with: undo p"), first.out());
+        assertEquals(CliApp.OK, second.status(), second.err());
+        assertFalse(second.out().contains("Restored") || second.out().contains("Undo with"), second.out());
+        assertTrue(second.out().contains("already"), second.out());
+    }
+
+    private static final LLMProvider REMOVE_ALL_BUT_ONE = prompt -> prompt.startsWith("MUSICMIND_TASK: EDIT")
+            ? "{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"}]}"
+            : "ok";
 
     private static final LLMProvider REMOVE_ALL = prompt -> prompt.startsWith("MUSICMIND_TASK: EDIT")
             ? "{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"},{\"type\":\"remove\",\"track\":\"2\"},"

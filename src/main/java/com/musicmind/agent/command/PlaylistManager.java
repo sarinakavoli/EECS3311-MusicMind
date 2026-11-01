@@ -57,11 +57,16 @@ public class PlaylistManager {
         push(batch);
     }
 
-    /** Snapshots the playlist as it is now, then applies the commands as one undoable step. */
-    public void modify(Playlist current, List<PlaylistCommand> commands) {
+    /**
+     * Snapshots the playlist as it is now, then applies the commands as one undoable step.
+     *
+     * @return the id of the snapshot taken first
+     */
+    public int modify(Playlist current, List<PlaylistCommand> commands) {
         requireComplete(current.spotifyId());
-        snapshotBeforeModify(current);
+        int snapshotId = snapshotBeforeModify(current);
         executeAll(commands);
+        return snapshotId;
     }
 
     /**

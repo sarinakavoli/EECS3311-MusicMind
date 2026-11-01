@@ -444,6 +444,11 @@ public class AppController {
         return facade.restore(snapshotId);
     }
 
+    /** Whether the last {@link #restore} changed the playlist; false when it already matched the saved version. */
+    public boolean lastRestoreChanged() {
+        return facade.lastRestoreChanged();
+    }
+
     /** F12 — creates a new playlist from a snapshot whose playlist was deleted on Spotify. */
     public Playlist recreateFromSnapshot(int snapshotId) {
         requireSpotify();
