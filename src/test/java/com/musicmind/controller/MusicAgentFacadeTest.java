@@ -601,17 +601,30 @@ class MusicAgentFacadeTest extends PostgresTestBase {
     void searchUsesTheParsedQueryAndRanksTheRealResults() {
         FakeMusic music = new FakeMusic();
         music.searchResults = List.of(named("a", "Sunshine"), named("b", "Mellow Alternative"), named("a", "Sunshine"));
-        LLMProvider llm = p -> "{\"keywords\":\"mellow alternative\",\"genre\":\"\",\"filters\":{},\"confidence\":0.9}";
+        LLMProvider llm = p -> "{\"keywords\":\"dreamy alternative\",\"genre\":\"\",\"filters\":{},\"confidence\":0.9}";
         MusicAgentFacade f = facade(music, llm);
 
-        List<Track> found = f.searchMusic("mellow alternative for studying");
+        List<Track> found = f.searchMusic("dreamy alternative for studying");
 
-        assertEquals(List.of("mellow alternative"), music.searches);
+        assertEquals(List.of("dreamy alternative"), music.searches);
         assertEquals(config.searchResultLimit(), music.searchLimit);
         assertEquals(List.of("a", "b"), found.stream().map(Track::id).toList(),
                 "Spotify's order leads (title match is only a small boost); duplicates dropped");
         assertNull(f.lastSearchLabel());
         assertNull(f.lastSearchNotice());
+    }
+
+    @Test
+    void moodWordsNeverReachSpotifyInTheSearchText() {
+        FakeMusic music = new FakeMusic();
+        music.searchResults = List.of(named("a", "Anything"));
+        LLMProvider llm = p -> "{\"keywords\":\"upbeat running\",\"genre\":\"indie\",\"filters\":{},\"confidence\":0.9}";
+
+        facade(music, llm).searchMusic("upbeat indie songs for running");
+
+        assertEquals(1, music.searches.size());
+        assertFalse(music.searches.get(0).contains("upbeat"), music.searches.toString());
+        assertTrue(music.searches.get(0).contains("running") && music.searches.get(0).contains("indie"), music.searches.toString());
     }
 
     @Test
@@ -641,17 +654,17 @@ class MusicAgentFacadeTest extends PostgresTestBase {
     @Test
     void noResultsGivesAnEmptyListAndARelaxedQuerySuggestion() {
         FakeMusic music = new FakeMusic();
-        LLMProvider llm = p -> "{\"keywords\":\"mellow\",\"genre\":\"shoegaze\","
+        LLMProvider llm = p -> "{\"keywords\":\"dreamy\",\"genre\":\"shoegaze\","
                 + "\"filters\":{\"year\":\"1987\"},\"confidence\":0.9}";
         MusicAgentFacade f = facade(music, llm);
 
-        assertTrue(f.searchMusic("mellow shoegaze from 1987").isEmpty());
+        assertTrue(f.searchMusic("dreamy shoegaze from 1987").isEmpty());
 
         String notice = f.lastSearchNotice();
         assertNotNull(notice);
-        assertTrue(notice.contains("mellow shoegaze from 1987"), notice);
-        assertTrue(notice.contains("\"mellow\""), "suggests the keywords alone: " + notice);
-        assertEquals(List.of("mellow shoegaze year:1987", "mellow"), music.searches, "retried once");
+        assertTrue(notice.contains("dreamy shoegaze from 1987"), notice);
+        assertTrue(notice.contains("\"dreamy\""), "suggests the keywords alone: " + notice);
+        assertEquals(List.of("dreamy shoegaze year:1987", "dreamy"), music.searches, "retried once");
     }
 
     @Test
@@ -659,16 +672,16 @@ class MusicAgentFacadeTest extends PostgresTestBase {
         FakeMusic music = new FakeMusic() {
             @Override public List<Track> search(String query, int limit) {
                 super.search(query, limit);
-                return query.equals("mellow") ? List.of(named("r", "Mellow Song")) : List.of();
+                return query.equals("dreamy") ? List.of(named("r", "Dreamy Song")) : List.of();
             }
         };
-        LLMProvider llm = p -> "{\"keywords\":\"mellow\",\"genre\":\"shoegaze\","
+        LLMProvider llm = p -> "{\"keywords\":\"dreamy\",\"genre\":\"shoegaze\","
                 + "\"filters\":{\"year\":\"1987\"},\"confidence\":0.9}";
         MusicAgentFacade f = facade(music, llm);
 
-        List<Track> found = f.searchMusic("mellow shoegaze from 1987");
+        List<Track> found = f.searchMusic("dreamy shoegaze from 1987");
 
-        assertEquals(List.of("mellow shoegaze year:1987", "mellow"), music.searches);
+        assertEquals(List.of("dreamy shoegaze year:1987", "dreamy"), music.searches);
         assertEquals(List.of("r"), found.stream().map(Track::id).toList());
         assertNull(f.lastSearchNotice());
         assertNull(f.lastSearchLabel(), "a retry is not an LLM failure");

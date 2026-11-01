@@ -128,6 +128,9 @@ public class PromptBuilder {
     public String buildSearchPrompt(String text) {
         return start(Kind.SEARCH)
                 + "Turn this music search into Spotify search terms. Do not name specific songs. "
+                + "Spotify matches words in track titles, so keywords must not contain mood or feeling words "
+                + "(upbeat, calm, sad, energetic, happy, chill...): put only artist names, activities, places, "
+                + "eras and a genre in them. "
                 + "Keep keywords short (a few words) and do not repeat the genre in the keywords.\n"
                 + "Search: " + text + "\n"
                 + "Reply with JSON only: {\"keywords\": free text, \"genre\": genre or \"\", "

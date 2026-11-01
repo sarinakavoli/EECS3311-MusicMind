@@ -1,5 +1,7 @@
 {
   "chill": ["chill", "ambient", "downtempo", "lo-fi", "acoustic"],
+  "upbeat": ["indie pop", "pop", "dance pop", "funk", "disco"],
+  "mellow": ["chill", "acoustic", "folk", "indie folk", "ambient"],
   "relaxed": ["acoustic", "chill", "folk", "bossa nova", "ambient"],
   "calm": ["ambient", "classical", "piano", "new age", "sleep"],
   "sad": ["sad", "singer-songwriter", "indie", "blues", "acoustic"],

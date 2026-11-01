@@ -184,10 +184,44 @@ public class Planner {
         }
         try {
             SearchQuery parsed = parser.parseSearchQuery(llm.complete(prompts.buildSearchPrompt(original)));
-            return parsed.confidence() >= config.searchMinConfidence() ? parsed : rawKeywords(original);
+            return parsed.confidence() >= config.searchMinConfidence() ? withoutMoodWords(parsed) : rawKeywords(original);
         } catch (RuntimeException e) {
             return rawKeywords(original);
         }
+    }
+
+    /**
+     * Spotify's text search matches words in track titles, so a mood word ("upbeat") finds tracks with that
+     * word in the title (stock music) instead of music that fits. Each mood word the curated map knows is
+     * taken out of the keywords and replaced by the first {@code search.moodGenres} genres mapped to the
+     * moods; the genre goes in the query's genre, or into the keywords if the model already gave one.
+     */
+    private SearchQuery withoutMoodWords(SearchQuery query) {
+        if (query.keywords() == null || query.keywords().isBlank()) {
+            return query;
+        }
+        List<String> kept = new ArrayList<>();
+        List<String> genres = new ArrayList<>();
+        for (String word : query.keywords().strip().split("\\s+")) {
+            List<String> mapped = moods.genresFor(word.replaceAll("[^\\p{L}\\p{N}]", ""));
+            if (mapped.isEmpty()) {
+                kept.add(word);
+            } else if (genres.size() < config.searchMoodGenres()) {
+                genres.add(mapped.get(0));
+            }
+        }
+        if (kept.size() == query.keywords().strip().split("\\s+").length) {
+            return query;
+        }
+        String genre = query.genre();
+        for (String g : genres) {
+            if (genre == null || genre.isBlank()) {
+                genre = g;
+            } else if (!kept.stream().anyMatch(k -> k.equalsIgnoreCase(g)) && !genre.equalsIgnoreCase(g)) {
+                kept.add(g);
+            }
+        }
+        return new SearchQuery(String.join(" ", kept), genre, query.filters(), query.confidence());
     }
 
     private static SearchQuery rawKeywords(String text) {

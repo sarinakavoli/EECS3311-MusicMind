@@ -394,6 +394,11 @@ public final class Config {
         return Double.parseDouble(text("search.minConfidence"));
     }
 
+    /** Genres from the mood map that replace the mood words taken out of a search query. */
+    public int searchMoodGenres() {
+        return integer("search.moodGenres");
+    }
+
     public double searchTitleMatchWeight() {
         return Double.parseDouble(text("search.weight.titleMatch"));
     }
