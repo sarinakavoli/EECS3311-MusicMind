@@ -510,6 +510,7 @@ public class CliApp {
             return FAILED;
         }
         AppController c = controller();
+        c.setNegotiationHandler(this::askToRelax);
         try {
             Playlist playlist = c.modifyPlaylist(rest[0], rest[1]);
             out.println(config.wording("cliChangedPrefix") + " " + c.lastChangeSummary());

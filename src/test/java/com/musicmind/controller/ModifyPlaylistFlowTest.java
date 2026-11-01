@@ -135,6 +135,81 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
         assertTrue(c.lastModifyNotices().isEmpty(), c.lastModifyNotices().toString());
     }
 
+    // ---- F11 during modify ----
+
+    private static final String REMOVE_ALL_THREE = "{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"},"
+            + "{\"type\":\"remove\",\"track\":\"2\"},{\"type\":\"remove\",\"track\":\"3\"}]}";
+
+    private Music threeTracks() {
+        Music music = new Music();
+        put(music, "p", t("a", false, "x"), t("b", false, "x"), t("c", false, "x"));
+        return music;
+    }
+
+    @Test
+    void anEditThatWouldEmptyThePlaylistOffersAPartialEditAndAppliesTheChosenOne() {
+        Music music = threeTracks();
+        AppController c = controller(music, editReply(REMOVE_ALL_THREE));
+        List<com.musicmind.domain.FeasibilityReport> asked = new ArrayList<>();
+        c.setNegotiationHandler((report, options) -> {
+            asked.add(report);
+            return java.util.Optional.of(report.relaxations().get(0));
+        });
+
+        Playlist updated = c.modifyPlaylist("p", "shorten it by 200 minutes");
+
+        assertEquals(1, asked.size());
+        assertFalse(asked.get(0).conflicts().isEmpty());
+        assertEquals(List.of("c"), ids(music, "p"), "only the first two removals were applied");
+        assertEquals(List.of("c"), updated.tracks().stream().map(Track::id).toList());
+        assertTrue(c.lastModifyNotices().stream().anyMatch(n -> n.contains("Adjusted at your request")),
+                c.lastModifyNotices().toString());
+    }
+
+    @Test
+    void cancellingTheModifyNegotiationMakesNoSpotifyWritesAndNoSnapshot() {
+        Music music = threeTracks();
+        AppController c = controller(music, editReply(REMOVE_ALL_THREE));
+        c.setNegotiationHandler((report, options) -> java.util.Optional.empty());
+
+        com.musicmind.agent.NegotiationCancelledException e = assertThrows(
+                com.musicmind.agent.NegotiationCancelledException.class, () -> c.modifyPlaylist("p", "remove everything"));
+
+        assertEquals(config.wording("modifyCancelled"), e.getMessage());
+        assertEquals(List.of("a", "b", "c"), ids(music, "p"));
+        assertTrue(music.calls.stream().noneMatch(x -> x.startsWith("remove") || x.startsWith("add") || x.startsWith("reorder")),
+                music.calls.toString());
+        assertTrue(memory(db).loadSnapshotSummaries("sp-user").isEmpty());
+    }
+
+    @Test
+    void whenNoSmallerEditWouldWorkTheUserIsToldAndNothingIsAsked() {
+        Music music = new Music();
+        put(music, "p", t("a", false, "x"));
+        AppController c = controller(music, editReply("{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"}]}"));
+        boolean[] asked = {false};
+        c.setNegotiationHandler((report, options) -> { asked[0] = true; return java.util.Optional.empty(); });
+
+        com.musicmind.agent.InfeasibleRequestException e = assertThrows(
+                com.musicmind.agent.InfeasibleRequestException.class, () -> c.modifyPlaylist("p", "remove it"));
+
+        assertTrue(e.getMessage().contains(config.wording("modifyNone")), e.getMessage());
+        assertFalse(asked[0]);
+        assertEquals(List.of("a"), ids(music, "p"));
+    }
+
+    @Test
+    void withNoHandlerTheEditStopsAndListsTheOptions() {
+        Music music = threeTracks();
+        AppController c = controller(music, editReply(REMOVE_ALL_THREE));
+
+        com.musicmind.agent.InfeasibleRequestException e = assertThrows(
+                com.musicmind.agent.InfeasibleRequestException.class, () -> c.modifyPlaylist("p", "remove everything"));
+
+        assertTrue(e.getMessage().contains("Apply only the first 2 of 3 changes"), e.getMessage());
+        assertEquals(List.of("a", "b", "c"), ids(music, "p"));
+    }
+
     @Test
     void modifyRevalidatesAndReportsWhatStillBreaksTheConstraintsWithoutRollingBack() {
         Music music = new Music();
@@ -233,13 +308,13 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
     @Test
     void withTheDatabaseDownTheChangeIsRefusedWithAShortMessage() {
         Music music = new Music();
-        put(music, "p", t("a", false, "x"));
+        put(music, "p", t("a", false, "x"), t("b", false, "x"));
         AppController c = controller(music, editReply("{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"}]}"), deadMemory());
 
         PlaylistChangeException e = assertThrows(PlaylistChangeException.class, () -> c.modifyPlaylist("p", "drop"));
 
         assertEquals(config.wording("snapshotSaveFailed"), e.getMessage());
-        assertEquals(List.of("a"), ids(music, "p"));
+        assertEquals(List.of("a", "b"), ids(music, "p"));
     }
 
     @Test
@@ -457,7 +532,7 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
     @Test
     void restoreOfAPlaylistThatCannotBeReadSaysSo() {
         Music music = new Music();
-        put(music, "p", t("a", false, "x"));
+        put(music, "p", t("a", false, "x"), t("b", false, "x"));
         AppController c = controller(music, editReply("{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"}]}"));
         c.modifyPlaylist("p", "drop a");
         int snapshot = c.getSnapshots(c.currentUser()).get(0).id();

@@ -387,6 +387,36 @@ class CliAppTest extends PostgresTestBase {
         assertTrue(restore.out().contains("Restored"), restore.out());
     }
 
+    private static final LLMProvider REMOVE_ALL = prompt -> prompt.startsWith("MUSICMIND_TASK: EDIT")
+            ? "{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"},{\"type\":\"remove\",\"track\":\"2\"},"
+                    + "{\"type\":\"remove\",\"track\":\"3\"}]}"
+            : "ok";
+
+    @Test
+    void modifyThatCannotBeAppliedAsAskedPromptsAndAppliesTheNumberTyped() {
+        Music music = new Music();
+        music.seed("p", "a", "b", "c");
+
+        Result r = run(controller(music, REMOVE_ALL), "1\n", "modify", "p", "shorten it by 200 minutes");
+
+        assertEquals(CliApp.OK, r.status(), r.err() + r.out());
+        assertTrue(r.out().contains(config.wording("cliProblemPrefix")), r.out());
+        assertTrue(r.out().contains("1) Apply only the first 2 of 3 changes"), r.out());
+        assertEquals(List.of("c"), music.ids("p"));
+    }
+
+    @Test
+    void decliningTheModifyPromptChangesNothingAndFails() {
+        Music music = new Music();
+        music.seed("p", "a", "b", "c");
+
+        Result r = run(controller(music, REMOVE_ALL), "no\n", "modify", "p", "remove everything");
+
+        assertEquals(CliApp.FAILED, r.status());
+        assertTrue(r.err().contains(config.wording("modifyCancelled")), r.err());
+        assertEquals(List.of("a", "b", "c"), music.ids("p"));
+    }
+
     @Test
     void failuresOnUnknownPlaylistsOrSnapshotsGiveNonZeroStatusAndAMessage() {
         AppController c = controller(new Music(), new MockLLMProvider());

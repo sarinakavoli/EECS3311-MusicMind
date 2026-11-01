@@ -81,6 +81,45 @@ public class ConstraintChecker {
                 relaxations);
     }
 
+    /**
+     * Whether an edit can be applied: the playlist it would leave must hold between {@code playlist.minTracks}
+     * and {@code playlist.maxTracks} tracks (an edit that empties it is the usual case). When it would not, the
+     * relaxation is to apply only the first steps, the most that still leaves a valid playlist; none is offered
+     * if even the first step breaks the rule. Nothing is sent to Spotify.
+     */
+    public FeasibilityReport checkEdit(List<Track> before, List<com.musicmind.agent.command.PlaylistCommand> commands) {
+        if (withinLimits(afterFirst(before, commands, commands.size()))) {
+            return FeasibilityReport.ok();
+        }
+        int resulting = afterFirst(before, commands, commands.size()).size();
+        String conflict = resulting < config.playlistMinTracks()
+                ? String.format(config.wording("conflictEditEmpty"), resulting, config.playlistMinTracks())
+                : String.format(config.wording("conflictEditFull"), resulting, config.playlistMaxTracks());
+        List<Relaxation> relaxations = new ArrayList<>();
+        for (int steps = commands.size() - 1; steps >= 1; steps--) {
+            List<Track> left = afterFirst(before, commands, steps);
+            if (withinLimits(left)) {
+                relaxations.add(new Relaxation(Relaxation.Kind.APPLY_PARTIAL, steps,
+                        String.format(config.wording("relaxPartial"), steps, commands.size(), left.size())));
+                break;
+            }
+        }
+        return FeasibilityReport.infeasible(List.of(conflict), relaxations);
+    }
+
+    private boolean withinLimits(List<Track> tracks) {
+        return tracks.size() >= config.playlistMinTracks() && tracks.size() <= config.playlistMaxTracks();
+    }
+
+    private static List<Track> afterFirst(List<Track> before, List<com.musicmind.agent.command.PlaylistCommand> commands,
+                                          int steps) {
+        List<Track> tracks = before;
+        for (int i = 0; i < steps; i++) {
+            tracks = commands.get(i).simulate(tracks);
+        }
+        return tracks;
+    }
+
     /** Longest playlist that fills both sides at the requested share from the minutes available. */
     private static int maxMinutesAtRatio(double familiar, double fresh, double ratio) {
         double byFamiliar = ratio > 0 ? familiar / ratio : Double.MAX_VALUE;

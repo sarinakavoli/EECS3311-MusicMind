@@ -9,6 +9,8 @@ import com.google.gson.JsonSyntaxException;
 import com.musicmind.agent.ConstraintChecker;
 import com.musicmind.agent.ExplanationService;
 import com.musicmind.agent.MoodGenreMap;
+import com.musicmind.agent.InfeasibleRequestException;
+import com.musicmind.agent.NegotiationCancelledException;
 import com.musicmind.agent.NegotiationHandler;
 import com.musicmind.agent.PlaylistContext;
 import com.musicmind.agent.PlaylistEditor;
@@ -35,7 +37,9 @@ import com.musicmind.domain.AgentRequest;
 import com.musicmind.domain.AgentSession;
 import com.musicmind.domain.Artist;
 import com.musicmind.domain.DecisionTrace;
+import com.musicmind.domain.FeasibilityReport;
 import com.musicmind.domain.Feedback;
+import com.musicmind.domain.Relaxation;
 import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.Playlist;
 import com.musicmind.domain.PlaylistSpec;
@@ -477,6 +481,8 @@ public class MusicAgentFacade {
         } catch (MusicServiceException e) {
             throw playlistAccess(e);
         }
+        List<String> notices = new ArrayList<>();
+        plan = negotiateEdit(current, plan, notices);
         try {
             create.playlists().modify(current, plan.commands());
         } catch (MusicServiceException e) {
@@ -484,7 +490,6 @@ public class MusicAgentFacade {
         }
 
         Playlist updated = loadPlaylist(id);
-        List<String> notices = new ArrayList<>();
         if (plan.approximate()) {
             notices.add(String.format(config.wording("modifyApproximate"), plan.mood(),
                     String.join(", ", MoodGenreMap.load().genresFor(plan.mood()))));
@@ -499,6 +504,37 @@ public class MusicAgentFacade {
         addWarning(notices);
         lastModifyNotices = List.copyOf(notices);
         return updated;
+    }
+
+    /**
+     * F11 during modify: if the edit would leave the playlist outside its length limits, ask the handler
+     * (set with {@link #setNegotiationHandler}) which smaller edit to apply. Everything here happens before
+     * the first Spotify write, so declining or failing leaves the playlist untouched.
+     */
+    private PlaylistEditor.EditPlan negotiateEdit(Playlist current, PlaylistEditor.EditPlan plan, List<String> notices) {
+        FeasibilityReport report = new ConstraintChecker(config).checkEdit(current.tracks(), plan.commands());
+        if (report.feasible()) {
+            return plan;
+        }
+        String conflicts = String.join(" ", report.conflicts());
+        if (report.relaxations().isEmpty()) {
+            throw new InfeasibleRequestException(conflicts + " " + config.wording("modifyNone"));
+        }
+        NegotiationHandler handler = negotiationHandler;
+        if (handler == null) {
+            throw new InfeasibleRequestException(conflicts + " " + String.format(
+                    config.wording("modifyNoHandler"), String.join("; ", report.relaxationOptions())));
+        }
+        Optional<Relaxation> choice = handler.choose(report, planner.phraseOptions(report));
+        if (choice.isEmpty()) {
+            throw new NegotiationCancelledException(config.wording("modifyCancelled"));
+        }
+        Relaxation chosen = choice.get();
+        if (!report.relaxations().contains(chosen)) {
+            throw new IllegalArgumentException(config.wording("modifyBadChoice"));
+        }
+        notices.add(String.format(config.wording("modifyAdjusted"), chosen.description()));
+        return new PlaylistEditor.EditPlan(plan.commands().subList(0, (int) chosen.value()), plan.approximate(), plan.mood());
     }
 
     /** What the last {@link #modifyPlaylist} changed, in words; empty before one or when nothing was changed. */

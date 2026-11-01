@@ -44,6 +44,11 @@ public class RemoveTrackCommand implements PlaylistCommand {
     }
 
     @Override
+    public List<Track> simulate(List<Track> tracks) {
+        return tracks.stream().filter(t -> !t.id().equals(track.id())).toList();
+    }
+
+    @Override
     public String playlistId() {
         return playlistId;
     }

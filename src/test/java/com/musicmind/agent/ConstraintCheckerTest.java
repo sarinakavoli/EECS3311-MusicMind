@@ -100,4 +100,40 @@ class ConstraintCheckerTest {
         assertFalse(r.feasible());
         assertEquals(40, of(r, Relaxation.Kind.SHORTEN_DURATION).value());
     }
+
+    // ---- edits (F11 during modify) ----
+
+    private List<com.musicmind.agent.command.PlaylistCommand> removals(List<Track> from, int n) {
+        com.musicmind.agent.command.FakeMusicService music = new com.musicmind.agent.command.FakeMusicService();
+        return from.stream().limit(n).<com.musicmind.agent.command.PlaylistCommand>map(
+                t -> new com.musicmind.agent.command.RemoveTrackCommand(config, music, "p", t)).toList();
+    }
+
+    @Test
+    void anEditThatLeavesTheMinimumIsFeasible() {
+        List<Track> before = tracks("t", 3, false, "a");
+        assertTrue(checker.checkEdit(before, removals(before, 2)).feasible());
+    }
+
+    @Test
+    void anEditThatEmptiesThePlaylistOffersTheLargestPartialEdit() {
+        List<Track> before = tracks("t", 3, false, "a");
+
+        FeasibilityReport r = checker.checkEdit(before, removals(before, 3));
+
+        assertFalse(r.feasible());
+        Relaxation partial = of(r, Relaxation.Kind.APPLY_PARTIAL);
+        assertEquals(2, partial.value());
+        assertTrue(partial.description().contains("first 2 of 3"), partial.description());
+    }
+
+    @Test
+    void anEditWhoseFirstStepAlreadyEmptiesThePlaylistHasNoRelaxation() {
+        List<Track> before = tracks("t", 1, false, "a");
+
+        FeasibilityReport r = checker.checkEdit(before, removals(before, 1));
+
+        assertFalse(r.feasible());
+        assertTrue(r.relaxations().isEmpty());
+    }
 }

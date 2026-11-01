@@ -54,6 +54,13 @@ public class AddItemsCommand implements PlaylistCommand {
     }
 
     @Override
+    public List<Track> simulate(List<Track> existing) {
+        List<Track> out = new java.util.ArrayList<>(existing);
+        out.addAll(tracks);
+        return out;
+    }
+
+    @Override
     public String playlistId() {
         return playlistId.get();
     }

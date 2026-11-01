@@ -71,6 +71,21 @@ public class ReplaceTrackCommand implements PlaylistCommand {
     }
 
     @Override
+    public List<Track> simulate(List<Track> tracks) {
+        List<Track> out = new java.util.ArrayList<>();
+        boolean placed = false;
+        for (Track t : tracks) {
+            if (!t.id().equals(oldTrack.id())) {
+                out.add(t);
+            } else if (!placed) {
+                out.add(newTrack);
+                placed = true;
+            }
+        }
+        return out;
+    }
+
+    @Override
     public String playlistId() {
         return playlistId;
     }
