@@ -1,6 +1,7 @@
 package com.musicmind.cli;
 
 import com.musicmind.agent.PreferenceSettings;
+import com.musicmind.agent.command.PlaylistMissingException;
 import com.musicmind.config.Config;
 import com.musicmind.controller.AppController;
 import com.musicmind.domain.AgentRequest;
@@ -12,11 +13,13 @@ import com.musicmind.domain.Playlist;
 import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.Recommendation;
 import com.musicmind.domain.Relaxation;
+import com.musicmind.domain.SnapshotInfo;
 import com.musicmind.domain.RequestKind;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.User;
 import com.musicmind.domain.UserPreference;
+import com.musicmind.domain.ValidationResult;
 import com.musicmind.domain.Verdict;
 import com.musicmind.music.AuthExpiredException;
 
@@ -45,12 +48,14 @@ public class CliApp {
             {"search",    "Search for music by a natural-language query (F3)"},
             {"discover",  "Get personalised recommendations (F4) [--novelty 0.3]"},
             {"create",    "Create a playlist from a goal (F5)"},
-            {"modify",    "Modify an existing playlist (F6)"},
-            {"validate",  "Validate a playlist against its constraints (F7)"},
+            {"modify",    "Modify a playlist from a sentence (F6): modify <playlistId> \"<instruction>\""},
+            {"validate",  "Validate a playlist against its constraints (F7): validate <playlistId>"},
             {"prefs",     "View or set preferences (F8): prefs list | get <key> | set <key> <value>"},
             {"feedback",  "Accept or reject a track (F9): feedback <trackId> accept|reject"},
-            {"explain",   "Explain why tracks were chosen (F10)"},
-            {"history",   "Show agent history / restore a snapshot (F12)"},
+            {"explain",   "Explain why tracks were chosen (F10): explain <playlistId>"},
+            {"undo",      "Undo the last change to a playlist (F6): undo <playlistId>"},
+            {"history",   "Show agent history and saved playlist versions (F12)"},
+            {"restore",   "Restore a playlist to a saved version (F12): restore <snapshotId>"},
             {"help",      "Show this help"},
     };
 
@@ -76,10 +81,12 @@ public class CliApp {
             case "prefs" -> runPrefs(rest);
             case "feedback" -> runFeedback(rest);
             case "create" -> runCreate(rest);
-            case "modify", "validate", "explain", "history" ->
-                    System.out.println("[musicmind] '" + command + "' "
-                            + (rest.length == 0 ? "" : String.join(" ", rest))
-                            + " — command recognised; implemented in a later phase.");
+            case "modify" -> runModify(rest);
+            case "undo" -> runUndo(rest);
+            case "validate" -> runValidate(rest);
+            case "explain" -> runExplain(rest);
+            case "history" -> runHistory();
+            case "restore" -> runRestore(rest);
             default -> {
                 System.out.println("Unknown command: " + command);
                 printHelp();
@@ -385,6 +392,170 @@ public class CliApp {
             System.out.println(e.getMessage());
         } catch (RuntimeException e) {
             reportFailure("record your feedback", e);
+        }
+    }
+
+    /** F6 — {@code modify <playlistId> "<instruction>"}. */
+    private static void runModify(String[] rest) {
+        if (rest.length != 2) {
+            System.out.println("Usage: modify <playlistId> \"<instruction>\"");
+            return;
+        }
+        AppController controller = AppController.create();
+        if (signIn(controller) == null) {
+            return;
+        }
+        try {
+            Playlist playlist = controller.modifyPlaylist(rest[0], rest[1]);
+            System.out.println("Changed: " + controller.lastChangeSummary());
+            controller.lastModifyNotices().forEach(n -> System.out.println("Notice: " + n));
+            System.out.println("The playlist now has " + playlist.tracks().size() + " tracks. Undo with: undo " + rest[0]);
+            System.out.println(controller.spotifyAttribution());
+        } catch (RuntimeException e) {
+            reportFailure("modify the playlist", e);
+        }
+    }
+
+    /** F6 — {@code undo <playlistId>}. */
+    private static void runUndo(String[] rest) {
+        if (rest.length != 1) {
+            System.out.println("Usage: undo <playlistId>");
+            return;
+        }
+        AppController controller = AppController.create();
+        if (signIn(controller) == null) {
+            return;
+        }
+        try {
+            controller.undo(rest[0]);
+            System.out.println("Undone: the playlist is back as it was before the last change.");
+        } catch (RuntimeException e) {
+            reportFailure("undo", e);
+        }
+    }
+
+    /** F7 — {@code validate <playlistId>}. */
+    private static void runValidate(String[] rest) {
+        if (rest.length != 1) {
+            System.out.println("Usage: validate <playlistId>");
+            return;
+        }
+        AppController controller = AppController.create();
+        if (signIn(controller) == null) {
+            return;
+        }
+        try {
+            ValidationResult result = controller.validatePlaylist(rest[0]);
+            System.out.println(controller.lastValidationNote());
+            if (result.passed()) {
+                System.out.println("PASS: the playlist meets every constraint.");
+                return;
+            }
+            System.out.println("FAIL:");
+            result.violations().forEach(v -> System.out.println("  - " + v));
+            result.offending().forEach((rule, ids) -> {
+                if (!ids.isEmpty()) {
+                    System.out.println("  " + rule + ": " + String.join(", ", ids));
+                }
+            });
+        } catch (RuntimeException e) {
+            reportFailure("validate the playlist", e);
+        }
+    }
+
+    /** F10 — {@code explain <playlistId>} (a session id works too). */
+    private static void runExplain(String[] rest) {
+        if (rest.length != 1) {
+            System.out.println("Usage: explain <playlistId>");
+            return;
+        }
+        AppController controller = AppController.create();
+        if (signIn(controller) == null) {
+            return;
+        }
+        try {
+            System.out.println(controller.explain(rest[0]));
+        } catch (RuntimeException e) {
+            reportFailure("explain the playlist", e);
+        }
+    }
+
+    /** F12 — past sessions and the saved playlist versions that {@code restore} accepts. */
+    private static void runHistory() {
+        AppController controller = AppController.create();
+        User user = signIn(controller);
+        if (user == null) {
+            return;
+        }
+        try {
+            List<AgentSession> sessions = controller.getHistory(user);
+            System.out.println("Sessions:");
+            if (sessions.isEmpty()) {
+                System.out.println("  (none)");
+            }
+            for (AgentSession s : sessions) {
+                String request = s.request() == null ? "" : s.request().kind() + ": " + s.request().rawText();
+                System.out.println("  " + s.startedAt() + "  " + s.status() + "  " + request
+                        + (s.playlistId() == null ? "" : "  playlist " + s.playlistId()));
+            }
+            System.out.println("Saved playlist versions (restore <id>):");
+            List<SnapshotInfo> snapshots = controller.getSnapshots(user);
+            if (snapshots.isEmpty()) {
+                System.out.println("  (none)");
+            }
+            for (SnapshotInfo i : snapshots) {
+                System.out.println("  " + i.id() + "  " + i.createdAt() + "  playlist " + i.playlistId()
+                        + "  \"" + i.name() + "\"  " + i.trackCount() + " tracks");
+            }
+            printMemoryWarning(controller, "History may be incomplete");
+        } catch (RuntimeException e) {
+            reportFailure("show the history", e);
+        }
+    }
+
+    /** F12 — {@code restore <snapshotId>}; offers to recreate a playlist that was deleted. */
+    private static void runRestore(String[] rest) {
+        int snapshotId;
+        try {
+            snapshotId = rest.length == 1 ? Integer.parseInt(rest[0]) : -1;
+        } catch (NumberFormatException e) {
+            snapshotId = -1;
+        }
+        if (snapshotId < 0) {
+            System.out.println("Usage: restore <snapshotId>   (see ids with: history)");
+            return;
+        }
+        AppController controller = AppController.create();
+        if (signIn(controller) == null) {
+            return;
+        }
+        try {
+            Playlist restored = controller.restore(snapshotId);
+            System.out.println("Restored \"" + restored.name() + "\" (" + restored.spotifyId() + "): "
+                    + restored.tracks().size() + " tracks. Undo with: undo " + restored.spotifyId());
+        } catch (PlaylistMissingException e) {
+            System.out.println(e.getMessage());
+            if (confirm("Recreate it now? (y/N): ")) {
+                try {
+                    Playlist created = controller.recreateFromSnapshot(snapshotId);
+                    System.out.println("Created \"" + created.name() + "\" (" + created.spotifyId() + ") with "
+                            + created.tracks().size() + " tracks.");
+                } catch (RuntimeException failure) {
+                    reportFailure("recreate the playlist", failure);
+                }
+            }
+        } catch (RuntimeException e) {
+            reportFailure("restore the playlist", e);
+        }
+    }
+
+    private static boolean confirm(String prompt) {
+        System.out.print(prompt);
+        try {
+            String answer = STDIN.readLine();
+            return answer != null && answer.strip().equalsIgnoreCase("y");
+        } catch (IOException e) {
+            return false;
         }
     }
 
