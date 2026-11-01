@@ -110,6 +110,11 @@ public class PromptBuilder {
                 .append("using only the facts below.\n");
         report.genresByRange().forEach((range, hist) ->
                 p.append(range).append(" genres: ").append(genres(hist)).append('\n'));
+        p.append("Genre coverage (artists with genre data): ").append(report.coverageSummary()).append('\n');
+        if (report.genreCoveragePartial(config.trendMinGenreCoverage())) {
+            p.append("Genre coverage is partial. Say so in your answer and do not claim that genres changed with certainty; ")
+                    .append("a genre that looks added or dropped may only be missing data.\n");
+        }
         p.append("Genres added: ").append(limited(report.addedGenres())).append('\n')
                 .append("Genres dropped: ").append(limited(report.droppedGenres())).append('\n')
                 .append("Artists added: ").append(report.addedArtistIds().size())

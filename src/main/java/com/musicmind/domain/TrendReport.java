@@ -23,6 +23,29 @@ public record TrendReport(Map<String, List<Artist>> artistsByRange,
         gaps = gaps == null ? List.of() : List.copyOf(gaps);
     }
 
+    /** How many artists in the range there are. */
+    public int artistCount(String range) {
+        return artistsByRange.getOrDefault(range, List.of()).size();
+    }
+
+    /** How many of the range's artists have genre data (MusicBrainz lists many artists without any). */
+    public int artistsWithGenres(String range) {
+        return (int) artistsByRange.getOrDefault(range, List.of()).stream().filter(a -> !a.genres().isEmpty()).count();
+    }
+
+    /** True when some range that has artists has genre data for a smaller share of them than {@code minShare}. */
+    public boolean genreCoveragePartial(double minShare) {
+        return artistsByRange.keySet().stream()
+                .anyMatch(r -> artistCount(r) > 0 && artistsWithGenres(r) < minShare * artistCount(r));
+    }
+
+    /** Per range, as "short: 12 of 20 artists, long: 3 of 20 artists", skipping empty ranges. */
+    public String coverageSummary() {
+        return artistsByRange.keySet().stream().filter(r -> artistCount(r) > 0)
+                .map(r -> r + ": " + artistsWithGenres(r) + " of " + artistCount(r) + " artists")
+                .collect(java.util.stream.Collectors.joining(", "));
+    }
+
     public TrendReport withNarrative(String text) {
         return new TrendReport(artistsByRange, genresByRange, addedGenres, droppedGenres,
                 addedArtistIds, droppedArtistIds, gaps, text);

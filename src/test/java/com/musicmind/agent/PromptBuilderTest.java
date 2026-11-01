@@ -88,6 +88,31 @@ class PromptBuilderTest {
     }
 
     @Test
+    void trendPromptStatesGenreCoverageAsAFactAndSaysToCallItPartialWhenLow() {
+        Map<String, List<Artist>> artists = Map.of(
+                "short", List.of(new Artist("a", "A", List.of("rock")), new Artist("b", "B", List.of("rock"))),
+                "long", List.of(new Artist("c", "C", List.of()), new Artist("d", "D", List.of())));
+        TrendReport low = new TrendReport(artists, Map.of(), List.of("rock"), List.of(), List.of(), List.of(), List.of(), null);
+
+        String p = builder.buildTrendPrompt(low);
+
+        assertTrue(p.contains("short: 2 of 2") && p.contains("long: 0 of 2"), p);
+        assertTrue(p.contains("partial"), "the model is told coverage is partial: " + p);
+    }
+
+    @Test
+    void trendPromptWithFullCoverageDoesNotCallItPartial() {
+        Map<String, List<Artist>> artists = Map.of("short", List.of(new Artist("a", "A", List.of("rock"))),
+                "long", List.of(new Artist("c", "C", List.of("jazz"))));
+        TrendReport full = new TrendReport(artists, Map.of(), List.of("rock"), List.of("jazz"), List.of(), List.of(), List.of(), null);
+
+        String p = builder.buildTrendPrompt(full);
+
+        assertTrue(p.contains("short: 1 of 1"), p);
+        assertFalse(p.contains("partial"), p);
+    }
+
+    @Test
     void searchEditAndOptionsPromptsCarryTheirInputs() {
         assertTrue(builder.buildSearchPrompt("sad 90s songs").contains("sad 90s songs"));
         String prompt = builder.buildSearchPrompt("sad 90s songs");

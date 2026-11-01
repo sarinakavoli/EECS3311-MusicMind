@@ -511,6 +511,11 @@ public final class Config {
         return integer("profile.maxAgeHours");
     }
 
+    /** A range with genre data for a smaller share of its artists than this makes the trend genre changes partial. */
+    public double trendMinGenreCoverage() {
+        return Double.parseDouble(text("trends.minGenreCoverage"));
+    }
+
     public int profileFallbackGenres() {
         return integer("profile.fallbackGenres");
     }

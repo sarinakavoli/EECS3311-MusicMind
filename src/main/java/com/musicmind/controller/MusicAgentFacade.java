@@ -802,16 +802,28 @@ public class MusicAgentFacade {
     private String fallbackNarrative(TrendReport report, List<String> ranges) {
         String newest = ranges.get(0);
         String oldest = ranges.get(ranges.size() - 1);
-        StringBuilder sb = new StringBuilder("Compared with your ").append(oldest).append("-term listening, ")
-                .append("your ").append(newest).append("-term listening has ");
-        sb.append(report.addedGenres().isEmpty() ? "no newly prominent genres"
-                : "newly prominent genres: " + limited(report.addedGenres()));
-        sb.append(" and ");
-        sb.append(report.droppedGenres().isEmpty() ? "no faded genres"
-                : "faded genres: " + limited(report.droppedGenres()));
-        sb.append(". ").append(report.addedArtistIds().size()).append(" artists are new and ")
+        boolean partial = report.genreCoveragePartial(config.trendMinGenreCoverage());
+        StringBuilder sb = new StringBuilder();
+        if (partial) {
+            // Genre data is missing for many artists, so a genre "change" may be missing data: say so, claim nothing.
+            sb.append(String.format(config.wording("trendCoveragePartial"), report.coverageSummary())).append(' ');
+            sb.append("Genres found only in your ").append(newest).append("-term data: ")
+                    .append(report.addedGenres().isEmpty() ? "none" : limited(report.addedGenres()))
+                    .append("; only in your ").append(oldest).append("-term data: ")
+                    .append(report.droppedGenres().isEmpty() ? "none" : limited(report.droppedGenres())).append('.');
+        } else {
+            sb.append("Compared with your ").append(oldest).append("-term listening, ")
+                    .append("your ").append(newest).append("-term listening has ");
+            sb.append(report.addedGenres().isEmpty() ? "no newly prominent genres"
+                    : "newly prominent genres: " + limited(report.addedGenres()));
+            sb.append(" and ");
+            sb.append(report.droppedGenres().isEmpty() ? "no faded genres"
+                    : "faded genres: " + limited(report.droppedGenres()));
+            sb.append('.');
+        }
+        sb.append(' ').append(report.addedArtistIds().size()).append(" artists are new and ")
                 .append(report.droppedArtistIds().size()).append(" have faded.");
-        if (!report.gaps().isEmpty()) {
+        if (!report.gaps().isEmpty() && !partial) {
             sb.append(" Some data was missing or incomplete.");
         }
         return sb.append(' ').append(config.computedLabel()).toString();

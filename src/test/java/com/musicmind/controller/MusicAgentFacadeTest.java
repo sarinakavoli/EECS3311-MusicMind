@@ -491,6 +491,29 @@ class MusicAgentFacadeTest extends PostgresTestBase {
     }
 
     @Test
+    void theComputedNarrativeSaysCoverageIsPartialInsteadOfClaimingAChange() {
+        FakeMusic music = trendMusic();
+        music.artistsByRange.put("long", artists(8));   // no genre data for the long range
+
+        TrendReport r = facade(music, null).analyzeTrends(USER);
+
+        assertTrue(r.narrative().contains("long: 0 of 8"), r.narrative());
+        assertTrue(r.narrative().contains("partial"), r.narrative());
+        assertTrue(r.narrative().endsWith(config.computedLabel()), r.narrative());
+    }
+
+    @Test
+    void theLlmIsToldAboutPartialCoverage() {
+        FakeMusic music = trendMusic();
+        music.artistsByRange.put("long", artists(8));
+        List<String> prompts = new ArrayList<>();
+
+        facade(music, p -> { prompts.add(p); return "ok"; }).analyzeTrends(USER);
+
+        assertTrue(prompts.get(0).contains("long: 0 of 8") && prompts.get(0).contains("partial"), prompts.get(0));
+    }
+
+    @Test
     void trendsFallBackWhenTheLlmFails() {
         TrendReport r = facade(trendMusic(), p -> { throw new LLMException("down"); }).analyzeTrends(USER);
         assertTrue(r.narrative().endsWith(config.computedLabel()), r.narrative());
@@ -585,7 +608,8 @@ class MusicAgentFacadeTest extends PostgresTestBase {
 
         assertEquals(List.of("mellow alternative"), music.searches);
         assertEquals(config.searchResultLimit(), music.searchLimit);
-        assertEquals(List.of("b", "a"), found.stream().map(Track::id).toList(), "ranked, duplicates dropped");
+        assertEquals(List.of("a", "b"), found.stream().map(Track::id).toList(),
+                "Spotify's order leads (title match is only a small boost); duplicates dropped");
         assertNull(f.lastSearchLabel());
         assertNull(f.lastSearchNotice());
     }

@@ -97,4 +97,40 @@ class TrendComparatorTest {
                 Map.of("medium", "Spotify API error (HTTP 500) on GET /me/top/artists: {boom}"));
         assertEquals(List.of("The medium range could not be read from Spotify."), r.gaps());
     }
+
+    private static List<Artist> noGenres(String prefix, int n) {
+        return java.util.stream.IntStream.range(0, n).mapToObj(i -> artist(prefix + i)).toList();
+    }
+
+    @Test
+    void genreCoverageCountsTheArtistsThatHaveGenreData() {
+        List<Artist> mixed = new java.util.ArrayList<>(noGenres("p", 6));
+        mixed.addAll(List.of(artist("g1", "rock"), artist("g2", "rock")));
+
+        TrendReport r = comparator.compare(ranges(full(artist("s1", "pop")), mixed, full(artist("l1", "pop"))), Map.of());
+
+        assertEquals(2, r.artistsWithGenres("medium"));
+        assertEquals(8, r.artistCount("medium"));
+        assertTrue(r.genreCoveragePartial(config.trendMinGenreCoverage()));
+    }
+
+    @Test
+    void lowCoverageInAnyRangeIsReportedAsAGapWithTheCounts() {
+        TrendReport r = comparator.compare(ranges(full(artist("s1", "pop")), full(artist("m1", "pop")),
+                noGenres("p", 8)), Map.of());
+
+        String gap = r.gaps().stream().filter(g -> g.contains("long: 0 of 8")).findFirst().orElse("");
+        assertTrue(!gap.isEmpty(), r.gaps().toString());
+        assertTrue(gap.contains(config.wording("trendCoveragePartial").substring(0, 20)), gap);
+    }
+
+    @Test
+    void fullCoverageAddsNoCoverageGap() {
+        List<Artist> a = full(artist("s1", "pop"));
+
+        TrendReport r = comparator.compare(ranges(a, a, a), Map.of());
+
+        assertTrue(!r.genreCoveragePartial(config.trendMinGenreCoverage()));
+        assertTrue(r.gaps().stream().noneMatch(g -> g.contains("of ")), r.gaps().toString());
+    }
 }
