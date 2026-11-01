@@ -57,4 +57,18 @@ class PlaylistValidatorTest {
         ValidationResult r = validator.validate(List.of(track("a", 300_000, false)), spec);
         assertFalse(r.isPassed());
     }
+
+    @Test
+    void durationStatusSaysWhichWayTheLengthMissesAndAgreesWithValidate() {
+        PlaylistSpec spec = new PlaylistSpec(10, true, 0.5, List.of(), "x");
+        List<Track> shortList = List.of(track("a", 60_000, false));
+        List<Track> within = List.of(track("a", 600_000, false));
+        List<Track> longList = List.of(track("a", 1_200_000, false));
+
+        assertEquals(PlaylistValidator.DurationStatus.TOO_SHORT, validator.durationStatus(shortList, spec));
+        assertEquals(PlaylistValidator.DurationStatus.WITHIN, validator.durationStatus(within, spec));
+        assertEquals(PlaylistValidator.DurationStatus.TOO_LONG, validator.durationStatus(longList, spec));
+        assertTrue(validator.validate(within, spec).passed());
+        assertFalse(validator.validate(longList, spec).passed());
+    }
 }

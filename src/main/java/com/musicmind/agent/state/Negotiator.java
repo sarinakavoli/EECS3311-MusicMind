@@ -46,7 +46,7 @@ final class Negotiator {
         }
         Relaxation chosen = choice.get();
         if (!report.relaxations().contains(chosen)) {
-            throw new IllegalArgumentException("The chosen option was not one of those offered.");
+            throw new IllegalArgumentException(config.wording("negotiationBadChoice"));
         }
         ctx.negotiationRounds++;
         ctx.plan = ctx.services.planner().regenerate(ctx.plan, chosen);

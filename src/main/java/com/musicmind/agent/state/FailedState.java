@@ -26,6 +26,9 @@ public class FailedState implements SessionState {
         if (session.failure() instanceof NegotiationCancelledException) {
             session.setStatus("cancelled");
         }
+        if (ctx.leftoverPlaylistId != null) {
+            session.addNotice(String.format(ctx.services.config().wording("executeLeftover"), ctx.leftoverPlaylistId));
+        }
         session.setDerivedData(SessionRecord.derivedData(ctx));
         ctx.services.memory().saveSession(session);
         session.addNotice(ctx.services.memory().warning());

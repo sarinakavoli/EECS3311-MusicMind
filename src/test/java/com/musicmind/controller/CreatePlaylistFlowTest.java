@@ -313,6 +313,50 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
     }
 
     @Test
+    void anExpiryWhileAddingReusesTheCreatedPlaylistInsteadOfCreatingASecond() {
+        AtomicInteger addAttempts = new AtomicInteger();
+        Music music = new Music() {
+            @Override public void addItems(String playlistId, List<String> uris) {
+                if (addAttempts.getAndIncrement() == 0) {
+                    calls.add("add " + uris.size());
+                    throw new AuthExpiredException("expired");
+                }
+                super.addItems(playlistId, uris);
+            }
+            @Override public void unfollowPlaylist(String playlistId) {
+                throw new AuthExpiredException("expired"); // the rollback hits the same expired token
+            }
+        };
+        AtomicInteger reauth = new AtomicInteger();
+        AppController c = new AppController(music, memory(), new MockLLMProvider(), config, reauth::incrementAndGet);
+
+        Playlist playlist = c.createPlaylist(request("x"));
+
+        assertEquals(1, reauth.get());
+        assertEquals(1, music.calls.stream().filter(call -> call.startsWith("create")).count(), music.calls.toString());
+        assertEquals("pl1", playlist.spotifyId());
+        assertEquals(15, music.playlists.get("pl1").size());
+        assertEquals("done", c.lastSession().status());
+    }
+
+    @Test
+    void aRollbackThatFailsIsReportedWithTheLeftoverPlaylistId() {
+        Music music = new Music() {
+            @Override public void unfollowPlaylist(String playlistId) {
+                throw new MusicServiceException("cannot remove");
+            }
+        };
+        music.failOnAdd = new MusicServiceException("Spotify is unavailable");
+        AppController c = controller(music, new MockLLMProvider());
+
+        assertThrows(MusicServiceException.class, () -> c.createPlaylist(request("x")));
+
+        assertTrue(c.lastSession().notices().stream().anyMatch(n -> n.contains("pl1")),
+                c.lastSession().notices().toString());
+        assertEquals("failed", c.lastSession().status());
+    }
+
+    @Test
     void anExpiredTokenIsRenewedOnceAndTheRunResumes() {
         Music music = new Music();
         music.failOnSearch = new AuthExpiredException("expired");

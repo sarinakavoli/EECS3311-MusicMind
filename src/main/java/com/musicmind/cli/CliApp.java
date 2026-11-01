@@ -1,6 +1,7 @@
 package com.musicmind.cli;
 
 import com.musicmind.agent.PreferenceSettings;
+import com.musicmind.config.Config;
 import com.musicmind.controller.AppController;
 import com.musicmind.domain.AgentRequest;
 import com.musicmind.domain.AgentSession;
@@ -290,11 +291,11 @@ public class CliApp {
     /** F11 prompt: lists the conflicts and options; a number picks one, anything else cancels. */
     private static Optional<Relaxation> askToRelax(FeasibilityReport report, List<String> options) {
         System.out.println();
-        report.conflicts().forEach(c -> System.out.println("Problem: " + c));
+        report.conflicts().forEach(c -> System.out.println(Config.defaults().wording("cliProblemPrefix") + " " + c));
         for (int i = 0; i < options.size(); i++) {
             System.out.println("  " + (i + 1) + ") " + options.get(i));
         }
-        System.out.print("Choose an option (1-" + options.size() + "), or anything else to cancel: ");
+        System.out.print(String.format(Config.defaults().wording("cliChoosePrompt"), options.size()));
         System.out.flush();
         try {
             String line = STDIN.readLine();

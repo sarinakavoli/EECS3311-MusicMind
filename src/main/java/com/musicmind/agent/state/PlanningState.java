@@ -15,6 +15,7 @@ public class PlanningState implements SessionState {
         RunContext ctx = session.context();
         RunServices services = ctx.services;
         String userId = services.userId().get();
+        // Preferences and feedback load first because plan() merges the stored preferences into the spec.
         ctx.preferences = services.memory().loadPreferences(userId);
         ctx.feedback = services.memory().loadFeedback(userId);
         ctx.plan = services.planner().plan(ctx.request, ctx.preferences);

@@ -40,6 +40,8 @@ public final class RunContext {
     int retries;
     int negotiationRounds;
     Playlist playlist;
+    /** A playlist created by an attempt whose undo failed; null when none is left on Spotify. */
+    String leftoverPlaylistId;
 
     /**
      * @param handler  answers an infeasible request; null when nobody can be asked

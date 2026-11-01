@@ -1,5 +1,6 @@
 package com.musicmind.agent.state;
 
+import com.musicmind.agent.PlaylistValidator;
 import com.musicmind.config.Config;
 import com.musicmind.domain.AgentSession;
 import com.musicmind.domain.DecisionTrace;
@@ -13,9 +14,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Checks the selection against the spec. A length outside the tolerance sends the run back to selection
- * with a corrected length, at most {@code plan.maxValidationRetries} times; a selection that stays too short
- * is a shortfall and goes to negotiation (F11). Other violations cannot be fixed by selecting again.
+ * Checks the selection against the spec. Any violation (length, explicit, duplicate, blocked artist) sends the run back to selection
+ * (a length miss with a corrected length), at most {@code plan.maxValidationRetries} times; a selection that stays too short
+ * is a shortfall and goes to negotiation (F11). Whatever still fails after that ends the run.
  */
 public class ValidatingState implements SessionState {
 
@@ -41,14 +42,16 @@ public class ValidatingState implements SessionState {
             return;
         }
 
+        PlaylistValidator.DurationStatus length = services.validator().durationStatus(tracks, spec);
         long actualMs = tracks.stream().mapToLong(Track::durationMs).sum();
-        double tolerance = config.playlistDurationTolerance();
         double targetMs = spec.targetMinutes() * MS_PER_MINUTE;
-        boolean tooShort = spec.targetMinutes() > 0 && actualMs < targetMs * (1 - tolerance);
-        boolean tooLong = spec.targetMinutes() > 0 && actualMs > targetMs * (1 + tolerance);
-        if ((tooShort || tooLong) && ctx.retries < config.planMaxValidationRetries()) {
+        boolean tooShort = length == PlaylistValidator.DurationStatus.TOO_SHORT;
+        // UC06 7a: any violation goes back to selection within the bound, whatever rule it broke.
+        if (ctx.retries < config.planMaxValidationRetries()) {
             ctx.retries++;
-            ctx.engineMinutes = correctedMinutes(ctx.engineMinutes, targetMs, actualMs, tooShort, config);
+            if (length != PlaylistValidator.DurationStatus.WITHIN) {
+                ctx.engineMinutes = correctedMinutes(ctx.engineMinutes, targetMs, actualMs, tooShort, config);
+            }
             session.setState(new SelectingState());
             return;
         }
