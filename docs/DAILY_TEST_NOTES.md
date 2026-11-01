@@ -173,7 +173,7 @@ env -u JAVA_HOME ./gradlew build
 env -u JAVA_HOME ./gradlew installDist
 ```
 
-**Expected:** `BUILD SUCCESSFUL` both times, with about 565 tests passing in the first. The second creates `build/install/musicmind/bin/musicmind` (CLI) and `build/install/musicmind/bin/musicmind-gui` (GUI). The rest of this section uses the CLI script; `./gradlew runCli --args="..."` takes the same arguments.
+**Expected:** `BUILD SUCCESSFUL` both times, with about 584 tests passing in the first. The second creates `build/install/musicmind/bin/musicmind` (CLI) and `build/install/musicmind/bin/musicmind-gui` (GUI). The rest of this section uses the CLI script; `./gradlew runCli --args="..."` takes the same arguments.
 
 ```bash
 build/install/musicmind/bin/musicmind help
