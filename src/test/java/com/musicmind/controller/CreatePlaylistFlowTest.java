@@ -180,6 +180,21 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
     }
 
     @Test
+    void theStoredTraceLetsALaterRunExplainThePlaylistFromRecordedFactsOnly() {
+        Music music = new Music();
+        controller(music, new MockLLMProvider()).createPlaylist(request("a mix for working"));
+
+        AppController later = controller(music, null);   // a new run with no LLM: the computed, labelled form
+        later.login();
+        String text = later.explain("pl1");
+
+        assertTrue(text.contains("BalancedStrategy"), text);
+        assertTrue(text.contains("15 tracks"), text);
+        assertTrue(text.endsWith(config.computedLabel()), text);
+        assertFalse(text.contains("Title"));
+    }
+
+    @Test
     void validationRetriesAreBoundedAndNothingIsCreated() {
         Music music = new Music();
         music.minutes = 50; // no whole number of 50-minute tracks lands within 10% of 60 minutes

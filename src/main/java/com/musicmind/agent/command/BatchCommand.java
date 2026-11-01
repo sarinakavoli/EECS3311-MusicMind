@@ -46,7 +46,9 @@ class BatchCommand implements PlaylistCommand {
             try {
                 applied.get(i).undo();
             } catch (RuntimeException secondary) {
-                cause.addSuppressed(secondary);
+                if (secondary != cause) { // the same failure repeating is not a second one
+                    cause.addSuppressed(secondary);
+                }
             }
         }
     }

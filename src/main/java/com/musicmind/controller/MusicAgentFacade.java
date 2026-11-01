@@ -8,7 +8,10 @@ import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
 import com.musicmind.agent.ConstraintChecker;
 import com.musicmind.agent.ExplanationService;
+import com.musicmind.agent.MoodGenreMap;
 import com.musicmind.agent.NegotiationHandler;
+import com.musicmind.agent.PlaylistContext;
+import com.musicmind.agent.PlaylistEditor;
 import com.musicmind.agent.Planner;
 import com.musicmind.agent.PlaylistValidator;
 import com.musicmind.agent.PreferenceSettings;
@@ -18,10 +21,15 @@ import com.musicmind.agent.RecommendationEngine;
 import com.musicmind.agent.ResponseParser;
 import com.musicmind.agent.SearchRanker;
 import com.musicmind.agent.TrendComparator;
+import com.musicmind.agent.command.CreatePlaylistCommand;
+import com.musicmind.agent.command.PlaylistChangeException;
+import com.musicmind.agent.command.PlaylistCommand;
 import com.musicmind.agent.command.PlaylistManager;
+import com.musicmind.agent.command.PlaylistMissingException;
 import com.musicmind.agent.state.IdleState;
 import com.musicmind.agent.state.RunContext;
 import com.musicmind.agent.state.RunServices;
+import com.musicmind.agent.state.SessionRecord;
 import com.musicmind.config.Config;
 import com.musicmind.domain.AgentRequest;
 import com.musicmind.domain.AgentSession;
@@ -39,8 +47,11 @@ import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.User;
 import com.musicmind.domain.UserPreference;
+import com.musicmind.domain.ValidationResult;
 import com.musicmind.llm.LLMProvider;
 import com.musicmind.memory.MemoryManager;
+import com.musicmind.memory.PersistenceException;
+import com.musicmind.music.AuthExpiredException;
 import com.musicmind.music.MusicService;
 import com.musicmind.music.MusicServiceException;
 import com.musicmind.music.TrackList;
@@ -109,6 +120,11 @@ public class MusicAgentFacade {
     private volatile String lastSearchLabel;
     private volatile List<String> lastDiscoverNotices = List.of();
     private volatile DecisionTrace lastDecisionTrace;
+    private final PlaylistEditor editor;
+    private final PlaylistValidator playlistValidator;
+    private volatile String lastChangeSummary = "";
+    private volatile List<String> lastModifyNotices = List.of();
+    private volatile String lastValidationNote;
 
     /**
      * What playlist creation needs beyond the read side: the Spotify service and command invoker that write,
@@ -136,6 +152,8 @@ public class MusicAgentFacade {
         this.engine = engine;
         this.currentUserId = currentUserId;
         this.create = Objects.requireNonNull(create, "create");
+        this.editor = new PlaylistEditor(llm, prompts, parser, MoodGenreMap.load(), config);
+        this.playlistValidator = new PlaylistValidator(config);
     }
 
     // ---- F1 ----
@@ -419,6 +437,260 @@ public class MusicAgentFacade {
         return lastProfile(user)
                 .filter(p -> !p.isEmpty() && p.generatedAt() != null && p.generatedAt().isAfter(oldest))
                 .orElseGet(() -> analyzeTaste(user));
+    }
+
+    // ---- F6 and F7: modify, validate, undo ----
+
+    /**
+     * F6 per SD02: reads the playlist, has the {@link PlaylistEditor} turn the instruction into commands,
+     * saves a snapshot and applies the commands as one undoable step through {@link PlaylistManager}, then
+     * re-validates and records the change in the history. The summary of what changed is
+     * {@link #lastChangeSummary()}; an approximate mood edit and any constraint the result now breaks are in
+     * {@link #lastModifyNotices()}. Nothing is changed if the instruction cannot be understood.
+     *
+     * @throws IllegalArgumentException if the playlist id or the instruction is blank
+     * @throws IllegalStateException if nobody is logged in, or there is no LLM key
+     * @throws com.musicmind.agent.ClarificationNeededException if the instruction is ambiguous or unclear
+     * @throws PlaylistChangeException if the playlist cannot be read or changed (permission, missing, snapshot)
+     */
+    public synchronized Playlist modifyPlaylist(String playlistId, String instruction) {
+        String id = requirePlaylistId(playlistId);
+        if (instruction == null || instruction.isBlank()) {
+            throw new IllegalArgumentException(config.wording("modifyBlankInstruction"));
+        }
+        String userId = currentUserId.get();
+        if (userId == null) {
+            throw new IllegalStateException(config.wording("modifyNeedsLogin"));
+        }
+        lastChangeSummary = "";
+        lastModifyNotices = List.of();
+        Playlist current = loadPlaylist(id);
+        PlaylistEditor.EditPlan plan;
+        try {
+            plan = editor.plan(new PlaylistContext(id, current.tracks(), create.music()), instruction.strip(),
+                    knownArtistGenres(userId));
+        } catch (MusicServiceException e) {
+            throw playlistAccess(e);
+        }
+        try {
+            create.playlists().modify(current, plan.commands());
+        } catch (MusicServiceException e) {
+            throw playlistAccess(e);
+        }
+
+        Playlist updated = loadPlaylist(id);
+        List<String> notices = new ArrayList<>();
+        if (plan.approximate()) {
+            notices.add(String.format(config.wording("modifyApproximate"), plan.mood(),
+                    String.join(", ", MoodGenreMap.load().genresFor(plan.mood()))));
+        }
+        ValidationResult result = validate(updated, specFor(userId, id).spec());
+        if (!result.passed()) {
+            notices.add(String.format(config.wording("modifyViolations"), String.join("; ", result.violations())));
+        }
+        lastChangeSummary = plan.commands().stream().map(PlaylistCommand::describe)
+                .collect(Collectors.joining(config.wording("cmdBatchSeparator") + " "));
+        record(userId, id, instruction.strip(), plan);
+        addWarning(notices);
+        lastModifyNotices = List.copyOf(notices);
+        return updated;
+    }
+
+    /** What the last {@link #modifyPlaylist} changed, in words; empty before one or when nothing was changed. */
+    public String lastChangeSummary() {
+        return lastChangeSummary;
+    }
+
+    /** The approximate-edit label, constraints the result breaks and any database warning for the last modify. */
+    public List<String> lastModifyNotices() {
+        return lastModifyNotices;
+    }
+
+    /**
+     * Reverts the most recent change to the playlist: the last applied command of this run, else the latest
+     * saved snapshot.
+     *
+     * @throws PlaylistChangeException if there is nothing to undo, the history is unavailable or the playlist cannot be changed
+     */
+    public synchronized void undo(String playlistId) {
+        try {
+            create.playlists().undo(requirePlaylistId(playlistId));
+        } catch (MusicServiceException e) {
+            throw playlistAccess(e);
+        }
+    }
+
+    /** F7 on a track list: the deterministic rule set of {@link PlaylistValidator}. */
+    public ValidationResult validate(Playlist playlist, PlaylistSpec spec) {
+        return playlistValidator.validate(playlist.tracks(), spec);
+    }
+
+    /**
+     * F7 on a playlist on Spotify: the spec saved with the session that created it, else one built from the
+     * stored preferences ({@link #lastValidationNote()} says which).
+     *
+     * @throws PlaylistChangeException if the playlist cannot be read
+     */
+    public ValidationResult validatePlaylist(String playlistId) {
+        String id = requirePlaylistId(playlistId);
+        String userId = currentUserId.get();
+        if (userId == null) {
+            throw new IllegalStateException(config.wording("modifyNeedsLogin"));
+        }
+        Playlist playlist = loadPlaylist(id);
+        SpecChoice choice = specFor(userId, id);
+        String note = config.wording(choice.fromSession() ? "validateAgainstSession" : "validateAgainstPreferences");
+        lastValidationNote = memory.warning() == null ? note : note + " " + memory.warning();
+        return validate(playlist, choice.spec());
+    }
+
+    /** Which constraints the last {@link #validatePlaylist} used; null before one. */
+    public String lastValidationNote() {
+        return lastValidationNote;
+    }
+
+    private record SpecChoice(PlaylistSpec spec, boolean fromSession) { }
+
+    private SpecChoice specFor(String userId, String playlistId) {
+        AgentSession created = memory.findSessionByPlaylist(playlistId);
+        Optional<PlaylistSpec> saved = created == null ? Optional.empty() : SessionRecord.specOf(created.derivedData());
+        if (saved.isPresent()) {
+            return new SpecChoice(saved.get(), true);
+        }
+        PlaylistSpec base = new PlaylistSpec(0, true, config.discoverDefaultFamiliarRatio(), List.of(), null);
+        return new SpecChoice(PreferenceSettings.from(memory.loadPreferences(userId)).applyTo(base), false);
+    }
+
+    /** The playlist as Spotify holds it, named after the spec saved when it was created. */
+    private Playlist loadPlaylist(String id) {
+        List<Track> tracks;
+        try {
+            tracks = create.music().getPlaylistItems(id);
+        } catch (MusicServiceException e) {
+            throw playlistAccess(e);
+        }
+        AgentSession created = memory.findSessionByPlaylist(id);
+        String name = created == null ? null : SessionRecord.specOf(created.derivedData())
+                .map(PlaylistSpec::name).orElse(null);
+        return new Playlist(id, name == null || name.isBlank() ? config.wording("playlistUnnamed") : name, tracks);
+    }
+
+    /** Genres known per artist id from the stored taste profile (no Spotify call); empty if none is stored. */
+    private Map<String, List<String>> knownArtistGenres(String userId) {
+        Map<String, List<String>> genres = new LinkedHashMap<>();
+        lastProfile(new User(userId, userId, userId)).ifPresent(p -> p.topArtists().stream()
+                .filter(a -> !a.genres().isEmpty()).forEach(a -> genres.put(a.id(), a.genres())));
+        return genres;
+    }
+
+    /** Stores the edit in the history: the user's words, the playlist id and MusicMind's own flags, no Spotify content. */
+    private void record(String userId, String playlistId, String instruction, PlaylistEditor.EditPlan plan) {
+        AgentSession session = new AgentSession(UUID.randomUUID().toString(), Instant.now(), null);
+        session.setStatus("done");
+        session.setRequest(new AgentRequest(instruction, RequestKind.MODIFY_PLAYLIST));
+        session.setPlaylistId(playlistId);
+        Map<String, Object> derived = new LinkedHashMap<>();
+        derived.put("approximate", plan.approximate());
+        derived.put("mood", plan.mood());
+        derived.put("commands", plan.commands().size());
+        session.setDerivedData(GSON.toJson(derived));
+        memory.saveSession(session);
+    }
+
+    private String requirePlaylistId(String playlistId) {
+        String id = playlistId == null ? "" : playlistId.strip();
+        if (id.isEmpty()) {
+            throw new IllegalArgumentException(config.wording("playlistIdBlank"));
+        }
+        return id;
+    }
+
+    /**
+     * A Spotify failure on a playlist as a short message: no permission (only owned or collaborative
+     * playlists can be read), not found, or a general failure. Authentication failures pass through so the
+     * caller can sign in again. The original exception stays as the cause.
+     */
+    private RuntimeException playlistAccess(MusicServiceException e) {
+        if (e instanceof AuthExpiredException) {
+            return e;
+        }
+        String key = switch (e.statusCode()) {
+            case 403 -> "playlistNoPermission";
+            case 404 -> "playlistNotFound";
+            default -> "playlistCallFailed";
+        };
+        return new PlaylistChangeException(config.wording(key), e);
+    }
+
+    // ---- F10 ----
+
+    /** F10 — the explanation of a session's choices, from its recorded decision trace only. */
+    public String explain(AgentSession session) {
+        return create.explainer().explain(session);
+    }
+
+    // ---- F12 ----
+
+    /**
+     * Puts a playlist back to a saved version. The playlist's current content is saved first, so the restore
+     * can itself be undone.
+     *
+     * @throws PlaylistMissingException if the Spotify playlist of the snapshot no longer exists
+     * @throws PlaylistChangeException if the snapshot is unknown or unavailable, or the playlist cannot be changed
+     */
+    public synchronized Playlist restore(int snapshotId) {
+        Playlist snapshot = loadSnapshot(snapshotId);
+        String id = snapshot.spotifyId();
+        List<Track> now;
+        try {
+            now = create.music().getPlaylistItems(id);
+        } catch (MusicServiceException e) {
+            if (e.statusCode() == 404) {
+                throw new PlaylistMissingException(snapshotId,
+                        String.format(config.wording("restoreMissing"), snapshotId), e);
+            }
+            throw playlistAccess(e);
+        }
+        try {
+            create.playlists().snapshotBeforeModify(new Playlist(id, snapshot.name(), now));
+            create.playlists().restore(snapshotId);
+        } catch (MusicServiceException e) {
+            throw playlistAccess(e);
+        }
+        return loadPlaylist(id);
+    }
+
+    /**
+     * Creates a new playlist from a snapshot whose Spotify playlist was deleted, with the saved name and
+     * tracks, through the same {@link CreatePlaylistCommand} F5 uses.
+     */
+    public synchronized Playlist recreateFromSnapshot(int snapshotId) {
+        Playlist snapshot = loadSnapshot(snapshotId);
+        String userId = currentUserId.get();
+        if (userId == null) {
+            throw new IllegalStateException(config.wording("modifyNeedsLogin"));
+        }
+        CreatePlaylistCommand command = new CreatePlaylistCommand(config, create.music(), userId, snapshot.name(),
+                snapshot.tracks().stream().map(Track::uri).toList());
+        try {
+            create.playlists().execute(command);
+        } catch (MusicServiceException e) {
+            throw playlistAccess(e);
+        }
+        return loadPlaylist(command.playlistId());
+    }
+
+    private Playlist loadSnapshot(int snapshotId) {
+        Playlist snapshot;
+        try {
+            snapshot = memory.loadSnapshot(snapshotId);
+        } catch (PersistenceException e) {
+            throw new PlaylistChangeException(config.wording("snapshotUnavailable"), e);
+        }
+        if (snapshot == null) {
+            throw new PlaylistChangeException(String.format(config.wording("restoreUnknown"), snapshotId));
+        }
+        return snapshot;
     }
 
     // ---- helpers ----

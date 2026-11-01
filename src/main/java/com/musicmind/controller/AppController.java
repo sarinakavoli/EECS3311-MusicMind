@@ -20,10 +20,12 @@ import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.Playlist;
 import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.Recommendation;
+import com.musicmind.domain.SnapshotInfo;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.User;
 import com.musicmind.domain.UserPreference;
+import com.musicmind.domain.ValidationResult;
 import com.musicmind.domain.Verdict;
 import com.musicmind.llm.LLMProvider;
 import com.musicmind.llm.OpenAiProvider;
@@ -315,6 +317,118 @@ public class AppController {
         facade.setProgressListener(listener);
     }
 
+    // ---- F6 and F7 ----
+
+    /**
+     * F6 — changes a playlist from a sentence (signing in if needed). A snapshot is saved first, so the change
+     * can be undone with {@link #undo}. What changed is {@link #lastChangeSummary()}; labels and warnings are
+     * {@link #lastModifyNotices()}.
+     *
+     * @throws IllegalStateException if there is no LLM key
+     * @throws com.musicmind.agent.ClarificationNeededException if the instruction is ambiguous or unclear
+     * @throws com.musicmind.agent.command.PlaylistChangeException if the playlist cannot be read or changed
+     */
+    public Playlist modifyPlaylist(String id, String instruction) {
+        requireSpotify();
+        signInIfNeeded();
+        return facade.modifyPlaylist(id, instruction);
+    }
+
+    /** What the last modify changed, in words; empty when nothing was changed. */
+    public String lastChangeSummary() {
+        return facade == null ? "" : facade.lastChangeSummary();
+    }
+
+    /** The approximate-edit label, the constraints the last modify now breaks, and any database warning. */
+    public List<String> lastModifyNotices() {
+        return facade == null ? List.of() : facade.lastModifyNotices();
+    }
+
+    /**
+     * F6 — reverts the latest change to a playlist: the last one made in this run, else the playlist's
+     * latest saved version.
+     *
+     * @throws com.musicmind.agent.command.PlaylistChangeException with a short message if there is nothing
+     *         to undo or the saved history cannot be reached
+     */
+    public void undo(String playlistId) {
+        requireSpotify();
+        signInIfNeeded();
+        facade.undo(playlistId);
+    }
+
+    /**
+     * F7 — checks a playlist on Spotify against the constraints saved when it was created, else against the
+     * stored preferences ({@link #lastValidationNote()} says which).
+     */
+    public ValidationResult validatePlaylist(String id) {
+        requireSpotify();
+        signInIfNeeded();
+        return facade.validatePlaylist(id);
+    }
+
+    /** Which constraints the last validation used; null before one. */
+    public String lastValidationNote() {
+        return facade == null ? null : facade.lastValidationNote();
+    }
+
+    // ---- F10 ----
+
+    /**
+     * F10 — why a playlist's tracks were chosen, from the decision trace stored with the run that created it.
+     *
+     * @param id a session id or a playlist id
+     * @throws IllegalArgumentException if nothing stored matches the id
+     * @throws IllegalStateException if the stored record cannot be reached
+     */
+    public String explain(String id) {
+        requireSpotify();
+        signInIfNeeded();
+        AgentSession session = memory.findSession(id);
+        if (session == null) {
+            session = memory.findSessionByPlaylist(id);
+        }
+        if (session == null) {
+            if (memory.warning() != null) {
+                throw new IllegalStateException(config.wording("explainDbDown"));
+            }
+            throw new IllegalArgumentException(String.format(config.wording("explainUnknown"), id));
+        }
+        return facade.explain(session);
+    }
+
+    // ---- F12 ----
+
+    /** F12 — the user's past agent sessions, newest first; empty (with {@code memory().warning()} set) while the database is down. */
+    public List<AgentSession> getHistory(User user) {
+        return memory.loadHistory(user.id());
+    }
+
+    /** The user's saved playlist versions (id, playlist, name, size, time), newest first, for choosing one to restore. */
+    public List<SnapshotInfo> getSnapshots(User user) {
+        return memory.loadSnapshotSummaries(user.id());
+    }
+
+    /**
+     * F12 — puts a playlist back to a saved version; the current content is saved first so this can be undone.
+     *
+     * @throws com.musicmind.agent.command.PlaylistMissingException if the Spotify playlist was deleted
+     *         (offer {@link #recreateFromSnapshot})
+     * @throws com.musicmind.agent.command.PlaylistChangeException if the snapshot is unknown or unavailable
+     */
+    public Playlist restore(int snapshotId) {
+        requireSpotify();
+        signInIfNeeded();
+        return facade.restore(snapshotId);
+    }
+
+    /** F12 — creates a new playlist from a snapshot whose playlist was deleted on Spotify. */
+    public Playlist recreateFromSnapshot(int snapshotId) {
+        requireSpotify();
+        signInIfNeeded();
+        return facade.recreateFromSnapshot(snapshotId);
+    }
+
     // ---- F8 ----
 
     /**
@@ -369,6 +483,12 @@ public class AppController {
             return currentUser.id();
         }
         return music == null ? LOCAL_USER : login().id();
+    }
+
+    private void signInIfNeeded() {
+        if (currentUser == null) {
+            login();
+        }
     }
 
     private void requireSpotify() {
