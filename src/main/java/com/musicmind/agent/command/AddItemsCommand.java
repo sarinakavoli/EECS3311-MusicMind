@@ -5,16 +5,25 @@ import com.musicmind.domain.Track;
 import com.musicmind.music.MusicService;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 /** Appends tracks to a playlist; undo removes exactly those tracks. */
 public class AddItemsCommand implements PlaylistCommand {
 
     private final Config config;
     private final MusicService music;
-    private final String playlistId;
+    private final Supplier<String> playlistId;
     private final List<Track> tracks;
 
     public AddItemsCommand(Config config, MusicService music, String playlistId, List<Track> tracks) {
+        this(config, music, () -> playlistId, tracks);
+    }
+
+    /**
+     * For a playlist that does not exist yet: the id is asked for when the command runs, so it can follow a
+     * {@link CreatePlaylistCommand} in the same batch ({@code create::playlistId}).
+     */
+    public AddItemsCommand(Config config, MusicService music, Supplier<String> playlistId, List<Track> tracks) {
         this.config = config;
         this.music = music;
         this.playlistId = playlistId;
@@ -26,12 +35,12 @@ public class AddItemsCommand implements PlaylistCommand {
 
     @Override
     public void execute() {
-        music.addItems(playlistId, uris());
+        music.addItems(playlistId.get(), uris());
     }
 
     @Override
     public void undo() {
-        music.removeItems(playlistId, uris());
+        music.removeItems(playlistId.get(), uris());
     }
 
     private List<String> uris() {
@@ -46,6 +55,6 @@ public class AddItemsCommand implements PlaylistCommand {
 
     @Override
     public String playlistId() {
-        return playlistId;
+        return playlistId.get();
     }
 }

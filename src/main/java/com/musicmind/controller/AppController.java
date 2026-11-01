@@ -1,5 +1,7 @@
 package com.musicmind.controller;
 
+import com.musicmind.agent.ExplanationService;
+import com.musicmind.agent.NegotiationHandler;
 import com.musicmind.agent.Planner;
 import com.musicmind.agent.PreferenceSettings;
 import com.musicmind.agent.ProfileBuilder;
@@ -8,10 +10,14 @@ import com.musicmind.agent.RecommendationEngine;
 import com.musicmind.agent.ResponseParser;
 import com.musicmind.agent.SearchRanker;
 import com.musicmind.agent.TrendComparator;
+import com.musicmind.agent.command.PlaylistManager;
 import com.musicmind.config.Config;
+import com.musicmind.domain.AgentRequest;
+import com.musicmind.domain.AgentSession;
 import com.musicmind.domain.DecisionTrace;
 import com.musicmind.domain.Feedback;
 import com.musicmind.domain.ListeningProfile;
+import com.musicmind.domain.Playlist;
 import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.Recommendation;
 import com.musicmind.domain.Track;
@@ -32,6 +38,7 @@ import com.musicmind.memory.repository.SessionRepository;
 import com.musicmind.music.MusicService;
 import com.musicmind.music.GenreEnrichingMusicService;
 import com.musicmind.music.MusicBrainzAdapter;
+import com.musicmind.music.OAuthTokenStore;
 import com.musicmind.music.RetryingMusicService;
 import com.musicmind.music.SpotifyAdapter;
 import com.musicmind.tool.MemoryTool;
@@ -42,6 +49,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -69,6 +77,15 @@ public class AppController {
      * @param llm    the LLM, or null when no key is configured (F1 and F2 then use their labelled fallbacks)
      */
     public AppController(MusicService music, MemoryManager memory, LLMProvider llm, Config config) {
+        this(music, memory, llm, config, null);
+    }
+
+    /**
+     * @param reauthenticator signs the user in to Spotify again when a playlist run finds the token expired
+     *                        (null: an expired token then ends the run)
+     */
+    public AppController(MusicService music, MemoryManager memory, LLMProvider llm, Config config,
+                         Runnable reauthenticator) {
         this.music = music;
         this.memory = memory;
         this.llmConfigured = llm != null;
@@ -86,7 +103,9 @@ public class AppController {
                     new TrendComparator(profileBuilder, config), prompts, llm, config,
                     new Planner(llm, prompts, parser, config), parser, new SearchRanker(config),
                     new RecommendationEngine(tools, config),
-                    () -> currentUser == null ? null : currentUser.id());
+                    () -> currentUser == null ? null : currentUser.id(),
+                    new MusicAgentFacade.CreateSupport(music, new PlaylistManager(config, music, memory),
+                            new ExplanationService(llm, prompts, parser, config), reauthenticator));
         }
     }
 
@@ -110,20 +129,22 @@ public class AppController {
         // Repositories stamp the Spotify user id on writes. The adapter caches it after the first
         // GET /me, so once login() has run this costs nothing; without Spotify nothing is written under a name.
         MusicService music = null;
+        Runnable reauthenticator = null;
         Supplier<String> userId = () -> LOCAL_USER;
         if (config.spotifyConfigured()) {
             // Spotify returns no artist genres to this app, so MusicBrainz supplies them (R18).
-            music = new GenreEnrichingMusicService(
-                    new RetryingMusicService(new SpotifyAdapter(config.spotifyClientId(), config.spotifyRedirectUri())),
+            OAuthTokenStore auth = new OAuthTokenStore(config.spotifyClientId(), config.spotifyRedirectUri());
+            music = new GenreEnrichingMusicService(new RetryingMusicService(new SpotifyAdapter(auth)),
                     new MusicBrainzAdapter(config), new GenreRepository(db), config);
             userId = music::currentUserId;
+            reauthenticator = auth::login;
         }
         MemoryManager memory = new MemoryManager(db,
                 new PreferenceRepository(db, userId),
                 new FeedbackRepository(db, userId),
                 new SessionRepository(db, userId),
                 new PlaylistHistoryRepository(db, userId));
-        return new AppController(music, memory, llm, config);
+        return new AppController(music, memory, llm, config, reauthenticator);
     }
 
     public boolean isSpotifyConfigured() {
@@ -244,11 +265,7 @@ public class AppController {
     public List<Recommendation> discover(PlaylistSpec spec) {
         requireSpotify();
         User user = currentUser != null ? currentUser : login();
-        Instant oldest = Instant.now().minus(Duration.ofHours(config.profileMaxAgeHours()));
-        ListeningProfile profile = facade.lastProfile(user)
-                .filter(p -> !p.isEmpty() && p.generatedAt() != null && p.generatedAt().isAfter(oldest))
-                .orElseGet(() -> facade.analyzeTaste(user));
-        return facade.discover(profile, spec);
+        return facade.discover(facade.profileFor(user), spec);
     }
 
     /** What the user should be told about the last discovery (database warning, widening, filters); never null. */
@@ -259,6 +276,43 @@ public class AppController {
     /** Why the last discovery chose what it did; null before one. */
     public DecisionTrace lastDecisionTrace() {
         return facade == null ? null : facade.lastDecisionTrace();
+    }
+
+    // ---- F5 and F11 ----
+
+    /**
+     * F5 — creates a playlist on Spotify from a goal (signing in if needed). Progress goes to the listener
+     * set with {@link #setProgressListener}; an infeasible request is put to the handler set with
+     * {@link #setNegotiationHandler}. The finished session, with its explanation, is {@link #lastSession()}.
+     *
+     * @throws IllegalStateException if there is no LLM key to read the request
+     * @throws com.musicmind.agent.ClarificationNeededException if the goal is unclear
+     * @throws com.musicmind.agent.InfeasibleRequestException if the request cannot be met
+     * @throws com.musicmind.agent.NegotiationCancelledException if the user declined every option
+     */
+    public Playlist createPlaylist(AgentRequest request) {
+        requireSpotify();
+        if (currentUser == null) {
+            login();
+        }
+        return facade.createPlaylist(request);
+    }
+
+    /** The most recent creation run (id, status, notices, explanation, trace), finished or failed; null before one. */
+    public AgentSession lastSession() {
+        return facade == null ? null : facade.lastSession();
+    }
+
+    /** Who is asked to choose a relaxation when a request cannot be met as stated (F11); null: nobody. */
+    public void setNegotiationHandler(NegotiationHandler handler) {
+        requireSpotify();
+        facade.setNegotiationHandler(handler);
+    }
+
+    /** Receives the name of each state of a creation run as it starts. */
+    public void setProgressListener(Consumer<String> listener) {
+        requireSpotify();
+        facade.setProgressListener(listener);
     }
 
     // ---- F8 ----

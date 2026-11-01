@@ -31,9 +31,15 @@ public class PromptBuilder {
     }
 
     private final Config config;
+    private final MoodGenreMap moods;
 
     public PromptBuilder(Config config) {
+        this(config, MoodGenreMap.load());
+    }
+
+    public PromptBuilder(Config config, MoodGenreMap moods) {
         this.config = config;
+        this.moods = moods;
     }
 
     /** The kind a prompt was built for, read from its leading marker. */
@@ -58,12 +64,19 @@ public class PromptBuilder {
         if (c != null) {
             p.append("Explicit constraints that must be kept: targetMinutes=").append(c.targetMinutes())
                     .append(", allowExplicit=").append(c.allowExplicit())
-                    .append(", familiarRatio=").append(c.familiarRatio())
-                    .append(", blockedArtists=").append(c.blockedArtists()).append('\n');
+                    .append(", familiarRatio=").append(c.familiarRatio());
+            if (!c.blockedArtists().isEmpty()) {
+                p.append(", blockedArtists=").append(c.blockedArtists());
+            }
+            p.append('\n');
         }
-        p.append("Reply with JSON only: {\"targetMinutes\": whole number > 0, \"allowExplicit\": true|false, ")
-                .append("\"familiarRatio\": number from 0 to 1, \"blockedArtists\": [artist ids], ")
-                .append("\"name\": short playlist name}");
+        p.append("Reply with JSON only: {\"targetMinutes\": whole number > 0, ")
+                .append("\"allowExplicit\": false if the request asks for clean or no explicit content, otherwise true, ")
+                .append("\"familiarRatio\": number from 0 (all new music) to 1 (all familiar), left out if the request does not say, ")
+                .append("\"name\": short playlist name, ")
+                .append("\"mood\": one of [").append(String.join(", ", moods.moods()))
+                .append("] or \"\" if none fits, ")
+                .append("\"confidence\": number from 0 to 1 for how sure you are what playlist is wanted}");
         return p.toString();
     }
 
@@ -132,8 +145,8 @@ public class PromptBuilder {
 
     public String buildOptionsPrompt(FeasibilityReport report) {
         return start(Kind.OPTIONS)
-                + "A playlist request cannot be met as stated. Suggest short options for relaxing it, "
-                + "using only the facts below.\n"
+                + "A playlist request cannot be met as stated. Reword each possible relaxation below as one short "
+                + "friendly sentence, using only the facts below. Give exactly one sentence per relaxation, in the same order.\n"
                 + "Conflicts: " + String.join("; ", report.conflicts()) + "\n"
                 + "Possible relaxations: " + String.join("; ", report.relaxationOptions()) + "\n"
                 + "Reply with JSON only: {\"options\": [short sentences]}";

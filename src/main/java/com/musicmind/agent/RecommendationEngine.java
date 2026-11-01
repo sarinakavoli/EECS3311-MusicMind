@@ -22,6 +22,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -48,9 +49,9 @@ public class RecommendationEngine {
     private static final String FAMILIAR_POOL = "familiar";
     private static final String NOVEL_POOL = "novel";
 
-    private enum Source { LIBRARY, GENRE, ALBUM }
+    enum Source { LIBRARY, GENRE, ALBUM }
 
-    private record Origin(Source source, String genre) { }
+    record Origin(Source source, String genre) { }
 
     private final ToolManager tools;
     private final Config config;
@@ -64,6 +65,10 @@ public class RecommendationEngine {
     // State of the most recent run, read by score() and the last* accessors.
     private ListeningProfile profile;
     private Map<String, Origin> origins = Map.of();
+    // Genres the user asked for in this run (a mood, preferred styles); searched first and always a good match.
+    private Set<String> seedGenres = Set.of();
+    // The ones of those genres that were actually searched, for the trace.
+    private List<String> searchedSeeds = List.of();
     private Map<String, Double> genreAffinity = Map.of();
     private Map<String, Double> artistAffinity = Map.of();
     private Map<String, Verdict> verdicts = Map.of();
@@ -112,24 +117,36 @@ public class RecommendationEngine {
      * tracks the user already has (top, saved, recently played) may be picked. Discovery (F4) passes
      * false; playlist creation (F5) passes true. Nothing is remembered between runs.
      */
-    public synchronized List<Recommendation> recommend(ListeningProfile profile, PlaylistSpec spec,
-                                                       List<Feedback> feedback, boolean allowLibraryTracks) {
-        Objects.requireNonNull(profile, "profile");
-        this.allowLibraryTracks = allowLibraryTracks;
-        Objects.requireNonNull(spec, "spec");
-        this.profile = profile;
-        this.runStrategy = strategy;
-        this.verdicts = latestVerdicts(feedback);
-        double max = profile.genreHistogram().values().stream().mapToDouble(Double::doubleValue).max().orElse(0.0);
-        this.genreAffinity = genreAffinities(profile, max);
-        this.artistAffinity = artistAffinities(profile, max);
-        this.origins = new HashMap<>();
-        List<String> notes = new ArrayList<>();
+    public List<Recommendation> recommend(ListeningProfile profile, PlaylistSpec spec,
+                                          List<Feedback> feedback, boolean allowLibraryTracks) {
+        return recommend(profile, spec, feedback, allowLibraryTracks, List.of());
+    }
 
+    /**
+     * As the four-argument form, but {@code seedGenres} (a mood's genres, the user's preferred styles) are
+     * searched before the genres of the user's own taste and always count as a match, and the reasons say
+     * the user asked for them.
+     */
+    public synchronized List<Recommendation> recommend(ListeningProfile profile, PlaylistSpec spec,
+                                                       List<Feedback> feedback, boolean allowLibraryTracks,
+                                                       List<String> seedGenres) {
+        return recommend(retrieve(profile, spec, allowLibraryTracks, seedGenres), spec, feedback);
+    }
+
+    /**
+     * Reads the candidates for a run: the user's own tracks, the albums of their top artists (not the
+     * spec's blocked ones) and the tracks found for the first genres. Playlist creation reads once, checks
+     * that the request can be met, and then selects from the same {@link Retrieval}.
+     */
+    public synchronized Retrieval retrieve(ListeningProfile profile, PlaylistSpec spec,
+                                           boolean allowLibraryTracks, List<String> seedGenres) {
+        Objects.requireNonNull(profile, "profile");
+        Objects.requireNonNull(spec, "spec");
+        Map<String, Origin> found = new HashMap<>();
         CandidateRetriever retriever = new CandidateRetriever(tools, config);
         String range = profile.range() != null ? profile.range() : config.profileDefaultRange();
         List<Track> library = retriever.library(range);
-        library.forEach(t -> origins.put(t.id(), new Origin(Source.LIBRARY, null)));
+        library.forEach(t -> found.put(t.id(), new Origin(Source.LIBRARY, null)));
         Set<String> libraryIds = new HashSet<>();
         library.forEach(t -> libraryIds.add(t.id()));
         if (!allowLibraryTracks) {
@@ -141,10 +158,38 @@ public class RecommendationEngine {
         List<String> artistSeeds = profile.topArtists().stream().map(Artist::id)
                 .filter(id -> !blockedSeeds.contains(id)).limit(config.discoverArtistSeeds()).toList();
         List<Track> albumTracks = retriever.albumTracks(artistSeeds);
-        albumTracks.forEach(t -> origins.putIfAbsent(t.id(), new Origin(Source.ALBUM, null)));
+        albumTracks.forEach(t -> found.putIfAbsent(t.id(), new Origin(Source.ALBUM, null)));
 
-        List<String> genres = rankedGenres(profile);
-        Map<String, List<Track>> genreTracks = new HashMap<>();
+        Set<String> seeds = new LinkedHashSet<>(seedGenres);
+        Retrieval retrieval = new Retrieval(profile, allowLibraryTracks, seeds, retriever, library, libraryIds,
+                albumTracks, rankedGenres(profile, seeds), new HashMap<>(), found);
+        fetchGenres(retrieval, config.discoverInitialGenres());
+        return retrieval;
+    }
+
+    /**
+     * Recommends tracks from what {@link #retrieve} read, adjusted by the user's feedback, widening the
+     * genre set when too few fit (reading only the extra genres).
+     *
+     * @throws MusicServiceException if every Spotify read failed
+     */
+    public synchronized List<Recommendation> recommend(Retrieval retrieval, PlaylistSpec spec,
+                                                       List<Feedback> feedback) {
+        Objects.requireNonNull(retrieval, "retrieval");
+        Objects.requireNonNull(spec, "spec");
+        this.allowLibraryTracks = retrieval.allowLibraryTracks;
+        this.profile = retrieval.profile;
+        this.runStrategy = strategy;
+        this.verdicts = latestVerdicts(feedback);
+        double max = profile.genreHistogram().values().stream().mapToDouble(Double::doubleValue).max().orElse(0.0);
+        this.genreAffinity = genreAffinities(profile, max);
+        this.artistAffinity = artistAffinities(profile, max);
+        this.origins = retrieval.origins;
+        this.seedGenres = retrieval.seedGenres;
+        List<String> notes = new ArrayList<>();
+
+        CandidateRetriever retriever = retrieval.retriever;
+        List<String> genres = retrieval.genres;
 
         double ratio = spec.familiarRatio();
         int genreLimit = config.discoverInitialGenres();
@@ -152,18 +197,12 @@ public class RecommendationEngine {
         double startRatio = ratio;
         Selection selection;
         while (true) {
-            for (String genre : genres.subList(0, Math.min(genreLimit, genres.size()))) {
-                genreTracks.computeIfAbsent(genre, g -> {
-                    List<Track> found = retriever.byGenre(g);
-                    found.forEach(t -> origins.putIfAbsent(t.id(), new Origin(Source.GENRE, g)));
-                    return found;
-                });
-            }
+            fetchGenres(retrieval, genreLimit);
             PlaylistSpec working = withRatio(spec, ratio);
-            List<Track> novel = new ArrayList<>(albumTracks);
+            List<Track> novel = new ArrayList<>(retrieval.albumTracks);
             genres.subList(0, Math.min(genreLimit, genres.size()))
-                    .forEach(g -> novel.addAll(genreTracks.get(g)));
-            selection = select(library, libraryIds, novel, working);
+                    .forEach(g -> novel.addAll(retrieval.genreTracks.get(g)));
+            selection = select(retrieval.library, retrieval.libraryIds, novel, working);
             boolean canWiden = steps < config.discoverWidenSteps()
                     && (genreLimit < genres.size() || ratio < 1.0);
             if (enough(selection, working) || !canWiden) {
@@ -178,6 +217,7 @@ public class RecommendationEngine {
         if (retriever.successes() == 0 && !retriever.errors().isEmpty()) {
             throw new MusicServiceException(String.format(config.wording("discoverAllReadsFailed"), retriever.errors().size()));
         }
+        this.searchedSeeds = retrieval.seedGenres.stream().filter(retrieval.genreTracks::containsKey).toList();
         if (steps > 0) {
             notes.add(String.format(config.wording("discoverWidened"), Math.min(genreLimit, genres.size()),
                     percent(1 - startRatio), percent(1 - ratio)));
@@ -196,6 +236,17 @@ public class RecommendationEngine {
         this.trace = buildTrace(result, spec, selection);
         this.notices = List.copyOf(notes);
         return result;
+    }
+
+    /** Reads the tracks of the first {@code limit} genres that have not been read yet. */
+    private void fetchGenres(Retrieval retrieval, int limit) {
+        for (String genre : retrieval.genres.subList(0, Math.min(limit, retrieval.genres.size()))) {
+            retrieval.genreTracks.computeIfAbsent(genre, g -> {
+                List<Track> found = retrieval.retriever.byGenre(g);
+                found.forEach(t -> retrieval.origins.putIfAbsent(t.id(), new Origin(Source.GENRE, g)));
+                return found;
+            });
+        }
     }
 
     /**
@@ -298,6 +349,9 @@ public class RecommendationEngine {
     private double affinity(Track track) {
         Origin origin = origins.get(track.id());
         double best = origin != null && origin.genre() != null ? genreAffinity.getOrDefault(origin.genre(), 0.0) : 0.0;
+        if (origin != null && origin.genre() != null && seedGenres.contains(origin.genre())) {
+            best = 1.0; // the user asked for this genre
+        }
         for (String artistId : track.artistIds()) {
             best = Math.max(best, artistAffinity.getOrDefault(artistId, 0.0));
         }
@@ -325,11 +379,16 @@ public class RecommendationEngine {
         return out;
     }
 
-    /** Genres from most to least prominent; equal weights fall back to alphabetical order. */
-    private static List<String> rankedGenres(ListeningProfile profile) {
-        return profile.genreHistogram().entrySet().stream()
+    /**
+     * The genres the user asked for, then the profile's genres from most to least prominent
+     * (equal weights fall back to alphabetical order).
+     */
+    private static List<String> rankedGenres(ListeningProfile profile, Set<String> seeds) {
+        List<String> ranked = new ArrayList<>(seeds);
+        profile.genreHistogram().entrySet().stream()
                 .sorted(Map.Entry.<String, Double>comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey()))
-                .map(Map.Entry::getKey).toList();
+                .map(Map.Entry::getKey).filter(g -> !seeds.contains(g)).forEach(ranked::add);
+        return ranked;
     }
 
     private static Map<String, Verdict> latestVerdicts(List<Feedback> feedback) {
@@ -358,7 +417,8 @@ public class RecommendationEngine {
         if (origin != null) {
             parts.add(switch (origin.source()) {
                 case LIBRARY -> config.wording("reasonSourceLibrary");
-                case GENRE -> String.format(config.wording("reasonSourceGenre"), origin.genre());
+                case GENRE -> String.format(config.wording(seedGenres.contains(origin.genre())
+                        ? "reasonSourceSeedGenre" : "reasonSourceGenre"), origin.genre());
                 case ALBUM -> config.wording("reasonSourceAlbum");
             });
         }
@@ -384,6 +444,9 @@ public class RecommendationEngine {
         }
         if (!spec.allowExplicit()) {
             satisfied.add(config.wording("constraintExplicitExcluded"));
+        }
+        if (!searchedSeeds.isEmpty()) {
+            satisfied.add(String.format(config.wording("constraintSeedGenres"), String.join(", ", searchedSeeds)));
         }
         return new DecisionTrace(runStrategy.getClass().getSimpleName(), reasons, satisfied);
     }

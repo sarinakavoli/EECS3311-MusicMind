@@ -67,6 +67,11 @@ public class MoodGenreMap {
         return mood == null ? List.of() : genresByMood.getOrDefault(key(mood), List.of());
     }
 
+    /** The moods this map knows, alphabetically. */
+    public List<String> moods() {
+        return genresByMood.keySet().stream().sorted().toList();
+    }
+
     private static String key(String mood) {
         return mood.strip().toLowerCase(Locale.ROOT);
     }

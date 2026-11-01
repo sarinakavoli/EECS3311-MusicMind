@@ -324,6 +324,33 @@ public final class Config {
         return integer("command.searchLimit");
     }
 
+    // ---- Playlist creation (F5) and negotiation (F11) ----
+
+    /** Validation failures that send a run back to selection before it gives up. */
+    public int planMaxValidationRetries() {
+        return integer("plan.maxValidationRetries");
+    }
+
+    /** A goal parsed with less confidence than this asks the user to clarify. */
+    public double planMinConfidence() {
+        return Double.parseDouble(text("plan.minConfidence"));
+    }
+
+    /** The confidence assumed when the model's plan reply does not state one. */
+    public double planDefaultConfidence() {
+        return Double.parseDouble(text("plan.defaultConfidence"));
+    }
+
+    /** Most genres from the mood map and preferred styles that steer one playlist. */
+    public int planMaxSeedGenres() {
+        return integer("plan.maxSeedGenres");
+    }
+
+    /** Relaxations accepted in one run before the request is dropped. */
+    public int planMaxNegotiationRounds() {
+        return integer("plan.maxNegotiationRounds");
+    }
+
     // ---- Natural-language search (F3) ----
 
     /** Total tracks requested per search; the adapter fetches them in pages of at most the search page size. */

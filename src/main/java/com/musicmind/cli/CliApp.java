@@ -2,9 +2,16 @@ package com.musicmind.cli;
 
 import com.musicmind.agent.PreferenceSettings;
 import com.musicmind.controller.AppController;
+import com.musicmind.domain.AgentRequest;
+import com.musicmind.domain.AgentSession;
 import com.musicmind.domain.Artist;
+import com.musicmind.domain.FeasibilityReport;
 import com.musicmind.domain.ListeningProfile;
+import com.musicmind.domain.Playlist;
+import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.Recommendation;
+import com.musicmind.domain.Relaxation;
+import com.musicmind.domain.RequestKind;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.User;
@@ -12,6 +19,9 @@ import com.musicmind.domain.UserPreference;
 import com.musicmind.domain.Verdict;
 import com.musicmind.music.AuthExpiredException;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -47,6 +57,7 @@ public class CliApp {
     private static final int GENRES_SHOWN = 8;
     private static final int ARTISTS_SHOWN = 5;
     private static final int TREND_GENRES_SHOWN = 3;
+    private static final BufferedReader STDIN = new BufferedReader(new InputStreamReader(System.in));
 
     public static void main(String[] args) {
         if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
@@ -63,8 +74,8 @@ public class CliApp {
             case "discover" -> runDiscover(rest);
             case "prefs" -> runPrefs(rest);
             case "feedback" -> runFeedback(rest);
-            case "create",
-                 "modify", "validate", "explain", "history" ->
+            case "create" -> runCreate(rest);
+            case "modify", "validate", "explain", "history" ->
                     System.out.println("[musicmind] '" + command + "' "
                             + (rest.length == 0 ? "" : String.join(" ", rest))
                             + " — command recognised; implemented in a later phase.");
@@ -204,6 +215,94 @@ public class CliApp {
             }
         } catch (RuntimeException e) {
             reportFailure("find recommendations", e);
+        }
+    }
+
+    /**
+     * F5 and F11 — {@code create "<goal>" [--minutes 90] [--no-explicit] [--familiar 0.7] [--name "..."]}.
+     * A request that cannot be met as stated is put to the user as a numbered prompt.
+     */
+    private static void runCreate(String[] rest) {
+        String goal = null;
+        int minutes = 0;
+        boolean noExplicit = false;
+        double familiar = Double.NaN;
+        String name = null;
+        try {
+            for (int i = 0; i < rest.length; i++) {
+                switch (rest[i]) {
+                    case "--minutes" -> minutes = Integer.parseInt(valueOf(rest, ++i, "--minutes"));
+                    case "--no-explicit" -> noExplicit = true;
+                    case "--familiar" -> familiar = Double.parseDouble(valueOf(rest, ++i, "--familiar"));
+                    case "--name" -> name = valueOf(rest, ++i, "--name");
+                    default -> {
+                        if (rest[i].startsWith("--") || goal != null) {
+                            System.out.println("Unknown option for create: " + rest[i]);
+                            return;
+                        }
+                        goal = rest[i];
+                    }
+                }
+            }
+        } catch (IllegalArgumentException e) {
+            System.out.println("Usage: create \"<goal>\" [--minutes 90] [--no-explicit] [--familiar 0.7] [--name \"...\"]");
+            System.out.println(e.getMessage());
+            return;
+        }
+        if (goal == null) {
+            System.out.println("Usage: create \"<goal>\" [--minutes 90] [--no-explicit] [--familiar 0.7] [--name \"...\"]");
+            return;
+        }
+        AppController controller = AppController.create();
+        if (signIn(controller) == null) {
+            return;
+        }
+        // Flags that were not given stay unset (0 minutes, NaN, null) and leave the goal's own values alone.
+        PlaylistSpec flags = new PlaylistSpec(minutes, !noExplicit, familiar, List.of(), name);
+        controller.setProgressListener(state -> System.out.println("[musicmind] " + state + "..."));
+        controller.setNegotiationHandler(CliApp::askToRelax);
+        try {
+            Playlist playlist = controller.createPlaylist(new AgentRequest(goal, RequestKind.CREATE_PLAYLIST, flags));
+            AgentSession session = controller.lastSession();
+            System.out.println();
+            System.out.println("Created \"" + playlist.name() + "\" (" + playlist.spotifyId() + ") with "
+                    + playlist.tracks().size() + " tracks:");
+            for (int i = 0; i < playlist.tracks().size(); i++) {
+                Track t = playlist.tracks().get(i);
+                System.out.printf("%2d. %s  (%s)%n", i + 1, t.title(), t.id());
+            }
+            session.notices().forEach(n -> System.out.println("Notice: " + n));
+            System.out.println();
+            System.out.println(session.explanation());
+            System.out.println(controller.spotifyAttribution());
+        } catch (RuntimeException e) {
+            reportFailure("create the playlist", e);
+        }
+    }
+
+    private static String valueOf(String[] args, int index, String option) {
+        if (index >= args.length) {
+            throw new IllegalArgumentException(option + " needs a value.");
+        }
+        return args[index];
+    }
+
+    /** F11 prompt: lists the conflicts and options; a number picks one, anything else cancels. */
+    private static Optional<Relaxation> askToRelax(FeasibilityReport report, List<String> options) {
+        System.out.println();
+        report.conflicts().forEach(c -> System.out.println("Problem: " + c));
+        for (int i = 0; i < options.size(); i++) {
+            System.out.println("  " + (i + 1) + ") " + options.get(i));
+        }
+        System.out.print("Choose an option (1-" + options.size() + "), or anything else to cancel: ");
+        System.out.flush();
+        try {
+            String line = STDIN.readLine();
+            int choice = line == null ? -1 : Integer.parseInt(line.strip());
+            return choice >= 1 && choice <= report.relaxations().size()
+                    ? Optional.of(report.relaxations().get(choice - 1)) : Optional.empty();
+        } catch (NumberFormatException | IOException e) {
+            return Optional.empty();
         }
     }
 

@@ -34,21 +34,26 @@ public final class PreferenceSettings {
     private final Set<String> blockedArtists;
     private final Boolean explicitAllowed;
     private final Double familiarBias;
+    private final Set<String> preferredStyles;
 
-    private PreferenceSettings(Set<String> blockedArtists, Boolean explicitAllowed, Double familiarBias) {
+    private PreferenceSettings(Set<String> blockedArtists, Boolean explicitAllowed, Double familiarBias,
+                               Set<String> preferredStyles) {
         this.blockedArtists = blockedArtists;
         this.explicitAllowed = explicitAllowed;
         this.familiarBias = familiarBias;
+        this.preferredStyles = preferredStyles;
     }
 
     /** The settings held by these records; anything not stored stays unset. */
     public static PreferenceSettings from(List<UserPreference> preferences) {
         Set<String> blocked = new TreeSet<>();
+        Set<String> styles = new TreeSet<>();
         Boolean explicit = null;
         Double bias = null;
         for (UserPreference p : preferences) {
             switch (p.key()) {
                 case BLOCKED_ARTISTS -> blocked.addAll(split(p.value()));
+                case PREFERRED_STYLES -> split(p.value()).forEach(style -> styles.add(style.toLowerCase(Locale.ROOT)));
                 case EXPLICIT_POLICY -> explicit = p.explicitAllowed();
                 case FAMILIAR_BIAS -> bias = p.familiarBias();
                 case UserPreference.DEFAULTS_KEY -> {
@@ -59,11 +64,16 @@ public final class PreferenceSettings {
                 default -> { }
             }
         }
-        return new PreferenceSettings(Set.copyOf(blocked), explicit, bias);
+        return new PreferenceSettings(Set.copyOf(blocked), explicit, bias, styles);
     }
 
     public Set<String> blockedArtists() {
         return blockedArtists;
+    }
+
+    /** Styles (genres) the user likes, lower case and alphabetical; they steer playlists (F5). */
+    public Set<String> preferredStyles() {
+        return preferredStyles;
     }
 
     /** Empty when the user never set a policy. */

@@ -6,7 +6,11 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
+import com.musicmind.agent.ConstraintChecker;
+import com.musicmind.agent.ExplanationService;
+import com.musicmind.agent.NegotiationHandler;
 import com.musicmind.agent.Planner;
+import com.musicmind.agent.PlaylistValidator;
 import com.musicmind.agent.PreferenceSettings;
 import com.musicmind.agent.ProfileBuilder;
 import com.musicmind.agent.PromptBuilder;
@@ -14,6 +18,10 @@ import com.musicmind.agent.RecommendationEngine;
 import com.musicmind.agent.ResponseParser;
 import com.musicmind.agent.SearchRanker;
 import com.musicmind.agent.TrendComparator;
+import com.musicmind.agent.command.PlaylistManager;
+import com.musicmind.agent.state.IdleState;
+import com.musicmind.agent.state.RunContext;
+import com.musicmind.agent.state.RunServices;
 import com.musicmind.config.Config;
 import com.musicmind.domain.AgentRequest;
 import com.musicmind.domain.AgentSession;
@@ -21,6 +29,7 @@ import com.musicmind.domain.Artist;
 import com.musicmind.domain.DecisionTrace;
 import com.musicmind.domain.Feedback;
 import com.musicmind.domain.ListeningProfile;
+import com.musicmind.domain.Playlist;
 import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.Recommendation;
 import com.musicmind.domain.RequestKind;
@@ -32,11 +41,13 @@ import com.musicmind.domain.User;
 import com.musicmind.domain.UserPreference;
 import com.musicmind.llm.LLMProvider;
 import com.musicmind.memory.MemoryManager;
+import com.musicmind.music.MusicService;
 import com.musicmind.music.MusicServiceException;
 import com.musicmind.music.TrackList;
 import com.musicmind.tool.ToolManager;
 import com.musicmind.tool.ToolResult;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -46,6 +57,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -61,6 +73,11 @@ import java.util.stream.Collectors;
  * {@link MemoryManager}, the strategy is chosen from the familiar ratio and the
  * {@link RecommendationEngine} builds, filters, scores and explains the candidates.
  * Discovery never calls the LLM and persists nothing.
+ *
+ * F5 and F11 follow SD01: {@link #createPlaylist} builds an {@link AgentSession} and runs it through its
+ * states (planning, retrieving with the feasibility check and negotiation, selecting, validating,
+ * executing, done or failed). The phase logic lives in the state classes, not here; this class only wires
+ * a run together and keeps the last session for the caller.
  *
  * <p>The LLM only phrases results. With no provider, or when it fails or answers
  * with something unusable, the Stage 1 fallback applies: a sentence computed from
@@ -84,15 +101,28 @@ public class MusicAgentFacade {
     private final SearchRanker ranker;
     private final RecommendationEngine engine;
     private final Supplier<String> currentUserId;
+    private final CreateSupport create;
+    private volatile NegotiationHandler negotiationHandler;
+    private volatile Consumer<String> progressListener;
+    private volatile AgentSession lastSession;
     private volatile String lastSearchNotice;
     private volatile String lastSearchLabel;
     private volatile List<String> lastDiscoverNotices = List.of();
     private volatile DecisionTrace lastDecisionTrace;
 
+    /**
+     * What playlist creation needs beyond the read side: the Spotify service and command invoker that write,
+     * the explanation service, and the way to sign in again when the token expires ({@code reauthenticator}
+     * may be null, in which case an expired token ends the run).
+     */
+    public record CreateSupport(MusicService music, PlaylistManager playlists, ExplanationService explainer,
+                                Runnable reauthenticator) {
+    }
+
     public MusicAgentFacade(ToolManager tools, MemoryManager memory, ProfileBuilder profileBuilder,
                             TrendComparator trendComparator, PromptBuilder prompts, LLMProvider llm,
                             Config config, Planner planner, ResponseParser parser, SearchRanker ranker,
-                            RecommendationEngine engine, Supplier<String> currentUserId) {
+                            RecommendationEngine engine, Supplier<String> currentUserId, CreateSupport create) {
         this.tools = tools;
         this.memory = memory;
         this.profileBuilder = profileBuilder;
@@ -105,6 +135,7 @@ public class MusicAgentFacade {
         this.ranker = ranker;
         this.engine = engine;
         this.currentUserId = currentUserId;
+        this.create = Objects.requireNonNull(create, "create");
     }
 
     // ---- F1 ----
@@ -328,6 +359,66 @@ public class MusicAgentFacade {
         if (warning != null && !notices.contains(warning)) {
             notices.add(warning);
         }
+    }
+
+    // ---- F5 and F11 ----
+
+    /** Who answers an infeasible request (F11); null means nobody, and such a request then stops with the options listed. */
+    public void setNegotiationHandler(NegotiationHandler handler) {
+        this.negotiationHandler = handler;
+    }
+
+    /** Told the name of each state of a creation run as it starts. */
+    public void setProgressListener(Consumer<String> listener) {
+        this.progressListener = listener;
+    }
+
+    /**
+     * F5 per SD01: runs the request through the session states and returns the playlist created on Spotify.
+     * The session (with its explanation, notices and decision trace) is {@link #lastSession()} whether the
+     * run finished or not. A request that cannot be met, is cancelled or fails ends with the exception that
+     * stopped it; nothing is left half-created.
+     *
+     * @throws IllegalStateException if nobody is logged in, or there is no LLM key to read the request
+     * @throws com.musicmind.agent.ClarificationNeededException if the goal is unclear
+     * @throws com.musicmind.agent.InfeasibleRequestException if the request cannot be met
+     * @throws com.musicmind.agent.NegotiationCancelledException if the user declined every relaxation
+     */
+    public synchronized Playlist createPlaylist(AgentRequest request) {
+        Objects.requireNonNull(request, "request");
+        String userId = currentUserId.get();
+        if (userId == null) {
+            throw new IllegalStateException(config.wording("planNeedsLogin"));
+        }
+        User user = new User(userId, userId, userId);
+        RunServices services = new RunServices(config, planner, new ConstraintChecker(config),
+                new PlaylistValidator(), engine, create.playlists(), create.music(), memory,
+                create.explainer(), currentUserId, () -> profileFor(user), create.reauthenticator());
+        AgentSession session = new AgentSession(UUID.randomUUID().toString(), Instant.now(), new IdleState());
+        session.setRequest(request);
+        session.setContext(new RunContext(services, request, negotiationHandler, progressListener));
+        lastSession = session;
+        session.run();
+        if (session.failure() != null) {
+            throw session.failure();
+        }
+        return session.context().playlist();
+    }
+
+    /** The most recent creation run, finished or failed; null before the first. */
+    public AgentSession lastSession() {
+        return lastSession;
+    }
+
+    /**
+     * The profile to plan or discover from: the stored one if it is recent enough, else a fresh build
+     * (which stores itself).
+     */
+    public ListeningProfile profileFor(User user) {
+        Instant oldest = Instant.now().minus(Duration.ofHours(config.profileMaxAgeHours()));
+        return lastProfile(user)
+                .filter(p -> !p.isEmpty() && p.generatedAt() != null && p.generatedAt().isAfter(oldest))
+                .orElseGet(() -> analyzeTaste(user));
     }
 
     // ---- helpers ----

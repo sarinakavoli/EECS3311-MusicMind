@@ -620,4 +620,45 @@ class RecommendationEngineTest {
         assertEquals(5, chosen.size());
         assertTrue(e.lastNotices().isEmpty(), "5 picks are enough when 5 are wanted: " + e.lastNotices());
     }
+
+    @Test
+    void seedGenresAreSearchedFirstAndTheReasonSaysTheUserAskedForThem() {
+        FakeMusic m = richMusic();
+        m.byGenre.put("lo-fi", unknownTracks("l", 4));
+        RecommendationEngine e = engine(m);
+
+        List<Recommendation> recs = e.recommend(profile(), spec(0.0), List.of(), true, List.of("lo-fi"));
+
+        assertEquals("lo-fi", m.searches.get(0));
+        Recommendation fromSeed = recs.stream().filter(r -> r.track().id().startsWith("l")).findFirst().orElseThrow();
+        assertTrue(fromSeed.reason().contains("lo-fi") && fromSeed.reason().contains("you asked for"), fromSeed.reason());
+        assertFalse(fromSeed.reason().contains("your \"lo-fi\""), fromSeed.reason());
+        Recommendation own = recs.stream().filter(r -> r.track().id().startsWith("r")).findFirst().orElseThrow();
+        assertTrue(own.reason().contains("your \"rock\" genre"), own.reason());
+    }
+
+    @Test
+    void aRetrievedPoolIsReusedWithoutReadingSpotifyAgain() {
+        FakeMusic m = richMusic();
+        RecommendationEngine e = engine(m);
+
+        Retrieval retrieval = e.retrieve(profile(), spec(0.5), true, List.of());
+        int searchesAfterRetrieval = m.searches.size();
+        CandidatePool pool = retrieval.pool();
+        List<Recommendation> recs = e.recommend(retrieval, spec(0.5), List.of());
+
+        assertEquals(5, pool.familiar().size());
+        assertTrue(pool.novel().size() >= 20);
+        assertFalse(recs.isEmpty());
+        assertEquals(searchesAfterRetrieval, m.searches.size());
+        assertFalse(retrieval.allReadsFailed());
+    }
+
+    @Test
+    void aRetrievalWhoseReadsAllFailedSaysSo() {
+        FakeMusic m = new FakeMusic();
+        m.libraryFailure = new MusicServiceException("offline");
+        m.searchFailure = new MusicServiceException("offline");
+        assertTrue(engine(m).retrieve(profile(), spec(0.5), true, List.of()).allReadsFailed());
+    }
 }
