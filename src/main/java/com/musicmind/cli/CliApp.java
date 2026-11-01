@@ -223,10 +223,10 @@ public class CliApp {
             // R5: show the stored profile unless asked to rebuild; picking a range builds that range.
             Optional<ListeningProfile> stored = refresh || range != null ? Optional.empty() : c.lastProfile(user);
             if (stored.isPresent()) {
-                out.println("[musicmind] Showing your stored profile. Use --refresh to rebuild it.");
+                out.println(w("StoredProfile"));
                 printProfile(stored.get());
             } else {
-                out.println("[musicmind] Building your taste profile...");
+                out.println(w("BuildingProfile"));
                 printProfile(range == null ? c.analyzeTaste(user) : c.analyzeTaste(user, range));
             }
             printMemoryWarning(null);
@@ -244,7 +244,7 @@ public class CliApp {
         if (user == null) {
             return FAILED;
         }
-        out.println("[musicmind] Comparing your listening across time ranges...");
+        out.println(w("ComparingTrends"));
         try {
             printTrends(controller().analyzeTrends(user));
             return OK;
@@ -305,7 +305,7 @@ public class CliApp {
         AppController c = controller();
         try {
             PlaylistSpec spec = c.discoverSpec(novelty);
-            out.println("[musicmind] Finding music for you...");
+            out.println(w("FindingMusic"));
             List<Recommendation> recs = c.discover(spec);
             out.println();
             for (int i = 0; i < recs.size(); i++) {
@@ -366,14 +366,13 @@ public class CliApp {
         AppController c = controller();
         // Flags that were not given stay unset (0 minutes, NaN, null) and leave the goal's own values alone.
         PlaylistSpec flags = new PlaylistSpec(minutes, !noExplicit, familiar, List.of(), name);
-        c.setProgressListener(state -> out.println("[musicmind] " + state + "..."));
+        c.setProgressListener(state -> out.println(w("Progress", state)));
         c.setNegotiationHandler(this::askToRelax);
         try {
             Playlist playlist = c.createPlaylist(new AgentRequest(goal, RequestKind.CREATE_PLAYLIST, flags));
             AgentSession session = c.lastSession();
             out.println();
-            out.println("Created \"" + playlist.name() + "\" (" + playlist.spotifyId() + ") with "
-                    + playlist.tracks().size() + " tracks:");
+            out.println(w("Created", playlist.name(), playlist.spotifyId(), playlist.tracks().size()));
             for (int i = 0; i < playlist.tracks().size(); i++) {
                 Track t = playlist.tracks().get(i);
                 out.printf("%2d. %s  (%s)%n", i + 1, t.title(), t.id());
@@ -441,24 +440,24 @@ public class CliApp {
                         err.println(String.format(config.wording("cliNotSaved"), c.memory().warning()));
                         return FAILED;
                     }
-                    out.println("Saved " + pref.key() + " = " + PreferenceSettings.display(pref));
+                    out.println(w("Saved", pref.key(), PreferenceSettings.display(pref)));
                 }
                 case "get" -> {
                     List<UserPreference> found = c.getPreferences().stream()
                             .filter(p -> p.key().equals(rest[1])).toList();
                     if (found.isEmpty()) {
-                        out.println("No preference '" + rest[1] + "' is set.");
+                        out.println(w("NoSuchPreference", rest[1]));
                     }
                     found.forEach(p -> out.println(p.key() + " = " + PreferenceSettings.display(p)));
-                    printMemoryWarning("Showing defaults");
+                    printMemoryWarning(w("ShowingDefaults"));
                 }
                 default -> {
                     List<UserPreference> all = c.getPreferences();
                     if (all.isEmpty()) {
-                        out.println("No preferences are set.");
+                        out.println(w("NoPreferences"));
                     }
                     all.forEach(p -> out.println(p.key() + " = " + PreferenceSettings.display(p)));
-                    printMemoryWarning("Showing defaults");
+                    printMemoryWarning(w("ShowingDefaults"));
                 }
             }
             return OK;
@@ -494,7 +493,7 @@ public class CliApp {
                 err.println(String.format(config.wording("cliNotSaved"), c.memory().warning()));
                 return FAILED;
             }
-            out.println("Recorded: " + verdict.name().toLowerCase() + " for " + rest[0]);
+            out.println(w("Recorded", verdict.name().toLowerCase(), rest[0]));
             return OK;
         } catch (IllegalArgumentException e) {
             return usage("feedback", e.getMessage());
@@ -517,7 +516,7 @@ public class CliApp {
             Playlist playlist = c.modifyPlaylist(rest[0], rest[1]);
             out.println(config.wording("cliChangedPrefix") + " " + c.lastChangeSummary());
             c.lastModifyNotices().forEach(this::printNotice);
-            out.println("The playlist now has " + playlist.tracks().size() + " tracks. Undo with: undo " + rest[0]);
+            out.println(w("PlaylistNow", playlist.tracks().size(), rest[0]));
             out.println(c.spotifyAttribution());
             return OK;
         } catch (RuntimeException e) {
@@ -535,7 +534,7 @@ public class CliApp {
         }
         try {
             controller().undo(rest[0]);
-            out.println("Undone: the playlist is back as it was before the last change.");
+            out.println(w("Undone"));
             return OK;
         } catch (RuntimeException e) {
             return failure("undo", e);
@@ -596,25 +595,24 @@ public class CliApp {
         AppController c = controller();
         try {
             List<AgentSession> sessions = c.getHistory(user);
-            out.println("Sessions:");
+            out.println(w("Sessions"));
             if (sessions.isEmpty()) {
-                out.println("  (none)");
+                out.println("  " + w("None"));
             }
             for (AgentSession s : sessions) {
                 String request = s.request() == null ? "" : s.request().kind() + ": " + s.request().rawText();
                 out.println("  " + s.startedAt() + "  " + s.status() + "  " + request
-                        + (s.playlistId() == null ? "" : "  playlist " + s.playlistId()));
+                        + (s.playlistId() == null ? "" : "  " + w("SessionPlaylist", s.playlistId())));
             }
-            out.println("Saved playlist versions (restore <id>):");
+            out.println(w("SavedVersions"));
             List<SnapshotInfo> snapshots = c.getSnapshots(user);
             if (snapshots.isEmpty()) {
-                out.println("  (none)");
+                out.println("  " + w("None"));
             }
             for (SnapshotInfo i : snapshots) {
-                out.println("  " + i.id() + "  " + i.createdAt() + "  playlist " + i.playlistId()
-                        + "  \"" + i.name() + "\"  " + i.trackCount() + " tracks");
+                out.println("  " + i.id() + "  " + i.createdAt() + "  " + w("VersionLine", i.playlistId(), i.name(), i.trackCount()));
             }
-            printMemoryWarning("History may be incomplete");
+            printMemoryWarning(w("HistoryIncomplete"));
             return OK;
         } catch (RuntimeException e) {
             return failure("show the history", e);
@@ -638,8 +636,7 @@ public class CliApp {
         AppController c = controller();
         try {
             Playlist restored = c.restore(snapshotId);
-            out.println("Restored \"" + restored.name() + "\" (" + restored.spotifyId() + "): "
-                    + restored.tracks().size() + " tracks. Undo with: undo " + restored.spotifyId());
+            out.println(w("Restored", restored.name(), restored.spotifyId(), restored.tracks().size(), restored.spotifyId()));
             return OK;
         } catch (PlaylistMissingException e) {
             out.println(e.getMessage());
@@ -648,8 +645,7 @@ public class CliApp {
             }
             try {
                 Playlist created = c.recreateFromSnapshot(snapshotId);
-                out.println("Created \"" + created.name() + "\" (" + created.spotifyId() + ") with "
-                        + created.tracks().size() + " tracks.");
+                out.println(w("Recreated", created.name(), created.spotifyId(), created.tracks().size()));
                 return OK;
             } catch (RuntimeException failure) {
                 return failure("recreate the playlist", failure);
@@ -720,6 +716,12 @@ public class CliApp {
         return FAILED;
     }
 
+    /** The wording for {@code text.cli<key>}, filled in with {@code args}. */
+    private String w(String key, Object... args) {
+        String template = config.wording("cli" + key);
+        return args.length == 0 ? template : String.format(template, args);
+    }
+
     private void printNotice(String notice) {
         out.println(config.wording("cliNoticePrefix") + " " + notice);
     }
@@ -747,20 +749,20 @@ public class CliApp {
     private void printProfile(ListeningProfile profile) {
         AppController c = controller();
         out.println();
-        out.println("===== Your MusicMind Taste Profile =====");
+        out.println(w("ProfileHeading"));
         if (profile.generatedAt() != null) {
-            out.println("Generated: " + profile.generatedAt());
+            out.println(w("Generated", profile.generatedAt()));
         }
         if (profile.range() != null) {
-            out.println("Time range: " + profile.range());
+            out.println(w("TimeRange", profile.range()));
         }
         profile.notices().forEach(this::printNotice);
         out.println();
 
-        out.println("Top genres:");
+        out.println(w("TopGenres"));
         List<Map.Entry<String, Double>> genres = profile.rankedGenres(GENRES_SHOWN);
         if (genres.isEmpty()) {
-            out.println("  (no genre data)");
+            out.println("  " + w("NoGenreData"));
         }
         for (Map.Entry<String, Double> g : genres) {
             out.printf("  %-24s %5.1f%%%n", g.getKey(), g.getValue() * 100);
@@ -770,12 +772,11 @@ public class CliApp {
         String artists = profile.topArtists().stream().map(Artist::name).filter(n -> !n.isBlank())
                 .limit(ARTISTS_SHOWN).collect(Collectors.joining(", "));
         out.println(artists.isEmpty()
-                ? "Top artists counted: " + profile.topArtists().size() + " (names are not stored; use --refresh to see them)"
-                : "Top artists: " + artists);
-        out.println("Top tracks counted: " + profile.topTracks().size()
-                + ", saved tracks counted: " + profile.savedTrackIds().size());
+                ? w("TopArtistsCounted", profile.topArtists().size())
+                : w("TopArtists", artists));
+        out.println(w("TracksCounted", profile.topTracks().size(), profile.savedTrackIds().size()));
         out.println();
-        out.println("Summary: " + profile.summary());
+        out.println(w("Summary", profile.summary()));
         out.println();
         out.println(c.spotifyAttribution());
         out.println(c.genreAttribution());
@@ -784,25 +785,25 @@ public class CliApp {
     private void printTrends(TrendReport report) {
         AppController c = controller();
         out.println();
-        out.println("===== How Your Taste Has Changed =====");
+        out.println(w("TrendsHeading"));
         for (String range : c.timeRanges()) {
             List<Artist> artists = report.artistsByRange().getOrDefault(range, List.of());
             String names = artists.stream().map(Artist::name).limit(ARTISTS_SHOWN).collect(Collectors.joining(", "));
             String genres = report.genresByRange().getOrDefault(range, Map.of()).entrySet().stream()
                     .limit(TREND_GENRES_SHOWN).map(Map.Entry::getKey).collect(Collectors.joining(", "));
             out.println(range + ":");
-            out.println("  artists: " + (names.isEmpty() ? "(no data)" : names));
-            out.println("  genres:  " + (genres.isEmpty() ? "(no data)" : genres));
+            out.println("  " + w("ArtistsLine", names.isEmpty() ? w("NoData") : names));
+            out.println("  " + w("GenresLine", genres.isEmpty() ? w("NoData") : genres));
             if (!artists.isEmpty()) {
                 out.println("  " + String.format(config.wording("trendCoverageLine"),
                         report.artistsWithGenres(range), report.artistCount(range)));
             }
         }
         out.println();
-        printList("Genres added", report.addedGenres());
-        printList("Genres dropped", report.droppedGenres());
-        printList("Artists added", names(report, report.addedArtistIds()));
-        printList("Artists dropped", names(report, report.droppedArtistIds()));
+        printList(w("GenresAdded"), report.addedGenres());
+        printList(w("GenresDropped"), report.droppedGenres());
+        printList(w("ArtistsAdded"), names(report, report.addedArtistIds()));
+        printList(w("ArtistsDropped"), names(report, report.droppedArtistIds()));
         report.gaps().forEach(this::printNotice);
         out.println();
         out.println(report.narrative());
@@ -812,7 +813,7 @@ public class CliApp {
     }
 
     private void printList(String label, List<String> items) {
-        out.println(label + ": " + (items.isEmpty() ? "(none)" : String.join(", ", items)));
+        out.println(label + ": " + (items.isEmpty() ? w("None") : String.join(", ", items)));
     }
 
     private static List<String> names(TrendReport report, List<String> ids) {
