@@ -86,6 +86,6 @@ public class ValidatingState implements SessionState {
                     (int) Math.round(config.playlistDurationTolerance() * 100), spec.targetMinutes()));
         }
         satisfied.add(config.wording("constraintNoDuplicates"));
-        ctx.trace = new DecisionTrace(trace.strategyName(), trace.reasons(), satisfied);
+        ctx.trace = new DecisionTrace(trace.strategyName(), trace.reasons(), satisfied, trace.requestedGenres());
     }
 }

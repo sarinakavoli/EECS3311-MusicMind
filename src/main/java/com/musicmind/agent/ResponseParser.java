@@ -41,6 +41,11 @@ public class ResponseParser {
     private static final Pattern BARE_ID = Pattern.compile("\\b[A-Za-z0-9]{22}\\b");
 
     private static final Pattern NUMBER = Pattern.compile("\\d+(?:\\.\\d+)?");
+    private static final Pattern PREFERENCE_CLAIM = Pattern.compile(
+            "\\byou(?:['\u2019]ve|\\s+have)?(?:\\s+(?:always|really|clearly|obviously|truly))?\\s+"
+                    + "(?:love|loved|like|liked|enjoy|enjoyed|adore|adored|prefer|preferred)\\b"
+                    + "|\\byour\\s+(?:favou?rite|beloved|preferred)\\b",
+            Pattern.CASE_INSENSITIVE);
     private static final Pattern QUOTED = Pattern.compile("\"([^\"]+)\"|\u201c([^\u201d]+)\u201d");
 
     private final Config config;
@@ -135,14 +140,38 @@ public class ResponseParser {
         return specs;
     }
 
-    /** What an edit reply says besides its commands: whether it has any, the mood word and any question. */
-    public record EditExtras(boolean hasCommands, String mood, String question) { }
+    /**
+     * What an edit reply says besides its commands: whether it has any, the mood word and any question, and
+     * the length the edit states: a signed change in minutes ("15 minutes shorter" is -15) or a new total
+     * length, 0 for neither.
+     */
+    public record EditExtras(boolean hasCommands, String mood, String question, int lengthChangeMinutes,
+                             int targetMinutes) { }
 
-    /** The mood (lower case, empty when none), the clarifying question (empty when none) and whether commands are present. */
+    /**
+     * The mood (lower case, empty when none), the clarifying question (empty when none), whether commands are
+     * present and the stated length. A length that is not a number or lies outside the configured bounds is
+     * ignored rather than trusted.
+     */
     public EditExtras parseEditExtras(String json) {
         JsonObject o = object(json);
         boolean commands = o.has("commands") && o.get("commands").isJsonArray() && !o.getAsJsonArray("commands").isEmpty();
-        return new EditExtras(commands, text(o, "mood").toLowerCase(Locale.ROOT), text(o, "question"));
+        int change = wholeMinutes(o, "lengthChangeMinutes");
+        int target = wholeMinutes(o, "targetMinutes");
+        int max = config.parserMaxTargetMinutes();
+        return new EditExtras(commands, text(o, "mood").toLowerCase(Locale.ROOT), text(o, "question"),
+                Math.abs(change) <= max ? change : 0,
+                target >= config.parserMinTargetMinutes() && target <= max ? target : 0);
+    }
+
+    /** A JSON number as whole minutes; 0 if absent, null or not a number. */
+    private static int wholeMinutes(JsonObject o, String key) {
+        JsonElement el = o.get(key);
+        if (el == null || !el.isJsonPrimitive() || !el.getAsJsonPrimitive().isNumber()) {
+            return 0;
+        }
+        double v = el.getAsDouble();
+        return Double.isFinite(v) && Math.abs(v) < Integer.MAX_VALUE ? (int) Math.round(v) : 0;
     }
 
     /**
@@ -299,6 +328,7 @@ public class ResponseParser {
         checkQuotes(withoutIds, facts);
         checkNumbers(withoutIds, trace, facts);
         checkGenres(withoutIds, facts);
+        checkPreferenceClaims(withoutIds, facts);
         return t;
     }
 
@@ -328,9 +358,25 @@ public class ResponseParser {
         return out.toString();
     }
 
+    /**
+     * The trace records where a track came from (the listener's history, a genre they asked for), never that
+     * they love or like anything. A sentence that says so (for example "the genres you love" about genres that
+     * came from the goal) is a claim the trace does not hold.
+     */
+    private static void checkPreferenceClaims(String text, String facts) {
+        Matcher m = PREFERENCE_CLAIM.matcher(text);
+        while (m.find()) {
+            if (!facts.contains(m.group().toLowerCase(Locale.ROOT))) {
+                throw new ParseException("The explanation says '" + m.group()
+                        + "', a preference the decision trace does not record");
+            }
+        }
+    }
+
     /** Everything the trace records, as one lower-case text. */
     private static String facts(DecisionTrace trace) {
         StringBuilder sb = new StringBuilder(trace.strategyName() == null ? "" : trace.strategyName());
+        trace.requestedGenres().forEach(g -> sb.append(' ').append(g));
         trace.reasons().values().forEach(r -> sb.append(' ').append(r));
         trace.constraintsSatisfied().forEach(c -> sb.append(' ').append(c));
         return sb.toString().toLowerCase(Locale.ROOT);

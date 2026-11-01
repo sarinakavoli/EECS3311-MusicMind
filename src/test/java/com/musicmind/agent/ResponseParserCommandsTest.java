@@ -118,4 +118,20 @@ class ResponseParserCommandsTest {
         assertEquals(false, parser.parseEditExtras("{}").hasCommands());
         assertThrows(ParseException.class, () -> parser.parseEditExtras("nope"));
     }
+
+    @Test
+    void editExtrasReadAStatedLengthChangeOrAbsoluteLengthAndIgnoreWhatIsNotUsable() {
+        assertEquals(-15, parser.parseEditExtras("{\"lengthChangeMinutes\":-15}").lengthChangeMinutes());
+        assertEquals(10, parser.parseEditExtras("{\"lengthChangeMinutes\":10.4}").lengthChangeMinutes());
+        assertEquals(60, parser.parseEditExtras("{\"targetMinutes\":60}").targetMinutes());
+        ResponseParser.EditExtras none = parser.parseEditExtras("{\"commands\":[]}");
+        assertEquals(0, none.lengthChangeMinutes());
+        assertEquals(0, none.targetMinutes());
+        for (String bad : List.of("{\"lengthChangeMinutes\":\"lots\"}", "{\"lengthChangeMinutes\":null}",
+                "{\"lengthChangeMinutes\":99999}", "{\"targetMinutes\":-5}", "{\"targetMinutes\":99999}")) {
+            ResponseParser.EditExtras e = parser.parseEditExtras(bad);
+            assertEquals(0, e.lengthChangeMinutes(), bad);
+            assertEquals(0, e.targetMinutes(), bad);
+        }
+    }
 }

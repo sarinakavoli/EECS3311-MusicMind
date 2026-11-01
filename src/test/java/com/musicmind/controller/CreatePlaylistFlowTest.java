@@ -502,6 +502,9 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
         assertTrue(c.lastSession().trace().reasons().values().stream()
                 .anyMatch(r -> r.contains("genre you asked for")), c.lastSession().trace().reasons().toString());
         assertTrue(c.lastSession().trace().constraintsSatisfied().stream().anyMatch(s -> s.contains("chill")));
+        assertTrue(c.lastSession().trace().requestedGenres().contains("chill"), c.lastSession().trace().requestedGenres().toString());
+        AgentSession stored = memory().findSessionByPlaylist("pl1");
+        assertTrue(stored.trace().requestedGenres().contains("chill"), "the requested genres are stored with the trace");
     }
 
     @Test

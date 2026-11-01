@@ -89,6 +89,11 @@ public class PromptBuilder {
                 .append("Strategy: ").append(trace.strategyName()).append('\n');
         trace.reasons().forEach((id, reason) -> p.append('[').append(id).append("]: ").append(reason).append('\n'));
         p.append("Constraints satisfied: ").append(String.join("; ", trace.constraintsSatisfied()));
+        if (!trace.requestedGenres().isEmpty()) {
+            p.append("\nGenres asked for in the goal, not the listener's taste: ")
+                    .append(String.join(", ", trace.requestedGenres()))
+                    .append(". Say the listener asked for them. Never say the listener loves, likes, enjoys or listens to them.");
+        }
         return p.toString();
     }
 
@@ -164,7 +169,10 @@ public class PromptBuilder {
                 .append("\"track\": position or id (remove, replace, reorder), ")
                 .append("\"query\": search text (add, replace), \"position\": new 0-based index (reorder)}], ")
                 .append("\"mood\": one of [").append(String.join(", ", moods.moods()))
-                .append("] or \"\", \"question\": \"\" or one short clarifying question}");
+                .append("] or \"\", \"question\": \"\" or one short clarifying question, ")
+                .append("\"lengthChangeMinutes\": signed whole minutes if the instruction asks to make the playlist longer or shorter ")
+                .append("by an amount (\"15 minutes shorter\" is -15), else 0, ")
+                .append("\"targetMinutes\": whole minutes if it asks for a new total length, else 0}");
         return p.toString();
     }
 

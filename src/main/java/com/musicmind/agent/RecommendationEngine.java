@@ -272,6 +272,9 @@ public class RecommendationEngine {
         double familiarity = familiarity(track);
         double fit = 1.0 - Math.abs(familiarity - spec.familiarRatio());
         double score = config.discoverFitWeight() * fit + config.discoverGenreWeight() * affinity(track);
+        if (isBareGenreTitle(track)) {
+            score -= config.discoverGenreTitlePenalty();
+        }
         Verdict verdict = verdicts.get(track.id());
         if (verdict == Verdict.ACCEPT) {
             score += config.discoverAcceptBoost();
@@ -279,6 +282,21 @@ public class RecommendationEngine {
             score -= config.discoverRejectPenalty();
         }
         return score;
+    }
+
+    /**
+     * True for a track found by searching a genre whose whole title is that genre ("Hip Hop" for hip hop):
+     * letters and digits only, case ignored. Spotify's text search returns such titles first for a genre word.
+     */
+    private boolean isBareGenreTitle(Track track) {
+        Origin origin = origins.get(track.id());
+        return origin != null && origin.source() == Source.GENRE && origin.genre() != null
+                && track.title() != null && !squash(origin.genre()).isEmpty()
+                && squash(track.title()).equals(squash(origin.genre()));
+    }
+
+    private static String squash(String text) {
+        return text.toLowerCase(java.util.Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]", "");
     }
 
     // ---- selection ----
@@ -355,7 +373,7 @@ public class RecommendationEngine {
         return libraryIds.contains(track.id()) || familiarity(track) >= 1.0;
     }
 
-    /** True if the track was found for one of the requested genres or is by a known artist of one. */
+    /** True if the track was found for one of the requested genres or is by a known artist whose leading genre is one. */
     private boolean matchesSeed(Track track) {
         if (seedGenres.isEmpty()) {
             return false;
@@ -364,8 +382,9 @@ public class RecommendationEngine {
         if (origin != null && origin.genre() != null && seedGenres.contains(origin.genre())) {
             return true;
         }
+        // Only an artist's leading genre (first in its ordered list) counts: any tag would overstate the match.
         return profile.topArtists().stream().filter(a -> track.artistIds().contains(a.id()))
-                .anyMatch(a -> a.genres().stream().anyMatch(seedGenres::contains));
+                .anyMatch(a -> !a.genres().isEmpty() && seedGenres.contains(a.genres().get(0)));
     }
 
     // ---- scoring inputs ----
@@ -481,7 +500,7 @@ public class RecommendationEngine {
         if (!searchedSeeds.isEmpty()) {
             satisfied.add(String.format(config.wording("constraintSeedGenres"), String.join(", ", searchedSeeds)));
         }
-        return new DecisionTrace(runStrategy.getClass().getSimpleName(), reasons, satisfied);
+        return new DecisionTrace(runStrategy.getClass().getSimpleName(), reasons, satisfied, List.copyOf(seedGenres));
     }
 
     private String filterSummary(Selection s) {

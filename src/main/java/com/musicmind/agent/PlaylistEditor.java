@@ -27,8 +27,26 @@ import java.util.Set;
  */
 public class PlaylistEditor {
 
-    /** The commands to run, and whether they came from the mood heuristic (approximate) with the mood used. */
-    public record EditPlan(List<PlaylistCommand> commands, boolean approximate, String mood) { }
+    /**
+     * The commands to run, whether they came from the mood heuristic (approximate) with the mood used, and the
+     * length the instruction states: a signed change in minutes or a new total, 0 for neither.
+     */
+    public record EditPlan(List<PlaylistCommand> commands, boolean approximate, String mood,
+                           int lengthChangeMinutes, int targetMinutes) {
+        public EditPlan(List<PlaylistCommand> commands, boolean approximate, String mood) {
+            this(commands, approximate, mood, 0, 0);
+        }
+
+        /** True if the instruction asked for a particular length. */
+        public boolean statesLength() {
+            return lengthChangeMinutes != 0 || targetMinutes != 0;
+        }
+
+        /** The same commands without the stated length, for when only part of the edit is applied. */
+        public EditPlan withCommands(List<PlaylistCommand> kept) {
+            return new EditPlan(kept, approximate, mood, 0, 0);
+        }
+    }
 
     private final LLMProvider llm; // null when no key is configured
     private final PromptBuilder prompts;
@@ -63,7 +81,8 @@ public class PlaylistEditor {
         try {
             extras = parser.parseEditExtras(reply);
             if (extras.hasCommands()) {
-                return new EditPlan(parser.forPlaylist(playlist).parseCommands(reply), false, "");
+                return new EditPlan(parser.forPlaylist(playlist).parseCommands(reply), false, "",
+                        extras.lengthChangeMinutes(), extras.targetMinutes());
             }
         } catch (ParseException e) {
             throw unclear(instruction);

@@ -822,4 +822,79 @@ class RecommendationEngineTest {
         assertTrue(ids(recs).stream().noneMatch(id -> List.of("top0", "top1", "top2", "saved0", "rec0").contains(id)));
         assertEquals(10, unknownArtistCount(recs));
     }
+
+    // ---- Task 24: requested genres in the trace, the leading-genre match, the bare-genre-title penalty ----
+
+    @Test
+    void theTraceRecordsTheGenresTheGoalRequestedAndNoneWhenThereAreNone() {
+        FakeMusic m = richMusic();
+        m.byGenre.put("lo-fi", unknownTracks("l", 4));
+        RecommendationEngine e = engine(m);
+
+        e.recommend(profile(), spec(0.0), List.of(), true, List.of("lo-fi", "dance"));
+        assertEquals(List.of("lo-fi", "dance"), e.lastTrace().requestedGenres());
+
+        e.recommend(profile(), spec(0.0), List.of(), true);
+        assertEquals(List.of(), e.lastTrace().requestedGenres());
+    }
+
+    @Test
+    void anArtistMatchesARequestedGenreOnlyThroughItsLeadingGenre() {
+        // a1's genres are [rock, indie]: asking for indie must not count a1's tracks as matches.
+        RecommendationEngine e = engine(richMusic());
+        e.setStrategy(new FamiliarStrategy());
+
+        e.recommend(profile(), spec(1.0), List.of(), true, List.of("indie"));
+        assertTrue(e.lastNotices().stream().anyMatch(n -> n.contains("Only 0 of")), e.lastNotices().toString());
+
+        // a2's only genre is jazz and top2 and saved0 are a2's: exactly those two match.
+        e.recommend(profile(), spec(1.0), List.of(), true, List.of("jazz"));
+        assertTrue(e.lastNotices().stream().anyMatch(n -> n.contains("Only 2 of")), e.lastNotices().toString());
+    }
+
+    private static Track titled(String id, String title) {
+        return new Track(id, "spotify:track:" + id, title, 1000, false, List.of("stranger-" + id));
+    }
+
+    @Test
+    void aGenreResultTitledOnlyWithTheGenreRanksBelowTheOthersFromThatSearchButStaysListed() {
+        FakeMusic m = new FakeMusic();
+        m.top = List.of(track("top0", "a1"));
+        m.byGenre.put("rock", List.of(titled("bare", "Rock"), titled("n1", "Night Drive"), titled("n2", "Open Road")));
+        RecommendationEngine e = engine(m);
+        e.setStrategy(new DiscoveryStrategy());
+
+        List<Recommendation> recs = e.recommend(profile(), spec(0.0), List.of(), false);
+
+        assertEquals(List.of("n1", "n2", "bare"), ids(recs));
+        double bare = recs.get(2).score();
+        assertTrue(bare < recs.get(1).score(), "a small penalty, not a filter");
+    }
+
+    @Test
+    void theBareTitlePenaltyIgnoresCaseAndPunctuationAndOnlyAppliesToTheSearchedGenre() {
+        FakeMusic m = new FakeMusic();
+        m.top = List.of(track("top0", "a1"));
+        m.byGenre.put("rock", List.of(titled("bare", "ROCK!"), titled("blues", "Blues"), titled("n1", "Night Drive")));
+        RecommendationEngine e = engine(m);
+        e.setStrategy(new DiscoveryStrategy());
+
+        List<Recommendation> recs = e.recommend(profile(), spec(0.0), List.of(), false);
+
+        // "Blues" is not the genre it was found for, so only the "ROCK!" track is penalised.
+        assertEquals(List.of("blues", "n1", "bare"), ids(recs));
+    }
+
+    @Test
+    void theBareTitlePenaltyIsATunable() {
+        FakeMusic m = new FakeMusic();
+        m.top = List.of(track("top0", "a1"));
+        m.byGenre.put("rock", List.of(titled("bare", "Rock"), titled("n1", "Night Drive")));
+        Config off = config.withTunables(Map.of("discover.weight.genreTitlePenalty", "0"));
+        RecommendationEngine e = new RecommendationEngine(toolsFor(m), off);
+        e.setStrategy(new DiscoveryStrategy());
+
+        assertEquals(List.of("bare", "n1"), ids(e.recommend(profile(), spec(0.0), List.of(), false)));
+        assertTrue(config.discoverGenreTitlePenalty() > 0);
+    }
 }

@@ -123,4 +123,14 @@ class DomainAdditionsTest {
         assertEquals(List.of(A3), t.artists());
         assertTrue(t.tracks().isEmpty());
     }
+
+    @Test
+    void aTraceStoredBeforeRequestedGenresExistedStillLoadsWithNone() {
+        String old = "{\"strategyName\":\"BalancedStrategy\",\"reasons\":{\"t1\":\"x\"},\"constraintsSatisfied\":[\"y\"]}";
+        DecisionTrace trace = new com.google.gson.Gson().fromJson(old, DecisionTrace.class);
+        assertEquals(List.of(), trace.requestedGenres());
+        assertEquals(List.of("y"), trace.constraintsSatisfied());
+        String roundTrip = new com.google.gson.Gson().toJson(new DecisionTrace("S", Map.of("t1", "x"), List.of(), List.of("dance")));
+        assertEquals(List.of("dance"), new com.google.gson.Gson().fromJson(roundTrip, DecisionTrace.class).requestedGenres());
+    }
 }

@@ -57,6 +57,16 @@ class PromptBuilderTest {
     }
 
     @Test
+    void explainPromptSaysTheRequestedGenresCameFromTheGoalNotFromTheUsersTaste() {
+        DecisionTrace trace = new DecisionTrace("Balanced", Map.of("t1", "matches dance"), List.of(), List.of("dance", "edm"));
+        String p = builder.buildExplainPrompt(trace);
+        assertTrue(p.contains("dance, edm"), p);
+        assertTrue(p.contains("asked for") && p.contains("not") && p.contains("taste"), p);
+        assertFalse(builder.buildExplainPrompt(new DecisionTrace("Balanced", Map.of("t1", "x"), List.of()))
+                .contains("asked for in the goal"));
+    }
+
+    @Test
     void summaryPromptCarriesGenresAndCountsButNoNames() {
         Map<String, Double> hist = new LinkedHashMap<>();
         hist.put("jazz", 0.6);

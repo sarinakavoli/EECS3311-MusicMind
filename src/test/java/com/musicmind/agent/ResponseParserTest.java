@@ -216,6 +216,25 @@ class ResponseParserTest {
                 () -> parser.verifyExplanation("These are [t1] and other classical picks.", GENRE_TRACE));
     }
 
+    private static final DecisionTrace GOAL_TRACE = new DecisionTrace("BalancedStrategy",
+            Map.of("t1", "found by searching the \"dance\" genre you asked for", "t2", "by an artist you already listen to"),
+            List.of("built around the genres you asked for: dance, edm"), List.of("dance", "edm"));
+
+    @Test
+    void rejectsClaimsOfUserPreferenceThatTheTraceDoesNotRecord() {
+        for (String claim : List.of("It uses the dance and edm genres you love.", "Tracks like [t1] fit what you enjoy.",
+                "You like dance, so [t1] was picked.", "These are your favorite genres: dance.",
+                "It matches the genres you've always loved.")) {
+            assertThrows(ParseException.class, () -> parser.verifyExplanation(claim, GOAL_TRACE), claim);
+        }
+    }
+
+    @Test
+    void acceptsTheSameFactsWordedAsTheUsersRequestAndAsListeningHistory() {
+        String text = "[t1] came from the dance genre you asked for and [t2] is by an artist you already listen to.";
+        assertEquals(text, parser.verifyExplanation(text, GOAL_TRACE));
+    }
+
     @Test
     void rejectsANumberThatIsNotInTheTrace() {
         assertThrows(ParseException.class,
