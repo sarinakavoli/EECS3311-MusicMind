@@ -70,6 +70,7 @@ public class AppController {
     private final MusicService music; // null until Spotify is configured
     private final MemoryManager memory;
     private final MusicAgentFacade facade; // null when music is null
+    private final ExplanationService explainer;
     private final boolean llmConfigured;
     private final Config config;
     private volatile User currentUser;
@@ -92,6 +93,9 @@ public class AppController {
         this.memory = memory;
         this.llmConfigured = llm != null;
         this.config = config;
+        PromptBuilder explainPrompts = new PromptBuilder(config);
+        ResponseParser explainParser = new ResponseParser(config);
+        this.explainer = new ExplanationService(llm, explainPrompts, explainParser, config);
         if (music == null) {
             this.facade = null;
         } else {
@@ -107,7 +111,7 @@ public class AppController {
                     new RecommendationEngine(tools, config),
                     () -> currentUser == null ? null : currentUser.id(),
                     new MusicAgentFacade.CreateSupport(music, new PlaylistManager(config, music, memory),
-                            new ExplanationService(llm, prompts, parser, config), reauthenticator));
+                            explainer, reauthenticator));
         }
     }
 
@@ -380,10 +384,9 @@ public class AppController {
      * @param id a session id or a playlist id
      * @throws IllegalArgumentException if nothing stored matches the id
      * @throws IllegalStateException if the stored record cannot be reached
+     * (reads stored data only: no Spotify sign-in is needed beyond what the data store itself uses)
      */
     public String explain(String id) {
-        requireSpotify();
-        signInIfNeeded();
         AgentSession session = memory.findSession(id);
         if (session == null) {
             session = memory.findSessionByPlaylist(id);
@@ -394,7 +397,7 @@ public class AppController {
             }
             throw new IllegalArgumentException(String.format(config.wording("explainUnknown"), id));
         }
-        return facade.explain(session);
+        return explainer.explain(session);
     }
 
     // ---- F12 ----

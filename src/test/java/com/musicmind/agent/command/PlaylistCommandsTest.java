@@ -162,4 +162,30 @@ class PlaylistCommandsTest {
         c.undo();
         assertEquals(List.of("a", "b", "c", "b", "d"), music.ids("p"));
     }
+
+    @Test
+    void restoreSnapshotSetsTheSnapshotsTracksAndUndoPutsTheOldOnesBack() {
+        music.seed("p", "x", "y", "x");
+        RestoreSnapshotCommand c = new RestoreSnapshotCommand(config, music, "p", "Mix", List.of(track("a"), track("b")));
+        assertThrows(PlaylistChangeException.class, c::undo);   // not run yet
+        c.execute();
+        assertEquals(List.of("a", "b"), music.ids("p"));
+        assertTrue(c.describe().contains("Mix"));
+        c.undo();
+        assertEquals(List.of("x", "y", "x"), music.ids("p"));
+    }
+
+    @Test
+    void restoreSnapshotLeavesAnIdenticalPlaylistUntouched() {
+        music.seed("p", "a", "b");
+        new RestoreSnapshotCommand(config, music, "p", "Mix", List.of(track("a"), track("b"))).execute();
+        assertTrue(music.calls.stream().noneMatch(call -> call.startsWith("remove") || call.startsWith("add")));
+    }
+
+    @Test
+    void restoreSnapshotToAnEmptySnapshotEmptiesThePlaylist() {
+        music.seed("p", "a");
+        new RestoreSnapshotCommand(config, music, "p", "Mix", List.of()).execute();
+        assertTrue(music.ids("p").isEmpty());
+    }
 }

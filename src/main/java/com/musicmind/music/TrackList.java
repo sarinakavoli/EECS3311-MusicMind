@@ -24,4 +24,9 @@ public class TrackList extends ArrayList<Track> {
     public boolean isTruncated() {
         return truncated;
     }
+
+    /** True if the list is a {@link TrackList} that stopped at its limit; any other list is taken as complete. */
+    public static boolean isTruncated(java.util.List<Track> tracks) {
+        return tracks instanceof TrackList list && list.isTruncated();
+    }
 }

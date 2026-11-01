@@ -6,6 +6,7 @@ import com.musicmind.domain.Track;
 import com.musicmind.memory.MemoryManager;
 import com.musicmind.memory.PersistenceException;
 import com.musicmind.music.MusicService;
+import com.musicmind.music.TrackList;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -58,6 +59,7 @@ public class PlaylistManager {
 
     /** Snapshots the playlist as it is now, then applies the commands as one undoable step. */
     public void modify(Playlist current, List<PlaylistCommand> commands) {
+        requireComplete(current.spotifyId());
         snapshotBeforeModify(current);
         executeAll(commands);
     }
@@ -89,6 +91,7 @@ public class PlaylistManager {
             }
         }
         if (latest != null) {
+            requireComplete(playlistId);
             latest.undo();
             history.remove(latest);
             return;
@@ -119,45 +122,16 @@ public class PlaylistManager {
         restore(snapshot);
     }
 
-    /**
-     * Makes the playlist hold exactly the snapshot's tracks in its order; the name is not changed.
-     * If that fails part way, the playlist's previous tracks are put back and the failure is reported.
-     */
+    /** Runs a {@link RestoreSnapshotCommand} for the snapshot, so a restore sits on the undo stack like any change. */
     private void restore(Playlist snapshot) {
-        String id = snapshot.spotifyId();
-        List<String> wanted = snapshot.tracks().stream().map(PlaylistOps::uri).toList();
-        List<String> now = music.getPlaylistItems(id).stream().map(PlaylistOps::uri).toList();
-        if (now.equals(wanted)) {
-            return;
-        }
-        try {
-            if (!now.isEmpty()) {
-                music.removeItems(id, now);
-            }
-            if (!wanted.isEmpty()) {
-                music.addItems(id, wanted);
-            }
-            // Earlier commands described the old content; undo must now fall back to the snapshot taken before this.
-            history.removeIf(c -> id.equals(c.playlistId()));
-        } catch (RuntimeException e) {
-            PlaylistChangeException failure = new PlaylistChangeException(config.wording("restoreFailed"), e);
-            putBack(id, now, failure);
-            throw failure;
-        }
+        requireComplete(snapshot.spotifyId());
+        execute(new RestoreSnapshotCommand(config, music, snapshot.spotifyId(), snapshot.name(), snapshot.tracks()));
     }
 
-    /** Returns the playlist to the tracks it had before a failed restore; a failure here is kept as suppressed. */
-    private void putBack(String id, List<String> before, PlaylistChangeException failure) {
-        try {
-            List<String> left = music.getPlaylistItems(id).stream().map(PlaylistOps::uri).toList();
-            if (!left.isEmpty()) {
-                music.removeItems(id, left);
-            }
-            if (!before.isEmpty()) {
-                music.addItems(id, before);
-            }
-        } catch (RuntimeException secondary) {
-            failure.addSuppressed(secondary);
+    /** Refuses to work on a playlist longer than one Spotify read returns: a partial list would corrupt the change. */
+    private void requireComplete(String playlistId) {
+        if (TrackList.isTruncated(music.getPlaylistItems(playlistId))) {
+            throw new PlaylistChangeException(String.format(config.wording("playlistTooLong"), config.spotifyMaxItems()));
         }
     }
 

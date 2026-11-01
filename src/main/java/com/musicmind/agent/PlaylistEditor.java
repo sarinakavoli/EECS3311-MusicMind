@@ -52,9 +52,7 @@ public class PlaylistEditor {
      * @throws ClarificationNeededException if the instruction cannot be turned into a change
      */
     public EditPlan plan(PlaylistContext playlist, String instruction, Map<String, List<String>> artistGenres) {
-        if (llm == null) {
-            throw new IllegalStateException(config.wording("modifyNeedsLlm"));
-        }
+        requireLlm();
         String reply;
         try {
             reply = llm.complete(prompts.buildEditPrompt(instruction, playlist));
@@ -77,6 +75,13 @@ public class PlaylistEditor {
             throw unclear(instruction);
         }
         return moodEdit(playlist, extras.mood(), artistGenres);
+    }
+
+    /** @throws IllegalStateException if there is no LLM, so callers can stop before reading anything */
+    public void requireLlm() {
+        if (llm == null) {
+            throw new IllegalStateException(config.wording("modifyNeedsLlm"));
+        }
     }
 
     private EditPlan moodEdit(PlaylistContext playlist, String mood, Map<String, List<String>> artistGenres) {

@@ -135,6 +135,9 @@ public class PromptBuilder {
      * model can act on "remove explicit" or "15 minutes shorter" without being given any titles or names.
      */
     public String buildEditPrompt(String instruction, PlaylistContext playlist) {
+        if (playlist.tracks().size() > config.editMaxPromptTracks()) {
+            throw new IllegalArgumentException(String.format(config.wording("modifyTooLong"), config.editMaxPromptTracks()));
+        }
         StringBuilder p = start(Kind.EDIT);
         p.append("Turn the edit instruction into commands for a playlist. Do not name specific songs. ")
                 .append("If the instruction is ambiguous, choose the smallest change that fits it. ")

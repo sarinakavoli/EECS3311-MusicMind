@@ -458,13 +458,16 @@ public class MusicAgentFacade {
         if (instruction == null || instruction.isBlank()) {
             throw new IllegalArgumentException(config.wording("modifyBlankInstruction"));
         }
+        editor.requireLlm();   // before anything is read from Spotify
         String userId = currentUserId.get();
         if (userId == null) {
             throw new IllegalStateException(config.wording("modifyNeedsLogin"));
         }
         lastChangeSummary = "";
         lastModifyNotices = List.of();
-        Playlist current = loadPlaylist(id);
+        List<Track> items = readItems(id);
+        requireComplete(items);
+        Playlist current = named(id, items);
         PlaylistEditor.EditPlan plan;
         try {
             plan = editor.plan(new PlaylistContext(id, current.tracks(), create.music()), instruction.strip(),
@@ -537,9 +540,13 @@ public class MusicAgentFacade {
         if (userId == null) {
             throw new IllegalStateException(config.wording("modifyNeedsLogin"));
         }
-        Playlist playlist = loadPlaylist(id);
+        List<Track> items = readItems(id);
+        Playlist playlist = named(id, items);
         SpecChoice choice = specFor(userId, id);
         String note = config.wording(choice.fromSession() ? "validateAgainstSession" : "validateAgainstPreferences");
+        if (TrackList.isTruncated(items)) {
+            note += " " + String.format(config.wording("validatePartial"), items.size());
+        }
         lastValidationNote = memory.warning() == null ? note : note + " " + memory.warning();
         return validate(playlist, choice.spec());
     }
@@ -563,12 +570,25 @@ public class MusicAgentFacade {
 
     /** The playlist as Spotify holds it, named after the spec saved when it was created. */
     private Playlist loadPlaylist(String id) {
-        List<Track> tracks;
+        return named(id, readItems(id));
+    }
+
+    private List<Track> readItems(String id) {
         try {
-            tracks = create.music().getPlaylistItems(id);
+            return create.music().getPlaylistItems(id);
         } catch (MusicServiceException e) {
             throw playlistAccess(e);
         }
+    }
+
+    /** Edits, undo and restore must see the whole playlist; a read cut short would corrupt the change. */
+    private void requireComplete(List<Track> items) {
+        if (TrackList.isTruncated(items)) {
+            throw new PlaylistChangeException(String.format(config.wording("playlistTooLong"), config.spotifyMaxItems()));
+        }
+    }
+
+    private Playlist named(String id, List<Track> tracks) {
         AgentSession created = memory.findSessionByPlaylist(id);
         String name = created == null ? null : SessionRecord.specOf(created.derivedData())
                 .map(PlaylistSpec::name).orElse(null);
@@ -650,6 +670,10 @@ public class MusicAgentFacade {
                         String.format(config.wording("restoreMissing"), snapshotId), e);
             }
             throw playlistAccess(e);
+        }
+        requireComplete(now);
+        if (now.stream().map(Track::uri).toList().equals(snapshot.tracks().stream().map(Track::uri).toList())) {
+            return named(id, now);   // already identical: nothing to save or change
         }
         try {
             create.playlists().snapshotBeforeModify(new Playlist(id, snapshot.name(), now));

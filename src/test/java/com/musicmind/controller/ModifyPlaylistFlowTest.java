@@ -14,6 +14,7 @@ import com.musicmind.domain.SnapshotInfo;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.ValidationResult;
 import com.musicmind.llm.LLMProvider;
+import com.musicmind.agent.command.PlaylistManager;
 import com.musicmind.memory.Database;
 import com.musicmind.memory.MemoryManager;
 import com.musicmind.memory.PostgresTestBase;
@@ -22,6 +23,7 @@ import com.musicmind.memory.repository.PlaylistHistoryRepository;
 import com.musicmind.memory.repository.PreferenceRepository;
 import com.musicmind.memory.repository.SessionRepository;
 import com.musicmind.music.MusicServiceException;
+import com.musicmind.music.TrackList;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -45,6 +47,7 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
         RuntimeException failRead;
         RuntimeException failRemove;
         String failRemoveOf; // when set, only removing this uri fails
+        int readLimit = 500; // like spotify.maxItems: a longer playlist is read in part and flagged truncated
 
         @Override public String currentUserId() { return "sp-user"; }
         @Override public List<Track> getPlaylistItems(String playlistId) {
@@ -54,7 +57,8 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
             if (!playlists.containsKey(playlistId)) {
                 throw new MusicServiceException("Spotify API error (HTTP 404) on GET /playlists/" + playlistId, 404);
             }
-            return super.getPlaylistItems(playlistId);
+            List<Track> all = super.getPlaylistItems(playlistId);
+            return all.size() > readLimit ? new TrackList(all.subList(0, readLimit), true) : all;
         }
         @Override public void removeItems(String playlistId, List<String> uris) {
             if (failRemove != null && (failRemoveOf == null || uris.contains(failRemoveOf))) {
@@ -462,5 +466,128 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
         PlaylistChangeException e = assertThrows(PlaylistChangeException.class, () -> c.restore(snapshot));
 
         assertEquals(config.wording("playlistNoPermission"), e.getMessage());
+    }
+
+    // ---- review fixes ----
+
+    private static void putMany(Music music, String playlistId, int count) {
+        List<Track> tracks = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            tracks.add(t("t" + i, false, "x"));
+        }
+        music.playlists.put(playlistId, tracks);
+    }
+
+    @Test
+    void aPlaylistOfOverOneHundredTracksIsModifiedUndoneAndRestoredCompletely() {
+        Music music = new Music();
+        putMany(music, "p", 150);
+        List<String> original = ids(music, "p");
+        AppController c = controller(music, editReply("{\"commands\":[{\"type\":\"remove\",\"track\":\"3\"}]}"));
+
+        c.modifyPlaylist("p", "drop the third");
+        assertEquals(149, ids(music, "p").size());
+        int snapshot = c.getSnapshots(c.currentUser()).get(0).id();
+        c.undo("p");
+        assertEquals(original, ids(music, "p"));
+        c.modifyPlaylist("p", "drop the third");
+        c.restore(snapshot);
+        assertEquals(original, ids(music, "p"));
+    }
+
+    @Test
+    void aPlaylistOverTheReadLimitIsRefusedByModifyRestoreAndUndoAndNothingIsChanged() {
+        Music music = new Music();
+        putMany(music, "p", 600);
+        List<String> original = ids(music, "p");
+        AppController c = controller(music, editReply("{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"}]}"));
+        String expected = String.format(config.wording("playlistTooLong"), config.spotifyMaxItems());
+
+        assertEquals(expected, assertThrows(PlaylistChangeException.class, () -> c.modifyPlaylist("p", "drop")).getMessage());
+        assertEquals(expected, assertThrows(PlaylistChangeException.class, () -> c.undo("p")).getMessage());
+        // a snapshot of this playlist exists from when it was short enough to read in full
+        int snapshot = memory(db).saveSnapshot(new Playlist("p", "Mix", List.of(t("t0", false, "x"))));
+        assertEquals(expected, assertThrows(PlaylistChangeException.class, () -> c.restore(snapshot)).getMessage());
+
+        assertEquals(original, ids(music, "p"));
+        assertEquals(1, memory(db).loadSnapshotSummaries("sp-user").size(), "no new snapshot was saved");
+        assertTrue(music.calls.stream().noneMatch(call -> call.startsWith("remove") || call.startsWith("add")));
+    }
+
+    @Test
+    void validateOfAPlaylistOverTheReadLimitSaysItCoversOnlyPartOfIt() {
+        Music music = new Music();
+        putMany(music, "p", 600);
+        AppController c = controller(music, null);
+
+        assertTrue(c.validatePlaylist("p").passed());
+        assertTrue(c.lastValidationNote().contains(String.format(config.wording("validatePartial"), 500)),
+                c.lastValidationNote());
+    }
+
+    @Test
+    void aPlaylistTooLongToDescribeToTheModelIsRefusedBeforeAnyChange() {
+        Music music = new Music();
+        music.readLimit = 1000;
+        putMany(music, "p", 250);
+        AppController c = controller(music, editReply("{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"}]}"));
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> c.modifyPlaylist("p", "drop"));
+
+        assertEquals(String.format(config.wording("modifyTooLong"), config.editMaxPromptTracks()), e.getMessage());
+        assertEquals(250, ids(music, "p").size());
+    }
+
+    @Test
+    void duplicateCopiesOfATrackSurviveModifyUndoAndRestore() {
+        Music music = new Music();
+        put(music, "p", t("a", false, "x"), t("b", false, "x"), t("a", false, "x"), t("c", false, "x"));
+        AppController c = controller(music, editReply("{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"}]}"));
+
+        c.modifyPlaylist("p", "drop a");
+        assertEquals(List.of("b", "c"), ids(music, "p"), "every copy of the track is removed");
+        c.undo("p");
+        assertEquals(List.of("a", "b", "a", "c"), ids(music, "p"));
+
+        c.modifyPlaylist("p", "drop a");
+        int snapshot = c.getSnapshots(c.currentUser()).get(0).id();
+        c.restore(snapshot);
+        assertEquals(List.of("a", "b", "a", "c"), ids(music, "p"));
+    }
+
+    @Test
+    void restoringAPlaylistThatAlreadyEqualsTheSnapshotSavesNothingAndChangesNothing() {
+        Music music = new Music();
+        put(music, "p", t("a", false, "x"), t("b", false, "x"));
+        AppController c = controller(music, null);
+        int snapshot = memory(db).saveSnapshot(new Playlist("p", "Mix", music.getPlaylistItems("p")));
+        music.calls.clear();
+
+        c.restore(snapshot);
+
+        assertEquals(1, memory(db).loadSnapshotSummaries("sp-user").size());
+        assertTrue(music.calls.isEmpty(), music.calls.toString());
+    }
+
+    @Test
+    void aMissingLlmKeyIsReportedBeforeAnythingIsReadFromSpotify() {
+        Music music = new Music();
+        music.failRead = new MusicServiceException("boom", 500);
+        AppController c = controller(music, null);
+        IllegalStateException e = assertThrows(IllegalStateException.class, () -> c.modifyPlaylist("p", "drop"));
+        assertEquals(config.wording("modifyNeedsLlm"), e.getMessage());
+    }
+
+    @Test
+    void explainReadsStoredDataWithoutSpotifyConfigured() {
+        AgentSession s = new AgentSession("local-s", Instant.now(), null);
+        s.setRequest(new AgentRequest("a mix", RequestKind.CREATE_PLAYLIST));
+        s.setPlaylistId("p");
+        s.setTrace(TRACE);
+        MemoryManager local = memory(db);
+        local.saveSession(s);
+        AppController offline = new AppController(null, local, null, config);
+
+        assertTrue(offline.explain("p").contains("DiscoveryStrategy"));
     }
 }

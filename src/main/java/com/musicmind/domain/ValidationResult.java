@@ -15,7 +15,7 @@ public record ValidationResult(boolean passed, List<String> violations, Map<Stri
         if (offending != null) {
             offending.forEach((rule, ids) -> copy.put(rule, List.copyOf(ids)));
         }
-        offending = Map.copyOf(copy);
+        offending = java.util.Collections.unmodifiableMap(copy);
     }
 
     public ValidationResult(boolean passed, List<String> violations) {

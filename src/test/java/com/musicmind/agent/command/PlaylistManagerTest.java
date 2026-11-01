@@ -211,7 +211,7 @@ class PlaylistManagerTest extends PostgresTestBase {
     }
 
     @Test
-    void aRestoreDropsTheStaleUndoEntriesSoUndoGoesBackToTheStateBeforeTheRestore() {
+    void aRestoreIsACommandOnTheUndoStackSoUndoGoesBackToTheStateBeforeIt() {
         music.seed("p", "a", "b", "c");
         PlaylistManager m = manager();
         m.modify(current("p"), List.of(new RemoveTrackCommand(config, music, "p", track("a"))));
@@ -221,9 +221,11 @@ class PlaylistManagerTest extends PostgresTestBase {
         m.snapshotBeforeModify(current("p"));          // the state a restore is about to replace
         m.restore(first);
         assertEquals(List.of("a", "b", "c"), music.ids("p"));
-        assertTrue(m.history.isEmpty(), "the remove can no longer be undone on top of the restored state");
+        assertEquals(2, m.history.size(), "the restore is on the undo stack above the earlier remove");
 
         m.undo("p");
         assertEquals(List.of("b", "c"), music.ids("p"));
+        m.undo("p");
+        assertEquals(List.of("a", "b", "c"), music.ids("p"));
     }
 }

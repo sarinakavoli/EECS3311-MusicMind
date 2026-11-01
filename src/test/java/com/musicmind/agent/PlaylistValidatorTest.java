@@ -112,4 +112,18 @@ class PlaylistValidatorTest {
         PlaylistSpec spec = new PlaylistSpec(0, true, 0.5, List.of(), "Fine");
         assertTrue(validator.validate(List.of(track("a", 1000, false)), spec).offending().isEmpty());
     }
+
+    @Test
+    void violationsAreReportedInTheStage1RuleOrder() {
+        PlaylistSpec spec = new PlaylistSpec(90, false, 0.5, List.of("bad"), "All");
+        List<Track> tracks = List.of(track("e", 1000, true), track("d", 1000, false), track("d", 1000, false, "bad"));
+        List<String> v = validator.validate(tracks, spec).violations();
+        assertEquals(4, v.size());
+        assertTrue(v.get(0).contains("explicit"));
+        assertTrue(v.get(1).contains("duplicate"));
+        assertTrue(v.get(2).contains("duration"));
+        assertTrue(v.get(3).contains("blocked"));
+        assertEquals(List.of("explicit", "duplicates", "duration", "blockedArtist"),
+                List.copyOf(validator.validate(tracks, spec).offending().keySet()));
+    }
 }

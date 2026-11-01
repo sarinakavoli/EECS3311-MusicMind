@@ -19,6 +19,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PromptBuilderTest {
@@ -127,5 +128,17 @@ class PromptBuilderTest {
                     i == 1, List.of()));
         }
         return new PlaylistContext("pl", tracks, null);
+    }
+
+    @Test
+    void anEditPromptForAPlaylistLongerThanTheCapIsRefusedAndOneAtTheCapIsBuilt() {
+        int cap = Config.of(java.util.Map.of()).editMaxPromptTracks();
+        String[] ids = new String[cap + 1];
+        for (int i = 0; i < ids.length; i++) {
+            ids[i] = "t" + i;
+        }
+        assertThrows(IllegalArgumentException.class, () -> builder.buildEditPrompt("x", editContext(ids)));
+        String[] atCap = java.util.Arrays.copyOf(ids, cap);
+        assertTrue(builder.buildEditPrompt("x", editContext(atCap)).contains(cap + ": t" + (cap - 1)));
     }
 }

@@ -17,7 +17,7 @@ import java.util.Set;
  * Deterministic constraint checker (feature F7). Runs an ordered set of
  * machine-checkable rules over a track list and reports every violation.
  * No LLM is involved; its result drives the adjustment loops in F5 and F6. Rules, in order: explicit content,
- * duplicates, blocked artists, target duration, minimum and maximum number of tracks.
+ * duplicates, target duration, blocked artists, minimum and maximum number of tracks.
  */
 public class PlaylistValidator {
 
@@ -82,7 +82,16 @@ public class PlaylistValidator {
             offending.put(RULE_DUPLICATES, List.copyOf(duplicates));
         }
 
-        // Rule 3: blocked artists
+        // Rule 3: target duration within tolerance
+        if (spec != null && durationStatus(tracks, spec) != DurationStatus.WITHIN) {
+            long actualMs = tracks.stream().mapToLong(Track::durationMs).sum();
+            violations.add(String.format(
+                    "total duration %d min is outside the target of %d min (±%d%%)",
+                    actualMs / 60_000, spec.targetMinutes(), (int) (durationTolerance * 100)));
+            offending.put(RULE_DURATION, List.of());
+        }
+
+        // Rule 4: blocked artists
         if (spec != null) {
             List<String> blocked = new ArrayList<>();
             for (Track t : tracks) {
@@ -97,15 +106,6 @@ public class PlaylistValidator {
             if (!blocked.isEmpty()) {
                 offending.put(RULE_BLOCKED_ARTIST, blocked);
             }
-        }
-
-        // Rule 4: target duration within tolerance
-        if (spec != null && durationStatus(tracks, spec) != DurationStatus.WITHIN) {
-            long actualMs = tracks.stream().mapToLong(Track::durationMs).sum();
-            violations.add(String.format(
-                    "total duration %d min is outside the target of %d min (±%d%%)",
-                    actualMs / 60_000, spec.targetMinutes(), (int) (durationTolerance * 100)));
-            offending.put(RULE_DURATION, List.of());
         }
 
         // Rule 5: minimum and maximum length (number of tracks)

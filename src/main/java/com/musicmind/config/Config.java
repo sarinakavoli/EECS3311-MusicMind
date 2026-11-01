@@ -334,6 +334,11 @@ public final class Config {
         return integer("command.searchLimit");
     }
 
+    /** Most tracks an edit prompt lists; longer playlists are refused. */
+    public int editMaxPromptTracks() {
+        return integer("edit.maxPromptTracks");
+    }
+
     /** Most tracks a mood edit swaps out (F6 genre heuristic). */
     public int editMoodMaxChanges() {
         return integer("edit.mood.maxChanges");
