@@ -250,6 +250,47 @@ class RetryingMusicServiceTest {
     }
 
     @Test
+    void aServerErrorOnAWriteThatMayHaveLandedIsNotSentAgain() {
+        java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+        MusicService down = new StubMusicService() {
+            @Override public void addItems(String playlistId, List<String> items) {
+                calls.incrementAndGet();
+                throw new MusicServiceException("bad gateway", 502);
+            }
+            @Override public void reorderItems(String playlistId, int from, int to) {
+                calls.incrementAndGet();
+                throw new MusicServiceException("bad gateway", 502);
+            }
+            @Override public com.musicmind.domain.Playlist createPlaylist(String userId, String name) {
+                calls.incrementAndGet();
+                throw new MusicServiceException("bad gateway", 502);
+            }
+        };
+        RetryingMusicService service = new RetryingMusicService(down, retries(3), s -> { });
+
+        MusicServiceException e = assertThrows(MusicServiceException.class, () -> service.addItems("pl1", uris(1)));
+        assertEquals(502, e.statusCode());
+        assertTrue(e.getMessage().contains("may"), e.getMessage());
+        assertThrows(MusicServiceException.class, () -> service.reorderItems("pl1", 0, 1));
+        assertThrows(MusicServiceException.class, () -> service.createPlaylist("u", "Mix"));
+        assertEquals(3, calls.get());
+    }
+
+    @Test
+    void aServerErrorOnARemoveIsRetriedBecauseRemovingTwiceIsHarmless() {
+        java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+        MusicService flaky = new StubMusicService() {
+            @Override public void removeItems(String playlistId, List<String> items) {
+                if (calls.incrementAndGet() == 1) {
+                    throw new MusicServiceException("bad gateway", 502);
+                }
+            }
+        };
+        new RetryingMusicService(flaky, retries(3), s -> { }).removeItems("pl1", uris(1));
+        assertEquals(2, calls.get());
+    }
+
+    @Test
     void aBatchSizeBelowOneIsRejectedInsteadOfLoopingForever() {
         assertThrows(IllegalArgumentException.class,
                 () -> new RetryingMusicService(new StubMusicService(), Config.of(Map.of()).withTunables(Map.of("spotify.addBatchSize", "0")), s -> { }));

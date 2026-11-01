@@ -15,8 +15,10 @@ import java.util.function.Supplier;
  * which fail with HTTP 429 (rate limiting) or 5xx (Spotify unavailable). It
  * honours Spotify's {@code Retry-After} hint, otherwise applies exponential
  * backoff, up to a bounded number of attempts. Other 4xx errors (including an
- * expired login) are never retried. Because it is a decorator, every client
- * keeps depending only on {@link MusicService}.
+ * expired login) are never retried. A 5xx on a write that would not be safe twice
+ * (add, create, reorder) is not retried either: Spotify may have applied it before
+ * failing. Because it is a decorator, every client keeps depending only on
+ * {@link MusicService}.
  */
 public class RetryingMusicService implements MusicService {
 
@@ -54,6 +56,11 @@ public class RetryingMusicService implements MusicService {
     }
 
     <T> T withBackoff(Supplier<T> call) {
+        return withBackoff(call, true);
+    }
+
+    /** @param repeatable whether sending the call twice does no harm; if not, only a 429 (which was refused) is retried */
+    private <T> T withBackoff(Supplier<T> call, boolean repeatable) {
         int attempt = 0;
         while (true) {
             try {
@@ -61,6 +68,10 @@ public class RetryingMusicService implements MusicService {
             } catch (MusicServiceException e) {
                 if (!retryable(e)) {
                     throw e;
+                }
+                if (!repeatable && e.statusCode() != 429) {
+                    throw giveUp(e, "Spotify failed during this playlist change (HTTP " + e.statusCode()
+                            + "), so it may or may not have gone through. Check the playlist before trying again.");
                 }
                 if (e.retryAfterSeconds() > maxWaitSeconds) {
                     throw giveUp(e, "Spotify asked us to wait " + e.retryAfterSeconds()
@@ -137,33 +148,39 @@ public class RetryingMusicService implements MusicService {
 
     @Override
     public Playlist createPlaylist(String userId, String name) {
-        return withBackoff(() -> delegate.createPlaylist(userId, name));
+        return withBackoff(() -> delegate.createPlaylist(userId, name), false);
     }
 
     @Override
     public void addItems(String playlistId, List<String> uris) {
-        inBatches(uris, batch -> delegate.addItems(playlistId, batch));
+        inBatches(uris, false, batch -> delegate.addItems(playlistId, batch));
     }
 
     @Override
     public void removeItems(String playlistId, List<String> uris) {
-        inBatches(uris, batch -> delegate.removeItems(playlistId, batch));
+        inBatches(uris, true, batch -> delegate.removeItems(playlistId, batch));
     }
 
     /**
      * Sends the URIs in batches, retrying each batch by itself, so a failure on a later batch never
      * re-sends an earlier one (which would add its tracks twice).
      */
-    private void inBatches(List<String> uris, Consumer<List<String>> send) {
+    private void inBatches(List<String> uris, boolean repeatable, Consumer<List<String>> send) {
         for (int i = 0; i < uris.size(); i += batchSize) {
             List<String> batch = uris.subList(i, Math.min(i + batchSize, uris.size()));
-            withBackoff(() -> send.accept(batch));
+            withBackoff(() -> {
+                send.accept(batch);
+                return null;
+            }, repeatable);
         }
     }
 
     @Override
     public void reorderItems(String playlistId, int from, int to) {
-        withBackoff(() -> delegate.reorderItems(playlistId, from, to));
+        withBackoff(() -> {
+            delegate.reorderItems(playlistId, from, to);
+            return null;
+        }, false);
     }
 
     @Override
