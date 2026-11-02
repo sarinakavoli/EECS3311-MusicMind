@@ -203,10 +203,16 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
 
     @Test
     void withNoCandidatesTheRecommenderAlwaysRunsHoweverShortTheAim() {
-        Config longTracks = config.withTunables(Map.of("strategy.avgTrackMinutes", "1000"));
-        AppController c = new AppController(new Music(), memory(), new MockLLMProvider(), longTracks);
+        Config longTracks = config.withTunables(Map.of("strategy.avgTrackMinutes", "10"));
+        Music music = new Music();
+        music.minutes = 6;
+        AppController c = new AppController(music, memory(), new MockLLMProvider(), longTracks);
+        List<String> states = record(c);
+        PlaylistSpec sixMinutes = new PlaylistSpec(6, true, Double.NaN, List.of(), null);
 
-        assertFalse(c.createPlaylist(request("a mix for working")).tracks().isEmpty());
+        c.createPlaylist(new AgentRequest("a mix for working", RequestKind.CREATE_PLAYLIST, sixMinutes));
+
+        assertEquals(1, states.stream().filter("selecting"::equals).count(), "the first selection already picks tracks");
     }
 
     @Test

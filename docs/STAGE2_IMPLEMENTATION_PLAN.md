@@ -12,7 +12,8 @@ except for the rulings in "Resolved Stage 1 conflicts" below.
 | PR | Branch | Holds | Tasks |
 |---|---|---|---|
 | #1 | `phase1-spine-f1` | CLI and all 12 features | 1-12, 18-24 |
-| Next | `stage2-gui`, from `main` after PR #1 merges | GUI | 13 |
+| Next | `stage2-stage1-gaps`, from `main` after PR #1 merged | Six Stage 1 gaps in the backend and CLI | 25 |
+| Next | `stage2-gui`, from `main` after the gaps PR merges | GUI | 13 |
 | Next | `stage2-docs`, from `main` after the GUI merges | Docs, UML, report, final verification | 14-17 |
 
 
@@ -65,7 +66,7 @@ Dates are Toronto time. Each day ends with real commits pushed to GitHub, and a 
    - `GuiApp.start()`, `CliApp.run(args)`.
 4. **`AppController` is shared.** GUI and CLI contain no business logic. `AppController` calls `MusicAgentFacade`; F8, F9 and F12 reads/writes go to `MemoryManager` as Stage 1 describes.
 5. **Spotify terms:** never durably store Spotify content (titles, artist names, album names). Store only identifiers (track ids/URIs, artist ids, playlist ids) and MusicMind's own derived data (genre histogram, reasons, scores, summaries). Attribute content to Spotify in both UIs. Do not train on Spotify data.
-6. **Spotify API (Feb 2026 Development Mode):** create with `POST /me/playlists`; `GET/POST/PUT/DELETE /playlists/{id}/items`; DELETE body key is `items`; a playlist entry's track object is under `item` (accept legacy `track` as fallback); `GET /me`; search `limit` ≤ 10, paginate with `offset`; do not use `/recommendations`, audio features, related artists, popularity, batch `GET /artists`, `/artists/{id}/top-tracks`, `/users/{id}`. Auth is PKCE with redirect `http://127.0.0.1:8080/callback`; no client secret.
+6. **Spotify API (Feb 2026 Development Mode):** create with `POST /me/playlists`; `GET/POST/PUT/DELETE /playlists/{id}/items`; DELETE body key is `items`; a playlist entry's track object is under `item` (accept legacy `track` as fallback); `GET /me`; `GET /me/playlists` (list), single `GET /artists/{id}` and `GET /tracks/{id}` (checked live Nov 1); search `limit` ≤ 10, paginate with `offset`; do not use `/recommendations`, audio features, related artists, popularity, batch `GET /artists`, `/artists/{id}/top-tracks`, `/users/{id}`. Auth is PKCE with redirect `http://127.0.0.1:8080/callback`; no client secret.
 7. **Secrets:** never commit `.env`, tokens or keys. Do not read or print `.env` values.
 8. **Real code:** no stubs, TODOs or empty methods. Every error/alternative case in the Stage 1 feature text must be handled.
 9. **Tests:** JUnit 5, deterministic, no network and no real keys. Spotify HTTP is tested against a local `com.sun.net.httpserver.HttpServer`; PostgreSQL against embedded binaries. `./gradlew build` must pass with no database server and no keys.
@@ -343,6 +344,19 @@ Run before PR #1 merges. Fixes from live testing and reviews.
 8. `SearchRanker` and Task 12 keep working.
 
 Tests for each item.
+
+### Task 25: Stage 1 gaps in the backend and CLI
+
+Six gaps found while writing the progress report on Nov 1. Recorded in `docs/STAGE2_PLAN.md`.
+
+- F6: `getUserPlaylists`, `getPlaylists`, `getPlaylist`; CLI `playlists`, `show`.
+- F12: `getSession`; CLI `history <id>`, with session ids in the list.
+- F2: `TrendReport.steps()`.
+- F7: `PlaylistSpec.blockedTracks`, preference `blockedTracks`, rule `blockedTrack`.
+- F8: `searchArtists`, `getArtist`; blocked artists by name, stored as ids.
+- F3: artists named in a search; `CandidateRepository`; CLI `candidates`; candidates lead the next playlist.
+
+**Task 13 must use these:** Playlists tab from `getPlaylists` and `getPlaylist`; Search with `lastSearchArtists` and `addCandidate`; a visible candidate list from `getCandidates`; Trends from `steps()`; Preferences with artist names through `parsePreference` and `displayPreference`; History from `getSession`.
 
 ### Task 14: Documentation and conformance
 

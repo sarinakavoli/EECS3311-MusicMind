@@ -332,3 +332,95 @@ build/install/musicmind/bin/musicmind search "upbeat indie songs for running"
 Already run live on the test playlists: `create`, `validate`, `explain`, `history`, `modify` and `undo`. Stage 1's example gave 27 tracks with 8 by new artists (30%), and "make it 15 minutes shorter" removed 3 tracks and `undo` put them back.
 
 **Known limit:** after a deliberate length change, `validate` still compares against the original target, so it reports a duration failure. Still to check live: `restore` and the negotiation prompt.
+
+## Sun Nov 1 (evening): Stage 1 gaps closed in the CLI (Task 25)
+
+These work on the `stage2-stage1-gaps` branch until its PR merges. Build first:
+
+```bash
+./gradlew clean installDist
+```
+
+**Expected:** `BUILD SUCCESSFUL`. The `clean` matters on this Mac: iCloud can leave duplicate files such as `Foo 2.class` in `build/`, which makes `./gradlew test` fail with `Could not execute test class`.
+
+### 1. Your playlists (F6)
+
+```bash
+build/install/musicmind/bin/musicmind playlists
+```
+
+**Expected:** every playlist you own or collaborate on, with its id and track count.
+
+```bash
+build/install/musicmind/bin/musicmind show 3ZoBJ3mKOVPA2tJV00IPxN
+```
+
+**Expected:** `Energetic Workout Mix` with its tracks and total length.
+
+### 2. One session (F12)
+
+```bash
+build/install/musicmind/bin/musicmind history 3ZoBJ3mKOVPA2tJV00IPxN
+```
+
+**Expected:** the request, status, numbered plan and result for the session that created that playlist.
+
+### 3. All three time ranges (F2)
+
+```bash
+build/install/musicmind/bin/musicmind trends
+```
+
+**Expected:** `From long to medium:` and `From medium to short:` sections, then `Overall, oldest to newest:`.
+
+### 4. Artists in search (F3)
+
+```bash
+build/install/musicmind/bin/musicmind search "songs by Michael Jackson"
+```
+
+**Expected:** tracks, then `Artists:` with Michael Jackson and an id. A mood search such as `search "upbeat indie songs"` shows no `Artists:` section.
+
+### 5. Blocking by name (F8) and blocking a track (F7)
+
+This replaces any blocked artists you already have.
+
+```bash
+build/install/musicmind/bin/musicmind prefs set blockedArtists "Michael Jackson"
+```
+
+```bash
+build/install/musicmind/bin/musicmind prefs list
+```
+
+**Expected:** `blockedArtists = Michael Jackson`. Only the id is stored.
+
+```bash
+build/install/musicmind/bin/musicmind prefs set blockedArtists ""
+```
+
+**Expected:** the block is removed. Blocking a track works the same way with `prefs set blockedTracks` and a track id.
+
+### 6. Candidates (F3)
+
+```bash
+build/install/musicmind/bin/musicmind candidates add 7J1uxwnxfQLu4APicE5Rnj
+```
+
+```bash
+build/install/musicmind/bin/musicmind candidates list
+```
+
+**Expected:** `Billie Jean` is listed. Nothing is written to Spotify by these two commands.
+
+**Warning: this next command makes a real private playlist in your Spotify library.**
+
+```bash
+build/install/musicmind/bin/musicmind create "a calm 30 minute mix for studying" --minutes 30 --name "MusicMind candidate test"
+```
+
+**Expected:** `Billie Jean` is track 1, a notice says `Used 1 of your candidate tracks.`, and `candidates list` is empty afterwards.
+
+**Verified:** all tests, on a forced clean run. Live and read-only on your account: `playlists`, `show`, `history <id>`, `trends`, the `Artists:` section, single artist and track reads, and `candidates` add, list and clear.
+
+**Not verified live:** a `create` that uses a candidate, and `prefs set blockedArtists` by name (it would change your stored preference). The GUI controls for all of this arrive with Task 13.
