@@ -472,8 +472,8 @@ Blocking an artist on Preferences affects later Discover and Create runs, so cle
 
 **Bad length check (writes nothing):** in **Create playlist...**, try typing `abc` in the length box. Letters are refused. Type `99999` and press **Create**. Expected: a message giving the allowed range, and nothing starts.
 
-**Verified:** all tests, on a forced clean run. A live read-only run of the real app on your account, driven by a throwaway script: login from the saved token, Profile refresh, Trends, Search, Discover, opening a playlist with its badge, Preferences, History. The Create and F11 dialogs were opened to check their layout and were not submitted.
+**Verified:** all tests, on a forced clean run. A live read-only run of the real app on your account, driven by a throwaway script: login from the saved token, Profile refresh, Trends, Search, Discover, opening a playlist with its badge, Preferences, History. The Create and F11 dialogs were opened to check their layout. The real Create button was also pressed in a run with no Spotify settings, so nothing could be written: it reached the background worker, showed `Spotify is not configured`, and unlocked the dialog. The F11 dialog was shown with stand-in text, not a real conflict.
 
 **Not verified live:** Create, Modify, Undo and Restore through the GUI, F11 with a real conflict, and Accept, Reject, Save and candidates through the GUI buttons. The same controller calls were tested live from the CLI on Nov 1. Mouse handling was also not tested by a person: the script pressed buttons in code.
 
-**Known limits:** track rows show titles without artist names, because `Track` carries artist ids only (the CLI is the same). Restoring from the History tab does not refresh an open playlist on the Playlists tab; pick it again or press **Check playlist**.
+**Known limits:** track rows show titles without artist names, because `Track` carries artist ids only (the CLI is the same). Opening a playlist reads it from Spotify twice, once to show it and once to validate it, so large playlists take a moment.
