@@ -18,10 +18,25 @@ public class DoneState implements SessionState {
         return true;
     }
 
+    /** Checks each removal at once: the save that follows clears any database warning. */
+    private static void removeUsedCandidates(AgentSession session, RunContext ctx) {
+        if (ctx.usedCandidates.isEmpty()) {
+            return;
+        }
+        session.addNotice(String.format(ctx.services.config().wording("candidatesUsed"), ctx.usedCandidates.size()));
+        for (String id : ctx.usedCandidates) {
+            ctx.services.memory().removeCandidate(id);
+            if (ctx.services.memory().warning() != null) {
+                session.addNotice(ctx.services.config().wording("candidatesNotRemoved"));
+            }
+        }
+    }
+
     @Override
     public void handle(AgentSession session) {
         RunContext ctx = session.context();
         session.setTrace(ctx.trace);
+        removeUsedCandidates(session, ctx);
         session.setDerivedData(SessionRecord.derivedData(ctx));
         ctx.services.memory().saveSession(session);
         session.addNotice(ctx.services.memory().warning());

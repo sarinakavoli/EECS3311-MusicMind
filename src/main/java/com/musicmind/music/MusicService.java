@@ -3,6 +3,7 @@ package com.musicmind.music;
 import com.musicmind.domain.Album;
 import com.musicmind.domain.Artist;
 import com.musicmind.domain.Playlist;
+import com.musicmind.domain.PlaylistSummary;
 import com.musicmind.domain.Track;
 
 import java.util.List;
@@ -33,6 +34,9 @@ public interface MusicService {
 
     // ---- read: catalogue ----
     List<Track> search(String query, int limit);
+    List<Artist> searchArtists(String query, int limit);
+    Artist getArtist(String artistId);
+    Track getTrack(String trackId);
     List<Album> getArtistAlbums(String artistId);
     List<Track> getAlbumTracks(String albumId);
 
@@ -48,6 +52,12 @@ public interface MusicService {
      * playlists; unfollowing is how a created playlist is undone).
      */
     void unfollowPlaylist(String playlistId);
+
+    /**
+     * The playlists the user owns or collaborates on. Spotify lets an app read the items of those only,
+     * so followed playlists are left out.
+     */
+    List<PlaylistSummary> getUserPlaylists();
 
     /** The current user's Spotify user id (needed to create playlists). */
     String currentUserId();

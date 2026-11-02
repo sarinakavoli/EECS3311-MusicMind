@@ -126,4 +126,27 @@ class PlaylistValidatorTest {
         assertEquals(List.of("explicit", "duplicates", "duration", "blockedArtist"),
                 List.copyOf(validator.validate(tracks, spec).offending().keySet()));
     }
+
+    @Test
+    void aBlockedTrackIsReportedWithItsId() {
+        PlaylistSpec spec = new PlaylistSpec(10, true, 0.7, List.of(), "Study").withBlockedTracks(List.of("b"));
+
+        ValidationResult r = validator.validate(List.of(track("a", 300_000, false), track("b", 300_000, false)), spec);
+
+        assertFalse(r.isPassed());
+        assertEquals(List.of("b"), r.offending().get(PlaylistValidator.RULE_BLOCKED_TRACK));
+        assertTrue(r.violations().stream().anyMatch(v -> v.contains("b")), r.violations().toString());
+    }
+
+    @Test
+    void anEditThatAddsABlockedTrackIntroducesAViolation() {
+        PlaylistSpec spec = new PlaylistSpec(0, true, 0.7, List.of(), "Study").withBlockedTracks(List.of("b"));
+        List<Track> before = List.of(track("a", 300_000, false));
+        List<Track> after = List.of(track("a", 300_000, false), track("b", 300_000, false));
+
+        List<String> introduced = validator.introducedViolations(before, after, spec);
+
+        assertEquals(1, introduced.size());
+        assertTrue(introduced.get(0).contains(PlaylistValidator.RULE_BLOCKED_TRACK), introduced.toString());
+    }
 }

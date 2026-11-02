@@ -57,7 +57,7 @@ public class ValidatingState implements SessionState {
         }
         if (tooShort) {
             int achieved = (int) (actualMs / MS_PER_MINUTE);
-            FeasibilityReport report = services.checker().describeShortfall(spec, ctx.retrieval.pool(), achieved);
+            FeasibilityReport report = services.checker().describeShortfall(spec, ctx.pool(), achieved);
             report.conflicts().forEach(session::addNotice);
             Negotiator.negotiate(session, report);
             session.setState(new SelectingState());

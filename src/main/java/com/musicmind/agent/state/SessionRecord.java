@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 /**
  * The derived data a creation run stores with its session: the spec it ended with (so the playlist can
@@ -52,8 +53,26 @@ public final class SessionRecord {
         s.put("allowExplicit", spec.allowExplicit());
         s.put("familiarRatio", spec.familiarRatio());
         s.put("blockedArtists", spec.blockedArtists());
+        s.put("blockedTracks", spec.blockedTracks());
         s.put("name", spec.name());
         return s;
+    }
+
+    /** How many tracks a creation run chose, or empty if the session stored none (it failed, or is of another kind). */
+    public static OptionalInt trackCount(String derivedJson) {
+        if (derivedJson == null || derivedJson.isBlank()) {
+            return OptionalInt.empty();
+        }
+        try {
+            JsonElement root = JsonParser.parseString(derivedJson);
+            if (!root.isJsonObject() || !root.getAsJsonObject().has("trackIds")
+                    || !root.getAsJsonObject().get("trackIds").isJsonArray()) {
+                return OptionalInt.empty();
+            }
+            return OptionalInt.of(root.getAsJsonObject().getAsJsonArray("trackIds").size());
+        } catch (JsonParseException e) {
+            return OptionalInt.empty();
+        }
     }
 
     /**
@@ -74,9 +93,13 @@ public final class SessionRecord {
             if (o.has("blockedArtists")) {
                 o.getAsJsonArray("blockedArtists").forEach(e -> blocked.add(e.getAsString()));
             }
+            List<String> blockedTracks = new ArrayList<>();
+            if (o.has("blockedTracks")) {
+                o.getAsJsonArray("blockedTracks").forEach(e -> blockedTracks.add(e.getAsString()));
+            }
             String name = o.has("name") && !o.get("name").isJsonNull() ? o.get("name").getAsString() : null;
             return Optional.of(new PlaylistSpec(o.get("targetMinutes").getAsInt(), o.get("allowExplicit").getAsBoolean(),
-                    o.get("familiarRatio").getAsDouble(), blocked, name));
+                    o.get("familiarRatio").getAsDouble(), blocked, blockedTracks, name));
         } catch (JsonParseException | IllegalStateException | NullPointerException | ClassCastException e) {
             return Optional.empty();
         }

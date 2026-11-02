@@ -136,4 +136,13 @@ class ConstraintCheckerTest {
         assertFalse(r.feasible());
         assertTrue(r.relaxations().isEmpty());
     }
+
+    @Test
+    void blockedTracksDoNotCountTowardTheMinutesAvailable() {
+        List<Track> few = tracks("f", 12, false, "a");
+        CandidatePool pool = new CandidatePool(few, List.of());
+        PlaylistSpec spec = spec(60, false, 1.0).withBlockedTracks(few.subList(0, 6).stream().map(Track::id).toList());
+
+        assertFalse(checker.checkFeasibility(spec, pool).feasible());
+    }
 }

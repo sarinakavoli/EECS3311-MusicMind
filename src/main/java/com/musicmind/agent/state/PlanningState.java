@@ -18,6 +18,7 @@ public class PlanningState implements SessionState {
         // Preferences and feedback load first because plan() merges the stored preferences into the spec.
         ctx.preferences = services.memory().loadPreferences(userId);
         ctx.feedback = services.memory().loadFeedback(userId);
+        ctx.candidateIds = services.memory().loadCandidates(userId);
         ctx.plan = services.planner().plan(ctx.request, ctx.preferences);
         ctx.engineMinutes = ctx.spec().targetMinutes();
         session.setPlanSteps(ctx.plan.steps());

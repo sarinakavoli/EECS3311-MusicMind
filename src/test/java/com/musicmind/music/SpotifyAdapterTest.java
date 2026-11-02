@@ -164,6 +164,51 @@ class SpotifyAdapterTest {
     }
 
     @Test
+    void aPlaylistReadCountsEveryEntryItLeftOut() {
+        api.respond(r -> Reply.ok("{\"items\":[{\"item\":" + trackJson(1) + "},"
+                + "{\"item\":{\"id\":null,\"is_local\":true,\"uri\":\"spotify:local:x\"}}],\"next\":null}"));
+
+        assertEquals(1, TrackList.skipped(adapter.getPlaylistItems("p")));
+    }
+
+    @Test
+    void tracksTrimmedAtTheLimitAreNotCountedAsSkipped() throws Exception {
+        com.musicmind.config.Config capped = com.musicmind.config.Config.defaults()
+                .withTunables(java.util.Map.of("spotify.maxItems", "2"));
+        api.respond(r -> Reply.ok("{\"items\":[{\"item\":" + trackJson(1) + "},{\"item\":" + trackJson(2) + "},{\"item\":"
+                + trackJson(3) + "}],\"next\":null}"));
+
+        List<Track> tracks = adapterWith(capped).getPlaylistItems("p");
+
+        assertEquals(2, tracks.size());
+        assertEquals(0, TrackList.skipped(tracks));
+    }
+
+    @Test
+    void aNextLinkThatOnlyLooksLikeTheApiIsRefused() {
+        String lookalike = api.apiBase() + ".evil.example/page";
+        api.respond(r -> r.path().equals("/v1/me") ? Reply.ok("{\"id\":\"me\"}")
+                : Reply.ok("{\"items\":[],\"next\":\"" + lookalike + "\"}"));
+
+        assertThrows(MusicServiceException.class, () -> adapter.getUserPlaylists());
+    }
+
+    @Test
+    void anArtistWithNoNameIsLeftOutOfSearchResults() {
+        api.respond(r -> Reply.ok("{\"artists\":{\"items\":[{\"id\":\"a1\"},{\"id\":\"a2\",\"name\":\"Drake\"}],\"next\":null}}"));
+
+        assertEquals(List.of("a2"), adapter.searchArtists("Drake", 3).stream().map(com.musicmind.domain.Artist::id).toList());
+    }
+
+    @Test
+    void aForeignNextLinkStopsTheUsersPlaylistList() {
+        api.respond(r -> r.path().equals("/v1/me") ? Reply.ok("{\"id\":\"me\"}")
+                : Reply.ok("{\"items\":[],\"next\":\"https://elsewhere.example/steal\"}"));
+
+        assertThrows(MusicServiceException.class, () -> adapter.getUserPlaylists());
+    }
+
+    @Test
     void aMoveOverTheRealAdapterSendsTheRealPositionsPastALocalFile() {
         api.respond(r -> Reply.ok(r.method().equals("GET")
                 ? "{\"items\":[{\"item\":{\"id\":null,\"is_local\":true,\"uri\":\"spotify:local:x\"}},"
@@ -177,6 +222,48 @@ class SpotifyAdapterTest {
         Req put = api.requests.stream().filter(r -> r.method().equals("PUT")).findFirst().orElseThrow();
         assertEquals(3, json(put.body()).get("range_start").getAsInt());
         assertEquals(1, json(put.body()).get("insert_before").getAsInt());
+    }
+
+    @Test
+    void getUserPlaylistsKeepsOnlyOwnedOrCollaborativeOnesAcrossPages() {
+        String page2 = api.apiBase() + "/me/playlists?limit=50&offset=50";
+        api.respond(r -> {
+            if (r.path().equals("/v1/me")) {
+                return Reply.ok("{\"id\":\"sarina\"}");
+            }
+            return Reply.ok(r.query() != null && r.query().contains("offset=50")
+                    ? "{\"items\":[{\"id\":\"c\",\"name\":\"Shared\",\"collaborative\":true,\"owner\":{\"id\":\"friend\"},\"tracks\":{\"total\":3}}],\"next\":null}"
+                    : "{\"items\":[{\"id\":\"a\",\"name\":\"Mine\",\"collaborative\":false,\"owner\":{\"id\":\"sarina\"},\"items\":{\"total\":27}},"
+                            + "{\"id\":\"b\",\"name\":\"Followed\",\"collaborative\":false,\"owner\":{\"id\":\"friend\"},\"items\":{\"total\":9}},"
+                            + "null],\"next\":\"" + page2 + "\"}");
+        });
+
+        List<com.musicmind.domain.PlaylistSummary> found = adapter.getUserPlaylists();
+
+        assertEquals(List.of(new com.musicmind.domain.PlaylistSummary("a", "Mine", 27),
+                new com.musicmind.domain.PlaylistSummary("c", "Shared", 3)), found);
+    }
+
+    @Test
+    void searchArtistsAsksForArtistsAndReadsThem() {
+        api.respond(r -> Reply.ok("{\"artists\":{\"items\":[{\"id\":\"a1\",\"name\":\"Drake\"},null],\"next\":null}}"));
+
+        List<com.musicmind.domain.Artist> found = adapter.searchArtists("Drake", 3);
+
+        assertEquals(List.of("Drake"), found.stream().map(com.musicmind.domain.Artist::name).toList());
+        assertTrue(decodedQuery(api.requests.get(0)).contains("type=artist"), api.requests.toString());
+        assertTrue(decodedQuery(api.requests.get(0)).contains("limit=3"), api.requests.toString());
+    }
+
+    @Test
+    void getArtistAndGetTrackReadOneItemById() {
+        api.respond(r -> Reply.ok(r.path().contains("/artists/")
+                ? "{\"id\":\"a1\",\"name\":\"Drake\"}" : trackJson(7)));
+
+        assertEquals("Drake", adapter.getArtist("a1").name());
+        assertEquals("Song 7", adapter.getTrack("t7").title());
+        assertEquals("/v1/artists/a1", api.requests.get(0).path());
+        assertEquals("/v1/tracks/t7", api.requests.get(1).path());
     }
 
     @Test

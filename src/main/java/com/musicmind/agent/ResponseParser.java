@@ -221,7 +221,7 @@ public class ResponseParser {
 
     private Track findNew(String query, Set<String> taken) {
         for (Track t : context.music().search(query, config.commandSearchLimit())) {
-            if (taken.add(t.id())) {
+            if (context.allows(t) && taken.add(t.id())) {
                 return t;
             }
         }

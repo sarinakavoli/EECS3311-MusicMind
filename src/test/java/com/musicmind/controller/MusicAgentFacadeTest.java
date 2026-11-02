@@ -19,6 +19,7 @@ import com.musicmind.llm.LLMProvider;
 import com.musicmind.llm.MockLLMProvider;
 import com.musicmind.memory.MemoryManager;
 import com.musicmind.memory.PostgresTestBase;
+import com.musicmind.memory.repository.CandidateRepository;
 import com.musicmind.memory.repository.FeedbackRepository;
 import com.musicmind.memory.repository.PlaylistHistoryRepository;
 import com.musicmind.memory.repository.PreferenceRepository;
@@ -115,7 +116,8 @@ class MusicAgentFacadeTest extends PostgresTestBase {
                 new PreferenceRepository(db, currentUser::get),
                 new FeedbackRepository(db, currentUser::get),
                 new SessionRepository(db, currentUser::get),
-                new PlaylistHistoryRepository(db, currentUser::get));
+                new PlaylistHistoryRepository(db, currentUser::get),
+                new CandidateRepository(db, currentUser::get));
     }
 
     private MusicAgentFacade facade(FakeMusic music, LLMProvider llm, MemoryManager memory, ToolManager tools) {

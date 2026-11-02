@@ -8,6 +8,7 @@ import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.User;
 import com.musicmind.memory.MemoryManager;
 import com.musicmind.memory.PostgresTestBase;
+import com.musicmind.memory.repository.CandidateRepository;
 import com.musicmind.memory.repository.FeedbackRepository;
 import com.musicmind.memory.repository.PlaylistHistoryRepository;
 import com.musicmind.memory.repository.PreferenceRepository;
@@ -49,7 +50,8 @@ class AppControllerTest extends PostgresTestBase {
                 new PreferenceRepository(db, music::currentUserId),
                 new FeedbackRepository(db, music::currentUserId),
                 new SessionRepository(db, music::currentUserId),
-                new PlaylistHistoryRepository(db, music::currentUserId));
+                new PlaylistHistoryRepository(db, music::currentUserId),
+                new CandidateRepository(db, music::currentUserId));
     }
 
     private AppController controller(Music music) {

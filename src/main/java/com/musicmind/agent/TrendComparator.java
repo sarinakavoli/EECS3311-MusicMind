@@ -2,6 +2,7 @@ package com.musicmind.agent;
 
 import com.musicmind.config.Config;
 import com.musicmind.domain.Artist;
+import com.musicmind.domain.RangeChange;
 import com.musicmind.domain.TrendReport;
 
 import java.util.ArrayList;
@@ -71,12 +72,22 @@ public class TrendComparator {
             addedArtists = difference(ids(artistsByRange.get(newest)), ids(artistsByRange.get(oldest)));
             droppedArtists = difference(ids(artistsByRange.get(oldest)), ids(artistsByRange.get(newest)));
         }
+        List<RangeChange> steps = new ArrayList<>();
+        for (int i = populated.size() - 1; i > 0; i--) {
+            String older = populated.get(i);
+            String newer = populated.get(i - 1);
+            steps.add(new RangeChange(older, newer,
+                    difference(genresByRange.get(newer).keySet(), genresByRange.get(older).keySet()),
+                    difference(genresByRange.get(older).keySet(), genresByRange.get(newer).keySet()),
+                    difference(ids(artistsByRange.get(newer)), ids(artistsByRange.get(older))),
+                    difference(ids(artistsByRange.get(older)), ids(artistsByRange.get(newer)))));
+        }
         if (TrendReport.genreCoveragePartial(artistsByRange, config.trendMinGenreCoverage())) {
             gaps.add(String.format(config.wording("trendCoveragePartial"),
                     TrendReport.coverageSummary(artistsByRange, config.profileRanges())));
         }
         return new TrendReport(artistsByRange, genresByRange, addedGenres, droppedGenres,
-                addedArtists, droppedArtists, gaps, null);
+                addedArtists, droppedArtists, gaps, null, steps);
     }
 
     private static Set<String> ids(List<Artist> artists) {

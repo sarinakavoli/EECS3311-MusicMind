@@ -17,7 +17,7 @@ import java.util.Set;
  * Deterministic constraint checker (feature F7). Runs an ordered set of
  * machine-checkable rules over a track list and reports every violation.
  * No LLM is involved; its result drives the adjustment loops in F5 and F6. Rules, in order: explicit content,
- * duplicates, target duration, blocked artists, minimum and maximum number of tracks.
+ * duplicates, target duration, blocked artists and tracks, minimum and maximum number of tracks.
  */
 public class PlaylistValidator {
 
@@ -25,6 +25,7 @@ public class PlaylistValidator {
     public static final String RULE_EXPLICIT = "explicit";
     public static final String RULE_DUPLICATES = "duplicates";
     public static final String RULE_BLOCKED_ARTIST = "blockedArtist";
+    public static final String RULE_BLOCKED_TRACK = "blockedTrack";
     public static final String RULE_DURATION = "duration";
     public static final String RULE_MIN_LENGTH = "minLength";
     public static final String RULE_MAX_LENGTH = "maxLength";
@@ -108,6 +109,15 @@ public class PlaylistValidator {
             }
         }
 
+        // Rule 4b: blocked tracks
+        if (spec != null) {
+            List<String> blocked = tracks.stream().map(Track::id).filter(spec::isTrackBlocked).distinct().toList();
+            blocked.forEach(id -> violations.add(String.format(config.wording("validateBlockedTrack"), id)));
+            if (!blocked.isEmpty()) {
+                offending.put(RULE_BLOCKED_TRACK, blocked);
+            }
+        }
+
         // Rule 5: minimum and maximum length (number of tracks)
         if (tracks.size() < config.playlistMinTracks()) {
             violations.add(String.format(config.wording("validateTooFew"), tracks.size(), config.playlistMinTracks()));
@@ -130,7 +140,8 @@ public class PlaylistValidator {
         List<String> introduced = new ArrayList<>();
         for (Map.Entry<String, List<String>> rule : validate(after, spec).offending().entrySet()) {
             String name = rule.getKey();
-            if (!name.equals(RULE_EXPLICIT) && !name.equals(RULE_DUPLICATES) && !name.equals(RULE_BLOCKED_ARTIST)) {
+            if (!name.equals(RULE_EXPLICIT) && !name.equals(RULE_DUPLICATES) && !name.equals(RULE_BLOCKED_ARTIST)
+                    && !name.equals(RULE_BLOCKED_TRACK)) {
                 continue;
             }
             Set<String> known = new HashSet<>(old.getOrDefault(name, List.of()));

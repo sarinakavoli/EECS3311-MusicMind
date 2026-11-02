@@ -16,7 +16,7 @@ class MemoryToolTest {
 
     private static final UserPreference PREF = new UserPreference("k", "v", true, 0.3);
 
-    private final MemoryManager memory = new MemoryManager(null, null, null, null, null) {
+    private final MemoryManager memory = new MemoryManager(null, null, null, null, null, null) {
         @Override public List<UserPreference> loadPreferences(String user) { return List.of(PREF); }
         @Override public List<Feedback> loadFeedback(String user) { return List.of(); }
     };

@@ -20,6 +20,7 @@ import com.musicmind.llm.LLMProvider;
 import com.musicmind.llm.MockLLMProvider;
 import com.musicmind.memory.MemoryManager;
 import com.musicmind.memory.PostgresTestBase;
+import com.musicmind.memory.repository.CandidateRepository;
 import com.musicmind.memory.repository.FeedbackRepository;
 import com.musicmind.memory.repository.PlaylistHistoryRepository;
 import com.musicmind.memory.repository.PreferenceRepository;
@@ -57,6 +58,7 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
         final List<String> calls = new ArrayList<>();
         final List<String> searches = new ArrayList<>();
         final Map<String, List<Track>> playlists = new HashMap<>();
+        final Map<String, Track> byId = new HashMap<>();
         int libraryTracks = 12;
         int novelTracks = 12;
         int minutes = 4;
@@ -100,6 +102,12 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
         @Override public List<Track> getPlaylistItems(String playlistId) { return List.copyOf(playlists.get(playlistId)); }
         @Override public void removeItems(String playlistId, List<String> uris) { calls.add("remove " + uris.size()); }
         @Override public void unfollowPlaylist(String playlistId) { calls.add("unfollow " + playlistId); }
+        @Override public Track getTrack(String trackId) {
+            if (!byId.containsKey(trackId)) {
+                throw new com.musicmind.music.MusicServiceException("gone", 404);
+            }
+            return byId.get(trackId);
+        }
 
         List<String> writes() {
             return calls;
@@ -111,7 +119,8 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
                 new PreferenceRepository(db, () -> "sp-user"),
                 new FeedbackRepository(db, () -> "sp-user"),
                 new SessionRepository(db, () -> "sp-user"),
-                new PlaylistHistoryRepository(db, () -> "sp-user"));
+                new PlaylistHistoryRepository(db, () -> "sp-user"),
+                new CandidateRepository(db, () -> "sp-user"));
     }
 
     private AppController controller(Music music, LLMProvider llm) {
@@ -167,6 +176,185 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
 
         assertThrows(RuntimeException.class, () -> c.createPlaylist(request("a mix for working")));
         assertEquals("failed", c.lastSession().status());
+    }
+
+    private static final String CANDIDATE = "c".repeat(22);
+    private static final String CANDIDATE_2 = "d".repeat(22);
+
+    private static Track candidate(String id, int minutes) {
+        return new Track(id, "spotify:track:" + id, "Picked by you", minutes * 60_000, false, List.of("x0"));
+    }
+
+    @Test
+    void aCandidateLeadsThePlaylistWithItsReasonAndIsThenUsedUp() {
+        Music music = new Music();
+        music.byId.put(CANDIDATE, candidate(CANDIDATE, 4));
+        AppController c = controller(music, new MockLLMProvider());
+        c.addCandidate(CANDIDATE);
+
+        Playlist playlist = c.createPlaylist(request("a mix for working"));
+
+        assertEquals(CANDIDATE, playlist.tracks().get(0).id());
+        assertEquals(1, playlist.tracks().stream().filter(t -> t.id().equals(CANDIDATE)).count());
+        assertEquals(config.wording("reasonCandidate"), c.lastSession().trace().reasons().get(CANDIDATE));
+        assertTrue(c.lastSession().notices().contains(String.format(config.wording("candidatesUsed"), 1)), c.lastSession().notices().toString());
+        assertTrue(memory().loadCandidates("sp-user").isEmpty());
+    }
+
+    @Test
+    void withNoCandidatesTheRecommenderAlwaysRunsHoweverShortTheAim() {
+        Config longTracks = config.withTunables(Map.of("strategy.avgTrackMinutes", "10"));
+        Music music = new Music();
+        music.minutes = 6;
+        AppController c = new AppController(music, memory(), new MockLLMProvider(), longTracks);
+        List<String> states = record(c);
+        PlaylistSpec sixMinutes = new PlaylistSpec(6, true, Double.NaN, List.of(), null);
+
+        c.createPlaylist(new AgentRequest("a mix for working", RequestKind.CREATE_PLAYLIST, sixMinutes));
+
+        assertEquals(1, states.stream().filter("selecting"::equals).count(), "the first selection already picks tracks");
+    }
+
+    @Test
+    void candidateMinutesCountWhenCheckingARequestCanBeMet() {
+        Music music = new Music();
+        music.libraryTracks = 5;
+        music.novelTracks = 8;
+        music.byId.put(CANDIDATE, new Track(CANDIDATE, "spotify:track:" + CANDIDATE, "Long one", 40 * 60_000, false, List.of("a0")));
+        AppController c = controller(music, new MockLLMProvider());
+        c.addCandidate(CANDIDATE);
+        PlaylistSpec hour = new PlaylistSpec(60, true, 0.5, List.of(), null);
+
+        Playlist playlist = c.createPlaylist(new AgentRequest("a mix for working", RequestKind.CREATE_PLAYLIST, hour));
+
+        assertEquals(CANDIDATE, playlist.tracks().get(0).id());
+    }
+
+    @Test
+    void aUsedCandidateThatCannotBeRemovedIsReported() {
+        Music music = new Music();
+        music.byId.put(CANDIDATE, candidate(CANDIDATE, 4));
+        CandidateRepository stuck = new CandidateRepository(db, () -> "sp-user") {
+            @Override public void delete(String trackId) {
+                throw new com.musicmind.memory.PersistenceException("down", new java.sql.SQLException("down"));
+            }
+        };
+        MemoryManager memory = new MemoryManager(db, new PreferenceRepository(db, () -> "sp-user"),
+                new FeedbackRepository(db, () -> "sp-user"), new SessionRepository(db, () -> "sp-user"),
+                new PlaylistHistoryRepository(db, () -> "sp-user"), stuck);
+        AppController c = new AppController(music, memory, new MockLLMProvider(), config);
+        c.addCandidate(CANDIDATE);
+
+        c.createPlaylist(request("a mix for working"));
+
+        assertTrue(c.lastSession().notices().contains(config.wording("candidatesNotRemoved")), c.lastSession().notices().toString());
+    }
+
+    @Test
+    void aCandidateTheRecommenderAlsoPickedKeepsItsOwnReason() {
+        Track both = new Track(CANDIDATE, "spotify:track:" + CANDIDATE, "Yours", 4 * 60_000, false, List.of("a0"));
+        Music music = new Music() {
+            @Override public List<Track> getTopItems(String type, String r) {
+                List<Track> tracks = new ArrayList<>(super.getTopItems(type, r));
+                tracks.add(both);
+                return tracks;
+            }
+        };
+        music.byId.put(CANDIDATE, both);
+        music.libraryTracks = 1;   // so few familiar tracks that the recommender needs this one too
+        AppController c = controller(music, new MockLLMProvider());
+        c.addCandidate(CANDIDATE);
+        PlaylistSpec half = new PlaylistSpec(16, true, 0.5, List.of(), null);
+
+        c.createPlaylist(new AgentRequest("a mix for working", RequestKind.CREATE_PLAYLIST, half));
+
+        assertEquals(config.wording("reasonCandidate"), c.lastSession().trace().reasons().get(CANDIDATE));
+    }
+
+    @Test
+    void aCandidateTooLongToUseDoesNotMakeARequestLookPossible() {
+        Music music = new Music();
+        music.libraryTracks = 12;
+        music.novelTracks = 2;
+        music.byId.put(CANDIDATE, new Track(CANDIDATE, "spotify:track:" + CANDIDATE, "Very long", 200 * 60_000, false, List.of("stranger")));
+        AppController c = controller(music, new MockLLMProvider());
+        c.addCandidate(CANDIDATE);
+        List<String> states = record(c);
+        PlaylistSpec hour = new PlaylistSpec(60, true, 0.5, List.of(), null);
+
+        assertThrows(RuntimeException.class,
+                () -> c.createPlaylist(new AgentRequest("a mix for working", RequestKind.CREATE_PLAYLIST, hour)));
+
+        assertFalse(states.contains("selecting"), states.toString());
+    }
+
+    @Test
+    void trackBlocksInARequestReachThePlan() {
+        Music music = new Music();
+        AppController c = controller(music, new MockLLMProvider());
+        PlaylistSpec flags = new PlaylistSpec(0, true, Double.NaN, List.of(), null).withBlockedTracks(List.of("t0"));
+
+        Playlist playlist = c.createPlaylist(new AgentRequest("a mix for working", RequestKind.CREATE_PLAYLIST, flags));
+
+        assertTrue(playlist.tracks().stream().noneMatch(t -> t.id().equals("t0")));
+    }
+
+    @Test
+    void aCandidateTheConstraintsForbidIsLeftOutSaidAndKept() {
+        Music music = new Music();
+        music.byId.put(CANDIDATE, candidate(CANDIDATE, 4));
+        AppController c = controller(music, new MockLLMProvider());
+        c.addCandidate(CANDIDATE);
+        c.setPreference(new UserPreference("blockedTracks", CANDIDATE, false, 0.5));
+
+        Playlist playlist = c.createPlaylist(request("a mix for working"));
+
+        assertTrue(playlist.tracks().stream().noneMatch(t -> t.id().equals(CANDIDATE)));
+        assertTrue(c.lastSession().notices().contains(String.format(config.wording("candidatesSkipped"), 1)), c.lastSession().notices().toString());
+        assertEquals(List.of(CANDIDATE), memory().loadCandidates("sp-user"));
+    }
+
+    @Test
+    void candidatesBeyondTheTargetLengthAreLeftOutAndKept() {
+        Music music = new Music();
+        music.byId.put(CANDIDATE, candidate(CANDIDATE, 40));
+        music.byId.put(CANDIDATE_2, candidate(CANDIDATE_2, 40));
+        AppController c = controller(music, new MockLLMProvider());
+        c.addCandidate(CANDIDATE);
+        c.addCandidate(CANDIDATE_2);
+
+        Playlist playlist = c.createPlaylist(request("a mix for working"));
+
+        assertTrue(playlist.tracks().stream().anyMatch(t -> t.id().equals(CANDIDATE)));
+        assertTrue(playlist.tracks().stream().noneMatch(t -> t.id().equals(CANDIDATE_2)));
+        assertEquals(List.of(CANDIDATE_2), memory().loadCandidates("sp-user"));
+    }
+
+    @Test
+    void candidatesThatFillTheTargetMakeThePlaylistOnTheirOwn() {
+        Music music = new Music();
+        music.byId.put(CANDIDATE, candidate(CANDIDATE, 60));
+        AppController c = controller(music, new MockLLMProvider());
+        c.addCandidate(CANDIDATE);
+
+        Playlist playlist = c.createPlaylist(request("a mix for working"));
+
+        assertEquals(1, playlist.tracks().size());
+        assertEquals("done", c.lastSession().status());
+        assertEquals(1, c.lastSession().trace().reasons().size());
+    }
+
+    @Test
+    void aCandidateSpotifyNoLongerHasDoesNotStopTheRun() {
+        Music music = new Music();
+        AppController c = controller(music, new MockLLMProvider());
+        c.addCandidate(CANDIDATE);
+
+        Playlist playlist = c.createPlaylist(request("a mix for working"));
+
+        assertEquals("done", c.lastSession().status());
+        assertFalse(playlist.tracks().isEmpty());
+        assertTrue(c.lastSession().notices().contains(String.format(config.wording("candidatesSkipped"), 1)), c.lastSession().notices().toString());
     }
 
     @Test

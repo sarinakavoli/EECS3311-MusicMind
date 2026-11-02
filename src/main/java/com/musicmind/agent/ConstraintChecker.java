@@ -167,8 +167,9 @@ public class ConstraintChecker {
         }
     }
 
-    private static boolean eligible(Track t, PlaylistSpec spec) {
-        return t.artistIds().stream().noneMatch(spec::isBlocked) && (spec.allowExplicit() || !t.isExplicit());
+    /** Whether the spec lets a track into the playlist: not blocked, and not explicit unless allowed. */
+    public static boolean eligible(Track t, PlaylistSpec spec) {
+        return !spec.blocks(t) && (spec.allowExplicit() || !t.isExplicit());
     }
 
     private static double minutes(List<Track> tracks, PlaylistSpec spec) {
@@ -177,8 +178,7 @@ public class ConstraintChecker {
 
     /** Minutes of explicit tracks (by artists that are not blocked) that the spec currently keeps out. */
     private static double explicitMinutes(CandidatePool pool, PlaylistSpec spec) {
-        PlaylistSpec allowing = new PlaylistSpec(spec.targetMinutes(), true, spec.familiarRatio(),
-                spec.blockedArtists(), spec.name());
+        PlaylistSpec allowing = spec.withAllowExplicit(true);
         return minutes(pool.familiar(), allowing) + minutes(pool.novel(), allowing)
                 - minutes(pool.familiar(), spec) - minutes(pool.novel(), spec);
     }

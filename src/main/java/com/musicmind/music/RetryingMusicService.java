@@ -4,6 +4,7 @@ import com.musicmind.config.Config;
 import com.musicmind.domain.Album;
 import com.musicmind.domain.Artist;
 import com.musicmind.domain.Playlist;
+import com.musicmind.domain.PlaylistSummary;
 import com.musicmind.domain.Track;
 
 import java.util.List;
@@ -137,6 +138,21 @@ public class RetryingMusicService implements MusicService {
     }
 
     @Override
+    public List<Artist> searchArtists(String query, int limit) {
+        return withBackoff(() -> delegate.searchArtists(query, limit));
+    }
+
+    @Override
+    public Artist getArtist(String artistId) {
+        return withBackoff(() -> delegate.getArtist(artistId));
+    }
+
+    @Override
+    public Track getTrack(String trackId) {
+        return withBackoff(() -> delegate.getTrack(trackId));
+    }
+
+    @Override
     public List<Album> getArtistAlbums(String artistId) {
         return withBackoff(() -> delegate.getArtistAlbums(artistId));
     }
@@ -191,6 +207,11 @@ public class RetryingMusicService implements MusicService {
     @Override
     public void unfollowPlaylist(String playlistId) {
         withBackoff(() -> delegate.unfollowPlaylist(playlistId));
+    }
+
+    @Override
+    public List<PlaylistSummary> getUserPlaylists() {
+        return withBackoff(delegate::getUserPlaylists);
     }
 
     @Override

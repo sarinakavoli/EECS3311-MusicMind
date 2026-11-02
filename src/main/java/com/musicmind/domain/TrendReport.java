@@ -5,14 +5,15 @@ import java.util.Map;
 
 /**
  * Taste over time (F2): top artists and genre weights per time range, what was
- * added and dropped between the compared ranges, notices for ranges that had
- * no data, and a narrative. Held in memory for display only.
+ * added and dropped between the newest and oldest ranges, the same for each step
+ * between neighbouring ranges, notices for ranges that had no data, and a
+ * narrative. Held in memory for display only.
  */
 public record TrendReport(Map<String, List<Artist>> artistsByRange,
                           Map<String, Map<String, Double>> genresByRange,
                           List<String> addedGenres, List<String> droppedGenres,
                           List<String> addedArtistIds, List<String> droppedArtistIds,
-                          List<String> gaps, String narrative) {
+                          List<String> gaps, String narrative, List<RangeChange> steps) {
     public TrendReport {
         artistsByRange = artistsByRange == null ? Map.of() : Map.copyOf(artistsByRange);
         genresByRange = genresByRange == null ? Map.of() : Map.copyOf(genresByRange);
@@ -21,6 +22,15 @@ public record TrendReport(Map<String, List<Artist>> artistsByRange,
         addedArtistIds = addedArtistIds == null ? List.of() : List.copyOf(addedArtistIds);
         droppedArtistIds = droppedArtistIds == null ? List.of() : List.copyOf(droppedArtistIds);
         gaps = gaps == null ? List.of() : List.copyOf(gaps);
+        steps = steps == null ? List.of() : List.copyOf(steps);
+    }
+
+    /** A report with no step-by-step changes. */
+    public TrendReport(Map<String, List<Artist>> artistsByRange, Map<String, Map<String, Double>> genresByRange,
+                       List<String> addedGenres, List<String> droppedGenres, List<String> addedArtistIds,
+                       List<String> droppedArtistIds, List<String> gaps, String narrative) {
+        this(artistsByRange, genresByRange, addedGenres, droppedGenres, addedArtistIds, droppedArtistIds, gaps,
+                narrative, List.of());
     }
 
     /** How many artists in the range there are. */
@@ -62,6 +72,6 @@ public record TrendReport(Map<String, List<Artist>> artistsByRange,
 
     public TrendReport withNarrative(String text) {
         return new TrendReport(artistsByRange, genresByRange, addedGenres, droppedGenres,
-                addedArtistIds, droppedArtistIds, gaps, text);
+                addedArtistIds, droppedArtistIds, gaps, text, steps);
     }
 }

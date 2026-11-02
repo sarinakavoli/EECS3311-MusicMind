@@ -23,22 +23,26 @@ import java.util.TreeSet;
 public final class PreferenceSettings {
 
     public static final String BLOCKED_ARTISTS = "blockedArtists";
+    public static final String BLOCKED_TRACKS = "blockedTracks";
     public static final String EXPLICIT_POLICY = "explicitPolicy";
     public static final String FAMILIAR_BIAS = "familiarBias";
     public static final String PREFERRED_STYLES = "preferredStyles";
 
     private static final String ARTIST_URI_PREFIX = "spotify:artist:";
+    private static final String TRACK_URI_PREFIX = "spotify:track:";
     private static final String ALLOW = "allow";
     private static final String BLOCK = "block";
 
     private final Set<String> blockedArtists;
+    private final Set<String> blockedTracks;
     private final Boolean explicitAllowed;
     private final Double familiarBias;
     private final Set<String> preferredStyles;
 
-    private PreferenceSettings(Set<String> blockedArtists, Boolean explicitAllowed, Double familiarBias,
-                               Set<String> preferredStyles) {
+    private PreferenceSettings(Set<String> blockedArtists, Set<String> blockedTracks, Boolean explicitAllowed,
+                               Double familiarBias, Set<String> preferredStyles) {
         this.blockedArtists = blockedArtists;
+        this.blockedTracks = blockedTracks;
         this.explicitAllowed = explicitAllowed;
         this.familiarBias = familiarBias;
         this.preferredStyles = preferredStyles;
@@ -47,13 +51,15 @@ public final class PreferenceSettings {
     /** The settings held by these records; anything not stored stays unset. */
     public static PreferenceSettings from(List<UserPreference> preferences) {
         Set<String> blocked = new TreeSet<>();
+        Set<String> tracks = new TreeSet<>();
         Set<String> styles = new TreeSet<>();
         Boolean explicit = null;
         Double bias = null;
         for (UserPreference p : preferences) {
             switch (p.key()) {
-                case BLOCKED_ARTISTS -> blocked.addAll(split(p.value()));
-                case PREFERRED_STYLES -> split(p.value()).forEach(style -> styles.add(style.toLowerCase(Locale.ROOT)));
+                case BLOCKED_ARTISTS -> blocked.addAll(split(p.value(), ARTIST_URI_PREFIX));
+                case BLOCKED_TRACKS -> tracks.addAll(split(p.value(), TRACK_URI_PREFIX));
+                case PREFERRED_STYLES -> split(p.value(), "").forEach(style -> styles.add(style.toLowerCase(Locale.ROOT)));
                 case EXPLICIT_POLICY -> explicit = p.explicitAllowed();
                 case FAMILIAR_BIAS -> bias = p.familiarBias();
                 case UserPreference.DEFAULTS_KEY -> {
@@ -64,11 +70,15 @@ public final class PreferenceSettings {
                 default -> { }
             }
         }
-        return new PreferenceSettings(Set.copyOf(blocked), explicit, bias, styles);
+        return new PreferenceSettings(Set.copyOf(blocked), Set.copyOf(tracks), explicit, bias, styles);
     }
 
     public Set<String> blockedArtists() {
         return blockedArtists;
+    }
+
+    public Set<String> blockedTracks() {
+        return blockedTracks;
     }
 
     /** Styles (genres) the user likes, lower case and alphabetical; they steer playlists (F5). */
@@ -87,15 +97,26 @@ public final class PreferenceSettings {
     }
 
     /**
-     * A copy of the spec with the stored preferences applied: their blocked artists are added to the
-     * spec's, and explicit content is allowed only if both the spec and the preference allow it.
+     * A copy of the spec with the stored preferences applied: their blocked artists and tracks are added to
+     * the spec's, and explicit content is allowed only if both the spec and the preference allow it.
      */
     public PlaylistSpec applyTo(PlaylistSpec spec) {
-        Set<String> blocked = new LinkedHashSet<>(spec.blockedArtists());
-        blocked.addAll(blockedArtists);
         boolean explicit = spec.allowExplicit() && explicitAllowed().orElse(true);
-        return new PlaylistSpec(spec.targetMinutes(), explicit, spec.familiarRatio(),
-                new ArrayList<>(blocked), spec.name());
+        Set<String> artists = new LinkedHashSet<>(spec.blockedArtists());
+        artists.addAll(blockedArtists);
+        Set<String> tracks = new LinkedHashSet<>(spec.blockedTracks());
+        tracks.addAll(blockedTracks);
+        return spec.withAllowExplicit(explicit).withBlockedArtists(new ArrayList<>(artists))
+                .withBlockedTracks(new ArrayList<>(tracks));
+    }
+
+    /**
+     * A copy of a playlist's saved spec with exactly the blocks in force now. Blocks apply to every playlist
+     * from the moment they are set until they are removed, whatever was blocked when the playlist was made.
+     * The other preferences stay as they were when it was made.
+     */
+    public PlaylistSpec withCurrentBlocks(PlaylistSpec saved) {
+        return saved.withBlockedArtists(new ArrayList<>(blockedArtists)).withBlockedTracks(new ArrayList<>(blockedTracks));
     }
 
     /**
@@ -111,8 +132,17 @@ public final class PreferenceSettings {
         double neutralBias = config.discoverDefaultFamiliarRatio();
         String text = value == null ? "" : value.strip();
         return switch (key.strip()) {
-            case BLOCKED_ARTISTS -> new UserPreference(BLOCKED_ARTISTS, join(split(text)), false, neutralBias);
-            case PREFERRED_STYLES -> new UserPreference(PREFERRED_STYLES, join(split(text)), false, neutralBias);
+            case BLOCKED_ARTISTS -> new UserPreference(BLOCKED_ARTISTS, join(split(text, ARTIST_URI_PREFIX)), false, neutralBias);
+            case BLOCKED_TRACKS -> {
+                Set<String> ids = split(text, TRACK_URI_PREFIX);
+                for (String id : ids) {
+                    if (!config.feedbackTrackIdPattern().matcher(id).matches()) {
+                        throw new IllegalArgumentException(config.wording("feedbackBadTrackId"));
+                    }
+                }
+                yield new UserPreference(BLOCKED_TRACKS, join(ids), false, neutralBias);
+            }
+            case PREFERRED_STYLES -> new UserPreference(PREFERRED_STYLES, join(split(text, "")), false, neutralBias);
             case EXPLICIT_POLICY -> {
                 String policy = text.toLowerCase(Locale.ROOT);
                 if (!policy.equals(ALLOW) && !policy.equals(BLOCK)) {
@@ -131,6 +161,15 @@ public final class PreferenceSettings {
         };
     }
 
+    /** True for a list preference with nothing in it, which is stored as no preference at all. */
+    public static boolean isEmptyList(UserPreference p) {
+        if (p == null || p.key() == null) {
+            return false;   // not a preference at all: saving it reports that
+        }
+        boolean list = p.key().equals(BLOCKED_ARTISTS) || p.key().equals(BLOCKED_TRACKS) || p.key().equals(PREFERRED_STYLES);
+        return list && (p.value() == null || p.value().isBlank());
+    }
+
     /** The value a user should see for a stored preference. */
     public static String display(UserPreference p) {
         return switch (p.key()) {
@@ -143,19 +182,20 @@ public final class PreferenceSettings {
     }
 
     private static IllegalArgumentException unknownKey(String key) {
-        return new IllegalArgumentException("Unknown preference '" + key + "'. Use one of: " + BLOCKED_ARTISTS + ", "
+        return new IllegalArgumentException("Unknown preference '" + key + "'. Use one of: " + BLOCKED_ARTISTS + ", " + BLOCKED_TRACKS + ", "
                 + EXPLICIT_POLICY + ", " + FAMILIAR_BIAS + ", " + PREFERRED_STYLES + ".");
     }
 
-    private static Set<String> split(String text) {
+    /** The comma-separated items of a list preference, each without {@code uriPrefix}. */
+    private static Set<String> split(String text, String uriPrefix) {
         Set<String> out = new TreeSet<>();
         if (text == null) {
             return out;
         }
         for (String part : text.split(",")) {
             String item = part.strip();
-            if (item.startsWith(ARTIST_URI_PREFIX)) {
-                item = item.substring(ARTIST_URI_PREFIX.length());
+            if (!uriPrefix.isEmpty() && item.startsWith(uriPrefix)) {
+                item = item.substring(uriPrefix.length());
             }
             if (!item.isEmpty()) {
                 out.add(item);

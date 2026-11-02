@@ -8,6 +8,7 @@ import com.musicmind.config.Config;
 import com.musicmind.domain.Album;
 import com.musicmind.domain.Artist;
 import com.musicmind.domain.Playlist;
+import com.musicmind.domain.PlaylistSummary;
 import com.musicmind.domain.Track;
 
 import java.net.URI;
@@ -36,6 +37,7 @@ public class SpotifyAdapter implements MusicService {
     private final int maxItems;
     private final int maxSavedTracks;
     private final int playlistPage;
+    private final int userPlaylistPage;
     private final int addBatch;
     private final int topLimit;
     private final int recentLimit;
@@ -76,6 +78,7 @@ public class SpotifyAdapter implements MusicService {
         this.libraryPage = config.spotifyLibraryPageSize();
         this.maxItems = config.spotifyMaxItems();
         this.playlistPage = config.spotifyPlaylistPageSize();
+        this.userPlaylistPage = config.spotifyUserPlaylistPageSize();
         this.addBatch = config.spotifyAddBatchSize();
         this.topLimit = config.spotifyTopItemsLimit();
         this.recentLimit = config.spotifyRecentlyPlayedLimit();
@@ -208,6 +211,62 @@ public class SpotifyAdapter implements MusicService {
     }
 
     @Override
+    public List<Artist> searchArtists(String query, int limit) {
+        int size = Math.min(limit, searchPage);
+        JsonObject body = get("/search?type=artist&limit=" + size + "&q=" + enc(query));
+        JsonObject page = body.has("artists") && body.get("artists").isJsonObject()
+                ? body.getAsJsonObject("artists") : new JsonObject();
+        List<Artist> out = new ArrayList<>();
+        for (JsonElement e : array(page, "items")) {
+            if (e.isJsonObject() && str(e.getAsJsonObject(), "name") != null) {
+                out.add(toArtist(e.getAsJsonObject()));
+            }
+        }
+        return out;
+    }
+
+    @Override
+    public Artist getArtist(String artistId) {
+        return toArtist(get("/artists/" + enc(artistId)));
+    }
+
+    @Override
+    public Track getTrack(String trackId) {
+        return toTrack(get("/tracks/" + enc(trackId)));
+    }
+
+    @Override
+    public List<PlaylistSummary> getUserPlaylists() {
+        String me = currentUserId();
+        List<PlaylistSummary> out = new ArrayList<>();
+        String url = api + "/me/playlists?limit=" + userPlaylistPage;
+        while (url != null) {
+            JsonObject page = sendUrl("GET", url, null);
+            for (JsonElement e : array(page, "items")) {
+                if (e.isJsonObject() && editableBy(me, e.getAsJsonObject())) {
+                    JsonObject p = e.getAsJsonObject();
+                    out.add(new PlaylistSummary(str(p, "id"), str(p, "name"), trackTotal(p)));
+                }
+            }
+            url = nextUrl(page);
+        }
+        return out;
+    }
+
+    private static boolean editableBy(String userId, JsonObject playlist) {
+        JsonElement owner = playlist.get("owner");
+        boolean owned = owner != null && owner.isJsonObject() && userId.equals(str(owner.getAsJsonObject(), "id"));
+        return owned || (playlist.has("collaborative") && playlist.get("collaborative").getAsBoolean());
+    }
+
+    /** The playlist's item count: under {@code items} (Feb 2026), with {@code tracks} accepted as the legacy key. */
+    private static int trackTotal(JsonObject playlist) {
+        JsonElement counts = playlist.has("items") ? playlist.get("items") : playlist.get("tracks");
+        return counts != null && counts.isJsonObject() && counts.getAsJsonObject().has("total")
+                ? counts.getAsJsonObject().get("total").getAsInt() : 0;
+    }
+
+    @Override
     public void unfollowPlaylist(String playlistId) {
         send("DELETE", "/me/library?uris=" + enc("spotify:playlist:" + playlistId), null);
     }
@@ -254,14 +313,12 @@ public class SpotifyAdapter implements MusicService {
                 }
                 position++;
             }
-            url = hasNext(page) ? page.get("next").getAsString() : null;
-            if (url != null && !url.startsWith(api)) {
-                throw new MusicServiceException("Spotify returned an unexpected next-page address; stopped paging.");
-            }
+            url = nextUrl(page);
         }
         boolean truncated = url != null || out.size() > limit;
         int kept = Math.min(out.size(), limit);
-        return new TrackList(out.subList(0, kept), truncated, positions.subList(0, kept));
+        int entries = kept < out.size() ? positions.get(kept) : position;
+        return new TrackList(out.subList(0, kept), truncated, positions.subList(0, kept), entries);
     }
 
     private JsonObject send(String method, String path, String jsonBody) {
@@ -319,6 +376,15 @@ public class SpotifyAdapter implements MusicService {
 
     private static int retryAfter(HttpResponse<String> response) {
         return parseInt(response.headers().firstValue("Retry-After").orElse("0"), 0);
+    }
+
+    /** The next page's address, or null on the last page; a link off the API host is never followed. */
+    private String nextUrl(JsonObject page) {
+        String url = hasNext(page) ? page.get("next").getAsString() : null;
+        if (url != null && !url.startsWith(api + "/")) {
+            throw new MusicServiceException("Spotify returned an unexpected next-page address; stopped paging.");
+        }
+        return url;
     }
 
     private static boolean hasNext(JsonObject page) {

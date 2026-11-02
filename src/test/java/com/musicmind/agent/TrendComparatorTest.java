@@ -2,6 +2,7 @@ package com.musicmind.agent;
 
 import com.musicmind.config.Config;
 import com.musicmind.domain.Artist;
+import com.musicmind.domain.RangeChange;
 import com.musicmind.domain.TrendReport;
 import org.junit.jupiter.api.Test;
 
@@ -53,6 +54,41 @@ class TrendComparatorTest {
         assertTrue(r.gaps().isEmpty());
         assertEquals(3, r.artistsByRange().size());
         assertEquals(3, r.genresByRange().size());
+    }
+
+    @Test
+    void everyStepBetweenNeighbouringRangesIsComparedOldestFirst() {
+        List<Artist> shortR = full(artist("now", "synthwave"), artist("both", "rock"));
+        List<Artist> mediumR = full(artist("mid", "folk"), artist("both", "rock"));
+        List<Artist> longR = full(artist("old", "jazz"), artist("both", "rock"));
+
+        TrendReport r = comparator.compare(ranges(shortR, mediumR, longR), Map.of());
+
+        assertEquals(2, r.steps().size());
+        RangeChange first = r.steps().get(0);
+        assertEquals("long", first.from());
+        assertEquals("medium", first.to());
+        assertEquals(List.of("folk"), first.addedGenres());
+        assertEquals(List.of("jazz"), first.droppedGenres());
+        assertTrue(first.addedArtistIds().contains("mid"));
+        assertTrue(first.droppedArtistIds().contains("old"));
+        RangeChange second = r.steps().get(1);
+        assertEquals("medium", second.from());
+        assertEquals("short", second.to());
+        assertEquals(List.of("synthwave"), second.addedGenres());
+        assertEquals(List.of("folk"), second.droppedGenres());
+    }
+
+    @Test
+    void aStepSkipsARangeWithNoData() {
+        List<Artist> shortR = full(artist("now", "synthwave"));
+        List<Artist> longR = full(artist("old", "jazz"));
+
+        TrendReport r = comparator.compare(ranges(shortR, List.of(), longR), Map.of());
+
+        assertEquals(1, r.steps().size());
+        assertEquals("long", r.steps().get(0).from());
+        assertEquals("short", r.steps().get(0).to());
     }
 
     @Test

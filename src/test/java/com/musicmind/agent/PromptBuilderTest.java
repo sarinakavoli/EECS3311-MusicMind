@@ -178,4 +178,15 @@ class PromptBuilderTest {
         String[] atCap = java.util.Arrays.copyOf(ids, cap);
         assertTrue(builder.buildEditPrompt("x", editContext(atCap)).contains(cap + ": t" + (cap - 1)));
     }
+
+    @Test
+    void theTrendPromptGivesEachStepBetweenRanges() {
+        TrendReport r = new TrendReport(Map.of(), Map.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null,
+                List.of(new com.musicmind.domain.RangeChange("long", "medium", List.of("folk"), List.of("jazz"), List.of("a"), List.of())));
+
+        String prompt = new PromptBuilder(Config.of(Map.of())).buildTrendPrompt(r);
+
+        assertTrue(prompt.contains("long to medium"), prompt);
+        assertTrue(prompt.contains("folk") && prompt.contains("jazz"), prompt);
+    }
 }

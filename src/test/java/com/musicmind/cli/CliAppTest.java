@@ -3,6 +3,7 @@ package com.musicmind.cli;
 import com.musicmind.agent.command.FakeMusicService;
 import com.musicmind.config.Config;
 import com.musicmind.controller.AppController;
+import com.musicmind.domain.AgentSession;
 import com.musicmind.domain.Album;
 import com.musicmind.domain.Artist;
 import com.musicmind.domain.Track;
@@ -10,6 +11,7 @@ import com.musicmind.llm.LLMProvider;
 import com.musicmind.llm.MockLLMProvider;
 import com.musicmind.memory.MemoryManager;
 import com.musicmind.memory.PostgresTestBase;
+import com.musicmind.memory.repository.CandidateRepository;
 import com.musicmind.memory.repository.FeedbackRepository;
 import com.musicmind.memory.repository.PlaylistHistoryRepository;
 import com.musicmind.memory.repository.PreferenceRepository;
@@ -69,7 +71,8 @@ class CliAppTest extends PostgresTestBase {
                 new PreferenceRepository(db, () -> "sp-user"),
                 new FeedbackRepository(db, () -> "sp-user"),
                 new SessionRepository(db, () -> "sp-user"),
-                new PlaylistHistoryRepository(db, () -> "sp-user"));
+                new PlaylistHistoryRepository(db, () -> "sp-user"),
+                new CandidateRepository(db, () -> "sp-user"));
     }
 
     private AppController controller(Music music, LLMProvider llm) {
@@ -109,6 +112,316 @@ class CliAppTest extends PostgresTestBase {
             assertTrue(r.out().contains("modify <playlistId> \"<instruction>\""));
             assertTrue(r.out().contains("feedback <trackId> accept|reject"));
         }
+    }
+
+    @Test
+    void playlistsListsNameIdAndSize() {
+        Music music = new Music();
+        music.userPlaylists = List.of(new com.musicmind.domain.PlaylistSummary("p1", "Road Trip", 12));
+
+        Result r = run(controller(music, null), "", "playlists");
+
+        assertEquals(CliApp.OK, r.status());
+        assertTrue(r.out().contains("Road Trip") && r.out().contains("p1") && r.out().contains("12"), r.out());
+    }
+
+    @Test
+    void playlistsSaysSoWhenThereAreNone() {
+        Result r = run("playlists");
+
+        assertEquals(CliApp.OK, r.status());
+        assertTrue(r.out().contains(config.wording("cliNoPlaylists")), r.out());
+    }
+
+    @Test
+    void showPrintsThePlaylistsTracksAndLength() {
+        Music music = new Music();
+        music.seed("p1", "a", "b");
+
+        Result r = run(controller(music, null), "", "show", "p1");
+
+        assertEquals(CliApp.OK, r.status());
+        assertTrue(r.out().contains("Title a") && r.out().contains("Title b"), r.out());
+        assertTrue(r.out().contains("2 tracks") && r.out().contains("6 min"), r.out());
+    }
+
+    @Test
+    void showNeedsAPlaylistId() {
+        assertEquals(CliApp.USAGE, run("show").status());
+    }
+
+    @Test
+    void historyListsSessionIdsSoOneCanBeOpened() {
+        Music music = new Music();
+        AppController c = controller(music, new MockLLMProvider());
+        run(c, "", "create", "a mix for working");
+
+        Result r = run(c, "", "history");
+
+        assertTrue(r.out().contains(c.lastSession().id()), r.out());
+    }
+
+    @Test
+    void historyWithASessionIdShowsItsPlanAndResult() {
+        Music music = new Music();
+        AppController c = controller(music, new MockLLMProvider());
+        run(c, "", "create", "a mix for working");
+        AgentSession created = c.lastSession();
+
+        Result r = run(c, "", "history", created.id());
+
+        assertEquals(CliApp.OK, r.status());
+        assertTrue(r.out().contains("a mix for working"), r.out());
+        assertFalse(created.planSteps().isEmpty());
+        created.planSteps().forEach(step -> assertTrue(r.out().contains(step), r.out()));
+        assertTrue(r.out().contains(created.playlistId()), r.out());
+        assertTrue(r.out().contains(created.status()), r.out());
+        assertTrue(r.out().contains(String.format(config.wording("cliSessionTracks"), c.lastSession().context().playlist().tracks().size())), r.out());
+    }
+
+    @Test
+    void historyAcceptsAPlaylistIdToo() {
+        Music music = new Music();
+        AppController c = controller(music, new MockLLMProvider());
+        run(c, "", "create", "a mix for working");
+
+        Result r = run(c, "", "history", c.lastSession().playlistId());
+
+        assertEquals(CliApp.OK, r.status());
+        assertTrue(r.out().contains("a mix for working"), r.out());
+    }
+
+    @Test
+    void historyWithAnUnknownIdSaysSo() {
+        Result r = run("history", "nope");
+
+        assertEquals(CliApp.FAILED, r.status());
+        assertTrue(r.err().contains("nope"), r.err());
+    }
+
+    @Test
+    void trendsShowsEveryStepBetweenRanges() {
+        Music music = new Music() {
+            @Override public List<Artist> getTopArtists(String r) {
+                String genre = r.startsWith("short") ? "synthwave" : r.startsWith("medium") ? "folk" : "jazz";
+                return IntStream.range(0, 6).mapToObj(i -> new Artist(genre + i, "Artist " + i, List.of(genre))).toList();
+            }
+        };
+
+        Result r = run(controller(music, null), "", "trends");
+
+        assertTrue(r.out().contains(String.format(config.wording("cliTrendStep"), "long", "medium")), r.out());
+        assertTrue(r.out().contains(String.format(config.wording("cliTrendStep"), "medium", "short")), r.out());
+    }
+
+    private static final String ARTIST_ID = "ABCDEFGHIJ0123456789ab";
+
+    @Test
+    void searchListsAnArtistNamedInTheQuery() {
+        Music music = new Music();
+        music.artists = List.of(new Artist(ARTIST_ID, "Drake", List.of()));
+
+        Result r = run(controller(music, null), "", "search", "songs", "by", "drake");
+
+        assertTrue(r.out().contains("Drake") && r.out().contains(ARTIST_ID), r.out());
+    }
+
+    @Test
+    void searchSaysHowToKeepATrackForLater() {
+        Result r = run("search", "drake");
+
+        assertTrue(r.out().contains(config.wording("cliUsage.candidates")), r.out());
+    }
+
+    @Test
+    void searchLeavesOutArtistsTheQueryDidNotName() {
+        Music music = new Music();
+        music.artists = List.of(new Artist(ARTIST_ID, "Upbeat Corporate Music", List.of()));
+
+        Result r = run(controller(music, null), "", "search", "upbeat", "songs");
+
+        assertFalse(r.out().contains("Upbeat Corporate Music"), r.out());
+    }
+
+    @Test
+    void searchStillWorksWhenTheArtistReadFails() {
+        Music music = new Music() {
+            @Override public List<Artist> searchArtists(String query, int limit) {
+                throw new com.musicmind.music.MusicServiceException("Spotify is down", 502);
+            }
+        };
+
+        Result r = run(controller(music, null), "", "search", "drake");
+
+        assertEquals(CliApp.OK, r.status());
+        assertTrue(r.out().contains("Title n0"), r.out());
+    }
+
+    @Test
+    void anArtistCanBeBlockedByNameAndIsStoredByIdAndListedByName() {
+        Music music = new Music();
+        music.artists = List.of(new Artist(ARTIST_ID, "Drake", List.of()));
+        AppController c = controller(music, null);
+
+        Result set = run(c, "", "prefs", "set", "blockedArtists", "drake");
+        Result list = run(c, "", "prefs", "list");
+
+        assertEquals(CliApp.OK, set.status(), set.err());
+        assertEquals(ARTIST_ID, memory().loadPreferences("sp-user").stream()
+                .filter(p -> p.key().equals("blockedArtists")).findFirst().orElseThrow().value());
+        assertTrue(list.out().contains("Drake"), list.out());
+    }
+
+    @Test
+    void anArtistWhoseNameHasACommaCanBeBlocked() {
+        Music music = new Music();
+        music.artists = List.of(new Artist(ARTIST_ID, "Tyler, The Creator", List.of()));
+
+        Result r = run(controller(music, null), "", "prefs", "set", "blockedArtists", "Tyler, The Creator");
+
+        assertEquals(CliApp.OK, r.status(), r.err());
+    }
+
+    @Test
+    void anUnknownArtistNameIsRefusedAndNothingIsSaved() {
+        Music music = new Music();
+        music.artists = List.of(new Artist(ARTIST_ID, "Drake", List.of()));
+
+        Result r = run(controller(music, null), "", "prefs", "set", "blockedArtists", "Nobody Here");
+
+        assertEquals(CliApp.USAGE, r.status());
+        assertTrue(r.err().contains("Nobody Here"), r.err());
+        assertTrue(memory().loadPreferences("sp-user").stream().noneMatch(p -> p.key().equals("blockedArtists")));
+    }
+
+    @Test
+    void anArtistIdIsStillAccepted() {
+        Result r = run(controller(new Music(), null), "", "prefs", "set", "blockedArtists", "spotify:artist:" + ARTIST_ID);
+
+        assertEquals(CliApp.OK, r.status(), r.err());
+    }
+
+    @Test
+    void candidatesCanBeAddedListedRemovedAndCleared() {
+        AppController c = controller(new Music(), null);
+        String other = "ZYXWVUTSRQ9876543210zy";
+
+        assertEquals(CliApp.OK, run(c, "", "candidates", "add", "spotify:track:" + TRACK_ID).status());
+        assertEquals(CliApp.OK, run(c, "", "candidates", "add", other).status());
+        Result list = run(c, "", "candidates", "list");
+        assertTrue(list.out().contains("Title " + TRACK_ID) && list.out().contains("Title " + other), list.out());
+
+        run(c, "", "candidates", "remove", TRACK_ID);
+        assertFalse(run(c, "", "candidates", "list").out().contains(TRACK_ID));
+
+        run(c, "", "candidates", "clear");
+        assertTrue(run(c, "", "candidates", "list").out().contains(config.wording("cliNoCandidates")));
+    }
+
+    @Test
+    void aCandidateMustBeATrackId() {
+        Result r = run("candidates", "add", "not-an-id");
+
+        assertEquals(CliApp.USAGE, r.status());
+        assertTrue(memory().loadCandidates("sp-user").isEmpty());
+    }
+
+    @Test
+    void candidatesNeedsAnAction() {
+        assertEquals(CliApp.USAGE, run("candidates").status());
+    }
+
+    private static final String ID_A = "A".repeat(22);
+    private static final String ID_B = "B".repeat(22);
+    private static final String ID_C = "C".repeat(22);
+    private static final String ID_D = "D".repeat(22);
+
+    private String storedBlockedArtists() {
+        return memory().loadPreferences("sp-user").stream().filter(p -> p.key().equals("blockedArtists"))
+                .findFirst().orElseThrow().value();
+    }
+
+    @Test
+    void aNameWithACommaIsMatchedBeforeItsPartsWhenSeveralArtistsAreGiven() {
+        Music music = new Music();
+        music.artists = List.of(new Artist(ID_A, "Tyler", List.of()), new Artist(ID_B, "The Creator", List.of()),
+                new Artist(ID_C, "Tyler, The Creator", List.of()), new Artist(ID_D, "Drake", List.of()));
+
+        Result r = run(controller(music, null), "", "prefs", "set", "blockedArtists", "Tyler, The Creator, Drake");
+
+        assertEquals(CliApp.OK, r.status(), r.err());
+        assertEquals(ID_C + "," + ID_D, storedBlockedArtists());
+    }
+
+    @Test
+    void whenSeveralArtistsShareANameTheTopMatchIsUsedAndTheUserIsTold() {
+        Music music = new Music();
+        music.artists = List.of(new Artist(ID_A, "Eminem", List.of()), new Artist(ID_B, "Eminem", List.of()));
+
+        Result r = run(controller(music, null), "", "prefs", "set", "blockedArtists", "eminem");
+
+        assertEquals(CliApp.OK, r.status(), r.err());
+        assertEquals(ID_A, storedBlockedArtists());
+        assertTrue(r.out().contains(String.format(config.wording("prefsArtistShared"), 2, "eminem", ID_A)), r.out());
+    }
+
+    @Test
+    void aSharedNameNoticeDoesNotRepeatOnALaterPreference() {
+        Music music = new Music();
+        music.artists = List.of(new Artist(ID_A, "Eminem", List.of()), new Artist(ID_B, "Eminem", List.of()));
+        AppController c = controller(music, null);
+        run(c, "", "prefs", "set", "blockedArtists", "eminem");
+
+        Result later = run(c, "", "prefs", "set", "familiarBias", "0.5");
+
+        assertFalse(later.out().contains("Eminem") || later.out().contains("eminem"), later.out());
+    }
+
+    @Test
+    void settingANullPreferenceIsRefusedClearly() {
+        AppController c = controller(new Music(), null);
+
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> c.setPreference(null));
+    }
+
+    @Test
+    void settingAListPreferenceToNothingRemovesIt() {
+        Music music = new Music();
+        music.artists = List.of(new Artist(ID_A, "Drake", List.of()));
+        AppController c = controller(music, null);
+        run(c, "", "prefs", "set", "blockedArtists", "Drake");
+
+        Result r = run(c, "", "prefs", "set", "blockedArtists", "");
+
+        assertEquals(CliApp.OK, r.status(), r.err());
+        assertTrue(r.out().contains(String.format(config.wording("cliCleared"), "blockedArtists")), r.out());
+        assertTrue(memory().loadPreferences("sp-user").stream().noneMatch(p -> p.key().equals("blockedArtists")));
+    }
+
+    @Test
+    void showSaysWhenAPlaylistWasReadOnlyInPart() {
+        Music music = new Music() {
+            @Override public List<Track> getPlaylistItems(String playlistId) {
+                return new com.musicmind.music.TrackList(List.of(FakeMusicService.track("a")), true);
+            }
+        };
+
+        Result r = run(controller(music, null), "", "show", "p1");
+
+        assertTrue(r.out().contains(String.format(config.wording("validatePartial"), 1)), r.out());
+    }
+
+    @Test
+    void showSaysHowManyEntriesAreNotShown() {
+        Music music = new Music() {
+            @Override public List<Track> getPlaylistItems(String playlistId) {
+                return new com.musicmind.music.TrackList(List.of(FakeMusicService.track("a")), false, List.of(1), 3);
+            }
+        };
+
+        Result r = run(controller(music, null), "", "show", "p1");
+
+        assertTrue(r.out().contains(String.format(config.wording("playlistSkipped"), 2)), r.out());
     }
 
     @Test

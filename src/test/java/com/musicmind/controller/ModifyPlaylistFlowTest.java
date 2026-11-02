@@ -9,15 +9,18 @@ import com.musicmind.domain.AgentRequest;
 import com.musicmind.domain.AgentSession;
 import com.musicmind.domain.DecisionTrace;
 import com.musicmind.domain.Playlist;
+import com.musicmind.domain.PlaylistSummary;
 import com.musicmind.domain.RequestKind;
 import com.musicmind.domain.SnapshotInfo;
 import com.musicmind.domain.Track;
+import com.musicmind.domain.UserPreference;
 import com.musicmind.domain.ValidationResult;
 import com.musicmind.llm.LLMProvider;
 import com.musicmind.agent.command.PlaylistManager;
 import com.musicmind.memory.Database;
 import com.musicmind.memory.MemoryManager;
 import com.musicmind.memory.PostgresTestBase;
+import com.musicmind.memory.repository.CandidateRepository;
 import com.musicmind.memory.repository.FeedbackRepository;
 import com.musicmind.memory.repository.PlaylistHistoryRepository;
 import com.musicmind.memory.repository.PreferenceRepository;
@@ -85,7 +88,8 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
                 new PreferenceRepository(database, () -> "sp-user"),
                 new FeedbackRepository(database, () -> "sp-user"),
                 new SessionRepository(database, () -> "sp-user"),
-                new PlaylistHistoryRepository(database, () -> "sp-user"));
+                new PlaylistHistoryRepository(database, () -> "sp-user"),
+                new CandidateRepository(database, () -> "sp-user"));
     }
 
     private AppController controller(Music music, LLMProvider llm) {
@@ -798,8 +802,9 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
         Music music = new Music();
         put(music, "p", t("a", true, "x"), t("b", false, "bad"), t("b", false, "bad"));
         storeCreatedSession("p", "{\"spec\":{\"targetMinutes\":0,\"allowExplicit\":false,\"familiarRatio\":0.5,"
-                + "\"blockedArtists\":[\"bad\"],\"name\":\"Mix\"}}", null);
+                + "\"blockedArtists\":[],\"name\":\"Mix\"}}", null);
         AppController c = controller(music, null);
+        c.setPreference(new UserPreference("blockedArtists", "bad", false, 0.5));
 
         ValidationResult r = c.validatePlaylist("p");
 
@@ -914,6 +919,159 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
         PlaylistChangeException down = assertThrows(PlaylistChangeException.class,
                 () -> controller(music, null, deadMemory()).restore(1));
         assertEquals(config.wording("snapshotUnavailable"), down.getMessage());
+    }
+
+    @Test
+    void aPlaylistMusicMindDidNotCreateIsNamedFromSpotify() {
+        Music music = new Music();
+        put(music, "p", t("a", false, "x"), t("b", false, "x"));
+        music.userPlaylists = List.of(new PlaylistSummary("p", "Road Trip", 2));
+        AppController c = controller(music, editReply("{\"commands\":[{\"type\":\"remove\",\"track\":\"2\"}]}"));
+
+        assertEquals("Road Trip", c.getPlaylist("p").name());
+        assertEquals(List.of(new PlaylistSummary("p", "Road Trip", 2)), c.getPlaylists());
+
+        c.modifyPlaylist("p", "remove the second track");
+        assertEquals("Road Trip", c.getSnapshots(c.currentUser()).get(0).name(), "the saved version keeps the real name");
+    }
+
+    @Test
+    void aPlaylistThatCannotBeNamedFromSpotifyStillOpens() {
+        Music music = new Music() {
+            @Override public List<PlaylistSummary> getUserPlaylists() {
+                throw new MusicServiceException("Spotify is down", 502);
+            }
+        };
+        put(music, "p", t("a", false, "x"));
+
+        assertEquals(config.wording("playlistUnnamed"), controller(music, null).getPlaylist("p").name());
+    }
+
+    private static final String SAVED_SPEC = "{\"spec\":{\"targetMinutes\":0,\"allowExplicit\":true,\"familiarRatio\":0.5,"
+            + "\"blockedArtists\":[],\"name\":\"Mix\"}}";
+
+    @Test
+    void validateAppliesATrackBlockedAfterThePlaylistWasCreated() {
+        Music music = new Music();
+        put(music, "p", t("a", false, "x"), t("b", false, "x"));
+        storeCreatedSession("p", SAVED_SPEC, null);
+        AppController c = controller(music, null);
+        c.setPreference(new UserPreference("blockedTracks", "b", false, 0.5));
+
+        ValidationResult r = c.validatePlaylist("p");
+
+        assertFalse(r.passed());
+        assertEquals(List.of("b"), r.offending().get("blockedTrack"));
+    }
+
+    @Test
+    void validateAppliesAnArtistBlockedAfterThePlaylistWasCreated() {
+        Music music = new Music();
+        put(music, "p", t("a", false, "x"), t("b", false, "bad"));
+        storeCreatedSession("p", SAVED_SPEC, null);
+        AppController c = controller(music, null);
+        c.setPreference(new UserPreference("blockedArtists", "bad", false, 0.5));
+
+        assertEquals(List.of("b"), c.validatePlaylist("p").offending().get("blockedArtist"));
+    }
+
+    @Test
+    void anEditCannotAddATrackBlockedAfterThePlaylistWasCreated() {
+        Music music = new Music() {
+            @Override public List<Track> search(String query, int limit) {
+                return List.of(t("blocked", false, "x"));
+            }
+        };
+        put(music, "p", t("a", false, "x"));
+        storeCreatedSession("p", SAVED_SPEC, null);
+        AppController c = controller(music, editReply("{\"commands\":[{\"type\":\"add\",\"query\":\"rock\"}]}"));
+        c.setPreference(new UserPreference("blockedTracks", "blocked", false, 0.5));
+
+        assertThrows(RuntimeException.class, () -> c.modifyPlaylist("p", "add a rock track"));
+
+        assertEquals(List.of("a"), ids(music, "p"));
+    }
+
+    private static Music blockedThenFineSearch() {
+        Music music = new Music() {
+            @Override public List<Track> search(String query, int limit) {
+                return List.of(t("blocked", false, "x"), t("fine", false, "x"));
+            }
+        };
+        put(music, "p", t("a", false, "x"));
+        return music;
+    }
+
+    @Test
+    void anEditPassesOverABlockedSearchResultToTheNextOne() {
+        Music music = blockedThenFineSearch();
+        AppController c = controller(music, editReply("{\"commands\":[{\"type\":\"add\",\"query\":\"rock\"}]}"));
+        c.setPreference(new UserPreference("blockedTracks", "blocked", false, 0.5));
+
+        c.modifyPlaylist("p", "add a rock track");
+
+        assertEquals(List.of("a", "fine"), ids(music, "p"));
+    }
+
+    @Test
+    void aMoodEditPassesOverABlockedSearchResultToTheNextOne() {
+        Music music = blockedThenFineSearch();
+        AppController c = controller(music, editReply("{\"mood\":\"calm\"}"));
+        c.setPreference(new UserPreference("blockedTracks", "blocked", false, 0.5));
+
+        c.modifyPlaylist("p", "make it calmer");
+
+        assertTrue(ids(music, "p").contains("fine") && !ids(music, "p").contains("blocked"), ids(music, "p").toString());
+    }
+
+    @Test
+    void oneEditReadsTheUsersPlaylistListOnceForTheName() {
+        int[] reads = {0};
+        Music music = new Music() {
+            @Override public List<PlaylistSummary> getUserPlaylists() {
+                reads[0]++;
+                return List.of(new PlaylistSummary("p", "Road Trip", 2));
+            }
+        };
+        put(music, "p", t("a", false, "x"), t("b", false, "x"));
+        AppController c = controller(music, editReply("{\"commands\":[{\"type\":\"remove\",\"track\":\"2\"}]}"));
+
+        Playlist updated = c.modifyPlaylist("p", "remove the second track");
+
+        assertEquals(1, reads[0]);
+        assertEquals("Road Trip", updated.name());
+    }
+
+    @Test
+    void aBlockRemovedAfterThePlaylistWasCreatedNoLongerApplies() {
+        Music music = new Music();
+        put(music, "p", t("a", false, "bad"), t("b", false, "x"));
+        storeCreatedSession("p", SAVED_SPEC.replace("\"blockedArtists\":[]", "\"blockedArtists\":[\"bad\"],\"blockedTracks\":[\"b\"]"), null);
+
+        assertTrue(controller(music, null).validatePlaylist("p").passed(), "your blocks are the ones in force now");
+    }
+
+    @Test
+    void restoreReplacesASnapshotsPlaceholderNameWithTheRealOne() {
+        Music music = new Music();
+        put(music, "p", t("a", false, "x"), t("b", false, "x"));
+        AppController c = controller(music, editReply("{\"commands\":[{\"type\":\"remove\",\"track\":\"2\"}]}"));
+        c.modifyPlaylist("p", "remove the second track");   // saved while Spotify's list gave no name
+        int snapshot = c.getSnapshots(c.currentUser()).get(0).id();
+        music.userPlaylists = List.of(new PlaylistSummary("p", "Road Trip", 1));
+
+        assertEquals("Road Trip", c.restore(snapshot).name());
+    }
+
+    @Test
+    void aLaterExplicitPreferenceDoesNotRewriteThePlaylistsSavedRules() {
+        Music music = new Music();
+        put(music, "p", t("a", true, "x"));
+        storeCreatedSession("p", SAVED_SPEC, null);
+        AppController c = controller(music, null);
+        c.setPreference(new UserPreference("explicitPolicy", "block", false, 0.5));
+
+        assertTrue(c.validatePlaylist("p").passed(), "explicit content was allowed when this playlist was made");
     }
 
     @Test

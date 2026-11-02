@@ -14,11 +14,13 @@ import com.musicmind.agent.command.PlaylistManager;
 import com.musicmind.config.Config;
 import com.musicmind.domain.AgentRequest;
 import com.musicmind.domain.AgentSession;
+import com.musicmind.domain.Artist;
 import com.musicmind.domain.DecisionTrace;
 import com.musicmind.domain.Feedback;
 import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.Playlist;
 import com.musicmind.domain.PlaylistSpec;
+import com.musicmind.domain.PlaylistSummary;
 import com.musicmind.domain.Recommendation;
 import com.musicmind.domain.SnapshotInfo;
 import com.musicmind.domain.Track;
@@ -32,6 +34,7 @@ import com.musicmind.llm.OpenAiProvider;
 import com.musicmind.memory.Database;
 import com.musicmind.memory.MemoryManager;
 import com.musicmind.memory.PersistenceException;
+import com.musicmind.memory.repository.CandidateRepository;
 import com.musicmind.memory.repository.FeedbackRepository;
 import com.musicmind.memory.repository.PlaylistHistoryRepository;
 import com.musicmind.memory.repository.GenreRepository;
@@ -76,6 +79,7 @@ public class AppController {
     private final Config config;
     private final BooleanSupplier browserLoginNeeded;
     private volatile User currentUser;
+    private volatile List<String> lastPreferenceNotices = List.of();
 
     /**
      * @param music  the Spotify service, or null when Spotify is not configured
@@ -163,7 +167,8 @@ public class AppController {
                 new PreferenceRepository(db, userId),
                 new FeedbackRepository(db, userId),
                 new SessionRepository(db, userId),
-                new PlaylistHistoryRepository(db, userId));
+                new PlaylistHistoryRepository(db, userId),
+                new CandidateRepository(db, userId));
         return new AppController(music, memory, llm, config, reauthenticator, browserLoginNeeded);
     }
 
@@ -254,9 +259,38 @@ public class AppController {
         return facade == null ? null : facade.lastSearchNotice();
     }
 
+    /** The artists the last search named. */
+    public List<Artist> lastSearchArtists() {
+        return facade == null ? List.of() : facade.lastSearchArtists();
+    }
+
     /** The "plain keyword search" label if the last search was not interpreted; otherwise null. */
     public String lastSearchLabel() {
         return facade == null ? null : facade.lastSearchLabel();
+    }
+
+    /**
+     * F3 — sets a track aside for the next playlist (a Spotify track URI is accepted too).
+     *
+     * @throws IllegalArgumentException with a message fit to show if the id is not a track id
+     */
+    public void addCandidate(String trackId) {
+        memory.addCandidate(requireTrackId(trackId));
+    }
+
+    public void removeCandidate(String trackId) {
+        memory.removeCandidate(requireTrackId(trackId));
+    }
+
+    public void clearCandidates() {
+        memory.clearCandidates();
+    }
+
+    /** F3 — the tracks set aside, oldest first, with their details from Spotify. */
+    public List<Track> getCandidates() {
+        requireSpotify();
+        signInIfNeeded();
+        return facade.candidates(currentUser.id());
     }
 
     // ---- F4 ----
@@ -357,6 +391,25 @@ public class AppController {
         return facade.modifyPlaylist(id, instruction);
     }
 
+    /** The playlists the user owns or collaborates on, for choosing one to open. */
+    public List<PlaylistSummary> getPlaylists() {
+        requireSpotify();
+        signInIfNeeded();
+        return facade.userPlaylists();
+    }
+
+    /** A playlist and its tracks as Spotify holds them now. */
+    public Playlist getPlaylist(String id) {
+        requireSpotify();
+        signInIfNeeded();
+        return facade.playlist(id);
+    }
+
+    /** What the last {@link #getPlaylist} could not include. */
+    public List<String> lastPlaylistNotices() {
+        return facade == null ? List.of() : facade.lastPlaylistNotices();
+    }
+
     /** What the last modify changed, in words; empty when nothing was changed. */
     public String lastChangeSummary() {
         return facade == null ? "" : facade.lastChangeSummary();
@@ -406,6 +459,17 @@ public class AppController {
      * (reads stored data only: no Spotify sign-in is needed beyond what the data store itself uses)
      */
     public String explain(String id) {
+        return explainer.explain(getSession(id));
+    }
+
+    /**
+     * F12 — one stored session with its plan and result.
+     *
+     * @param id a session id or a playlist id (the session that created the playlist)
+     * @throws IllegalArgumentException if nothing stored matches the id
+     * @throws IllegalStateException if the stored record cannot be reached
+     */
+    public AgentSession getSession(String id) {
         AgentSession session = memory.findSession(id);
         if (session == null) {
             session = memory.findSessionByPlaylist(id);
@@ -416,7 +480,7 @@ public class AppController {
             }
             throw new IllegalArgumentException(String.format(config.wording("explainUnknown"), id));
         }
-        return explainer.explain(session);
+        return session;
     }
 
     // ---- F12 ----
@@ -464,7 +528,22 @@ public class AppController {
      * @throws IllegalArgumentException with a message fit to show, for an unknown key or unusable value
      */
     public UserPreference parsePreference(String key, String value) {
-        return PreferenceSettings.parse(key, value, config);
+        lastPreferenceNotices = List.of();
+        if (facade == null || key == null || !key.strip().equals(PreferenceSettings.BLOCKED_ARTISTS)) {
+            return PreferenceSettings.parse(key, value, config);
+        }
+        UserPreference parsed = PreferenceSettings.parse(key, facade.artistIds(value), config);
+        lastPreferenceNotices = facade.lastArtistNotices();
+        return parsed;
+    }
+
+    /** The value a view shows for a preference: blocked artists by name, which are never stored. */
+    public String displayPreference(UserPreference pref) {
+        if (facade == null || !pref.key().equals(PreferenceSettings.BLOCKED_ARTISTS) || pref.value().isBlank()) {
+            return PreferenceSettings.display(pref);
+        }
+        return java.util.Arrays.stream(pref.value().split(",")).map(facade::artistName)
+                .collect(java.util.stream.Collectors.joining(", "));
     }
 
     /**
@@ -474,7 +553,16 @@ public class AppController {
      * @throws IllegalArgumentException for a blank key or a familiar bias outside 0..1
      */
     public void setPreference(UserPreference pref) {
-        memory.savePreference(pref);
+        if (PreferenceSettings.isEmptyList(pref)) {
+            memory.deletePreference(pref.key());
+        } else {
+            memory.savePreference(pref);
+        }
+    }
+
+    /** What the last {@link #parsePreference} should tell the user, such as a name several artists share. */
+    public List<String> lastPreferenceNotices() {
+        return lastPreferenceNotices;
     }
 
     /** The user's stored preferences; the safe defaults (and a warning) while the database is down. */

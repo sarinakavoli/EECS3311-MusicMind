@@ -17,16 +17,23 @@ public class TrackList extends ArrayList<Track> {
 
     private final boolean truncated;
     private final List<Integer> positions;
+    private final int entries;
 
     public TrackList(Collection<Track> tracks, boolean truncated) {
-        this(tracks, truncated, List.of());
+        this(tracks, truncated, List.of(), tracks.size());
     }
 
     /** @param positions each track's position on Spotify, in order; empty when positions match the list's own */
     public TrackList(Collection<Track> tracks, boolean truncated, List<Integer> positions) {
+        this(tracks, truncated, positions, tracks.size());
+    }
+
+    /** @param entries how many entries the read went through, counting the ones it left out */
+    public TrackList(Collection<Track> tracks, boolean truncated, List<Integer> positions, int entries) {
         super(tracks);
         this.truncated = truncated;
         this.positions = List.copyOf(positions);
+        this.entries = entries;
     }
 
     /** True when the read stopped at its limit although Spotify had more tracks. */
@@ -37,6 +44,11 @@ public class TrackList extends ArrayList<Track> {
     /** True if the list is a {@link TrackList} that stopped at its limit; any other list is taken as complete. */
     public static boolean isTruncated(List<Track> tracks) {
         return tracks instanceof TrackList list && list.isTruncated();
+    }
+
+    /** How many entries the read left out, such as local files; 0 for any other list. */
+    public static int skipped(List<Track> tracks) {
+        return tracks instanceof TrackList list ? list.entries - list.size() : 0;
     }
 
     /** The position on Spotify of the track at {@code index}; the same index for any other list. */

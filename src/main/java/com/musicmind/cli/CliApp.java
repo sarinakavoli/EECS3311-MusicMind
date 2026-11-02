@@ -1,7 +1,7 @@
 package com.musicmind.cli;
 
-import com.musicmind.agent.PreferenceSettings;
 import com.musicmind.agent.command.PlaylistMissingException;
+import com.musicmind.agent.state.SessionRecord;
 import com.musicmind.config.Config;
 import com.musicmind.controller.AppController;
 import com.musicmind.domain.AgentRequest;
@@ -11,6 +11,8 @@ import com.musicmind.domain.FeasibilityReport;
 import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.Playlist;
 import com.musicmind.domain.PlaylistSpec;
+import com.musicmind.domain.PlaylistSummary;
+import com.musicmind.domain.RangeChange;
 import com.musicmind.domain.Recommendation;
 import com.musicmind.domain.Relaxation;
 import com.musicmind.domain.RequestKind;
@@ -33,6 +35,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -55,8 +58,8 @@ public class CliApp {
     public static final int USAGE = 2;
 
     /** The commands in the order help lists them. */
-    static final List<String> COMMANDS = List.of("login", "help", "exit", "profile", "trends", "search", "discover",
-            "create", "modify", "undo", "validate", "prefs", "feedback", "explain", "history", "restore");
+    static final List<String> COMMANDS = List.of("login", "help", "exit", "profile", "trends", "search", "candidates", "discover",
+            "create", "playlists", "show", "modify", "undo", "validate", "prefs", "feedback", "explain", "history", "restore");
 
     /** How many genres and artists the text output lists. */
     private static final int GENRES_SHOWN = 8;
@@ -109,15 +112,18 @@ public class CliApp {
             case "profile" -> { return runProfile(rest); }
             case "trends" -> { return runTrends(); }
             case "search" -> { return runSearch(rest); }
+            case "candidates" -> { return runCandidates(rest); }
             case "discover" -> { return runDiscover(rest); }
             case "prefs" -> { return runPrefs(rest); }
             case "feedback" -> { return runFeedback(rest); }
             case "create" -> { return runCreate(rest); }
+            case "playlists" -> { return runPlaylists(); }
+            case "show" -> { return runShow(rest); }
             case "modify" -> { return runModify(rest); }
             case "undo" -> { return runUndo(rest); }
             case "validate" -> { return runValidate(rest); }
             case "explain" -> { return runExplain(rest); }
-            case "history" -> { return runHistory(); }
+            case "history" -> { return runHistory(rest); }
             case "restore" -> { return runRestore(rest); }
             default -> {
                 err.println(String.format(config.wording("cliUnknownCommand"), args[0]));
@@ -269,6 +275,10 @@ public class CliApp {
             for (int i = 0; i < found.size(); i++) {
                 out.printf("%2d. %s  (%s)%n", i + 1, found.get(i).title(), found.get(i).uri());
             }
+            if (!c.lastSearchArtists().isEmpty()) {
+                out.println(w("ArtistsFound"));
+                c.lastSearchArtists().forEach(a -> out.println("  " + a.name() + "  (" + a.id() + ")"));
+            }
             if (c.lastSearchLabel() != null) {
                 out.println(c.lastSearchLabel());
             }
@@ -276,10 +286,60 @@ public class CliApp {
                 out.println(c.lastSearchNotice());
             }
             out.println();
+            if (!found.isEmpty()) {
+                out.println(config.wording("cliUsagePrefix") + " " + config.wording("cliUsage.candidates"));
+            }
             out.println(c.spotifyAttribution());
             return OK;
         } catch (RuntimeException e) {
             return failure("search", e);
+        }
+    }
+
+    /** F3 — {@code candidates list}, {@code add <trackId>}, {@code remove <trackId>}, {@code clear}. */
+    private int runCandidates(String[] rest) {
+        String action = rest.length == 0 ? "" : rest[0].toLowerCase();
+        boolean valid = switch (action) {
+            case "list", "clear" -> rest.length == 1;
+            case "add", "remove" -> rest.length == 2;
+            default -> false;
+        };
+        if (!valid) {
+            return usage("candidates", null);
+        }
+        if (signIn() == null) {
+            return FAILED;
+        }
+        AppController c = controller();
+        try {
+            switch (action) {
+                case "add" -> c.addCandidate(rest[1]);
+                case "remove" -> c.removeCandidate(rest[1]);
+                case "clear" -> c.clearCandidates();
+                default -> {
+                    List<Track> tracks = c.getCandidates();
+                    out.println(tracks.isEmpty() ? w("NoCandidates") : w("CandidatesHeading"));
+                    for (int i = 0; i < tracks.size(); i++) {
+                        out.printf("%2d. %s  (%s)%n", i + 1, tracks.get(i).title(), tracks.get(i).id());
+                    }
+                    printMemoryWarning(null);
+                    return OK;
+                }
+            }
+            if (c.memory().warning() != null) {
+                err.println(String.format(config.wording("cliNotSaved"), c.memory().warning()));
+                return FAILED;
+            }
+            out.println(switch (action) {
+                case "add" -> w("CandidateAdded", rest[1]);
+                case "remove" -> w("CandidateRemoved", rest[1]);
+                default -> w("CandidatesCleared");
+            });
+            return OK;
+        } catch (IllegalArgumentException e) {
+            return usage("candidates", e.getMessage());
+        } catch (RuntimeException e) {
+            return failure("change your candidates", e);
         }
     }
 
@@ -440,7 +500,8 @@ public class CliApp {
                         err.println(String.format(config.wording("cliNotSaved"), c.memory().warning()));
                         return FAILED;
                     }
-                    out.println(w("Saved", pref.key(), PreferenceSettings.display(pref)));
+                    out.println(pref.value().isBlank() ? w("Cleared", pref.key()) : w("Saved", pref.key(), c.displayPreference(pref)));
+                    c.lastPreferenceNotices().forEach(this::printNotice);
                 }
                 case "get" -> {
                     List<UserPreference> found = c.getPreferences().stream()
@@ -448,7 +509,7 @@ public class CliApp {
                     if (found.isEmpty()) {
                         out.println(w("NoSuchPreference", rest[1]));
                     }
-                    found.forEach(p -> out.println(p.key() + " = " + PreferenceSettings.display(p)));
+                    found.forEach(p -> out.println(p.key() + " = " + c.displayPreference(p)));
                     printMemoryWarning(w("ShowingDefaults"));
                 }
                 default -> {
@@ -456,7 +517,7 @@ public class CliApp {
                     if (all.isEmpty()) {
                         out.println(w("NoPreferences"));
                     }
-                    all.forEach(p -> out.println(p.key() + " = " + PreferenceSettings.display(p)));
+                    all.forEach(p -> out.println(p.key() + " = " + c.displayPreference(p)));
                     printMemoryWarning(w("ShowingDefaults"));
                 }
             }
@@ -499,6 +560,45 @@ public class CliApp {
             return usage("feedback", e.getMessage());
         } catch (RuntimeException e) {
             return failure("record your feedback", e);
+        }
+    }
+
+    /** F6 — the playlists that can be opened and changed, with the ids the other commands take. */
+    private int runPlaylists() {
+        if (signIn() == null) {
+            return FAILED;
+        }
+        try {
+            List<PlaylistSummary> playlists = controller().getPlaylists();
+            out.println(playlists.isEmpty() ? w("NoPlaylists") : w("PlaylistsHeading"));
+            playlists.forEach(p -> out.println("  " + w("PlaylistLine", p.name(), p.id(), p.trackCount())));
+            return OK;
+        } catch (RuntimeException e) {
+            return failure("list your playlists", e);
+        }
+    }
+
+    /** F6 — {@code show <playlistId>}. */
+    private int runShow(String[] rest) {
+        if (rest.length != 1) {
+            return usage("show", null);
+        }
+        if (signIn() == null) {
+            return FAILED;
+        }
+        try {
+            Playlist playlist = controller().getPlaylist(rest[0]);
+            long minutes = Math.round(playlist.totalDuration() / 60_000.0);
+            out.println(w("PlaylistHeading", playlist.name(), playlist.spotifyId(), playlist.tracks().size(), minutes));
+            for (int i = 0; i < playlist.tracks().size(); i++) {
+                Track t = playlist.tracks().get(i);
+                out.printf("%2d. %s  (%s)%n", i + 1, t.title(), t.id());
+            }
+            controller().lastPlaylistNotices().forEach(this::printNotice);
+            out.println(controller().spotifyAttribution());
+            return OK;
+        } catch (RuntimeException e) {
+            return failure("show the playlist", e);
         }
     }
 
@@ -586,14 +686,21 @@ public class CliApp {
         }
     }
 
-    /** F12 — past sessions and the saved playlist versions that {@code restore} accepts. */
-    private int runHistory() {
+    /** F12 — past sessions and the saved playlist versions that {@code restore} accepts, or one session. */
+    private int runHistory(String[] rest) {
+        if (rest.length > 1) {
+            return usage("history", null);
+        }
         User user = signIn();
         if (user == null) {
             return FAILED;
         }
         AppController c = controller();
         try {
+            if (rest.length == 1) {
+                printSession(c.getSession(rest[0]));
+                return OK;
+            }
             List<AgentSession> sessions = c.getHistory(user);
             out.println(w("Sessions"));
             if (sessions.isEmpty()) {
@@ -601,7 +708,7 @@ public class CliApp {
             }
             for (AgentSession s : sessions) {
                 String request = s.request() == null ? "" : s.request().kind() + ": " + s.request().rawText();
-                out.println("  " + s.startedAt() + "  " + s.status() + "  " + request
+                out.println("  " + s.id() + "  " + s.startedAt() + "  " + s.status() + "  " + request
                         + (s.playlistId() == null ? "" : "  " + w("SessionPlaylist", s.playlistId())));
             }
             out.println(w("SavedVersions"));
@@ -617,6 +724,26 @@ public class CliApp {
         } catch (RuntimeException e) {
             return failure("show the history", e);
         }
+    }
+
+    private void printSession(AgentSession s) {
+        out.println(w("SessionHeading", s.id()));
+        if (s.request() != null) {
+            out.println(w("SessionRequest", s.request().rawText()));
+        }
+        out.println(w("SessionStatus", s.status()));
+        out.println(w("SessionStarted", s.startedAt()));
+        out.println(s.planSteps().isEmpty() ? w("SessionNoPlan") : w("SessionPlan"));
+        for (int i = 0; i < s.planSteps().size(); i++) {
+            out.printf("  %d. %s%n", i + 1, s.planSteps().get(i));
+        }
+        if (s.playlistId() == null) {
+            out.println(w("SessionNoResult"));
+            return;
+        }
+        String result = w("SessionPlaylist", s.playlistId());
+        OptionalInt tracks = SessionRecord.trackCount(s.derivedData());
+        out.println(w("SessionResult", tracks.isPresent() ? result + ", " + w("SessionTracks", tracks.getAsInt()) : result));
     }
 
     /** F12 — {@code restore <snapshotId>}; offers to recreate a playlist that was deleted. */
@@ -804,10 +931,18 @@ public class CliApp {
             }
         }
         out.println();
-        printList(w("GenresAdded"), report.addedGenres());
-        printList(w("GenresDropped"), report.droppedGenres());
-        printList(w("ArtistsAdded"), names(report, report.addedArtistIds()));
-        printList(w("ArtistsDropped"), names(report, report.droppedArtistIds()));
+        for (RangeChange step : report.steps()) {
+            out.println(w("TrendStep", step.from(), step.to()));
+            printList("  " + w("GenresAdded"), step.addedGenres());
+            printList("  " + w("GenresDropped"), step.droppedGenres());
+            printList("  " + w("ArtistsAdded"), names(report, step.addedArtistIds()));
+            printList("  " + w("ArtistsDropped"), names(report, step.droppedArtistIds()));
+        }
+        out.println(w("TrendOverall"));
+        printList("  " + w("GenresAdded"), report.addedGenres());
+        printList("  " + w("GenresDropped"), report.droppedGenres());
+        printList("  " + w("ArtistsAdded"), names(report, report.addedArtistIds()));
+        printList("  " + w("ArtistsDropped"), names(report, report.droppedArtistIds()));
         report.gaps().forEach(this::printNotice);
         out.println();
         out.println(report.narrative());

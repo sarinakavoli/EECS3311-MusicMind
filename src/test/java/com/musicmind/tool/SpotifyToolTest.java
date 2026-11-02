@@ -50,7 +50,7 @@ class SpotifyToolTest {
     @Test
     void allForCreatesOneToolPerOperationWithTheContractNames() {
         Set<String> names = SpotifyTool.allFor(music).stream().map(Tool::name).collect(Collectors.toSet());
-        assertEquals(Set.of("getTopItems", "getSavedTracks", "getRecentlyPlayed", "search",
+        assertEquals(Set.of("getTopItems", "getSavedTracks", "getRecentlyPlayed", "search", "searchArtists",
                 "getArtistAlbums", "getAlbumTracks", "getPlaylistItems"), names);
     }
 
