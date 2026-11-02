@@ -87,7 +87,8 @@ public final class CreatePlaylistDialog {
         allowExplicit.setSelected(true);
         familiarFromGoal.setText(format.w("FamiliarFromGoal"));
         familiarFromGoal.setSelected(true);
-        familiar.disableProperty().bind(familiarFromGoal.selectedProperty());
+        // Bound, so it is never passed to ctx.run as a locked control; it greys out with the checkbox during a run.
+        familiar.disableProperty().bind(familiarFromGoal.selectedProperty().or(familiarFromGoal.disableProperty()));
         familiarLabel.textProperty().bind(javafx.beans.binding.Bindings.createStringBinding(
                 () -> format.w("FamiliarMix", Math.round(familiar.getValue() * 100), 100 - Math.round(familiar.getValue() * 100)),
                 familiar.valueProperty()));
@@ -132,11 +133,15 @@ public final class CreatePlaylistDialog {
         result.getChildren().clear();
         ctx.run(status, "ActionCreate", format.w("Creating"), () -> {
             ctx.controller().setProgressListener(state -> Platform.runLater(() -> status.busy(format.progress(state))));
-            Playlist playlist = ctx.controller().createPlaylist(new AgentRequest(text, RequestKind.CREATE_PLAYLIST, flags));
-            AgentSession session = ctx.controller().lastSession();
-            return new Created(playlist, session == null ? List.of() : session.notices(),
-                    session == null ? null : session.explanation());
-        }, this::show, create, goal, minutes, allowExplicit, familiarFromGoal, familiar, name);
+            try {
+                Playlist playlist = ctx.controller().createPlaylist(new AgentRequest(text, RequestKind.CREATE_PLAYLIST, flags));
+                AgentSession session = ctx.controller().lastSession();
+                return new Created(playlist, session == null ? List.of() : session.notices(),
+                        session == null ? null : session.explanation());
+            } finally {
+                ctx.controller().setProgressListener(null);   // a null listener means no progress is reported
+            }
+        }, this::show, create, goal, minutes, allowExplicit, familiarFromGoal, name);
     }
 
     private void show(Created created) {

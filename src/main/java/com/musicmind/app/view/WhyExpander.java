@@ -4,6 +4,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.TitledPane;
 import javafx.scene.layout.VBox;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 /** The "Why these?" expander (F10): collapsed until opened, then shows the reasons. */
@@ -26,13 +27,20 @@ final class WhyExpander {
         Label body = UiParts.wrapped("");
         TitledPane pane = new TitledPane(ctx.format().w("WhyThese"), new VBox(UiParts.GAP, status, body));
         pane.setExpanded(false);
-        boolean[] requested = {false};
+        AtomicBoolean requested = new AtomicBoolean(false);
         pane.expandedProperty().addListener((observable, was, expanded) -> {
-            if (!expanded || requested[0]) {
+            if (!expanded || !requested.compareAndSet(false, true)) {
                 return;
             }
-            requested[0] = true;
-            ctx.run(status, action, ctx.format().w("Working"), loader, text -> body.setText(text == null || text.isBlank()
+            Supplier<String> retryable = () -> {
+                try {
+                    return loader.get();
+                } catch (RuntimeException | Error e) {
+                    requested.set(false);   // reopening the expander tries again
+                    throw e;
+                }
+            };
+            ctx.run(status, action, ctx.format().w("Working"), retryable, text -> body.setText(text == null || text.isBlank()
                     ? ctx.format().w("WhyUnavailable") : text));
         });
         return pane;
