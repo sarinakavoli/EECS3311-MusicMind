@@ -421,6 +421,17 @@ public class AppController {
      * (reads stored data only: no Spotify sign-in is needed beyond what the data store itself uses)
      */
     public String explain(String id) {
+        return explainer.explain(getSession(id));
+    }
+
+    /**
+     * F12 — one stored session with its plan and result.
+     *
+     * @param id a session id or a playlist id (the session that created the playlist)
+     * @throws IllegalArgumentException if nothing stored matches the id
+     * @throws IllegalStateException if the stored record cannot be reached
+     */
+    public AgentSession getSession(String id) {
         AgentSession session = memory.findSession(id);
         if (session == null) {
             session = memory.findSessionByPlaylist(id);
@@ -431,7 +442,7 @@ public class AppController {
             }
             throw new IllegalArgumentException(String.format(config.wording("explainUnknown"), id));
         }
-        return explainer.explain(session);
+        return session;
     }
 
     // ---- F12 ----

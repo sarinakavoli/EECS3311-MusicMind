@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 /**
  * The derived data a creation run stores with its session: the spec it ended with (so the playlist can
@@ -54,6 +55,23 @@ public final class SessionRecord {
         s.put("blockedArtists", spec.blockedArtists());
         s.put("name", spec.name());
         return s;
+    }
+
+    /** How many tracks a creation run chose, or empty if the session stored none (it failed, or is of another kind). */
+    public static OptionalInt trackCount(String derivedJson) {
+        if (derivedJson == null || derivedJson.isBlank()) {
+            return OptionalInt.empty();
+        }
+        try {
+            JsonElement root = JsonParser.parseString(derivedJson);
+            if (!root.isJsonObject() || !root.getAsJsonObject().has("trackIds")
+                    || !root.getAsJsonObject().get("trackIds").isJsonArray()) {
+                return OptionalInt.empty();
+            }
+            return OptionalInt.of(root.getAsJsonObject().getAsJsonArray("trackIds").size());
+        } catch (JsonParseException e) {
+            return OptionalInt.empty();
+        }
     }
 
     /**

@@ -2,6 +2,7 @@ package com.musicmind.cli;
 
 import com.musicmind.agent.PreferenceSettings;
 import com.musicmind.agent.command.PlaylistMissingException;
+import com.musicmind.agent.state.SessionRecord;
 import com.musicmind.config.Config;
 import com.musicmind.controller.AppController;
 import com.musicmind.domain.AgentRequest;
@@ -34,6 +35,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -120,7 +122,7 @@ public class CliApp {
             case "undo" -> { return runUndo(rest); }
             case "validate" -> { return runValidate(rest); }
             case "explain" -> { return runExplain(rest); }
-            case "history" -> { return runHistory(); }
+            case "history" -> { return runHistory(rest); }
             case "restore" -> { return runRestore(rest); }
             default -> {
                 err.println(String.format(config.wording("cliUnknownCommand"), args[0]));
@@ -627,14 +629,21 @@ public class CliApp {
         }
     }
 
-    /** F12 — past sessions and the saved playlist versions that {@code restore} accepts. */
-    private int runHistory() {
+    /** F12 — past sessions and the saved playlist versions that {@code restore} accepts, or one session. */
+    private int runHistory(String[] rest) {
+        if (rest.length > 1) {
+            return usage("history", null);
+        }
         User user = signIn();
         if (user == null) {
             return FAILED;
         }
         AppController c = controller();
         try {
+            if (rest.length == 1) {
+                printSession(c.getSession(rest[0]));
+                return OK;
+            }
             List<AgentSession> sessions = c.getHistory(user);
             out.println(w("Sessions"));
             if (sessions.isEmpty()) {
@@ -642,7 +651,7 @@ public class CliApp {
             }
             for (AgentSession s : sessions) {
                 String request = s.request() == null ? "" : s.request().kind() + ": " + s.request().rawText();
-                out.println("  " + s.startedAt() + "  " + s.status() + "  " + request
+                out.println("  " + s.id() + "  " + s.startedAt() + "  " + s.status() + "  " + request
                         + (s.playlistId() == null ? "" : "  " + w("SessionPlaylist", s.playlistId())));
             }
             out.println(w("SavedVersions"));
@@ -658,6 +667,26 @@ public class CliApp {
         } catch (RuntimeException e) {
             return failure("show the history", e);
         }
+    }
+
+    private void printSession(AgentSession s) {
+        out.println(w("SessionHeading", s.id()));
+        if (s.request() != null) {
+            out.println(w("SessionRequest", s.request().rawText()));
+        }
+        out.println(w("SessionStatus", s.status()));
+        out.println(w("SessionStarted", s.startedAt()));
+        out.println(s.planSteps().isEmpty() ? w("SessionNoPlan") : w("SessionPlan"));
+        for (int i = 0; i < s.planSteps().size(); i++) {
+            out.printf("  %d. %s%n", i + 1, s.planSteps().get(i));
+        }
+        if (s.playlistId() == null) {
+            out.println(w("SessionNoResult"));
+            return;
+        }
+        String result = w("SessionPlaylist", s.playlistId());
+        OptionalInt tracks = SessionRecord.trackCount(s.derivedData());
+        out.println(w("SessionResult", tracks.isPresent() ? result + ", " + w("SessionTracks", tracks.getAsInt()) : result));
     }
 
     /** F12 — {@code restore <snapshotId>}; offers to recreate a playlist that was deleted. */

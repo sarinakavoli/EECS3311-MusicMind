@@ -3,6 +3,7 @@ package com.musicmind.cli;
 import com.musicmind.agent.command.FakeMusicService;
 import com.musicmind.config.Config;
 import com.musicmind.controller.AppController;
+import com.musicmind.domain.AgentSession;
 import com.musicmind.domain.Album;
 import com.musicmind.domain.Artist;
 import com.musicmind.domain.Track;
@@ -145,6 +146,55 @@ class CliAppTest extends PostgresTestBase {
     @Test
     void showNeedsAPlaylistId() {
         assertEquals(CliApp.USAGE, run("show").status());
+    }
+
+    @Test
+    void historyListsSessionIdsSoOneCanBeOpened() {
+        Music music = new Music();
+        AppController c = controller(music, new MockLLMProvider());
+        run(c, "", "create", "a mix for working");
+
+        Result r = run(c, "", "history");
+
+        assertTrue(r.out().contains(c.lastSession().id()), r.out());
+    }
+
+    @Test
+    void historyWithASessionIdShowsItsPlanAndResult() {
+        Music music = new Music();
+        AppController c = controller(music, new MockLLMProvider());
+        run(c, "", "create", "a mix for working");
+        AgentSession created = c.lastSession();
+
+        Result r = run(c, "", "history", created.id());
+
+        assertEquals(CliApp.OK, r.status());
+        assertTrue(r.out().contains("a mix for working"), r.out());
+        assertFalse(created.planSteps().isEmpty());
+        created.planSteps().forEach(step -> assertTrue(r.out().contains(step), r.out()));
+        assertTrue(r.out().contains(created.playlistId()), r.out());
+        assertTrue(r.out().contains(created.status()), r.out());
+        assertTrue(r.out().contains(String.format(config.wording("cliSessionTracks"), c.lastSession().context().playlist().tracks().size())), r.out());
+    }
+
+    @Test
+    void historyAcceptsAPlaylistIdToo() {
+        Music music = new Music();
+        AppController c = controller(music, new MockLLMProvider());
+        run(c, "", "create", "a mix for working");
+
+        Result r = run(c, "", "history", c.lastSession().playlistId());
+
+        assertEquals(CliApp.OK, r.status());
+        assertTrue(r.out().contains("a mix for working"), r.out());
+    }
+
+    @Test
+    void historyWithAnUnknownIdSaysSo() {
+        Result r = run("history", "nope");
+
+        assertEquals(CliApp.FAILED, r.status());
+        assertTrue(r.err().contains("nope"), r.err());
     }
 
     @Test
