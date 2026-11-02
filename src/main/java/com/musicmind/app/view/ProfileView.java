@@ -62,8 +62,7 @@ public final class ProfileView implements TabView {
                 listColumn(format.w("TopTracks"), tracks));
 
         VBox content = UiParts.page(controls, status, generated, notice, UiParts.heading(format.w("TopGenres")), genres, lists,
-                UiParts.heading(format.w("Summary")), summary,
-                UiParts.muted(ctx.config().spotifyAttribution()), UiParts.muted(ctx.config().genreAttribution()));
+                UiParts.heading(format.w("Summary")), summary);
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
         root = new LoginGate(ctx, scroll, false);
@@ -114,7 +113,7 @@ public final class ProfileView implements TabView {
         ListeningProfile profile = shown.profile();
         status.info(shown.stored() ? format.w("ProfileStored") : "");
         generated.setText(profile.generatedAt() == null ? ""
-                : format.w("ProfileGenerated", profile.generatedAt(), profile.range() == null ? "" : profile.range()));
+                : format.w("ProfileGenerated", format.timestamp(profile.generatedAt()), profile.range() == null ? "" : profile.range()));
         List<String> notices = new java.util.ArrayList<>(profile.notices());
         if (shown.memoryWarning() != null) {
             notices.add(ctx.config().wording("cliNotSaved").formatted(shown.memoryWarning()));

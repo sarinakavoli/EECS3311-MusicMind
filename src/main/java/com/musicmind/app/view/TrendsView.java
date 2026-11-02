@@ -35,7 +35,7 @@ public final class TrendsView implements TabView {
         HBox controls = new HBox(UiParts.GAP, compare);
         controls.setAlignment(Pos.CENTER_LEFT);
         VBox content = UiParts.page(controls, status, columns, notices, UiParts.heading(format.w("TrendsOverTime")), changes,
-                narrative, UiParts.muted(ctx.config().spotifyAttribution()), UiParts.muted(ctx.config().genreAttribution()));
+                narrative);
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
         root = new LoginGate(ctx, scroll, false);

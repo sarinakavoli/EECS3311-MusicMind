@@ -52,7 +52,7 @@ public final class DiscoveryView implements TabView {
         ScrollPane scroll = new ScrollPane(new VBox(UiParts.GAP, listNotes, list));
         scroll.setFitToWidth(true);
         scroll.setPrefHeight(480);
-        VBox page = UiParts.page(controls, status, feedbackStatus, scroll, UiParts.muted(ctx.config().spotifyAttribution()));
+        VBox page = UiParts.page(controls, status, feedbackStatus, scroll);
         root = new LoginGate(ctx, page, false);
     }
 
