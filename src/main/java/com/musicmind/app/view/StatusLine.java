@@ -1,0 +1,54 @@
+package com.musicmind.app.view;
+
+import javafx.geometry.Pos;
+import javafx.scene.control.Label;
+import javafx.scene.control.ProgressIndicator;
+import javafx.scene.layout.HBox;
+
+/** A line under a view's controls: a spinner while work runs, then a message or an error. */
+public final class StatusLine extends HBox {
+
+    private static final String ERROR_STYLE = "-fx-text-fill: #b00020;";
+    private static final double SPINNER_SIZE = 18;
+
+    private final ProgressIndicator spinner = new ProgressIndicator();
+    private final Label text = new Label();
+
+    public StatusLine() {
+        super(8);
+        setAlignment(Pos.CENTER_LEFT);
+        spinner.setPrefSize(SPINNER_SIZE, SPINNER_SIZE);
+        spinner.setMaxSize(SPINNER_SIZE, SPINNER_SIZE);
+        spinner.setVisible(false);
+        spinner.setManaged(false);
+        text.setWrapText(true);
+        getChildren().addAll(spinner, text);
+    }
+
+    /** Work has started; shows the spinner and what is happening. */
+    public void busy(String message) {
+        spinner.setVisible(true);
+        spinner.setManaged(true);
+        text.setStyle("");
+        text.setText(message);
+    }
+
+    /** Work is over; shows a plain message (or nothing for an empty one). */
+    public void info(String message) {
+        hideSpinner();
+        text.setStyle("");
+        text.setText(message == null ? "" : message);
+    }
+
+    /** Work failed; shows why, in red. */
+    public void error(String message) {
+        hideSpinner();
+        text.setStyle(ERROR_STYLE);
+        text.setText(message);
+    }
+
+    private void hideSpinner() {
+        spinner.setVisible(false);
+        spinner.setManaged(false);
+    }
+}
