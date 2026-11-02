@@ -783,19 +783,20 @@ public class MusicAgentFacade {
     private record SpecChoice(PlaylistSpec spec, boolean fromSession) { }
 
     /**
-     * The constraints a playlist is judged by: the spec saved with the session that created it, else one built
-     * from the stored preferences. Either way the target length is the one the latest edit, undo or restore
+     * The constraints a playlist is judged by: the spec saved with the session that created it plus the blocks
+     * set since, else one built from the stored preferences. Either way the target length is the one the latest edit, undo or restore
      * left ({@link PlaylistTargets}), not necessarily the creation-time one.
      */
     private SpecChoice specFor(String userId, String playlistId) {
         AgentSession created = memory.findSessionByPlaylist(playlistId);
         Optional<PlaylistSpec> saved = created == null ? Optional.empty() : SessionRecord.specOf(created.derivedData());
+        PreferenceSettings preferences = PreferenceSettings.from(memory.loadPreferences(userId));
         SpecChoice choice;
         if (saved.isPresent()) {
-            choice = new SpecChoice(saved.get(), true);
+            choice = new SpecChoice(preferences.withBlocks(saved.get()), true);
         } else {
             PlaylistSpec base = new PlaylistSpec(0, true, config.discoverDefaultFamiliarRatio(), List.of(), null);
-            choice = new SpecChoice(PreferenceSettings.from(memory.loadPreferences(userId)).applyTo(base), false);
+            choice = new SpecChoice(preferences.applyTo(base), false);
         }
         OptionalInt target = targets(userId, playlistId).current();
         return target.isPresent() ? new SpecChoice(withTarget(choice.spec(), target.getAsInt()), choice.fromSession()) : choice;

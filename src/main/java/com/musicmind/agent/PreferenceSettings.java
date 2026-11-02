@@ -101,13 +101,20 @@ public final class PreferenceSettings {
      * the spec's, and explicit content is allowed only if both the spec and the preference allow it.
      */
     public PlaylistSpec applyTo(PlaylistSpec spec) {
-        Set<String> blocked = new LinkedHashSet<>(spec.blockedArtists());
-        blocked.addAll(blockedArtists);
         boolean explicit = spec.allowExplicit() && explicitAllowed().orElse(true);
+        return withBlocks(spec).withAllowExplicit(explicit);
+    }
+
+    /**
+     * A copy of the spec with the stored blocked artists and tracks added. Blocks hold for every playlist from
+     * the moment they are set, unlike the other preferences, which shape a playlist when it is made.
+     */
+    public PlaylistSpec withBlocks(PlaylistSpec spec) {
+        Set<String> artists = new LinkedHashSet<>(spec.blockedArtists());
+        artists.addAll(blockedArtists);
         Set<String> tracks = new LinkedHashSet<>(spec.blockedTracks());
         tracks.addAll(blockedTracks);
-        return spec.withAllowExplicit(explicit).withBlockedArtists(new ArrayList<>(blocked))
-                .withBlockedTracks(new ArrayList<>(tracks));
+        return spec.withBlockedArtists(new ArrayList<>(artists)).withBlockedTracks(new ArrayList<>(tracks));
     }
 
     /**

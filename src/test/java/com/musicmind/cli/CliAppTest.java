@@ -227,6 +227,13 @@ class CliAppTest extends PostgresTestBase {
     }
 
     @Test
+    void searchSaysHowToKeepATrackForLater() {
+        Result r = run("search", "drake");
+
+        assertTrue(r.out().contains(config.wording("cliUsage.candidates")), r.out());
+    }
+
+    @Test
     void searchLeavesOutArtistsTheQueryDidNotName() {
         Music music = new Music();
         music.artists = List.of(new Artist(ARTIST_ID, "Upbeat Corporate Music", List.of()));

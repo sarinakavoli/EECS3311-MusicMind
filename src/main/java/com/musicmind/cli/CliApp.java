@@ -286,6 +286,9 @@ public class CliApp {
                 out.println(c.lastSearchNotice());
             }
             out.println();
+            if (!found.isEmpty()) {
+                out.println(config.wording("cliUsagePrefix") + " " + config.wording("cliUsage.candidates"));
+            }
             out.println(c.spotifyAttribution());
             return OK;
         } catch (RuntimeException e) {
