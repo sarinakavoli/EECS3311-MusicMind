@@ -1,138 +1,143 @@
 package com.musicmind.app;
 
+import com.musicmind.app.view.DiscoveryView;
+import com.musicmind.app.view.GuiContext;
+import com.musicmind.app.view.HistoryView;
+import com.musicmind.app.view.PlaylistView;
+import com.musicmind.app.view.PreferencesView;
+import com.musicmind.app.view.ProfileView;
+import com.musicmind.app.view.SearchView;
+import com.musicmind.app.view.StatusLine;
+import com.musicmind.app.view.TabView;
+import com.musicmind.app.view.TrendsView;
+import com.musicmind.app.view.ViewFormat;
+import com.musicmind.config.Config;
 import com.musicmind.controller.AppController;
-import com.musicmind.domain.Artist;
-import com.musicmind.domain.ListeningProfile;
-import com.musicmind.domain.User;
 import javafx.application.Application;
-import javafx.application.Platform;
-import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
-import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
-import javafx.scene.control.ListView;
-import javafx.scene.control.ProgressIndicator;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
+import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.Font;
 import javafx.stage.Stage;
 
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
- * JavaFX GUI entry point. The view is built over the same {@link AppController}
- * used by the CLI (MVC), so both interfaces expose the same functionality
- * without duplicated logic. This screen implements F1 — View Taste Profile.
+ * JavaFX GUI entry point. The views are built over the same {@link AppController} the CLI uses (MVC): a
+ * view shows what the controller returns and sends the user's actions back, and holds no business logic.
+ * Every controller call runs on one background worker ({@link GuiContext}); opening the window never calls
+ * Spotify or opens a browser, which only the login button does.
  */
 public class GuiApp extends Application {
 
-    private AppController controller;
+    private static final double WIDTH = 1040;
+    private static final double HEIGHT = 760;
+    private static final double TITLE_SIZE = 26;
+    private static final String BANNER_STYLE = "-fx-background-color: #fff3cd; -fx-text-fill: #7a5a00; -fx-padding: 6 12 6 12;";
 
-    private final ComboBox<String> timeRange = new ComboBox<>(
-            FXCollections.observableArrayList("short", "medium", "long"));
-    private final Button viewButton = new Button("View Taste Profile");
-    private final ProgressIndicator spinner = new ProgressIndicator();
-    private final Label status = new Label();
-    private final Label summary = new Label();
-    private final Label artists = new Label();
-    private final ListView<String> genres = new ListView<>();
+    private GuiContext ctx;
+
+    /** Runs before the window exists, off the JavaFX thread: building the controller may connect to the database. */
+    @Override
+    public void init() {
+        Config config = Config.load();
+        ctx = new GuiContext(AppController.create(), config);
+    }
 
     @Override
     public void start(Stage stage) {
-        controller = AppController.create();
+        ViewFormat format = ctx.format();
+        List<TabView> views = List.of(new ProfileView(ctx), new TrendsView(ctx), new SearchView(ctx),
+                new DiscoveryView(ctx), new PlaylistView(ctx), new PreferencesView(ctx), new HistoryView(ctx));
 
-        Label title = new Label("MusicMind");
-        title.setFont(Font.font(28));
-        Label subtitle = new Label("AI Music Discovery & Playlist Management Agent");
-
-        timeRange.getSelectionModel().select("medium");
-        spinner.setVisible(false);
-        spinner.setPrefSize(20, 20);
-        viewButton.setDefaultButton(true);
-        viewButton.setOnAction(e -> onViewProfile());
-
-        HBox controls = new HBox(10, new Label("Time range:"), timeRange, viewButton, spinner);
-        controls.setAlignment(Pos.CENTER_LEFT);
-
-        status.setWrapText(true);
-        summary.setWrapText(true);
-        summary.setFont(Font.font(14));
-        artists.setWrapText(true);
-        genres.setPrefHeight(220);
-        VBox.setVgrow(genres, Priority.ALWAYS);
-
-        Label genresHeading = new Label("Top genres");
-        genresHeading.setFont(Font.font(15));
-        Label artistsHeading = new Label("Top artists");
-        artistsHeading.setFont(Font.font(15));
-
-        VBox root = new VBox(12, title, subtitle, controls, status,
-                genresHeading, genres, artistsHeading, artists, new Label("Summary"), summary);
-        root.setPadding(new Insets(24));
-
-        if (!controller.isSpotifyConfigured()) {
-            viewButton.setDisable(true);
-            status.setText("Spotify is not configured. Copy .env.example to .env and set "
-                    + "SPOTIFY_CLIENT_ID, then restart. (You can still browse the UI.)");
-        } else {
-            status.setText("Choose a time range and click “View Taste Profile”. "
-                    + "The first run opens your browser to connect Spotify.");
+        TabPane tabs = new TabPane();
+        tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        for (TabView view : views) {
+            Tab tab = new Tab(view.title(), view.node());
+            tabs.getTabs().add(tab);
         }
+        ctx.onLogin(user -> views.forEach(view -> view.onLogin(user)));
 
-        stage.setScene(new Scene(root, 720, 640));
-        stage.setTitle("MusicMind");
+        BorderPane root = new BorderPane();
+        root.setTop(new VBox(header(format), banners(format)));
+        root.setCenter(tabs);
+        root.setBottom(footer());
+
+        stage.setScene(new Scene(root, WIDTH, HEIGHT));
+        stage.setTitle(format.w("Title"));
+        stage.setOnHidden(e -> ctx.shutdown());
         stage.show();
+        ctx.checkDatabase();
     }
 
-    private void onViewProfile() {
-        String range = timeRange.getValue();
-        setBusy(true, "Building your taste profile over the “" + range + "” term…");
+    /** Title, who is logged in, and the login button. */
+    private VBox header(ViewFormat format) {
+        Label title = new Label(format.w("Title"));
+        title.setFont(Font.font(TITLE_SIZE));
+        Label subtitle = new Label(format.w("Subtitle"));
+        VBox names = new VBox(title, subtitle);
 
-        Thread worker = new Thread(() -> {
-            try {
-                User user = controller.currentUser() != null ? controller.currentUser() : controller.login();
-                ListeningProfile result = controller.analyzeTaste(user, range);
-                Platform.runLater(() -> {
-                    showResult(result);
-                    setBusy(false, result.isPartial()
-                            ? "Partial profile: " + String.join(" ", result.notices())
-                            : "Done — saved to memory.");
-                });
-            } catch (RuntimeException ex) {
-                Platform.runLater(() -> setBusy(false, "Could not build your profile: " + ex.getMessage()));
-            }
-        }, "taste-profile-worker");
-        worker.setDaemon(true);
-        worker.start();
+        Label who = new Label(format.w("NotLoggedIn"));
+        Button login = new Button(format.w("LoginButton"));
+        login.setDisable(!ctx.spotifyConfigured());
+        StatusLine status = new StatusLine();
+        login.setOnAction(e -> ctx.login(status, login));
+        ctx.userProperty().addListener((observable, was, user) -> {
+            who.setText(user == null ? format.w("NotLoggedIn") : format.w("LoggedInAs", user.id()));
+            login.setDisable(user != null || !ctx.spotifyConfigured());
+        });
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox top = new HBox(10, names, spacer, who, login);
+        top.setAlignment(Pos.CENTER_LEFT);
+        top.setPadding(new Insets(10, 12, 6, 12));
+        return new VBox(top, status);
     }
 
-    private void showResult(ListeningProfile result) {
-        List<String> rows = result.rankedGenres(10).stream()
-                .map(g -> String.format("%-24s %5.1f%%", g.getKey(), g.getValue() * 100))
-                .collect(Collectors.toList());
-        if (rows.isEmpty()) {
-            rows = List.of("(no genre data — not enough listening history yet)");
+    /** The notes that say what is missing: Spotify settings, the LLM key, the database. */
+    private VBox banners(ViewFormat format) {
+        VBox box = new VBox();
+        if (!ctx.spotifyConfigured()) {
+            box.getChildren().add(banner(format.w("BannerSpotify")));
         }
-        genres.setItems(FXCollections.observableArrayList(rows));
-
-        String names = result.topArtists().stream()
-                .limit(8).map(Artist::name).collect(Collectors.joining(", "));
-        artists.setText(names.isEmpty() ? "(none)" : names);
-
-        summary.setText(result.summary() + "\n\n" + controller.spotifyAttribution());
+        if (!ctx.llmConfigured()) {
+            box.getChildren().add(banner(format.w("BannerLlm")));
+        }
+        Label database = banner(format.w("BannerDatabase"));
+        database.visibleProperty().bind(ctx.databaseDownProperty());
+        database.managedProperty().bind(database.visibleProperty());
+        box.getChildren().add(database);
+        return box;
     }
 
-    private void setBusy(boolean busy, String message) {
-        spinner.setVisible(busy);
-        viewButton.setDisable(busy || !controller.isSpotifyConfigured());
-        timeRange.setDisable(busy);
-        status.setText(message);
+    private static Label banner(String text) {
+        Label label = new Label(text);
+        label.setWrapText(true);
+        label.setMaxWidth(Double.MAX_VALUE);
+        label.setStyle(BANNER_STYLE);
+        return label;
+    }
+
+    /** The credit Spotify's and MusicBrainz's terms ask for. */
+    private VBox footer() {
+        Label spotify = new Label(ctx.config().spotifyAttribution());
+        Label genres = new Label(ctx.config().genreAttribution());
+        VBox box = new VBox(2, spotify, genres);
+        box.setPadding(new Insets(6, 12, 6, 12));
+        box.setStyle("-fx-text-fill: #666666;");
+        spotify.setStyle("-fx-text-fill: #666666;");
+        genres.setStyle("-fx-text-fill: #666666;");
+        return box;
     }
 
     public static void main(String[] args) {
