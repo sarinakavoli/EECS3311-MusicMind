@@ -1,0 +1,227 @@
+package com.musicmind.app.view;
+
+import com.musicmind.agent.PlaylistValidator;
+import com.musicmind.agent.state.SessionRecord;
+import com.musicmind.config.Config;
+import com.musicmind.domain.AgentSession;
+import com.musicmind.domain.Artist;
+import com.musicmind.domain.ListeningProfile;
+import com.musicmind.domain.RangeChange;
+import com.musicmind.domain.Track;
+import com.musicmind.domain.TrendReport;
+import com.musicmind.domain.ValidationResult;
+import com.musicmind.music.AuthExpiredException;
+
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.OptionalInt;
+
+/**
+ * What the GUI shows, worked out as plain text and numbers, so the views hold no logic and this class can
+ * be tested without JavaFX. All wording comes from {@code musicmind.properties} through {@link Config}.
+ */
+public final class ViewFormat {
+
+    /** One line of the genre breakdown: the genre, its share as text, and the bar length (0..1, longest = 1). */
+    public record GenreRow(String name, String percent, double bar) { }
+
+    /** A short status label for a playlist; {@code warning} marks a constraint that is not met. */
+    public record Badge(String text, boolean warning) { }
+
+    /** One time range of the Trends view. */
+    public record TrendColumn(String range, List<String> artists, List<String> genres, String coverage) { }
+
+    /** One line of the History list. */
+    public record HistoryRow(String sessionId, String when, String status, String request, String playlistId) { }
+
+    private final Config config;
+    private final DateTimeFormatter timeFormat;
+
+    public ViewFormat(Config config, ZoneId zone) {
+        this.config = config;
+        this.timeFormat = DateTimeFormatter.ofPattern(config.wording("guiTimeFormat")).withZone(zone);
+    }
+
+    public ViewFormat(Config config) {
+        this(config, ZoneId.systemDefault());
+    }
+
+    public Config config() {
+        return config;
+    }
+
+    /** The wording for {@code text.gui<key>}, filled in with {@code args}. */
+    public String w(String key, Object... args) {
+        String template = config.wording("gui" + key);
+        return args.length == 0 ? template : String.format(Locale.ROOT, template, args);
+    }
+
+    /** The wording for {@code text.cli<key>}, shared with the command line. */
+    private String cli(String key, Object... args) {
+        String template = config.wording("cli" + key);
+        return args.length == 0 ? template : String.format(Locale.ROOT, template, args);
+    }
+
+    /** A track length as {@code m:ss}. */
+    public String duration(int durationMs) {
+        int seconds = Math.round(durationMs / 1000f);
+        return String.format(Locale.ROOT, "%d:%02d", seconds / 60, seconds % 60);
+    }
+
+    /** Milliseconds as whole minutes, rounded to the nearest. */
+    public long minutes(long durationMs) {
+        return Math.round(durationMs / 60_000.0);
+    }
+
+    /** The genre breakdown, largest first, at most {@code limit} rows. */
+    public List<GenreRow> genreRows(ListeningProfile profile, int limit) {
+        List<Map.Entry<String, Double>> ranked = profile.rankedGenres(limit);
+        double largest = ranked.isEmpty() ? 0 : ranked.get(0).getValue();
+        List<GenreRow> rows = new ArrayList<>();
+        for (Map.Entry<String, Double> entry : ranked) {
+            double bar = largest <= 0 ? 0 : entry.getValue() / largest;
+            rows.add(new GenreRow(entry.getKey(), String.format(Locale.ROOT, "%.1f%%", entry.getValue() * 100), bar));
+        }
+        return rows;
+    }
+
+    /** Names of the first {@code limit} artists that have one. */
+    public List<String> artistNames(List<Artist> artists, int limit) {
+        return artists.stream().map(Artist::name).filter(n -> n != null && !n.isBlank()).limit(limit).toList();
+    }
+
+    /**
+     * The badges of a validation result. Rules are taken from {@link ValidationResult#offending()}; the
+     * duration badge says how far the playlist is from {@code targetMinutes} and in which direction.
+     */
+    public List<Badge> badges(ValidationResult result, List<Track> tracks, int targetMinutes) {
+        if (result.passed()) {
+            return List.of(new Badge(w("BadgeOk"), false));
+        }
+        List<Badge> badges = new ArrayList<>();
+        Map<String, List<String>> offending = result.offending();
+        addCounted(badges, offending, PlaylistValidator.RULE_EXPLICIT, "BadgeExplicit");
+        addCounted(badges, offending, PlaylistValidator.RULE_DUPLICATES, "BadgeDuplicate");
+        addCounted(badges, offending, PlaylistValidator.RULE_BLOCKED_ARTIST, "BadgeBlockedArtist");
+        addCounted(badges, offending, PlaylistValidator.RULE_BLOCKED_TRACK, "BadgeBlockedTrack");
+        if (offending.containsKey(PlaylistValidator.RULE_DURATION)) {
+            long actualMs = tracks.stream().mapToLong(Track::durationMs).sum();
+            long difference = actualMs - targetMinutes * 60_000L;
+            long minutes = Math.max(1, Math.round(Math.abs(difference) / 60_000.0));
+            badges.add(new Badge(w(difference > 0 ? "BadgeOver" : "BadgeUnder", minutes), true));
+        }
+        if (offending.containsKey(PlaylistValidator.RULE_MIN_LENGTH)) {
+            badges.add(new Badge(w("BadgeTooFew"), true));
+        }
+        if (offending.containsKey(PlaylistValidator.RULE_MAX_LENGTH)) {
+            badges.add(new Badge(w("BadgeTooMany"), true));
+        }
+        return badges;
+    }
+
+    private void addCounted(List<Badge> badges, Map<String, List<String>> offending, String rule, String key) {
+        List<String> ids = offending.get(rule);
+        if (ids != null && !ids.isEmpty()) {
+            badges.add(new Badge(w(key + (ids.size() == 1 ? "One" : "Many"), ids.size()), true));
+        }
+    }
+
+    /** One column per range in {@code ranges}, in that order; a range with no data has empty lists. */
+    public List<TrendColumn> trendColumns(TrendReport report, List<String> ranges, int artistsShown, int genresShown) {
+        List<TrendColumn> columns = new ArrayList<>();
+        for (String range : ranges) {
+            List<Artist> artists = report.artistsByRange().getOrDefault(range, List.of());
+            List<String> genres = report.genresByRange().getOrDefault(range, Map.of()).keySet().stream()
+                    .limit(genresShown).toList();
+            String coverage = artists.isEmpty() ? ""
+                    : String.format(Locale.ROOT, config.wording("trendCoverageLine"),
+                            report.artistsWithGenres(range), report.artistCount(range));
+            columns.add(new TrendColumn(range, artistNames(artists, artistsShown), genres, coverage));
+        }
+        return columns;
+    }
+
+    /** What changed from each range to the next, then overall, as lines of text. */
+    public List<String> trendStepLines(TrendReport report) {
+        List<String> lines = new ArrayList<>();
+        for (RangeChange step : report.steps()) {
+            lines.add(cli("TrendStep", step.from(), step.to()));
+            changeLines(lines, step.addedGenres(), step.droppedGenres(), names(report, step.addedArtistIds()),
+                    names(report, step.droppedArtistIds()));
+        }
+        lines.add(cli("TrendOverall"));
+        changeLines(lines, report.addedGenres(), report.droppedGenres(), names(report, report.addedArtistIds()),
+                names(report, report.droppedArtistIds()));
+        return lines;
+    }
+
+    private void changeLines(List<String> lines, List<String> genresAdded, List<String> genresDropped,
+                             List<String> artistsAdded, List<String> artistsDropped) {
+        lines.add("  " + cli("GenresAdded") + ": " + listOrNone(genresAdded));
+        lines.add("  " + cli("GenresDropped") + ": " + listOrNone(genresDropped));
+        lines.add("  " + cli("ArtistsAdded") + ": " + listOrNone(artistsAdded));
+        lines.add("  " + cli("ArtistsDropped") + ": " + listOrNone(artistsDropped));
+    }
+
+    private String listOrNone(List<String> items) {
+        return items.isEmpty() ? cli("None") : String.join(", ", items);
+    }
+
+    private static List<String> names(TrendReport report, List<String> ids) {
+        Map<String, String> byId = new LinkedHashMap<>();
+        report.artistsByRange().values().forEach(list -> list.forEach(a -> byId.put(a.id(), a.name())));
+        return ids.stream().map(id -> byId.getOrDefault(id, id)).toList();
+    }
+
+    /** The rows of the History list, in the order given. */
+    public List<HistoryRow> historyRows(List<AgentSession> sessions) {
+        List<HistoryRow> rows = new ArrayList<>();
+        for (AgentSession s : sessions) {
+            String request = s.request() == null ? ""
+                    : config.wording("guiKind." + s.request().kind().name()) + ": " + s.request().rawText();
+            rows.add(new HistoryRow(s.id(), s.startedAt() == null ? "" : timeFormat.format(s.startedAt()),
+                    s.status() == null ? "" : s.status(), request, s.playlistId() == null ? "" : s.playlistId()));
+        }
+        return rows;
+    }
+
+    /** One past session opened: its request, status, plan and result. */
+    public List<String> sessionLines(AgentSession s) {
+        List<String> lines = new ArrayList<>();
+        if (s.request() != null) {
+            lines.add(cli("SessionRequest", s.request().rawText()));
+        }
+        lines.add(cli("SessionStatus", s.status()));
+        lines.add(s.planSteps().isEmpty() ? cli("SessionNoPlan") : cli("SessionPlan"));
+        for (int i = 0; i < s.planSteps().size(); i++) {
+            lines.add("  " + (i + 1) + ". " + s.planSteps().get(i));
+        }
+        if (s.playlistId() == null) {
+            lines.add(cli("SessionNoResult"));
+        } else {
+            String result = cli("SessionPlaylist", s.playlistId());
+            OptionalInt tracks = SessionRecord.trackCount(s.derivedData());
+            lines.add(cli("SessionResult", tracks.isPresent() ? result + ", " + cli("SessionTracks", tracks.getAsInt()) : result));
+        }
+        return lines;
+    }
+
+    /** What to tell the user when {@code action} failed: an expired login asks to log in again, else the reason. */
+    public String failure(String action, Throwable error) {
+        if (error instanceof AuthExpiredException) {
+            return config.wording("cliLoginExpired");
+        }
+        String reason = error.getMessage() == null || error.getMessage().isBlank() ? w("UnknownError") : error.getMessage();
+        return cli("Failed", action, reason);
+    }
+
+    /** A creation step shown as progress. */
+    public String progress(String stateName) {
+        return w("Progress", stateName);
+    }
+}
