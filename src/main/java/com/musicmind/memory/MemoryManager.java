@@ -5,6 +5,7 @@ import com.musicmind.domain.Feedback;
 import com.musicmind.domain.Playlist;
 import com.musicmind.domain.SnapshotInfo;
 import com.musicmind.domain.UserPreference;
+import com.musicmind.memory.repository.CandidateRepository;
 import com.musicmind.memory.repository.FeedbackRepository;
 import com.musicmind.memory.repository.PlaylistHistoryRepository;
 import com.musicmind.memory.repository.PreferenceRepository;
@@ -33,15 +34,18 @@ public class MemoryManager {
     private final FeedbackRepository feedback;
     private final SessionRepository sessions;
     private final PlaylistHistoryRepository history;
+    private final CandidateRepository candidates;
     private volatile String warning;
 
     public MemoryManager(Database db, PreferenceRepository preferences, FeedbackRepository feedback,
-                         SessionRepository sessions, PlaylistHistoryRepository history) {
+                         SessionRepository sessions, PlaylistHistoryRepository history,
+                         CandidateRepository candidates) {
         this.db = db;
         this.preferences = preferences;
         this.feedback = feedback;
         this.sessions = sessions;
         this.history = history;
+        this.candidates = candidates;
     }
 
     // ---- preferences (F8) ----
@@ -130,6 +134,35 @@ public class MemoryManager {
     /** The user's saved playlist versions for the history list, newest first; empty (with a warning) while the database is down. */
     public List<SnapshotInfo> loadSnapshotSummaries(String userId) {
         return guarded("load saved playlist versions", () -> history.summariesByUser(userId), List.of());
+    }
+
+    // ---- candidates (F3) ----
+
+    /** Sets a track aside for the next playlist; with the database down this only sets the warning. */
+    public void addCandidate(String trackId) {
+        guarded("save the candidate", () -> {
+            candidates.save(trackId);
+            return null;
+        }, null);
+    }
+
+    public void removeCandidate(String trackId) {
+        guarded("remove the candidate", () -> {
+            candidates.delete(trackId);
+            return null;
+        }, null);
+    }
+
+    public void clearCandidates() {
+        guarded("clear the candidates", () -> {
+            candidates.clear();
+            return null;
+        }, null);
+    }
+
+    /** The user's candidate track ids, oldest first; empty (with a warning) while the database is down. */
+    public List<String> loadCandidates(String userId) {
+        return guarded("load the candidates", () -> candidates.findByUser(userId), List.of());
     }
 
     // ---- availability ----

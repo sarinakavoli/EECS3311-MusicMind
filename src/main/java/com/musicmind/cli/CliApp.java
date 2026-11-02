@@ -58,7 +58,7 @@ public class CliApp {
     public static final int USAGE = 2;
 
     /** The commands in the order help lists them. */
-    static final List<String> COMMANDS = List.of("login", "help", "exit", "profile", "trends", "search", "discover",
+    static final List<String> COMMANDS = List.of("login", "help", "exit", "profile", "trends", "search", "candidates", "discover",
             "create", "playlists", "show", "modify", "undo", "validate", "prefs", "feedback", "explain", "history", "restore");
 
     /** How many genres and artists the text output lists. */
@@ -112,6 +112,7 @@ public class CliApp {
             case "profile" -> { return runProfile(rest); }
             case "trends" -> { return runTrends(); }
             case "search" -> { return runSearch(rest); }
+            case "candidates" -> { return runCandidates(rest); }
             case "discover" -> { return runDiscover(rest); }
             case "prefs" -> { return runPrefs(rest); }
             case "feedback" -> { return runFeedback(rest); }
@@ -289,6 +290,53 @@ public class CliApp {
             return OK;
         } catch (RuntimeException e) {
             return failure("search", e);
+        }
+    }
+
+    /** F3 — {@code candidates list}, {@code add <trackId>}, {@code remove <trackId>}, {@code clear}. */
+    private int runCandidates(String[] rest) {
+        String action = rest.length == 0 ? "" : rest[0].toLowerCase();
+        boolean valid = switch (action) {
+            case "list", "clear" -> rest.length == 1;
+            case "add", "remove" -> rest.length == 2;
+            default -> false;
+        };
+        if (!valid) {
+            return usage("candidates", null);
+        }
+        if (signIn() == null) {
+            return FAILED;
+        }
+        AppController c = controller();
+        try {
+            switch (action) {
+                case "add" -> c.addCandidate(rest[1]);
+                case "remove" -> c.removeCandidate(rest[1]);
+                case "clear" -> c.clearCandidates();
+                default -> {
+                    List<Track> tracks = c.getCandidates();
+                    out.println(tracks.isEmpty() ? w("NoCandidates") : w("CandidatesHeading"));
+                    for (int i = 0; i < tracks.size(); i++) {
+                        out.printf("%2d. %s  (%s)%n", i + 1, tracks.get(i).title(), tracks.get(i).id());
+                    }
+                    printMemoryWarning(null);
+                    return OK;
+                }
+            }
+            if (c.memory().warning() != null) {
+                err.println(String.format(config.wording("cliNotSaved"), c.memory().warning()));
+                return FAILED;
+            }
+            out.println(switch (action) {
+                case "add" -> w("CandidateAdded", rest[1]);
+                case "remove" -> w("CandidateRemoved", rest[1]);
+                default -> w("CandidatesCleared");
+            });
+            return OK;
+        } catch (IllegalArgumentException e) {
+            return usage("candidates", e.getMessage());
+        } catch (RuntimeException e) {
+            return failure("change your candidates", e);
         }
     }
 

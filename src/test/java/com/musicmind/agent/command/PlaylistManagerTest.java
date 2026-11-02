@@ -6,6 +6,7 @@ import com.musicmind.domain.Track;
 import com.musicmind.memory.Database;
 import com.musicmind.memory.MemoryManager;
 import com.musicmind.memory.PostgresTestBase;
+import com.musicmind.memory.repository.CandidateRepository;
 import com.musicmind.memory.repository.FeedbackRepository;
 import com.musicmind.memory.repository.PlaylistHistoryRepository;
 import com.musicmind.memory.repository.PreferenceRepository;
@@ -31,7 +32,8 @@ class PlaylistManagerTest extends PostgresTestBase {
                 new PreferenceRepository(database, currentUser::get),
                 new FeedbackRepository(database, currentUser::get),
                 new SessionRepository(database, currentUser::get),
-                new PlaylistHistoryRepository(database, currentUser::get));
+                new PlaylistHistoryRepository(database, currentUser::get),
+                new CandidateRepository(database, currentUser::get));
     }
 
     private PlaylistManager manager() {

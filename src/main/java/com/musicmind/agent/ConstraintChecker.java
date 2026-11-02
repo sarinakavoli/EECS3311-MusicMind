@@ -167,7 +167,8 @@ public class ConstraintChecker {
         }
     }
 
-    private static boolean eligible(Track t, PlaylistSpec spec) {
+    /** Whether the spec lets a track into the playlist: not blocked, and not explicit unless allowed. */
+    public static boolean eligible(Track t, PlaylistSpec spec) {
         return !spec.isTrackBlocked(t.id()) && t.artistIds().stream().noneMatch(spec::isBlocked) && (spec.allowExplicit() || !t.isExplicit());
     }
 

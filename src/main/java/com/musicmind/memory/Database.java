@@ -111,6 +111,13 @@ public class Database implements AutoCloseable {
                     )""");
             st.execute("ALTER TABLE playlist_snapshot ADD COLUMN IF NOT EXISTS undone BOOLEAN NOT NULL DEFAULT FALSE");
             st.execute("""
+                    CREATE TABLE IF NOT EXISTS candidate_track (
+                        user_id  TEXT NOT NULL,
+                        track_id TEXT NOT NULL,
+                        position SERIAL,
+                        PRIMARY KEY (user_id, track_id)
+                    )""");
+            st.execute("""
                     CREATE TABLE IF NOT EXISTS artist_genre (
                         artist_id  TEXT PRIMARY KEY,
                         genres     TEXT NOT NULL,

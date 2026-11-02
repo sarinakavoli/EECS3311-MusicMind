@@ -8,6 +8,7 @@ import com.musicmind.domain.RequestKind;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.UserPreference;
 import com.musicmind.domain.Verdict;
+import com.musicmind.memory.repository.CandidateRepository;
 import com.musicmind.memory.repository.FeedbackRepository;
 import com.musicmind.memory.repository.PlaylistHistoryRepository;
 import com.musicmind.memory.repository.PreferenceRepository;
@@ -26,7 +27,8 @@ class MemoryManagerTest extends PostgresTestBase {
                 new PreferenceRepository(database, currentUser::get),
                 new FeedbackRepository(database, currentUser::get),
                 new SessionRepository(database, currentUser::get),
-                new PlaylistHistoryRepository(database, currentUser::get));
+                new PlaylistHistoryRepository(database, currentUser::get),
+                new CandidateRepository(database, currentUser::get));
     }
 
     /** A database pointing at a port nothing listens on. */

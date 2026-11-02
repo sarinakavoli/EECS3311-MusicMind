@@ -11,6 +11,7 @@ import com.musicmind.llm.LLMProvider;
 import com.musicmind.llm.MockLLMProvider;
 import com.musicmind.memory.MemoryManager;
 import com.musicmind.memory.PostgresTestBase;
+import com.musicmind.memory.repository.CandidateRepository;
 import com.musicmind.memory.repository.FeedbackRepository;
 import com.musicmind.memory.repository.PlaylistHistoryRepository;
 import com.musicmind.memory.repository.PreferenceRepository;
@@ -70,7 +71,8 @@ class CliAppTest extends PostgresTestBase {
                 new PreferenceRepository(db, () -> "sp-user"),
                 new FeedbackRepository(db, () -> "sp-user"),
                 new SessionRepository(db, () -> "sp-user"),
-                new PlaylistHistoryRepository(db, () -> "sp-user"));
+                new PlaylistHistoryRepository(db, () -> "sp-user"),
+                new CandidateRepository(db, () -> "sp-user"));
     }
 
     private AppController controller(Music music, LLMProvider llm) {
@@ -290,6 +292,36 @@ class CliAppTest extends PostgresTestBase {
         Result r = run(controller(new Music(), null), "", "prefs", "set", "blockedArtists", "spotify:artist:" + ARTIST_ID);
 
         assertEquals(CliApp.OK, r.status(), r.err());
+    }
+
+    @Test
+    void candidatesCanBeAddedListedRemovedAndCleared() {
+        AppController c = controller(new Music(), null);
+        String other = "ZYXWVUTSRQ9876543210zy";
+
+        assertEquals(CliApp.OK, run(c, "", "candidates", "add", "spotify:track:" + TRACK_ID).status());
+        assertEquals(CliApp.OK, run(c, "", "candidates", "add", other).status());
+        Result list = run(c, "", "candidates", "list");
+        assertTrue(list.out().contains("Title " + TRACK_ID) && list.out().contains("Title " + other), list.out());
+
+        run(c, "", "candidates", "remove", TRACK_ID);
+        assertFalse(run(c, "", "candidates", "list").out().contains(TRACK_ID));
+
+        run(c, "", "candidates", "clear");
+        assertTrue(run(c, "", "candidates", "list").out().contains(config.wording("cliNoCandidates")));
+    }
+
+    @Test
+    void aCandidateMustBeATrackId() {
+        Result r = run("candidates", "add", "not-an-id");
+
+        assertEquals(CliApp.USAGE, r.status());
+        assertTrue(memory().loadCandidates("sp-user").isEmpty());
+    }
+
+    @Test
+    void candidatesNeedsAnAction() {
+        assertEquals(CliApp.USAGE, run("candidates").status());
     }
 
     @Test

@@ -842,6 +842,21 @@ public class MusicAgentFacade {
         }
     }
 
+    /** The user's candidates with their details from Spotify; one that cannot be read shows by id. */
+    public List<Track> candidates(String userId) {
+        List<Track> out = new ArrayList<>();
+        for (String id : memory.loadCandidates(userId)) {
+            try {
+                out.add(create.music().getTrack(id));
+            } catch (AuthExpiredException e) {
+                throw e;
+            } catch (MusicServiceException e) {
+                out.add(new Track(id, "spotify:track:" + id, id, 0, false, List.of()));
+            }
+        }
+        return out;
+    }
+
     /** The playlists the user can open and edit (F6). */
     public List<PlaylistSummary> userPlaylists() {
         try {

@@ -19,6 +19,7 @@ import com.musicmind.agent.command.PlaylistManager;
 import com.musicmind.memory.Database;
 import com.musicmind.memory.MemoryManager;
 import com.musicmind.memory.PostgresTestBase;
+import com.musicmind.memory.repository.CandidateRepository;
 import com.musicmind.memory.repository.FeedbackRepository;
 import com.musicmind.memory.repository.PlaylistHistoryRepository;
 import com.musicmind.memory.repository.PreferenceRepository;
@@ -86,7 +87,8 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
                 new PreferenceRepository(database, () -> "sp-user"),
                 new FeedbackRepository(database, () -> "sp-user"),
                 new SessionRepository(database, () -> "sp-user"),
-                new PlaylistHistoryRepository(database, () -> "sp-user"));
+                new PlaylistHistoryRepository(database, () -> "sp-user"),
+                new CandidateRepository(database, () -> "sp-user"));
     }
 
     private AppController controller(Music music, LLMProvider llm) {

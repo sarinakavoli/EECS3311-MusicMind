@@ -10,6 +10,7 @@ import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.Playlist;
 import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.Recommendation;
+import com.musicmind.domain.Track;
 import com.musicmind.domain.UserPreference;
 
 import java.util.List;
@@ -42,6 +43,12 @@ public final class RunContext {
     int retries;
     int negotiationRounds;
     Playlist playlist;
+    /** The user's candidate track ids (F3), from memory. */
+    List<String> candidateIds = List.of();
+    /** Those candidates that Spotify could still return. */
+    List<Track> candidates = List.of();
+    /** The candidates the latest selection put in the playlist. */
+    List<String> usedCandidates = List.of();
     /** A playlist created by an attempt whose undo failed; null when none is left on Spotify. */
     String leftoverPlaylistId;
 

@@ -34,6 +34,7 @@ import com.musicmind.llm.OpenAiProvider;
 import com.musicmind.memory.Database;
 import com.musicmind.memory.MemoryManager;
 import com.musicmind.memory.PersistenceException;
+import com.musicmind.memory.repository.CandidateRepository;
 import com.musicmind.memory.repository.FeedbackRepository;
 import com.musicmind.memory.repository.PlaylistHistoryRepository;
 import com.musicmind.memory.repository.GenreRepository;
@@ -165,7 +166,8 @@ public class AppController {
                 new PreferenceRepository(db, userId),
                 new FeedbackRepository(db, userId),
                 new SessionRepository(db, userId),
-                new PlaylistHistoryRepository(db, userId));
+                new PlaylistHistoryRepository(db, userId),
+                new CandidateRepository(db, userId));
         return new AppController(music, memory, llm, config, reauthenticator, browserLoginNeeded);
     }
 
@@ -264,6 +266,30 @@ public class AppController {
     /** The "plain keyword search" label if the last search was not interpreted; otherwise null. */
     public String lastSearchLabel() {
         return facade == null ? null : facade.lastSearchLabel();
+    }
+
+    /**
+     * F3 — sets a track aside for the next playlist (a Spotify track URI is accepted too).
+     *
+     * @throws IllegalArgumentException with a message fit to show if the id is not a track id
+     */
+    public void addCandidate(String trackId) {
+        memory.addCandidate(requireTrackId(trackId));
+    }
+
+    public void removeCandidate(String trackId) {
+        memory.removeCandidate(requireTrackId(trackId));
+    }
+
+    public void clearCandidates() {
+        memory.clearCandidates();
+    }
+
+    /** F3 — the tracks set aside, oldest first, with their details from Spotify. */
+    public List<Track> getCandidates() {
+        requireSpotify();
+        signInIfNeeded();
+        return facade.candidates(currentUser.id());
     }
 
     // ---- F4 ----

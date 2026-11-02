@@ -22,6 +22,10 @@ public class DoneState implements SessionState {
     public void handle(AgentSession session) {
         RunContext ctx = session.context();
         session.setTrace(ctx.trace);
+        ctx.usedCandidates.forEach(ctx.services.memory()::removeCandidate);
+        if (!ctx.usedCandidates.isEmpty()) {
+            session.addNotice(String.format(ctx.services.config().wording("candidatesUsed"), ctx.usedCandidates.size()));
+        }
         session.setDerivedData(SessionRecord.derivedData(ctx));
         ctx.services.memory().saveSession(session);
         session.addNotice(ctx.services.memory().warning());
