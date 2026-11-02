@@ -19,6 +19,8 @@ import javafx.scene.control.Slider;
 import javafx.scene.control.Spinner;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TextFormatter;
+import javafx.util.StringConverter;
 import javafx.scene.layout.VBox;
 
 import java.util.List;
@@ -59,6 +61,20 @@ public final class CreatePlaylistDialog {
         this.onCreated = onCreated;
         this.minutes = new Spinner<>(0, ctx.config().parserMaxTargetMinutes(), 0);
         minutes.setEditable(true);
+        // Digits only, and a converter that never throws: the Spinner commits the editor itself when focus leaves it.
+        minutes.getEditor().setTextFormatter(new TextFormatter<>(change ->
+                change.getControlNewText().chars().allMatch(Character::isDigit) ? change : null));
+        minutes.getValueFactory().setConverter(new StringConverter<>() {
+            @Override
+            public String toString(Integer value) {
+                return value == null ? "0" : value.toString();
+            }
+
+            @Override
+            public Integer fromString(String text) {
+                return format.parseMinutes(text).orElse(0);
+            }
+        });
         createButton = new ButtonType(format.w("Create"), javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
 
         dialog.setTitle(format.w("CreateTitle"));
@@ -101,18 +117,12 @@ public final class CreatePlaylistDialog {
             status.error(format.w("NeedGoal"));
             return;
         }
-        int maxMinutes = ctx.config().parserMaxTargetMinutes();
-        int targetMinutes;
-        try {
-            String typed = minutes.getEditor().getText() == null ? "" : minutes.getEditor().getText().strip();
-            targetMinutes = typed.isEmpty() ? 0 : Integer.parseInt(typed);
-        } catch (NumberFormatException e) {
-            targetMinutes = -1;
-        }
-        if (targetMinutes < 0 || targetMinutes > maxMinutes) {
-            status.error(format.w("BadMinutes", maxMinutes));
+        java.util.OptionalInt parsed = format.parseMinutes(minutes.getEditor().getText());
+        if (parsed.isEmpty()) {
+            status.error(format.w("BadMinutes", ctx.config().parserMaxTargetMinutes()));
             return;
         }
+        int targetMinutes = parsed.getAsInt();
         minutes.getValueFactory().setValue(targetMinutes);
         int chosenMinutes = targetMinutes;
         double ratio = familiarFromGoal.isSelected() ? Double.NaN : familiar.getValue();
