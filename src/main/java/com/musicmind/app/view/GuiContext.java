@@ -41,6 +41,8 @@ public final class GuiContext {
     });
     private final ObjectProperty<User> user = new SimpleObjectProperty<>();
     private final BooleanProperty databaseDown = new SimpleBooleanProperty(false);
+    /** The worker's own copy of {@link #databaseDown}, so it never reads a JavaFX property off the JavaFX thread. */
+    private volatile boolean databaseWasDown;
     private final List<Consumer<User>> loginListeners = new ArrayList<>();
 
     public GuiContext(AppController controller, Config config) {
@@ -118,6 +120,7 @@ public final class GuiContext {
         for (Node node : locked) {
             node.setDisable(false);
         }
+        databaseWasDown = down;
         databaseDown.set(down);
         if (failure != null) {
             status.error(format.failure(action, failure));
@@ -136,7 +139,7 @@ public final class GuiContext {
             if (controller.memory().warning() != null) {
                 return true;
             }
-            return databaseDown.get() && !controller.memory().isAvailable();
+            return databaseWasDown && !controller.memory().isAvailable();
         } catch (RuntimeException e) {
             return true;
         }
@@ -152,6 +155,7 @@ public final class GuiContext {
                 down = true;
             }
             boolean finalDown = down;
+            databaseWasDown = finalDown;
             Platform.runLater(() -> databaseDown.set(finalDown));
         });
     }
