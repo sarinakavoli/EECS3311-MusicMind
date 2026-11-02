@@ -101,11 +101,23 @@ public final class CreatePlaylistDialog {
             status.error(format.w("NeedGoal"));
             return;
         }
-        minutes.commitValue();
-        int targetMinutes = minutes.getValue() == null ? 0 : minutes.getValue();
+        int maxMinutes = ctx.config().parserMaxTargetMinutes();
+        int targetMinutes;
+        try {
+            String typed = minutes.getEditor().getText() == null ? "" : minutes.getEditor().getText().strip();
+            targetMinutes = typed.isEmpty() ? 0 : Integer.parseInt(typed);
+        } catch (NumberFormatException e) {
+            targetMinutes = -1;
+        }
+        if (targetMinutes < 0 || targetMinutes > maxMinutes) {
+            status.error(format.w("BadMinutes", maxMinutes));
+            return;
+        }
+        minutes.getValueFactory().setValue(targetMinutes);
+        int chosenMinutes = targetMinutes;
         double ratio = familiarFromGoal.isSelected() ? Double.NaN : familiar.getValue();
         String playlistName = name.getText() == null || name.getText().isBlank() ? null : name.getText().strip();
-        PlaylistSpec flags = new PlaylistSpec(targetMinutes, allowExplicit.isSelected(), ratio, List.of(), playlistName);
+        PlaylistSpec flags = new PlaylistSpec(chosenMinutes, allowExplicit.isSelected(), ratio, List.of(), playlistName);
         result.getChildren().clear();
         ctx.run(status, "ActionCreate", format.w("Creating"), () -> {
             ctx.controller().setProgressListener(state -> Platform.runLater(() -> status.busy(format.progress(state))));
@@ -125,7 +137,6 @@ public final class CreatePlaylistDialog {
         result.getChildren().setAll(tracks);
         created.notices().forEach(n -> result.getChildren().add(UiParts.muted(n)));
         result.getChildren().add(WhyExpander.of(format, created.explanation()));
-        result.getChildren().add(UiParts.muted(ctx.config().spotifyAttribution()));
         dialog.getDialogPane().getScene().getWindow().sizeToScene();
         onCreated.accept(playlist);
     }
