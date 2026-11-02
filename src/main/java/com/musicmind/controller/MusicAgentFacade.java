@@ -107,6 +107,7 @@ public class MusicAgentFacade {
     private static final String TOP_ITEMS = "getTopItems";
     private static final String SAVED_TRACKS = "getSavedTracks";
     private static final Gson GSON = new Gson();
+    private static final String ARTIST_ID = "(spotify:artist:)?[A-Za-z0-9]{22}";
 
     private final ToolManager tools;
     private final MemoryManager memory;
@@ -126,6 +127,7 @@ public class MusicAgentFacade {
     private volatile AgentSession lastSession;
     private volatile String lastSearchNotice;
     private volatile String lastSearchLabel;
+    private volatile List<Artist> lastSearchArtists = List.of();
     private volatile List<String> lastDiscoverNotices = List.of();
     private volatile DecisionTrace lastDecisionTrace;
     private final PlaylistEditor editor;
@@ -280,6 +282,7 @@ public class MusicAgentFacade {
         }
         lastSearchNotice = null;
         lastSearchLabel = null;
+        lastSearchArtists = List.of();
         SearchQuery parsed = planner.parseSearchQuery(query);
         if (parsed.confidence() < config.searchMinConfidence()) {
             lastSearchLabel = config.searchFallbackLabel();
@@ -296,7 +299,32 @@ public class MusicAgentFacade {
                     .orElse(config.searchNoRelaxedHint());
             lastSearchNotice = String.format(config.searchNoResultsTemplate(), query.strip()) + " " + hint;
         }
+        lastSearchArtists = artistsNamedIn(query);
         return ranked;
+    }
+
+    /**
+     * Artists whose name the query actually contains. A mood search would otherwise list artists that merely
+     * share a word with it. Tracks are the main result, so a failed read only leaves the artists out.
+     */
+    @SuppressWarnings("unchecked")
+    private List<Artist> artistsNamedIn(String query) {
+        ToolResult result = tools.execute("searchArtists", Map.of("query", query.strip(), "limit", config.searchArtistLimit()));
+        if (!result.ok()) {
+            return List.of();
+        }
+        String text = " " + words(query) + " ";
+        return ((List<Artist>) result.payload()).stream()
+                .filter(a -> !words(a.name()).isEmpty() && text.contains(" " + words(a.name()) + " ")).toList();
+    }
+
+    private static String words(String text) {
+        return String.join(" ", text.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]+", " ").strip().split(" "));
+    }
+
+    /** The artists the last search named, best match first; empty when it named none. */
+    public List<Artist> lastSearchArtists() {
+        return lastSearchArtists;
     }
 
     private List<Track> runSearch(SearchQuery query) {
@@ -395,6 +423,50 @@ public class MusicAgentFacade {
         String warning = memory.warning();
         if (warning != null && !notices.contains(warning)) {
             notices.add(warning);
+        }
+    }
+
+    // ---- F8 ----
+
+    /**
+     * Turns what a user typed for blocked artists into comma-separated artist ids. Names are looked up on
+     * Spotify and need an exact match, ignoring case. The whole text is tried first, because a name can
+     * contain a comma ("Tyler, The Creator").
+     *
+     * @throws IllegalArgumentException with a message fit to show if a name matches no artist
+     */
+    public String artistIds(String typed) {
+        String text = typed == null ? "" : typed.strip();
+        if (text.contains(",")) {
+            Optional<Artist> whole = artistNamed(text);
+            if (whole.isPresent()) {
+                return whole.get().id();
+            }
+        }
+        List<String> ids = new ArrayList<>();
+        for (String part : text.split(",")) {
+            String item = part.strip();
+            if (item.matches(ARTIST_ID)) {
+                ids.add(item);
+            } else if (!item.isEmpty()) {
+                ids.add(artistNamed(item).orElseThrow(() -> new IllegalArgumentException(
+                        String.format(config.wording("prefsArtistUnknown"), item))).id());
+            }
+        }
+        return String.join(",", ids);
+    }
+
+    private Optional<Artist> artistNamed(String name) {
+        return create.music().searchArtists(name, config.searchArtistLimit()).stream()
+                .filter(a -> a.name().equalsIgnoreCase(name)).findFirst();
+    }
+
+    /** The name Spotify gives an artist id, read for display only; the id itself if it cannot be read. */
+    public String artistName(String artistId) {
+        try {
+            return create.music().getArtist(artistId).name();
+        } catch (MusicServiceException e) {
+            return artistId;
         }
     }
 

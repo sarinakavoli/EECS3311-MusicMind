@@ -212,6 +212,86 @@ class CliAppTest extends PostgresTestBase {
         assertTrue(r.out().contains(String.format(config.wording("cliTrendStep"), "medium", "short")), r.out());
     }
 
+    private static final String ARTIST_ID = "ABCDEFGHIJ0123456789ab";
+
+    @Test
+    void searchListsAnArtistNamedInTheQuery() {
+        Music music = new Music();
+        music.artists = List.of(new Artist(ARTIST_ID, "Drake", List.of()));
+
+        Result r = run(controller(music, null), "", "search", "songs", "by", "drake");
+
+        assertTrue(r.out().contains("Drake") && r.out().contains(ARTIST_ID), r.out());
+    }
+
+    @Test
+    void searchLeavesOutArtistsTheQueryDidNotName() {
+        Music music = new Music();
+        music.artists = List.of(new Artist(ARTIST_ID, "Upbeat Corporate Music", List.of()));
+
+        Result r = run(controller(music, null), "", "search", "upbeat", "songs");
+
+        assertFalse(r.out().contains("Upbeat Corporate Music"), r.out());
+    }
+
+    @Test
+    void searchStillWorksWhenTheArtistReadFails() {
+        Music music = new Music() {
+            @Override public List<Artist> searchArtists(String query, int limit) {
+                throw new com.musicmind.music.MusicServiceException("Spotify is down", 502);
+            }
+        };
+
+        Result r = run(controller(music, null), "", "search", "drake");
+
+        assertEquals(CliApp.OK, r.status());
+        assertTrue(r.out().contains("Title n0"), r.out());
+    }
+
+    @Test
+    void anArtistCanBeBlockedByNameAndIsStoredByIdAndListedByName() {
+        Music music = new Music();
+        music.artists = List.of(new Artist(ARTIST_ID, "Drake", List.of()));
+        AppController c = controller(music, null);
+
+        Result set = run(c, "", "prefs", "set", "blockedArtists", "drake");
+        Result list = run(c, "", "prefs", "list");
+
+        assertEquals(CliApp.OK, set.status(), set.err());
+        assertEquals(ARTIST_ID, memory().loadPreferences("sp-user").stream()
+                .filter(p -> p.key().equals("blockedArtists")).findFirst().orElseThrow().value());
+        assertTrue(list.out().contains("Drake"), list.out());
+    }
+
+    @Test
+    void anArtistWhoseNameHasACommaCanBeBlocked() {
+        Music music = new Music();
+        music.artists = List.of(new Artist(ARTIST_ID, "Tyler, The Creator", List.of()));
+
+        Result r = run(controller(music, null), "", "prefs", "set", "blockedArtists", "Tyler, The Creator");
+
+        assertEquals(CliApp.OK, r.status(), r.err());
+    }
+
+    @Test
+    void anUnknownArtistNameIsRefusedAndNothingIsSaved() {
+        Music music = new Music();
+        music.artists = List.of(new Artist(ARTIST_ID, "Drake", List.of()));
+
+        Result r = run(controller(music, null), "", "prefs", "set", "blockedArtists", "Nobody Here");
+
+        assertEquals(CliApp.USAGE, r.status());
+        assertTrue(r.err().contains("Nobody Here"), r.err());
+        assertTrue(memory().loadPreferences("sp-user").stream().noneMatch(p -> p.key().equals("blockedArtists")));
+    }
+
+    @Test
+    void anArtistIdIsStillAccepted() {
+        Result r = run(controller(new Music(), null), "", "prefs", "set", "blockedArtists", "spotify:artist:" + ARTIST_ID);
+
+        assertEquals(CliApp.OK, r.status(), r.err());
+    }
+
     @Test
     void helpNeedsNoControllerAndNoSpotify() {
         CliApp app = new CliApp(() -> { throw new AssertionError("no controller for help"); },

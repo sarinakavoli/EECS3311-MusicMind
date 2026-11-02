@@ -1,6 +1,5 @@
 package com.musicmind.cli;
 
-import com.musicmind.agent.PreferenceSettings;
 import com.musicmind.agent.command.PlaylistMissingException;
 import com.musicmind.agent.state.SessionRecord;
 import com.musicmind.config.Config;
@@ -275,6 +274,10 @@ public class CliApp {
             for (int i = 0; i < found.size(); i++) {
                 out.printf("%2d. %s  (%s)%n", i + 1, found.get(i).title(), found.get(i).uri());
             }
+            if (!c.lastSearchArtists().isEmpty()) {
+                out.println(w("ArtistsFound"));
+                c.lastSearchArtists().forEach(a -> out.println("  " + a.name() + "  (" + a.id() + ")"));
+            }
             if (c.lastSearchLabel() != null) {
                 out.println(c.lastSearchLabel());
             }
@@ -446,7 +449,7 @@ public class CliApp {
                         err.println(String.format(config.wording("cliNotSaved"), c.memory().warning()));
                         return FAILED;
                     }
-                    out.println(w("Saved", pref.key(), PreferenceSettings.display(pref)));
+                    out.println(w("Saved", pref.key(), c.displayPreference(pref)));
                 }
                 case "get" -> {
                     List<UserPreference> found = c.getPreferences().stream()
@@ -454,7 +457,7 @@ public class CliApp {
                     if (found.isEmpty()) {
                         out.println(w("NoSuchPreference", rest[1]));
                     }
-                    found.forEach(p -> out.println(p.key() + " = " + PreferenceSettings.display(p)));
+                    found.forEach(p -> out.println(p.key() + " = " + c.displayPreference(p)));
                     printMemoryWarning(w("ShowingDefaults"));
                 }
                 default -> {
@@ -462,7 +465,7 @@ public class CliApp {
                     if (all.isEmpty()) {
                         out.println(w("NoPreferences"));
                     }
-                    all.forEach(p -> out.println(p.key() + " = " + PreferenceSettings.display(p)));
+                    all.forEach(p -> out.println(p.key() + " = " + c.displayPreference(p)));
                     printMemoryWarning(w("ShowingDefaults"));
                 }
             }

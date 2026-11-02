@@ -200,6 +200,28 @@ class SpotifyAdapterTest {
     }
 
     @Test
+    void searchArtistsAsksForArtistsAndReadsThem() {
+        api.respond(r -> Reply.ok("{\"artists\":{\"items\":[{\"id\":\"a1\",\"name\":\"Drake\"},null],\"next\":null}}"));
+
+        List<com.musicmind.domain.Artist> found = adapter.searchArtists("Drake", 3);
+
+        assertEquals(List.of("Drake"), found.stream().map(com.musicmind.domain.Artist::name).toList());
+        assertTrue(decodedQuery(api.requests.get(0)).contains("type=artist"), api.requests.toString());
+        assertTrue(decodedQuery(api.requests.get(0)).contains("limit=3"), api.requests.toString());
+    }
+
+    @Test
+    void getArtistAndGetTrackReadOneItemById() {
+        api.respond(r -> Reply.ok(r.path().contains("/artists/")
+                ? "{\"id\":\"a1\",\"name\":\"Drake\"}" : trackJson(7)));
+
+        assertEquals("Drake", adapter.getArtist("a1").name());
+        assertEquals("Song 7", adapter.getTrack("t7").title());
+        assertEquals("/v1/artists/a1", api.requests.get(0).path());
+        assertEquals("/v1/tracks/t7", api.requests.get(1).path());
+    }
+
+    @Test
     void theSavedTrackCapDefaultsToFiveThousand() {
         api.respond(r -> Reply.ok(endlessPage(api, 50)));
 

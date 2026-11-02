@@ -211,6 +211,31 @@ public class SpotifyAdapter implements MusicService {
     }
 
     @Override
+    public List<Artist> searchArtists(String query, int limit) {
+        int size = Math.min(limit, searchPage);
+        JsonObject body = get("/search?type=artist&limit=" + size + "&q=" + enc(query));
+        JsonObject page = body.has("artists") && body.get("artists").isJsonObject()
+                ? body.getAsJsonObject("artists") : new JsonObject();
+        List<Artist> out = new ArrayList<>();
+        for (JsonElement e : array(page, "items")) {
+            if (e.isJsonObject()) {
+                out.add(toArtist(e.getAsJsonObject()));
+            }
+        }
+        return out;
+    }
+
+    @Override
+    public Artist getArtist(String artistId) {
+        return toArtist(get("/artists/" + enc(artistId)));
+    }
+
+    @Override
+    public Track getTrack(String trackId) {
+        return toTrack(get("/tracks/" + enc(trackId)));
+    }
+
+    @Override
     public List<PlaylistSummary> getUserPlaylists() {
         String me = currentUserId();
         List<PlaylistSummary> out = new ArrayList<>();

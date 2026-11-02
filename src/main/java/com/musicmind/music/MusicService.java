@@ -34,6 +34,9 @@ public interface MusicService {
 
     // ---- read: catalogue ----
     List<Track> search(String query, int limit);
+    List<Artist> searchArtists(String query, int limit);
+    Artist getArtist(String artistId);
+    Track getTrack(String trackId);
     List<Album> getArtistAlbums(String artistId);
     List<Track> getAlbumTracks(String albumId);
 

@@ -14,6 +14,7 @@ import com.musicmind.agent.command.PlaylistManager;
 import com.musicmind.config.Config;
 import com.musicmind.domain.AgentRequest;
 import com.musicmind.domain.AgentSession;
+import com.musicmind.domain.Artist;
 import com.musicmind.domain.DecisionTrace;
 import com.musicmind.domain.Feedback;
 import com.musicmind.domain.ListeningProfile;
@@ -255,6 +256,11 @@ public class AppController {
         return facade == null ? null : facade.lastSearchNotice();
     }
 
+    /** The artists the last search named. */
+    public List<Artist> lastSearchArtists() {
+        return facade == null ? List.of() : facade.lastSearchArtists();
+    }
+
     /** The "plain keyword search" label if the last search was not interpreted; otherwise null. */
     public String lastSearchLabel() {
         return facade == null ? null : facade.lastSearchLabel();
@@ -490,7 +496,17 @@ public class AppController {
      * @throws IllegalArgumentException with a message fit to show, for an unknown key or unusable value
      */
     public UserPreference parsePreference(String key, String value) {
-        return PreferenceSettings.parse(key, value, config);
+        boolean artists = facade != null && key != null && key.strip().equals(PreferenceSettings.BLOCKED_ARTISTS);
+        return PreferenceSettings.parse(key, artists ? facade.artistIds(value) : value, config);
+    }
+
+    /** The value a view shows for a preference: blocked artists by name, which are never stored. */
+    public String displayPreference(UserPreference pref) {
+        if (facade == null || !pref.key().equals(PreferenceSettings.BLOCKED_ARTISTS) || pref.value().isBlank()) {
+            return PreferenceSettings.display(pref);
+        }
+        return java.util.Arrays.stream(pref.value().split(",")).map(facade::artistName)
+                .collect(java.util.stream.Collectors.joining(", "));
     }
 
     /**

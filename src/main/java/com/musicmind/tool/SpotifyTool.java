@@ -22,7 +22,7 @@ public class SpotifyTool implements Tool {
         this.operation = operation;
     }
 
-    /** The seven read tools: getTopItems, getSavedTracks, getRecentlyPlayed, search, getArtistAlbums, getAlbumTracks, getPlaylistItems. */
+    /** The read tools: getTopItems, getSavedTracks, getRecentlyPlayed, search, searchArtists, getArtistAlbums, getAlbumTracks, getPlaylistItems. */
     public static List<Tool> allFor(MusicService music) {
         int defaultLimit = Config.defaults().spotifySearchPageSize();
         return List.of(
@@ -40,6 +40,7 @@ public class SpotifyTool implements Tool {
                 new SpotifyTool("getSavedTracks", a -> music.getSavedTracks()),
                 new SpotifyTool("getRecentlyPlayed", a -> music.getRecentlyPlayed()),
                 new SpotifyTool("search", a -> music.search(required(a, "query"), limit(a, defaultLimit))),
+                new SpotifyTool("searchArtists", a -> music.searchArtists(required(a, "query"), limit(a, defaultLimit))),
                 new SpotifyTool("getArtistAlbums", a -> music.getArtistAlbums(required(a, "artistId"))),
                 new SpotifyTool("getAlbumTracks", a -> music.getAlbumTracks(required(a, "albumId"))),
                 new SpotifyTool("getPlaylistItems", a -> music.getPlaylistItems(required(a, "playlistId"))));

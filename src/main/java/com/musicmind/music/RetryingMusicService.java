@@ -138,6 +138,21 @@ public class RetryingMusicService implements MusicService {
     }
 
     @Override
+    public List<Artist> searchArtists(String query, int limit) {
+        return withBackoff(() -> delegate.searchArtists(query, limit));
+    }
+
+    @Override
+    public Artist getArtist(String artistId) {
+        return withBackoff(() -> delegate.getArtist(artistId));
+    }
+
+    @Override
+    public Track getTrack(String trackId) {
+        return withBackoff(() -> delegate.getTrack(trackId));
+    }
+
+    @Override
     public List<Album> getArtistAlbums(String artistId) {
         return withBackoff(() -> delegate.getArtistAlbums(artistId));
     }

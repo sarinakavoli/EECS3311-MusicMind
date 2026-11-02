@@ -96,6 +96,21 @@ public class GenreEnrichingMusicService implements MusicService {
     }
 
     @Override
+    public List<Artist> searchArtists(String query, int limit) {
+        return delegate.searchArtists(query, limit);
+    }
+
+    @Override
+    public Artist getArtist(String artistId) {
+        return delegate.getArtist(artistId);
+    }
+
+    @Override
+    public Track getTrack(String trackId) {
+        return delegate.getTrack(trackId);
+    }
+
+    @Override
     public List<Album> getArtistAlbums(String artistId) {
         return delegate.getArtistAlbums(artistId);
     }
