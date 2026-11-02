@@ -448,6 +448,11 @@ public class AppController {
         return facade == null ? null : facade.lastValidationNote();
     }
 
+    /** The target length, in minutes, the last validation judged by (0: none), so a view can say how far off it is. */
+    public int lastValidationTargetMinutes() {
+        return facade == null ? 0 : facade.lastValidationTargetMinutes();
+    }
+
     // ---- F10 ----
 
     /**

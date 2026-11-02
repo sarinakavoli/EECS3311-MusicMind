@@ -147,4 +147,12 @@ class ConfigTest {
     void genreAttributionCreditsMusicBrainz() {
         assertTrue(Config.of(Map.of()).genreAttribution().contains("MusicBrainz"));
     }
+
+    @Test
+    void guiDisplayCountsComeFromTheBundledProperties() {
+        Config c = Config.of(Map.of());
+        assertEquals(8, c.guiGenresShown());
+        assertEquals(5, c.guiArtistsShown());
+        assertEquals(3, c.guiTrendGenresShown());
+    }
 }

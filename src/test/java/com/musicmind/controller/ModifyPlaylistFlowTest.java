@@ -436,6 +436,15 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
     }
 
     @Test
+    void validateReportsTheTargetLengthItJudgedBy() {
+        AppController c = controller(fourTracksTwelveMinutes(), null);
+
+        c.validatePlaylist("p");
+
+        assertEquals(12, c.lastValidationTargetMinutes());
+    }
+
+    @Test
     void anAbsoluteLengthStatedByTheEditBecomesTheTarget() {
         Music music = fourTracksTwelveMinutes();
         AppController c = controller(music, editReply("{\"commands\":[{\"type\":\"remove\",\"track\":\"4\"},"

@@ -138,6 +138,7 @@ public class MusicAgentFacade {
     private volatile boolean lastRestoreChanged;
     private volatile List<String> lastModifyNotices = List.of();
     private volatile String lastValidationNote;
+    private volatile int lastValidationTargetMinutes;
 
     /**
      * What playlist creation needs beyond the read side: the Spotify service and command invoker that write,
@@ -788,12 +789,18 @@ public class MusicAgentFacade {
             note += " " + String.format(config.wording("validatePartial"), items.size());
         }
         lastValidationNote = memory.warning() == null ? note : note + " " + memory.warning();
+        lastValidationTargetMinutes = choice.spec().targetMinutes();
         return validate(playlist, choice.spec());
     }
 
     /** Which constraints the last {@link #validatePlaylist} used; null before one. */
     public String lastValidationNote() {
         return lastValidationNote;
+    }
+
+    /** The target length, in minutes, the last {@link #validatePlaylist} judged by; 0 when it had none. */
+    public int lastValidationTargetMinutes() {
+        return lastValidationTargetMinutes;
     }
 
     private record SpecChoice(PlaylistSpec spec, boolean fromSession) { }

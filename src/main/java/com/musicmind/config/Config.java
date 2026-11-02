@@ -508,6 +508,23 @@ public final class Config {
         return java.util.regex.Pattern.compile(text("feedback.trackIdPattern"));
     }
 
+    // ---- Graphical interface ----
+
+    /** Genres the Profile view lists. */
+    public int guiGenresShown() {
+        return integer("gui.genresShown");
+    }
+
+    /** Artists listed per list in the Profile and Trends views. */
+    public int guiArtistsShown() {
+        return integer("gui.artistsShown");
+    }
+
+    /** Genres listed per range in the Trends view. */
+    public int guiTrendGenresShown() {
+        return integer("gui.trendGenresShown");
+    }
+
     /** Wording template or phrase from {@code musicmind.properties}; keys are {@code text.*}. */
     public String wording(String key) {
         return text("text." + key);
