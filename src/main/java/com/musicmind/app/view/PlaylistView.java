@@ -47,6 +47,7 @@ public final class PlaylistView implements TabView {
     private final Button refresh;
     private final Button create;
     private final StatusLine status = new StatusLine();
+    private final StatusLine listStatus = new StatusLine();
     private final StatusLine feedbackStatus = new StatusLine();
     private final Label title = UiParts.heading("");
     private final FlowPane badges = new FlowPane(UiParts.GAP, UiParts.GAP);
@@ -109,7 +110,7 @@ public final class PlaylistView implements TabView {
         detail.setPadding(new Insets(UiParts.PAD));
         detail.setVisible(false);
         Label chooser = UiParts.muted(format.w("SelectPlaylist"));
-        VBox left = new VBox(UiParts.GAP, new HBox(UiParts.GAP, refresh, create), playlists);
+        VBox left = new VBox(UiParts.GAP, new HBox(UiParts.GAP, refresh, create), playlists, listStatus);
         left.setPadding(new Insets(UiParts.PAD));
         VBox.setVgrow(playlists, Priority.ALWAYS);
         VBox right = new VBox(UiParts.GAP, status, chooser, detail);
@@ -144,7 +145,7 @@ public final class PlaylistView implements TabView {
      * selecting it opens it (a new or changed playlist) or only highlights it (the one already shown).
      */
     private void loadList(String selectId, boolean openIt) {
-        ctx.run(status, "ActionListPlaylists", format.w("Working"), () -> ctx.controller().getPlaylists(), list -> {
+        ctx.run(listStatus, "ActionListPlaylists", format.w("Working"), () -> ctx.controller().getPlaylists(), list -> {
             quietSelection = !openIt;
             try {
                 playlists.setItems(FXCollections.observableArrayList(list));

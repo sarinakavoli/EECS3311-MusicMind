@@ -235,7 +235,8 @@ public final class ViewFormat {
             return config.wording("cliLoginExpired");
         }
         if (error instanceof NegotiationCancelledException) {
-            return error.getMessage();
+            return error.getMessage() == null || error.getMessage().isBlank()
+                    ? config.wording("negotiationCancelled") : error.getMessage();
         }
         String reason;
         if (error instanceof RateLimitException) {

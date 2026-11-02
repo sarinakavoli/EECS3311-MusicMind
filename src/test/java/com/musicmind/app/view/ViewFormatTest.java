@@ -345,4 +345,9 @@ class ViewFormatTest {
         String message = config.wording("negotiationCancelled");
         assertEquals(message, format.failure("ActionCreate", new NegotiationCancelledException(message)));
     }
+
+    @Test
+    void aCancelledNegotiationWithoutAMessageUsesTheStandardWording() {
+        assertEquals(config.wording("negotiationCancelled"), format.failure("ActionCreate", new NegotiationCancelledException(null)));
+    }
 }
