@@ -69,6 +69,11 @@ public final class SearchView implements TabView {
         VBox right = new VBox(4, UiParts.heading(format.w("Candidates")), candidates, clear);
         HBox.setHgrow(left, Priority.ALWAYS);
         HBox.setHgrow(right, Priority.ALWAYS);
+        ctx.onDataChanged(() -> {
+            if (ctx.userProperty().get() != null) {
+                onLogin(ctx.userProperty().get());
+            }
+        });
         VBox page = UiParts.page(bar, status, new HBox(UiParts.PAD, left, right), artists, notices);
         root = new LoginGate(ctx, page, false);
     }

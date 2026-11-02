@@ -49,6 +49,11 @@ public final class HistoryView implements TabView {
         this.format = ctx.format();
         refresh = new Button(format.w("Refresh"));
         refresh.setOnAction(e -> load(ctx.userProperty().get()));
+        ctx.onDataChanged(() -> {
+            if (ctx.userProperty().get() != null) {
+                load(ctx.userProperty().get());
+            }
+        });
 
         sessions.getColumns().add(column(format.w("ColWhen"), ViewFormat.HistoryRow::when));
         sessions.getColumns().add(column(format.w("ColStatus"), ViewFormat.HistoryRow::status));
@@ -130,6 +135,7 @@ public final class HistoryView implements TabView {
         }, outcome -> {
             if (outcome.missing() == null) {
                 status.info(outcome.message());
+                ctx.dataChanged();
             } else if (confirmRecreate(outcome.missing())) {
                 recreate(version, button);
             } else {
@@ -149,7 +155,10 @@ public final class HistoryView implements TabView {
         ctx.run(status, "ActionRecreate", format.w("Restoring"), () -> {
             Playlist created = ctx.controller().recreateFromSnapshot(version.id());
             return format.w("Recreated", created.name(), created.tracks().size());
-        }, status::info, button);
+        }, message -> {
+            status.info(message);
+            ctx.dataChanged();
+        }, button);
     }
 
     /** A saved version with its Restore button. */

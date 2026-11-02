@@ -61,14 +61,20 @@ public final class PlaylistView implements TabView {
     private final VBox detail = new VBox(UiParts.GAP);
     private final Node root;
     private String openId;
+    private boolean quietSelection;
+    private boolean changedHere;
 
     public PlaylistView(GuiContext ctx) {
         this.ctx = ctx;
         this.format = ctx.format();
         refresh = new Button(format.w("Refresh"));
         refresh.setOnAction(e -> loadList(null));
+        ctx.onDataChanged(this::reloadAfterChange);
         create = new Button(format.w("CreatePlaylist"));
-        create.setOnAction(e -> new CreatePlaylistDialog(ctx, created -> loadList(created.spotifyId())).show());
+        create.setOnAction(e -> new CreatePlaylistDialog(ctx, created -> {
+            announceChange();
+            loadList(created.spotifyId());
+        }).show());
         playlists.setCellFactory(list -> new ListCell<>() {
             @Override
             protected void updateItem(PlaylistSummary item, boolean empty) {
@@ -79,7 +85,7 @@ public final class PlaylistView implements TabView {
         playlists.setPlaceholder(new Label(ctx.config().wording("cliNoPlaylists")));
         playlists.setPrefWidth(LIST_WIDTH);
         playlists.getSelectionModel().selectedItemProperty().addListener((o, was, now) -> {
-            if (now != null) {
+            if (now != null && !quietSelection) {
                 open(now.id());
             }
         });
@@ -133,24 +139,63 @@ public final class PlaylistView implements TabView {
         loadList(null);
     }
 
-    /** Reads the playlist list; selects {@code selectId} afterwards when given. */
-    private void loadList(String selectId) {
+    /**
+     * Reads the playlist list and selects {@code selectId} afterwards when given. {@code openIt} says whether
+     * selecting it opens it (a new or changed playlist) or only highlights it (the one already shown).
+     */
+    private void loadList(String selectId, boolean openIt) {
         ctx.run(status, "ActionListPlaylists", format.w("Working"), () -> ctx.controller().getPlaylists(), list -> {
-            playlists.setItems(FXCollections.observableArrayList(list));
-            if (selectId != null) {
-                list.stream().filter(p -> p.id().equals(selectId)).findFirst()
-                        .ifPresent(p -> playlists.getSelectionModel().select(p));
+            quietSelection = !openIt;
+            try {
+                playlists.setItems(FXCollections.observableArrayList(list));
+                if (selectId != null) {
+                    list.stream().filter(p -> p.id().equals(selectId)).findFirst()
+                            .ifPresent(p -> playlists.getSelectionModel().select(p));
+                }
+            } finally {
+                quietSelection = false;
             }
         }, refresh, create);
+    }
+
+    private void loadList(String selectId) {
+        loadList(selectId, true);
+    }
+
+    /** Other tabs changed playlists: reload the list and open the shown playlist again. */
+    private void reloadAfterChange() {
+        if (!changedHere && ctx.userProperty().get() != null) {
+            loadList(openId, true);
+        }
+    }
+
+    /** Tells the other tabs that this view changed a playlist; this view does not reload itself for it. */
+    private void announceChange() {
+        changedHere = true;
+        try {
+            ctx.dataChanged();
+        } finally {
+            changedHere = false;
+        }
     }
 
     private void open(String id) {
         if (id == null) {
             return;
         }
+        if (!id.equals(openId)) {
+            openId = null;   // a failed open must not leave Modify and Undo aimed at the previous playlist
+            detail.setVisible(false);
+        }
         ctx.run(status, "ActionShowPlaylist", format.w("Opening"), () -> read(id, null, List.of()), this::show,
                 modify, undo, check, instruction);
     }
+
+    /** What a write did, and the refreshed view of the playlist, or why it could not be read back. */
+    private record Changed(Opened opened, String change, Throwable refreshFailure) { }
+
+    /** The words of a successful write and the notices it left. */
+    private record Written(String change, List<String> notices) { }
 
     private void modify() {
         String text = instruction.getText() == null ? "" : instruction.getText().strip();
@@ -158,15 +203,11 @@ public final class PlaylistView implements TabView {
             return;
         }
         String id = openId;
-        ctx.run(status, "ActionModify", format.w("Modifying"), () -> {
+        change(id, "ActionModify", format.w("Modifying"), () -> {
             ctx.controller().modifyPlaylist(id, text);
-            String change = ctx.config().wording("cliChangedPrefix") + " " + ctx.controller().lastChangeSummary();
-            List<String> modifyNotices = ctx.controller().lastModifyNotices();
-            return read(id, change, modifyNotices);
-        }, opened -> {
-            instruction.clear();
-            show(opened);
-        }, modify, undo, check, instruction);
+            return new Written(ctx.config().wording("cliChangedPrefix") + " " + ctx.controller().lastChangeSummary(),
+                    ctx.controller().lastModifyNotices());
+        }, true);
     }
 
     private void undo() {
@@ -174,10 +215,40 @@ public final class PlaylistView implements TabView {
             return;
         }
         String id = openId;
-        ctx.run(status, "ActionUndo", format.w("Undoing"), () -> {
+        change(id, "ActionUndo", format.w("Undoing"), () -> {
             ctx.controller().undo(id);
-            return read(id, ctx.config().wording("cliUndone"), List.of());
-        }, this::show, modify, undo, check, instruction);
+            return new Written(ctx.config().wording("cliUndone"), List.of());
+        }, false);
+    }
+
+    /**
+     * Writes to a playlist, then reads it back. A failed read-back is not a failed write: the success still
+     * shows, so the user does not repeat the change. An expired login during the read-back still logs out.
+     */
+    private void change(String id, String action, String busy, java.util.function.Supplier<Written> write, boolean clearInstruction) {
+        ctx.run(status, action, busy, () -> {
+            Written written = write.get();
+            try {
+                return new Changed(read(id, written.change(), written.notices()), written.change(), null);
+            } catch (RuntimeException e) {
+                return new Changed(null, written.change(), e);
+            }
+        }, changed -> {
+            if (clearInstruction) {
+                instruction.clear();
+            }
+            if (changed.opened() != null) {
+                show(changed.opened());
+            } else {
+                status.info(changed.change());
+                notices.getChildren().setAll(UiParts.muted(format.w("RefreshFailed")));
+                if (changed.refreshFailure() instanceof AuthExpiredException) {
+                    ctx.userProperty().set(null);
+                }
+            }
+            announceChange();
+            loadList(openId, false);
+        }, modify, undo, check, instruction);
     }
 
     /** Runs on the worker: the playlist, then its validation; a validation that cannot run does not hide the playlist. */
