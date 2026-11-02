@@ -72,7 +72,7 @@ public final class Config {
             if (in == null) {
                 throw new IllegalStateException("Missing classpath resource " + TUNABLES_RESOURCE);
             }
-            props.load(in);
+            props.load(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
         } catch (IOException e) {
             throw new IllegalStateException("Could not read " + TUNABLES_RESOURCE, e);
         }
