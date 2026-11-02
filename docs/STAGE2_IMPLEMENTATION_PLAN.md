@@ -7,7 +7,7 @@ Plain-text extracts for implementers live beside the task briefs in `spec/` (pat
 patterns, commands and GUI screens match Stage 1. Where this plan and the report disagree, the report wins,
 except for the rulings in "Resolved Stage 1 conflicts" below.
 
-**Branches and PRs:** never commit to `main` directly. Always merge with a merge commit, never squash, so every commit keeps its real date for the weekly summary. Sarina approves each merge.
+**Branches and PRs:** never commit to `main` directly. Always merge with a merge commit, never squash, so every commit keeps its real date for the weekly summary. Run the `code-review` skill on every PR before asking for its merge. Sarina approves each merge.
 
 | PR | Branch | Holds | Tasks |
 |---|---|---|---|
