@@ -5,6 +5,8 @@ import com.musicmind.domain.PlaylistSummary;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.User;
 import com.musicmind.domain.ValidationResult;
+import com.musicmind.music.AuthExpiredException;
+import com.musicmind.music.RateLimitException;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -97,8 +99,7 @@ public final class PlaylistView implements TabView {
         ScrollPane trackScroll = new ScrollPane(tracks);
         trackScroll.setFitToWidth(true);
         trackScroll.setPrefHeight(TRACK_AREA_HEIGHT);
-        detail.getChildren().addAll(title, badges, warnings, trackScroll, feedbackStatus, modifyBox, notices, why,
-                UiParts.muted(ctx.config().spotifyAttribution()));
+        detail.getChildren().addAll(title, badges, warnings, trackScroll, feedbackStatus, modifyBox, notices, why);
         detail.setPadding(new Insets(UiParts.PAD));
         detail.setVisible(false);
         Label chooser = UiParts.muted(format.w("SelectPlaylist"));
@@ -191,6 +192,8 @@ public final class PlaylistView implements TabView {
             validation = ctx.controller().validatePlaylist(id);
             target = ctx.controller().lastValidationTargetMinutes();
             note = ctx.controller().lastValidationNote();
+        } catch (AuthExpiredException | RateLimitException e) {
+            throw e;
         } catch (RuntimeException e) {
             all.add(ctx.format().failure("ActionCheck", e));
         }
