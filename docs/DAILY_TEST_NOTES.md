@@ -423,4 +423,6 @@ build/install/musicmind/bin/musicmind create "a calm 30 minute mix for studying"
 
 **Verified:** all tests, on a forced clean run. Live and read-only on your account: `playlists`, `show`, `history <id>`, `trends`, the `Artists:` section, single artist and track reads, and `candidates` add, list and clear.
 
-**Not verified live:** a `create` that uses a candidate, and `prefs set blockedArtists` by name (it would change your stored preference). The GUI controls for all of this arrive with Task 13.
+**Also checked live (Nov 1):** `create` with a candidate gave playlist `1tLPnOIvqQsx1pFYWPZzgq` with Billie Jean as track 1, confirmed by reading it back from Spotify, and the candidate list was empty afterwards. A blocked track made `validate` fail, and `modify` refused to add a blocked track and left the playlist unchanged. `blockedArtists` by name stored the id, listed the name, made `validate` fail, and refused an unknown name. Preferences were restored afterwards.
+
+**Not verified live:** the GUI controls for all of this, which arrive with Task 13.
