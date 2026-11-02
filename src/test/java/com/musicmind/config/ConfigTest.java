@@ -152,7 +152,8 @@ class ConfigTest {
     void guiDisplayCountsComeFromTheBundledProperties() {
         Config c = Config.of(Map.of());
         assertEquals(8, c.guiGenresShown());
-        assertEquals(5, c.guiArtistsShown());
+        assertEquals(10, c.guiArtistsShown());
+        assertEquals(10, c.guiTracksShown());
         assertEquals(3, c.guiTrendGenresShown());
     }
 }

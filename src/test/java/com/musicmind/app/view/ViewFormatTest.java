@@ -6,8 +6,12 @@ import com.musicmind.config.Config;
 import com.musicmind.domain.AgentRequest;
 import com.musicmind.domain.AgentSession;
 import com.musicmind.domain.Artist;
+import com.musicmind.domain.DecisionTrace;
 import com.musicmind.domain.ListeningProfile;
+import com.musicmind.domain.Playlist;
+import com.musicmind.domain.Recommendation;
 import com.musicmind.domain.RangeChange;
+import com.musicmind.domain.SnapshotInfo;
 import com.musicmind.domain.RequestKind;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
@@ -233,5 +237,36 @@ class ViewFormatTest {
     @Test
     void progressTextShowsTheStateName() {
         assertEquals("planning...", format.progress("planning"));
+    }
+
+    @Test
+    void aDecisionTraceIsExplainedAsStrategyAndConstraints() {
+        DecisionTrace trace = new DecisionTrace("Balanced", Map.of("a", "why"), List.of("no duplicate tracks", "explicit tracks excluded"));
+
+        assertEquals(List.of("Chosen with the Balanced strategy.", "- no duplicate tracks", "- explicit tracks excluded"),
+                format.traceLines(trace));
+    }
+
+    @Test
+    void noTraceGivesNoLines() {
+        assertTrue(format.traceLines(null).isEmpty());
+    }
+
+    @Test
+    void recommendationDetailShowsTheScoreAndFamiliarShare() {
+        Recommendation rec = new Recommendation(track("a", 3, false), "by an artist new to you", 0.25, 0.8765);
+        assertEquals("score 0.88, familiar 25%", format.recommendationDetail(rec));
+    }
+
+    @Test
+    void playlistTitleShowsNameTrackCountAndMinutes() {
+        Playlist playlist = new Playlist("p1", "Mix", List.of(track("a", 3, false), track("b", 4, false)));
+        assertEquals("Mix: 2 tracks, 7 min", format.playlistTitle(playlist));
+    }
+
+    @Test
+    void aSavedVersionIsDescribedByNameSizeAndTime() {
+        SnapshotInfo info = new SnapshotInfo(4, "pl9", "Mix", 12, Instant.parse("2026-11-01T14:05:00Z"));
+        assertEquals("Mix (12 tracks), saved 2026-11-01 14:05", format.snapshotLine(info));
     }
 }

@@ -520,6 +520,11 @@ public final class Config {
         return integer("gui.artistsShown");
     }
 
+    /** Tracks the Profile view lists. */
+    public int guiTracksShown() {
+        return integer("gui.tracksShown");
+    }
+
     /** Genres listed per range in the Trends view. */
     public int guiTrendGenresShown() {
         return integer("gui.trendGenresShown");

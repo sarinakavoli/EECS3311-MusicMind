@@ -5,7 +5,11 @@ import com.musicmind.agent.state.SessionRecord;
 import com.musicmind.config.Config;
 import com.musicmind.domain.AgentSession;
 import com.musicmind.domain.Artist;
+import com.musicmind.domain.DecisionTrace;
 import com.musicmind.domain.ListeningProfile;
+import com.musicmind.domain.Playlist;
+import com.musicmind.domain.Recommendation;
+import com.musicmind.domain.SnapshotInfo;
 import com.musicmind.domain.RangeChange;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
@@ -223,5 +227,31 @@ public final class ViewFormat {
     /** A creation step shown as progress. */
     public String progress(String stateName) {
         return w("Progress", stateName);
+    }
+
+    /** How the run chose its tracks: the strategy, then each constraint it kept. Empty when there is no trace. */
+    public List<String> traceLines(DecisionTrace trace) {
+        if (trace == null) {
+            return List.of();
+        }
+        List<String> lines = new ArrayList<>();
+        lines.add(w("Strategy", trace.strategyName()));
+        trace.constraintsSatisfied().forEach(c -> lines.add(w("ConstraintLine", c)));
+        return lines;
+    }
+
+    /** The score and familiar share of one recommendation. */
+    public String recommendationDetail(Recommendation recommendation) {
+        return w("RecommendationDetail", recommendation.score(), recommendation.familiarity() * 100);
+    }
+
+    /** A playlist's name with its track count and length. */
+    public String playlistTitle(Playlist playlist) {
+        return w("PlaylistTitle", playlist.name(), playlist.tracks().size(), minutes(playlist.totalDuration()));
+    }
+
+    /** A saved playlist version as one line of the restore list. */
+    public String snapshotLine(SnapshotInfo info) {
+        return w("VersionLine", info.name(), info.trackCount(), info.createdAt() == null ? "" : timeFormat.format(info.createdAt()));
     }
 }
