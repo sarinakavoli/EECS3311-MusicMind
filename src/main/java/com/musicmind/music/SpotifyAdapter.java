@@ -248,10 +248,7 @@ public class SpotifyAdapter implements MusicService {
                     out.add(new PlaylistSummary(str(p, "id"), str(p, "name"), trackTotal(p)));
                 }
             }
-            url = hasNext(page) ? page.get("next").getAsString() : null;
-            if (url != null && !url.startsWith(api)) {
-                throw new MusicServiceException("Spotify returned an unexpected next-page address; stopped paging.");
-            }
+            url = nextUrl(page);
         }
         return out;
     }
@@ -316,14 +313,11 @@ public class SpotifyAdapter implements MusicService {
                 }
                 position++;
             }
-            url = hasNext(page) ? page.get("next").getAsString() : null;
-            if (url != null && !url.startsWith(api)) {
-                throw new MusicServiceException("Spotify returned an unexpected next-page address; stopped paging.");
-            }
+            url = nextUrl(page);
         }
         boolean truncated = url != null || out.size() > limit;
         int kept = Math.min(out.size(), limit);
-        return new TrackList(out.subList(0, kept), truncated, positions.subList(0, kept));
+        return new TrackList(out.subList(0, kept), truncated, positions.subList(0, kept), position);
     }
 
     private JsonObject send(String method, String path, String jsonBody) {
@@ -381,6 +375,15 @@ public class SpotifyAdapter implements MusicService {
 
     private static int retryAfter(HttpResponse<String> response) {
         return parseInt(response.headers().firstValue("Retry-After").orElse("0"), 0);
+    }
+
+    /** The next page's address, or null on the last page; a link off the API host is never followed. */
+    private String nextUrl(JsonObject page) {
+        String url = hasNext(page) ? page.get("next").getAsString() : null;
+        if (url != null && !url.startsWith(api)) {
+            throw new MusicServiceException("Spotify returned an unexpected next-page address; stopped paging.");
+        }
+        return url;
     }
 
     private static boolean hasNext(JsonObject page) {

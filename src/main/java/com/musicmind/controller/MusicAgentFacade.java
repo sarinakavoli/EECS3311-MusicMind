@@ -128,6 +128,8 @@ public class MusicAgentFacade {
     private volatile String lastSearchNotice;
     private volatile String lastSearchLabel;
     private volatile List<Artist> lastSearchArtists = List.of();
+    private volatile List<String> lastPlaylistNotices = List.of();
+    private volatile List<String> lastArtistNotices = List.of();
     private volatile List<String> lastDiscoverNotices = List.of();
     private volatile DecisionTrace lastDecisionTrace;
     private final PlaylistEditor editor;
@@ -430,35 +432,49 @@ public class MusicAgentFacade {
 
     /**
      * Turns what a user typed for blocked artists into comma-separated artist ids. Names are looked up on
-     * Spotify and need an exact match, ignoring case. The whole text is tried first, because a name can
-     * contain a comma ("Tyler, The Creator").
+     * Spotify and need an exact match, ignoring case. The longest run of comma-separated parts that names an
+     * artist wins, because a name can contain a comma ("Tyler, The Creator"). When several artists share a
+     * name, as is common on Spotify, its top match is used and {@link #lastArtistNotices()} says so.
      *
      * @throws IllegalArgumentException with a message fit to show if a name matches no artist
      */
     public String artistIds(String typed) {
-        String text = typed == null ? "" : typed.strip();
-        if (text.contains(",")) {
-            Optional<Artist> whole = artistNamed(text);
-            if (whole.isPresent()) {
-                return whole.get().id();
-            }
-        }
+        List<String> parts = java.util.Arrays.stream((typed == null ? "" : typed).split(","))
+                .map(String::strip).filter(part -> !part.isEmpty()).toList();
         List<String> ids = new ArrayList<>();
-        for (String part : text.split(",")) {
-            String item = part.strip();
-            if (item.matches(ARTIST_ID)) {
-                ids.add(item);
-            } else if (!item.isEmpty()) {
-                ids.add(artistNamed(item).orElseThrow(() -> new IllegalArgumentException(
-                        String.format(config.wording("prefsArtistUnknown"), item))).id());
+        List<String> notices = new ArrayList<>();
+        for (int start = 0; start < parts.size(); ) {
+            if (parts.get(start).matches(ARTIST_ID)) {
+                ids.add(parts.get(start++));
+                continue;
             }
+            int end = parts.size();
+            List<Artist> named = List.of();
+            for (; end > start && named.isEmpty(); end--) {
+                named = artistsNamed(String.join(", ", parts.subList(start, end)));
+            }
+            if (named.isEmpty()) {
+                throw new IllegalArgumentException(String.format(config.wording("prefsArtistUnknown"), parts.get(start)));
+            }
+            ids.add(named.get(0).id());
+            if (named.size() > 1) {
+                notices.add(String.format(config.wording("prefsArtistShared"), named.size(),
+                        String.join(", ", parts.subList(start, end + 1)), named.get(0).id()));
+            }
+            start = end + 1;
         }
+        lastArtistNotices = List.copyOf(notices);
         return String.join(",", ids);
     }
 
-    private Optional<Artist> artistNamed(String name) {
+    private List<Artist> artistsNamed(String name) {
         return create.music().searchArtists(name, config.searchArtistLimit()).stream()
-                .filter(a -> a.name().equalsIgnoreCase(name)).findFirst();
+                .filter(a -> a.name().equalsIgnoreCase(name)).toList();
+    }
+
+    /** What the last {@link #artistIds} should tell the user, such as a name several artists share. */
+    public List<String> lastArtistNotices() {
+        return lastArtistNotices;
     }
 
     /** The name Spotify gives an artist id, read for display only; the id itself if it cannot be read. */
@@ -559,15 +575,15 @@ public class MusicAgentFacade {
         List<Track> items = readItems(id);
         requireComplete(items);
         Playlist current = named(id, items);
+        PlaylistSpec stored = specFor(userId, id).spec();
         PlaylistEditor.EditPlan plan;
         try {
-            plan = editor.plan(new PlaylistContext(id, current.tracks(), create.music()), instruction.strip(),
+            plan = editor.plan(new PlaylistContext(id, current.tracks(), create.music(), stored), instruction.strip(),
                     knownArtistGenres(userId));
         } catch (MusicServiceException e) {
             throw playlistAccess(e);
         }
         List<String> notices = new ArrayList<>();
-        PlaylistSpec stored = specFor(userId, id).spec();
         plan = replanWhileViolating(current, plan, instruction.strip(), stored, userId);
         plan = negotiateEdit(current, plan, notices, stored);
         int snapshotId;
@@ -586,7 +602,7 @@ public class MusicAgentFacade {
             notices.add(String.format(config.wording("modifyApproximate"), plan.mood(),
                     String.join(", ", MoodGenreMap.load().genresFor(plan.mood()))));
         }
-        Optional<Playlist> readBack = readBack(id);
+        Optional<Playlist> readBack = readBack(id, current.name());
         Playlist updated;
         if (readBack.isPresent()) {
             updated = readBack.get();
@@ -604,9 +620,9 @@ public class MusicAgentFacade {
     }
 
     /** The playlist after a write that already went through; empty if it cannot be read just now. */
-    private Optional<Playlist> readBack(String id) {
+    private Optional<Playlist> readBack(String id, String name) {
         try {
-            return Optional.of(loadPlaylist(id));
+            return Optional.of(new Playlist(id, name, readItems(id)));
         } catch (PlaylistChangeException | MusicServiceException e) {
             return Optional.empty();
         }
@@ -662,7 +678,7 @@ public class MusicAgentFacade {
             String hint = String.format(config.wording("modifyReplanHint"), String.join("; ", introduced));
             PlaylistEditor.EditPlan next;
             try {
-                next = editor.plan(new PlaylistContext(current.spotifyId(), current.tracks(), create.music()),
+                next = editor.plan(new PlaylistContext(current.spotifyId(), current.tracks(), create.music(), editSpec),
                         instruction + "\n" + hint, knownArtistGenres(userId));
             } catch (MusicServiceException e) {
                 throw playlistAccess(e);
@@ -867,9 +883,27 @@ public class MusicAgentFacade {
         }
     }
 
-    /** The playlist as Spotify holds it, with full track details for display (F6). */
+    /**
+     * The playlist as Spotify holds it, with full track details for display (F6). What the read could not
+     * include is in {@link #lastPlaylistNotices()}.
+     */
     public Playlist playlist(String playlistId) {
-        return loadPlaylist(requirePlaylistId(playlistId));
+        String id = requirePlaylistId(playlistId);
+        List<Track> items = readItems(id);
+        List<String> notices = new ArrayList<>();
+        if (TrackList.isTruncated(items)) {
+            notices.add(String.format(config.wording("validatePartial"), items.size()));
+        }
+        if (TrackList.skipped(items) > 0) {
+            notices.add(String.format(config.wording("playlistSkipped"), TrackList.skipped(items)));
+        }
+        lastPlaylistNotices = List.copyOf(notices);
+        return named(id, items);
+    }
+
+    /** What the last {@link #playlist} read could not include: a limit reached, entries left out. */
+    public List<String> lastPlaylistNotices() {
+        return lastPlaylistNotices;
     }
 
     /** Genres known per artist id from the stored taste profile (no Spotify call); empty if none is stored. */
@@ -977,7 +1011,7 @@ public class MusicAgentFacade {
             int back = targets(userId, id).targetAt(snapshotId).orElse(current);
             saveChangeSession(id, config.wording("restoreRecordText"), PlaylistTargets.change(back, current, saved));
         }
-        return readBack(id).orElseGet(() -> new Playlist(id, snapshot.name(), snapshot.tracks()));
+        return readBack(id, snapshot.name()).orElseGet(() -> new Playlist(id, snapshot.name(), snapshot.tracks()));
     }
 
     /**

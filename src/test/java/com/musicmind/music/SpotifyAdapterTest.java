@@ -164,6 +164,22 @@ class SpotifyAdapterTest {
     }
 
     @Test
+    void aPlaylistReadCountsEveryEntryItLeftOut() {
+        api.respond(r -> Reply.ok("{\"items\":[{\"item\":" + trackJson(1) + "},"
+                + "{\"item\":{\"id\":null,\"is_local\":true,\"uri\":\"spotify:local:x\"}}],\"next\":null}"));
+
+        assertEquals(1, TrackList.skipped(adapter.getPlaylistItems("p")));
+    }
+
+    @Test
+    void aForeignNextLinkStopsTheUsersPlaylistList() {
+        api.respond(r -> r.path().equals("/v1/me") ? Reply.ok("{\"id\":\"me\"}")
+                : Reply.ok("{\"items\":[],\"next\":\"https://elsewhere.example/steal\"}"));
+
+        assertThrows(MusicServiceException.class, () -> adapter.getUserPlaylists());
+    }
+
+    @Test
     void aMoveOverTheRealAdapterSendsTheRealPositionsPastALocalFile() {
         api.respond(r -> Reply.ok(r.method().equals("GET")
                 ? "{\"items\":[{\"item\":{\"id\":null,\"is_local\":true,\"uri\":\"spotify:local:x\"}},"

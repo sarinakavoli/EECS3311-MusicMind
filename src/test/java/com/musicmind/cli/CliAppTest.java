@@ -331,6 +331,80 @@ class CliAppTest extends PostgresTestBase {
         assertEquals(CliApp.USAGE, run("candidates").status());
     }
 
+    private static final String ID_A = "A".repeat(22);
+    private static final String ID_B = "B".repeat(22);
+    private static final String ID_C = "C".repeat(22);
+    private static final String ID_D = "D".repeat(22);
+
+    private String storedBlockedArtists() {
+        return memory().loadPreferences("sp-user").stream().filter(p -> p.key().equals("blockedArtists"))
+                .findFirst().orElseThrow().value();
+    }
+
+    @Test
+    void aNameWithACommaIsMatchedBeforeItsPartsWhenSeveralArtistsAreGiven() {
+        Music music = new Music();
+        music.artists = List.of(new Artist(ID_A, "Tyler", List.of()), new Artist(ID_B, "The Creator", List.of()),
+                new Artist(ID_C, "Tyler, The Creator", List.of()), new Artist(ID_D, "Drake", List.of()));
+
+        Result r = run(controller(music, null), "", "prefs", "set", "blockedArtists", "Tyler, The Creator, Drake");
+
+        assertEquals(CliApp.OK, r.status(), r.err());
+        assertEquals(ID_C + "," + ID_D, storedBlockedArtists());
+    }
+
+    @Test
+    void whenSeveralArtistsShareANameTheTopMatchIsUsedAndTheUserIsTold() {
+        Music music = new Music();
+        music.artists = List.of(new Artist(ID_A, "Eminem", List.of()), new Artist(ID_B, "Eminem", List.of()));
+
+        Result r = run(controller(music, null), "", "prefs", "set", "blockedArtists", "eminem");
+
+        assertEquals(CliApp.OK, r.status(), r.err());
+        assertEquals(ID_A, storedBlockedArtists());
+        assertTrue(r.out().contains(String.format(config.wording("prefsArtistShared"), 2, "eminem", ID_A)), r.out());
+    }
+
+    @Test
+    void settingAListPreferenceToNothingRemovesIt() {
+        Music music = new Music();
+        music.artists = List.of(new Artist(ID_A, "Drake", List.of()));
+        AppController c = controller(music, null);
+        run(c, "", "prefs", "set", "blockedArtists", "Drake");
+
+        Result r = run(c, "", "prefs", "set", "blockedArtists", "");
+
+        assertEquals(CliApp.OK, r.status(), r.err());
+        assertTrue(r.out().contains(String.format(config.wording("cliCleared"), "blockedArtists")), r.out());
+        assertTrue(memory().loadPreferences("sp-user").stream().noneMatch(p -> p.key().equals("blockedArtists")));
+    }
+
+    @Test
+    void showSaysWhenAPlaylistWasReadOnlyInPart() {
+        Music music = new Music() {
+            @Override public List<Track> getPlaylistItems(String playlistId) {
+                return new com.musicmind.music.TrackList(List.of(FakeMusicService.track("a")), true);
+            }
+        };
+
+        Result r = run(controller(music, null), "", "show", "p1");
+
+        assertTrue(r.out().contains(String.format(config.wording("validatePartial"), 1)), r.out());
+    }
+
+    @Test
+    void showSaysHowManyEntriesAreNotShown() {
+        Music music = new Music() {
+            @Override public List<Track> getPlaylistItems(String playlistId) {
+                return new com.musicmind.music.TrackList(List.of(FakeMusicService.track("a")), false, List.of(1), 3);
+            }
+        };
+
+        Result r = run(controller(music, null), "", "show", "p1");
+
+        assertTrue(r.out().contains(String.format(config.wording("playlistSkipped"), 2)), r.out());
+    }
+
     @Test
     void helpNeedsNoControllerAndNoSpotify() {
         CliApp app = new CliApp(() -> { throw new AssertionError("no controller for help"); },

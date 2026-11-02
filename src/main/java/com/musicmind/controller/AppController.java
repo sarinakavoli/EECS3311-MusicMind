@@ -404,6 +404,11 @@ public class AppController {
         return facade.playlist(id);
     }
 
+    /** What the last {@link #getPlaylist} could not include. */
+    public List<String> lastPlaylistNotices() {
+        return facade == null ? List.of() : facade.lastPlaylistNotices();
+    }
+
     /** What the last modify changed, in words; empty when nothing was changed. */
     public String lastChangeSummary() {
         return facade == null ? "" : facade.lastChangeSummary();
@@ -542,7 +547,16 @@ public class AppController {
      * @throws IllegalArgumentException for a blank key or a familiar bias outside 0..1
      */
     public void setPreference(UserPreference pref) {
-        memory.savePreference(pref);
+        if (PreferenceSettings.isEmptyList(pref)) {
+            memory.deletePreference(pref.key());
+        } else {
+            memory.savePreference(pref);
+        }
+    }
+
+    /** What the last {@link #parsePreference} should tell the user, such as a name several artists share. */
+    public List<String> lastPreferenceNotices() {
+        return facade == null ? List.of() : facade.lastArtistNotices();
     }
 
     /** The user's stored preferences; the safe defaults (and a warning) while the database is down. */

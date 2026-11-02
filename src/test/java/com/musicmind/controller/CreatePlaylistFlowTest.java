@@ -216,6 +216,41 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
     }
 
     @Test
+    void candidateMinutesCountWhenCheckingARequestCanBeMet() {
+        Music music = new Music();
+        music.libraryTracks = 5;
+        music.novelTracks = 8;
+        music.byId.put(CANDIDATE, new Track(CANDIDATE, "spotify:track:" + CANDIDATE, "Long one", 40 * 60_000, false, List.of("a0")));
+        AppController c = controller(music, new MockLLMProvider());
+        c.addCandidate(CANDIDATE);
+        PlaylistSpec hour = new PlaylistSpec(60, true, 0.5, List.of(), null);
+
+        Playlist playlist = c.createPlaylist(new AgentRequest("a mix for working", RequestKind.CREATE_PLAYLIST, hour));
+
+        assertEquals(CANDIDATE, playlist.tracks().get(0).id());
+    }
+
+    @Test
+    void aUsedCandidateThatCannotBeRemovedIsReported() {
+        Music music = new Music();
+        music.byId.put(CANDIDATE, candidate(CANDIDATE, 4));
+        CandidateRepository stuck = new CandidateRepository(db, () -> "sp-user") {
+            @Override public void delete(String trackId) {
+                throw new com.musicmind.memory.PersistenceException("down", new java.sql.SQLException("down"));
+            }
+        };
+        MemoryManager memory = new MemoryManager(db, new PreferenceRepository(db, () -> "sp-user"),
+                new FeedbackRepository(db, () -> "sp-user"), new SessionRepository(db, () -> "sp-user"),
+                new PlaylistHistoryRepository(db, () -> "sp-user"), stuck);
+        AppController c = new AppController(music, memory, new MockLLMProvider(), config);
+        c.addCandidate(CANDIDATE);
+
+        c.createPlaylist(request("a mix for working"));
+
+        assertTrue(c.lastSession().notices().contains(config.wording("candidatesNotRemoved")), c.lastSession().notices().toString());
+    }
+
+    @Test
     void aCandidateTheConstraintsForbidIsLeftOutSaidAndKept() {
         Music music = new Music();
         music.byId.put(CANDIDATE, candidate(CANDIDATE, 4));

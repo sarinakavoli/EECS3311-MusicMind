@@ -168,7 +168,7 @@ public class PlaylistEditor {
     /** The first search result for the genre (as a plain keyword) not already in the playlist or chosen; null if none. */
     private Track findNew(PlaylistContext playlist, String genre, Set<String> taken) {
         for (Track t : playlist.music().search(genre, config.commandSearchLimit())) {
-            if (taken.add(t.id())) {
+            if (playlist.allows(t) && taken.add(t.id())) {
                 return t;
             }
         }

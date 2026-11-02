@@ -136,6 +136,14 @@ public class MemoryManager {
         return guarded("load saved playlist versions", () -> history.summariesByUser(userId), List.of());
     }
 
+    /** Removes a preference, so its default applies again; with the database down this only sets the warning. */
+    public void deletePreference(String key) {
+        guarded("remove the preference", () -> {
+            preferences.delete(key);
+            return null;
+        }, null);
+    }
+
     // ---- candidates (F3) ----
 
     /** Sets a track aside for the next playlist; with the database down this only sets the warning. */

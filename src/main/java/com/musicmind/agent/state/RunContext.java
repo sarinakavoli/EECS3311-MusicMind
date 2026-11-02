@@ -1,5 +1,6 @@
 package com.musicmind.agent.state;
 
+import com.musicmind.agent.CandidatePool;
 import com.musicmind.agent.NegotiationHandler;
 import com.musicmind.agent.Retrieval;
 import com.musicmind.domain.AgentPlan;
@@ -13,7 +14,10 @@ import com.musicmind.domain.Recommendation;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.UserPreference;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -66,6 +70,22 @@ public final class RunContext {
     /** The playlist created by a finished run; null before that. */
     public Playlist playlist() {
         return playlist;
+    }
+
+    /** What the run can choose from: the tracks retrieved, plus the user's candidates. */
+    CandidatePool pool() {
+        CandidatePool read = retrieval.pool();
+        List<Track> familiar = new ArrayList<>(read.familiar());
+        List<Track> novel = new ArrayList<>(read.novel());
+        Set<String> known = new HashSet<>();
+        familiar.forEach(t -> known.add(t.id()));
+        novel.forEach(t -> known.add(t.id()));
+        for (Track t : candidates) {
+            if (known.add(t.id())) {
+                (profile.familiarity(t) >= 1.0 ? familiar : novel).add(t);
+            }
+        }
+        return new CandidatePool(familiar, novel);
     }
 
     /** The spec in force: the planned one, with any relaxation the user accepted. */

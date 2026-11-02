@@ -500,7 +500,8 @@ public class CliApp {
                         err.println(String.format(config.wording("cliNotSaved"), c.memory().warning()));
                         return FAILED;
                     }
-                    out.println(w("Saved", pref.key(), c.displayPreference(pref)));
+                    out.println(pref.value().isBlank() ? w("Cleared", pref.key()) : w("Saved", pref.key(), c.displayPreference(pref)));
+                    c.lastPreferenceNotices().forEach(this::printNotice);
                 }
                 case "get" -> {
                     List<UserPreference> found = c.getPreferences().stream()
@@ -593,6 +594,7 @@ public class CliApp {
                 Track t = playlist.tracks().get(i);
                 out.printf("%2d. %s  (%s)%n", i + 1, t.title(), t.id());
             }
+            controller().lastPlaylistNotices().forEach(this::printNotice);
             out.println(controller().spotifyAttribution());
             return OK;
         } catch (RuntimeException e) {

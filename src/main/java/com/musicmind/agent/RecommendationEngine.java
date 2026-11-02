@@ -328,7 +328,7 @@ public class RecommendationEngine {
             if (!seen.add(t.id())) {
                 continue;
             }
-            if (spec.isTrackBlocked(t.id()) || t.artistIds().stream().anyMatch(spec::isBlocked)) {
+            if (spec.blocks(t)) {
                 blocked++;
             } else if (t.isExplicit() && !spec.allowExplicit()) {
                 explicit++;

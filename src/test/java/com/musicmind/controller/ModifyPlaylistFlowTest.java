@@ -991,6 +991,56 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
         assertEquals(List.of("a"), ids(music, "p"));
     }
 
+    private static Music blockedThenFineSearch() {
+        Music music = new Music() {
+            @Override public List<Track> search(String query, int limit) {
+                return List.of(t("blocked", false, "x"), t("fine", false, "x"));
+            }
+        };
+        put(music, "p", t("a", false, "x"));
+        return music;
+    }
+
+    @Test
+    void anEditPassesOverABlockedSearchResultToTheNextOne() {
+        Music music = blockedThenFineSearch();
+        AppController c = controller(music, editReply("{\"commands\":[{\"type\":\"add\",\"query\":\"rock\"}]}"));
+        c.setPreference(new UserPreference("blockedTracks", "blocked", false, 0.5));
+
+        c.modifyPlaylist("p", "add a rock track");
+
+        assertEquals(List.of("a", "fine"), ids(music, "p"));
+    }
+
+    @Test
+    void aMoodEditPassesOverABlockedSearchResultToTheNextOne() {
+        Music music = blockedThenFineSearch();
+        AppController c = controller(music, editReply("{\"mood\":\"calm\"}"));
+        c.setPreference(new UserPreference("blockedTracks", "blocked", false, 0.5));
+
+        c.modifyPlaylist("p", "make it calmer");
+
+        assertTrue(ids(music, "p").contains("fine") && !ids(music, "p").contains("blocked"), ids(music, "p").toString());
+    }
+
+    @Test
+    void oneEditReadsTheUsersPlaylistListOnceForTheName() {
+        int[] reads = {0};
+        Music music = new Music() {
+            @Override public List<PlaylistSummary> getUserPlaylists() {
+                reads[0]++;
+                return List.of(new PlaylistSummary("p", "Road Trip", 2));
+            }
+        };
+        put(music, "p", t("a", false, "x"), t("b", false, "x"));
+        AppController c = controller(music, editReply("{\"commands\":[{\"type\":\"remove\",\"track\":\"2\"}]}"));
+
+        Playlist updated = c.modifyPlaylist("p", "remove the second track");
+
+        assertEquals(1, reads[0]);
+        assertEquals("Road Trip", updated.name());
+    }
+
     @Test
     void aLaterExplicitPreferenceDoesNotRewriteThePlaylistsSavedRules() {
         Music music = new Music();

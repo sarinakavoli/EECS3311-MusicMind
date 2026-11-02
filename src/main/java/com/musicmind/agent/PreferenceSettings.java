@@ -57,9 +57,9 @@ public final class PreferenceSettings {
         Double bias = null;
         for (UserPreference p : preferences) {
             switch (p.key()) {
-                case BLOCKED_ARTISTS -> blocked.addAll(split(p.value()));
-                case BLOCKED_TRACKS -> tracks.addAll(split(p.value()));
-                case PREFERRED_STYLES -> split(p.value()).forEach(style -> styles.add(style.toLowerCase(Locale.ROOT)));
+                case BLOCKED_ARTISTS -> blocked.addAll(split(p.value(), ARTIST_URI_PREFIX));
+                case BLOCKED_TRACKS -> tracks.addAll(split(p.value(), TRACK_URI_PREFIX));
+                case PREFERRED_STYLES -> split(p.value(), "").forEach(style -> styles.add(style.toLowerCase(Locale.ROOT)));
                 case EXPLICIT_POLICY -> explicit = p.explicitAllowed();
                 case FAMILIAR_BIAS -> bias = p.familiarBias();
                 case UserPreference.DEFAULTS_KEY -> {
@@ -130,9 +130,9 @@ public final class PreferenceSettings {
         double neutralBias = config.discoverDefaultFamiliarRatio();
         String text = value == null ? "" : value.strip();
         return switch (key.strip()) {
-            case BLOCKED_ARTISTS -> new UserPreference(BLOCKED_ARTISTS, join(split(text)), false, neutralBias);
+            case BLOCKED_ARTISTS -> new UserPreference(BLOCKED_ARTISTS, join(split(text, ARTIST_URI_PREFIX)), false, neutralBias);
             case BLOCKED_TRACKS -> {
-                Set<String> ids = split(text);
+                Set<String> ids = split(text, TRACK_URI_PREFIX);
                 for (String id : ids) {
                     if (!config.feedbackTrackIdPattern().matcher(id).matches()) {
                         throw new IllegalArgumentException(config.wording("feedbackBadTrackId"));
@@ -140,7 +140,7 @@ public final class PreferenceSettings {
                 }
                 yield new UserPreference(BLOCKED_TRACKS, join(ids), false, neutralBias);
             }
-            case PREFERRED_STYLES -> new UserPreference(PREFERRED_STYLES, join(split(text)), false, neutralBias);
+            case PREFERRED_STYLES -> new UserPreference(PREFERRED_STYLES, join(split(text, "")), false, neutralBias);
             case EXPLICIT_POLICY -> {
                 String policy = text.toLowerCase(Locale.ROOT);
                 if (!policy.equals(ALLOW) && !policy.equals(BLOCK)) {
@@ -159,6 +159,12 @@ public final class PreferenceSettings {
         };
     }
 
+    /** True for a list preference with nothing in it, which is stored as no preference at all. */
+    public static boolean isEmptyList(UserPreference p) {
+        boolean list = p.key().equals(BLOCKED_ARTISTS) || p.key().equals(BLOCKED_TRACKS) || p.key().equals(PREFERRED_STYLES);
+        return list && (p.value() == null || p.value().isBlank());
+    }
+
     /** The value a user should see for a stored preference. */
     public static String display(UserPreference p) {
         return switch (p.key()) {
@@ -175,17 +181,16 @@ public final class PreferenceSettings {
                 + EXPLICIT_POLICY + ", " + FAMILIAR_BIAS + ", " + PREFERRED_STYLES + ".");
     }
 
-    private static Set<String> split(String text) {
+    /** The comma-separated items of a list preference, each without {@code uriPrefix}. */
+    private static Set<String> split(String text, String uriPrefix) {
         Set<String> out = new TreeSet<>();
         if (text == null) {
             return out;
         }
         for (String part : text.split(",")) {
             String item = part.strip();
-            if (item.startsWith(ARTIST_URI_PREFIX)) {
-                item = item.substring(ARTIST_URI_PREFIX.length());
-            } else if (item.startsWith(TRACK_URI_PREFIX)) {
-                item = item.substring(TRACK_URI_PREFIX.length());
+            if (!uriPrefix.isEmpty() && item.startsWith(uriPrefix)) {
+                item = item.substring(uriPrefix.length());
             }
             if (!item.isEmpty()) {
                 out.add(item);

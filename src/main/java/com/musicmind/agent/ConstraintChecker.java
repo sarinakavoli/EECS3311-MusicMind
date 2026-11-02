@@ -169,7 +169,7 @@ public class ConstraintChecker {
 
     /** Whether the spec lets a track into the playlist: not blocked, and not explicit unless allowed. */
     public static boolean eligible(Track t, PlaylistSpec spec) {
-        return !spec.isTrackBlocked(t.id()) && t.artistIds().stream().noneMatch(spec::isBlocked) && (spec.allowExplicit() || !t.isExplicit());
+        return !spec.blocks(t) && (spec.allowExplicit() || !t.isExplicit());
     }
 
     private static double minutes(List<Track> tracks, PlaylistSpec spec) {

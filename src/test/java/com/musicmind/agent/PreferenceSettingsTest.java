@@ -124,6 +124,11 @@ class PreferenceSettingsTest {
     }
 
     @Test
+    void anArtistUriIsNotAcceptedAsABlockedTrack() {
+        assertThrows(IllegalArgumentException.class, () -> parse("blockedTracks", "spotify:artist:0123456789abcdefghijAB"));
+    }
+
+    @Test
     void aBlockedTrackThatIsNotAnIdIsRefused() {
         assertThrows(IllegalArgumentException.class, () -> parse("blockedTracks", "Billie Jean"));
     }

@@ -34,6 +34,11 @@ public class PlaylistSpec {
         return blockedTracks.contains(trackId);
     }
 
+    /** Whether the track itself or any of its artists is blocked. */
+    public boolean blocks(Track track) {
+        return isTrackBlocked(track.id()) || track.artistIds().stream().anyMatch(this::isBlocked);
+    }
+
     // Copies with one thing changed, so that no copy can lose the others.
     public PlaylistSpec withTargetMinutes(int minutes) {
         return new PlaylistSpec(minutes, allowExplicit, familiarRatio, blockedArtists, blockedTracks, name);

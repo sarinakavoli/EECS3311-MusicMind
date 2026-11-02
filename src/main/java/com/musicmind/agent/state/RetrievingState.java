@@ -31,11 +31,11 @@ public class RetrievingState implements SessionState {
                     ctx.retrieval.failedReads()));
         }
         ctx.candidates = readCandidates(ctx);
-        FeasibilityReport report = services.checker().checkFeasibility(ctx.spec(), ctx.retrieval.pool());
+        FeasibilityReport report = services.checker().checkFeasibility(ctx.spec(), ctx.pool());
         while (!report.feasible()) {
             report.conflicts().forEach(session::addNotice);
             Negotiator.negotiate(session, report);
-            report = services.checker().checkFeasibility(ctx.spec(), ctx.retrieval.pool());
+            report = services.checker().checkFeasibility(ctx.spec(), ctx.pool());
         }
         session.setState(new SelectingState());
     }
