@@ -72,7 +72,8 @@ public final class CreatePlaylistDialog {
 
             @Override
             public Integer fromString(String text) {
-                return format.parseMinutes(text).orElse(0);
+                // Invalid text keeps the current value, so the editor keeps what was typed and start() rejects it.
+                return format.parseMinutes(text).orElse(minutes.getValue() == null ? 0 : minutes.getValue());
             }
         });
         createButton = new ButtonType(format.w("Create"), javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
