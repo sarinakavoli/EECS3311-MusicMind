@@ -426,3 +426,54 @@ build/install/musicmind/bin/musicmind create "a calm 30 minute mix for studying"
 **Also checked live (Nov 1):** `create` with a candidate gave playlist `1tLPnOIvqQsx1pFYWPZzgq` with Billie Jean as track 1, confirmed by reading it back from Spotify, and the candidate list was empty afterwards. A blocked track made `validate` fail, and `modify` refused to add a blocked track and left the playlist unchanged. `blockedArtists` by name stored the id, listed the name, made `validate` fail, and refused an unknown name. Preferences were restored afterwards.
 
 **Not verified live:** the GUI controls for all of this, which arrive with Task 13.
+
+## Mon Nov 2: the GUI (Task 13)
+
+Start the app from the project folder. PostgreSQL must be running.
+
+```bash
+./gradlew run
+```
+
+**Expected:** a window titled MusicMind with seven tabs: Profile, Trends, Search, Discover, Playlists, Preferences, History. Opening it does not contact Spotify or open a browser. The footer credits Spotify and MusicBrainz. Each tab says to log in first.
+
+### Read-only checks
+
+These change nothing on Spotify.
+
+1. Press **Log in to Spotify**. With a saved login it shows `Logged in as` and your user id straight away.
+2. **Profile:** press **Refresh profile**. Expected: top genres with bars, top artists, top tracks, a coverage notice and a summary.
+3. **Trends:** press **Compare my listening**. Expected: three columns (short, medium, long), then `Changes between ranges`.
+4. **Search:** type `upbeat indie running` and press **Search**. Expected: tracks with an **Add to candidates** button, and any named artists above them.
+5. **Discover:** press **Find music**. Expected: recommendations with 👍 Accept, 👎 Reject and **Why these?**. The thumbs must show as thumbs, not odd characters.
+6. **Playlists:** pick a playlist. Expected: its tracks, a validation badge such as `Meets every constraint`, **Why these?**, and the Modify box.
+7. **History:** pick a session. Expected: its plan and result under the table, and saved versions below it. Do not press **Restore** for this check.
+
+### Saved in your local database only
+
+Nothing below goes to Spotify.
+
+- **Add to candidates**, **Clear all** on the Search tab.
+- 👍 Accept and 👎 Reject.
+- **Save** on the Preferences tab.
+
+Blocking an artist on Preferences affects later Discover and Create runs, so clear the field and press **Save** afterwards if you were only trying it.
+
+### Writes to Spotify
+
+**Warning: each of these changes your real Spotify library. Try them on a test playlist.**
+
+- **Create playlist...** on the Playlists tab makes a real private playlist. Try the goal `a calm 30 minute mix for studying`, length `30`. Expected: progress shows the step names, then the finished playlist opens in the tab.
+- **Modify** changes the open playlist. Try `make it 5 minutes shorter`. Expected: a change summary and an updated badge.
+- **Undo** reverses that change.
+- **Restore** on the History tab puts a playlist back to a saved version. It may also offer to recreate a deleted one.
+
+**F11 dialog check (writes only if you choose an option):** in **Create playlist...**, enter the goal `a 600 minute mix of only songs I have never heard`, length `600`, and move the familiar slider all the way to new. If MusicMind cannot fill it, a dialog states the conflict and offers options. **Cancel** creates nothing. Choosing an option creates a real playlist.
+
+**Bad length check (writes nothing):** in **Create playlist...**, try typing `abc` in the length box. Letters are refused. Type `99999` and press **Create**. Expected: a message giving the allowed range, and nothing starts.
+
+**Verified:** all tests, on a forced clean run. A live read-only run of the real app on your account, driven by a throwaway script: login from the saved token, Profile refresh, Trends, Search, Discover, opening a playlist with its badge, Preferences, History. The Create and F11 dialogs were opened to check their layout and were not submitted.
+
+**Not verified live:** Create, Modify, Undo and Restore through the GUI, F11 with a real conflict, and Accept, Reject, Save and candidates through the GUI buttons. The same controller calls were tested live from the CLI on Nov 1. Mouse handling was also not tested by a person: the script pressed buttons in code.
+
+**Known limits:** track rows show titles without artist names, because `Track` carries artist ids only (the CLI is the same). Restoring from the History tab does not refresh an open playlist on the Playlists tab; pick it again or press **Check playlist**.
