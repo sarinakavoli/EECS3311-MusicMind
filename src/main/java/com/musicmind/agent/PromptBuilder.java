@@ -6,6 +6,7 @@ import com.musicmind.domain.DecisionTrace;
 import com.musicmind.domain.FeasibilityReport;
 import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.PlaylistSpec;
+import com.musicmind.domain.RangeChange;
 import com.musicmind.domain.TrendReport;
 
 import java.util.List;
@@ -124,6 +125,11 @@ public class PromptBuilder {
                 .append("Genres dropped: ").append(limited(report.droppedGenres())).append('\n')
                 .append("Artists added: ").append(report.addedArtistIds().size())
                 .append(", artists dropped: ").append(report.droppedArtistIds().size()).append('\n');
+        for (RangeChange step : report.steps()) {
+            p.append("From ").append(step.from()).append(" to ").append(step.to())
+                    .append(": genres added ").append(limited(step.addedGenres()))
+                    .append("; genres dropped ").append(limited(step.droppedGenres())).append('\n');
+        }
         if (!report.gaps().isEmpty()) {
             p.append("Missing data: ").append(String.join("; ", report.gaps()));
         }

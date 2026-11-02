@@ -13,6 +13,7 @@ import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.Playlist;
 import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.PlaylistSummary;
+import com.musicmind.domain.RangeChange;
 import com.musicmind.domain.Recommendation;
 import com.musicmind.domain.Relaxation;
 import com.musicmind.domain.RequestKind;
@@ -874,10 +875,18 @@ public class CliApp {
             }
         }
         out.println();
-        printList(w("GenresAdded"), report.addedGenres());
-        printList(w("GenresDropped"), report.droppedGenres());
-        printList(w("ArtistsAdded"), names(report, report.addedArtistIds()));
-        printList(w("ArtistsDropped"), names(report, report.droppedArtistIds()));
+        for (RangeChange step : report.steps()) {
+            out.println(w("TrendStep", step.from(), step.to()));
+            printList("  " + w("GenresAdded"), step.addedGenres());
+            printList("  " + w("GenresDropped"), step.droppedGenres());
+            printList("  " + w("ArtistsAdded"), names(report, step.addedArtistIds()));
+            printList("  " + w("ArtistsDropped"), names(report, step.droppedArtistIds()));
+        }
+        out.println(w("TrendOverall"));
+        printList("  " + w("GenresAdded"), report.addedGenres());
+        printList("  " + w("GenresDropped"), report.droppedGenres());
+        printList("  " + w("ArtistsAdded"), names(report, report.addedArtistIds()));
+        printList("  " + w("ArtistsDropped"), names(report, report.droppedArtistIds()));
         report.gaps().forEach(this::printNotice);
         out.println();
         out.println(report.narrative());

@@ -198,6 +198,21 @@ class CliAppTest extends PostgresTestBase {
     }
 
     @Test
+    void trendsShowsEveryStepBetweenRanges() {
+        Music music = new Music() {
+            @Override public List<Artist> getTopArtists(String r) {
+                String genre = r.startsWith("short") ? "synthwave" : r.startsWith("medium") ? "folk" : "jazz";
+                return IntStream.range(0, 6).mapToObj(i -> new Artist(genre + i, "Artist " + i, List.of(genre))).toList();
+            }
+        };
+
+        Result r = run(controller(music, null), "", "trends");
+
+        assertTrue(r.out().contains(String.format(config.wording("cliTrendStep"), "long", "medium")), r.out());
+        assertTrue(r.out().contains(String.format(config.wording("cliTrendStep"), "medium", "short")), r.out());
+    }
+
+    @Test
     void helpNeedsNoControllerAndNoSpotify() {
         CliApp app = new CliApp(() -> { throw new AssertionError("no controller for help"); },
                 new BufferedReader(new StringReader("")), new PrintStream(new ByteArrayOutputStream()),
