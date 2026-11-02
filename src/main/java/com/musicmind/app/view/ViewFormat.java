@@ -1,5 +1,6 @@
 package com.musicmind.app.view;
 
+import com.musicmind.agent.NegotiationCancelledException;
 import com.musicmind.agent.PlaylistValidator;
 import com.musicmind.agent.state.SessionRecord;
 import com.musicmind.config.Config;
@@ -232,6 +233,9 @@ public final class ViewFormat {
     public String failure(String actionKey, Throwable error) {
         if (error instanceof AuthExpiredException) {
             return config.wording("cliLoginExpired");
+        }
+        if (error instanceof NegotiationCancelledException) {
+            return error.getMessage();
         }
         String reason;
         if (error instanceof RateLimitException) {

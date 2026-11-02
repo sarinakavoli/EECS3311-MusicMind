@@ -1,5 +1,6 @@
 package com.musicmind.app.view;
 
+import com.musicmind.agent.NegotiationCancelledException;
 import com.musicmind.agent.PlaylistValidator;
 import com.musicmind.agent.state.IdleState;
 import com.musicmind.config.Config;
@@ -337,5 +338,11 @@ class ViewFormatTest {
         assertTrue(format.parseMinutes("abc").isEmpty());
         assertTrue(format.parseMinutes("4.5").isEmpty());
         assertTrue(format.parseMinutes("99999999999999999999").isEmpty());
+    }
+
+    @Test
+    void aCancelledNegotiationIsShownAsItsOwnMessageWithoutCouldNot() {
+        String message = config.wording("negotiationCancelled");
+        assertEquals(message, format.failure("ActionCreate", new NegotiationCancelledException(message)));
     }
 }

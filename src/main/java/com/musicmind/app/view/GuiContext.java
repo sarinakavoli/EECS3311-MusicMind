@@ -1,6 +1,7 @@
 package com.musicmind.app.view;
 
 import com.musicmind.agent.NegotiationHandler;
+import com.musicmind.agent.NegotiationCancelledException;
 import com.musicmind.config.Config;
 import com.musicmind.controller.AppController;
 import com.musicmind.domain.FeasibilityReport;
@@ -44,6 +45,8 @@ public final class GuiContext {
     /** The worker's own copy of {@link #databaseDown}, so it never reads a JavaFX property off the JavaFX thread. */
     private volatile boolean databaseWasDown;
     private final List<Consumer<User>> loginListeners = new ArrayList<>();
+    private final List<Runnable> dataListeners = new ArrayList<>();
+    private final ControlLock locks = new ControlLock();
 
     public GuiContext(AppController controller, Config config) {
         this.controller = controller;
@@ -78,6 +81,16 @@ public final class GuiContext {
         loginListeners.add(listener);
     }
 
+    /** Registers a view to refresh when a playlist was created, changed, undone or restored. */
+    public void onDataChanged(Runnable listener) {
+        dataListeners.add(listener);
+    }
+
+    /** Tells every registered view that playlists or saved versions changed. JavaFX thread only. */
+    public void dataChanged() {
+        dataListeners.forEach(Runnable::run);
+    }
+
     /** Whether an LLM key is configured; the controller answers this without any I/O. */
     public boolean llmConfigured() {
         return controller.isLlmConfigured();
@@ -97,9 +110,7 @@ public final class GuiContext {
     public <T> void run(StatusLine status, String action, String busyText, Supplier<T> work,
                         Consumer<T> onSuccess, Node... locked) {
         status.busy(busyText);
-        for (Node node : locked) {
-            node.setDisable(true);
-        }
+        locks.lock(locked);
         worker.execute(() -> {
             T result = null;
             Throwable failure = null;
@@ -117,13 +128,15 @@ public final class GuiContext {
 
     private <T> void finish(StatusLine status, String action, Node[] locked, boolean down, T result,
                             Throwable failure, Consumer<T> onSuccess) {
-        for (Node node : locked) {
-            node.setDisable(false);
-        }
+        locks.unlock(locked);
         databaseWasDown = down;
         databaseDown.set(down);
         if (failure != null) {
-            status.error(format.failure(action, failure));
+            if (failure instanceof NegotiationCancelledException) {
+                status.info(format.failure(action, failure));   // the user's own choice, not an error
+            } else {
+                status.error(format.failure(action, failure));
+            }
             if (failure instanceof AuthExpiredException) {
                 user.set(null);
             }
@@ -166,9 +179,7 @@ public final class GuiContext {
      */
     public void login(StatusLine status, Node... locked) {
         status.busy(format.w("LoggingIn"));
-        for (Node node : locked) {
-            node.setDisable(true);
-        }
+        locks.lock(locked);
         worker.execute(() -> {
             User loggedIn = null;
             Throwable failure = null;
@@ -184,9 +195,7 @@ public final class GuiContext {
             User finalUser = loggedIn;
             Throwable finalFailure = failure;
             Platform.runLater(() -> {
-                for (Node node : locked) {
-                    node.setDisable(false);
-                }
+                locks.unlock(locked);
                 if (finalFailure != null) {
                     status.error(format.failure("ActionLogin", finalFailure));
                     return;
