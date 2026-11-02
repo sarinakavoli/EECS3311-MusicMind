@@ -12,13 +12,10 @@ public record Relaxation(Kind kind, double value, String description) {
     /** A copy of the spec with this relaxation applied; the original is unchanged. */
     public PlaylistSpec applyTo(PlaylistSpec spec) {
         return switch (kind) {
-            case SHORTEN_DURATION -> new PlaylistSpec((int) value, spec.allowExplicit(), spec.familiarRatio(),
-                    spec.blockedArtists(), spec.name());
-            case ALLOW_EXPLICIT -> new PlaylistSpec(spec.targetMinutes(), true, spec.familiarRatio(),
-                    spec.blockedArtists(), spec.name());
+            case SHORTEN_DURATION -> spec.withTargetMinutes((int) value);
+            case ALLOW_EXPLICIT -> spec.withAllowExplicit(true);
             case APPLY_PARTIAL -> spec; // changes the edit (how many steps run), not a playlist spec
-            case CHANGE_FAMILIAR_RATIO -> new PlaylistSpec(spec.targetMinutes(), spec.allowExplicit(), value,
-                    spec.blockedArtists(), spec.name());
+            case CHANGE_FAMILIAR_RATIO -> spec.withFamiliarRatio(value);
         };
     }
 }

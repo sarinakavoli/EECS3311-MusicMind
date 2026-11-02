@@ -549,7 +549,7 @@ public class MusicAgentFacade {
     }
 
     private static PlaylistSpec withTarget(PlaylistSpec spec, int targetMinutes) {
-        return new PlaylistSpec(targetMinutes, spec.allowExplicit(), spec.familiarRatio(), spec.blockedArtists(), spec.name());
+        return spec.withTargetMinutes(targetMinutes);
     }
 
     /**
@@ -906,8 +906,7 @@ public class MusicAgentFacade {
         }
         PlaylistSpec old = specFor(userId, snapshot.spotifyId()).spec();
         int target = targets(userId, snapshot.spotifyId()).targetAt(snapshotId).orElse(old.targetMinutes());
-        PlaylistSpec spec = new PlaylistSpec(target, old.allowExplicit(), old.familiarRatio(), old.blockedArtists(),
-                snapshot.name());
+        PlaylistSpec spec = old.withTargetMinutes(target).withName(snapshot.name());
         CreatePlaylistCommand command = new CreatePlaylistCommand(config, create.music(), userId, snapshot.name(),
                 snapshot.tracks().stream().map(Track::uri).toList());
         try {

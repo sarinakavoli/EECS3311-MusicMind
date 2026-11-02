@@ -21,8 +21,7 @@ public class SelectingState implements SessionState {
         RunServices services = ctx.services;
         PlaylistSpec spec = ctx.spec();
         // Validation may have moved the length the recommender aims for; every other constraint is the spec's.
-        PlaylistSpec asked = new PlaylistSpec(ctx.engineMinutes, spec.allowExplicit(), spec.familiarRatio(),
-                spec.blockedArtists(), spec.name());
+        PlaylistSpec asked = spec.withTargetMinutes(ctx.engineMinutes);
         synchronized (services.engine()) {
             services.engine().setStrategy(new BalancedStrategy(services.config()));
             ctx.recommendations = services.engine().recommend(ctx.retrieval, asked, ctx.feedback);

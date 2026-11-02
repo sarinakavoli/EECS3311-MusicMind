@@ -328,7 +328,7 @@ public class RecommendationEngine {
             if (!seen.add(t.id())) {
                 continue;
             }
-            if (t.artistIds().stream().anyMatch(spec::isBlocked)) {
+            if (spec.isTrackBlocked(t.id()) || t.artistIds().stream().anyMatch(spec::isBlocked)) {
                 blocked++;
             } else if (t.isExplicit() && !spec.allowExplicit()) {
                 explicit++;
@@ -491,7 +491,7 @@ public class RecommendationEngine {
         if (!allowLibraryTracks) {
             satisfied.add(config.wording("constraintLibraryExcluded"));
         }
-        if (!spec.blockedArtists().isEmpty()) {
+        if (!spec.blockedArtists().isEmpty() || !spec.blockedTracks().isEmpty()) {
             satisfied.add(config.wording("constraintBlockedExcluded"));
         }
         if (!spec.allowExplicit()) {
@@ -519,6 +519,6 @@ public class RecommendationEngine {
     }
 
     private static PlaylistSpec withRatio(PlaylistSpec spec, double ratio) {
-        return new PlaylistSpec(spec.targetMinutes(), spec.allowExplicit(), ratio, spec.blockedArtists(), spec.name());
+        return spec.withFamiliarRatio(ratio);
     }
 }

@@ -110,4 +110,21 @@ class PreferenceSettingsTest {
         assertEquals("block", PreferenceSettings.display(parse("explicitPolicy", "block")));
         assertEquals("0.7", PreferenceSettings.display(parse("familiarBias", "0.7")));
     }
+
+    @Test
+    void blockedTracksAreParsedStoredAndApplied() {
+        String id = "0123456789abcdefghijAB";
+        UserPreference pref = parse("blockedTracks", "spotify:track:" + id);
+
+        PreferenceSettings settings = PreferenceSettings.from(List.of(pref));
+
+        assertEquals(id, pref.value());
+        assertEquals(java.util.Set.of(id), settings.blockedTracks());
+        assertTrue(settings.applyTo(new PlaylistSpec(10, true, 0.5, List.of(), "x")).isTrackBlocked(id));
+    }
+
+    @Test
+    void aBlockedTrackThatIsNotAnIdIsRefused() {
+        assertThrows(IllegalArgumentException.class, () -> parse("blockedTracks", "Billie Jean"));
+    }
 }

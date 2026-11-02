@@ -53,6 +53,7 @@ public final class SessionRecord {
         s.put("allowExplicit", spec.allowExplicit());
         s.put("familiarRatio", spec.familiarRatio());
         s.put("blockedArtists", spec.blockedArtists());
+        s.put("blockedTracks", spec.blockedTracks());
         s.put("name", spec.name());
         return s;
     }
@@ -92,9 +93,13 @@ public final class SessionRecord {
             if (o.has("blockedArtists")) {
                 o.getAsJsonArray("blockedArtists").forEach(e -> blocked.add(e.getAsString()));
             }
+            List<String> blockedTracks = new ArrayList<>();
+            if (o.has("blockedTracks")) {
+                o.getAsJsonArray("blockedTracks").forEach(e -> blockedTracks.add(e.getAsString()));
+            }
             String name = o.has("name") && !o.get("name").isJsonNull() ? o.get("name").getAsString() : null;
             return Optional.of(new PlaylistSpec(o.get("targetMinutes").getAsInt(), o.get("allowExplicit").getAsBoolean(),
-                    o.get("familiarRatio").getAsDouble(), blocked, name));
+                    o.get("familiarRatio").getAsDouble(), blocked, blockedTracks, name));
         } catch (JsonParseException | IllegalStateException | NullPointerException | ClassCastException e) {
             return Optional.empty();
         }

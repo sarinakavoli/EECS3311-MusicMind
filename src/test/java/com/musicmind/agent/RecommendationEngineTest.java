@@ -897,4 +897,15 @@ class RecommendationEngineTest {
         assertEquals(List.of("bare", "n1"), ids(e.recommend(profile(), spec(0.0), List.of(), false)));
         assertTrue(config.discoverGenreTitlePenalty() > 0);
     }
+
+    @Test
+    void aBlockedTrackIsNeverRecommended() {
+        RecommendationEngine e = engine(richMusic());
+        e.setStrategy(new BalancedStrategy());
+        String picked = e.recommend(profile(), spec(0.3), List.of()).get(0).track().id();
+
+        List<Recommendation> recs = e.recommend(profile(), spec(0.3).withBlockedTracks(List.of(picked)), List.of());
+
+        assertTrue(recs.stream().noneMatch(r -> r.track().id().equals(picked)));
+    }
 }
