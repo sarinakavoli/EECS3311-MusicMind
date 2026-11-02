@@ -275,6 +275,22 @@ public final class ViewFormat {
         return w("PlaylistTitle", playlist.name(), playlist.tracks().size(), minutes(playlist.totalDuration()));
     }
 
+    /**
+     * The target length typed by the user: blank means 0 (take it from the goal); otherwise a whole number
+     * from 0 to the configured maximum. Empty when the text is anything else.
+     */
+    public java.util.OptionalInt parseMinutes(String text) {
+        String typed = text == null ? "" : text.strip();
+        if (typed.isEmpty()) {
+            return java.util.OptionalInt.of(0);
+        }
+        if (!typed.chars().allMatch(c -> c >= '0' && c <= '9') || typed.length() > String.valueOf(Integer.MAX_VALUE).length()) {
+            return java.util.OptionalInt.empty();
+        }
+        long value = Long.parseLong(typed);
+        return value <= config.parserMaxTargetMinutes() ? java.util.OptionalInt.of((int) value) : java.util.OptionalInt.empty();
+    }
+
     /** A moment as a readable date and time in the formatter's time zone. */
     public String timestamp(java.time.Instant instant) {
         return timeFormat.format(instant);

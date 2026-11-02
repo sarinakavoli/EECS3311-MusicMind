@@ -323,4 +323,19 @@ class ViewFormatTest {
         String friendly = "Say what to change, for example \"remove explicit tracks\".";
         assertEquals("Could not search: " + friendly, format.failure("ActionSearch", new IllegalArgumentException(friendly)));
     }
+
+    @Test
+    void lengthTextIsAWholeNumberOfMinutesWithinTheLimit() {
+        int max = config.parserMaxTargetMinutes();
+        assertEquals(java.util.OptionalInt.of(45), format.parseMinutes("45"));
+        assertEquals(java.util.OptionalInt.of(45), format.parseMinutes(" 45 "));
+        assertEquals(java.util.OptionalInt.of(0), format.parseMinutes(""));
+        assertEquals(java.util.OptionalInt.of(0), format.parseMinutes(null));
+        assertEquals(java.util.OptionalInt.of(max), format.parseMinutes(String.valueOf(max)));
+        assertTrue(format.parseMinutes(String.valueOf(max + 1)).isEmpty());
+        assertTrue(format.parseMinutes("-5").isEmpty());
+        assertTrue(format.parseMinutes("abc").isEmpty());
+        assertTrue(format.parseMinutes("4.5").isEmpty());
+        assertTrue(format.parseMinutes("99999999999999999999").isEmpty());
+    }
 }
