@@ -134,7 +134,7 @@ public final class PlaylistView implements TabView {
 
     /** Reads the playlist list; selects {@code selectId} afterwards when given. */
     private void loadList(String selectId) {
-        ctx.run(status, "list your playlists", format.w("Working"), () -> ctx.controller().getPlaylists(), list -> {
+        ctx.run(status, "ActionListPlaylists", format.w("Working"), () -> ctx.controller().getPlaylists(), list -> {
             playlists.setItems(FXCollections.observableArrayList(list));
             if (selectId != null) {
                 list.stream().filter(p -> p.id().equals(selectId)).findFirst()
@@ -147,7 +147,7 @@ public final class PlaylistView implements TabView {
         if (id == null) {
             return;
         }
-        ctx.run(status, "show the playlist", format.w("Opening"), () -> read(id, null, List.of()), this::show,
+        ctx.run(status, "ActionShowPlaylist", format.w("Opening"), () -> read(id, null, List.of()), this::show,
                 modify, undo, check, instruction);
     }
 
@@ -157,7 +157,7 @@ public final class PlaylistView implements TabView {
             return;
         }
         String id = openId;
-        ctx.run(status, "modify the playlist", format.w("Modifying"), () -> {
+        ctx.run(status, "ActionModify", format.w("Modifying"), () -> {
             ctx.controller().modifyPlaylist(id, text);
             String change = ctx.config().wording("cliChangedPrefix") + " " + ctx.controller().lastChangeSummary();
             List<String> modifyNotices = ctx.controller().lastModifyNotices();
@@ -173,7 +173,7 @@ public final class PlaylistView implements TabView {
             return;
         }
         String id = openId;
-        ctx.run(status, "undo", format.w("Undoing"), () -> {
+        ctx.run(status, "ActionUndo", format.w("Undoing"), () -> {
             ctx.controller().undo(id);
             return read(id, ctx.config().wording("cliUndone"), List.of());
         }, this::show, modify, undo, check, instruction);
@@ -192,7 +192,7 @@ public final class PlaylistView implements TabView {
             target = ctx.controller().lastValidationTargetMinutes();
             note = ctx.controller().lastValidationNote();
         } catch (RuntimeException e) {
-            all.add(ctx.format().failure("check the playlist", e));
+            all.add(ctx.format().failure("ActionCheck", e));
         }
         return new Opened(playlist, all, validation, target, note, change);
     }
@@ -224,7 +224,7 @@ public final class PlaylistView implements TabView {
         }
         notices.getChildren().setAll(opened.notices().stream().map(UiParts::muted).toList());
         String shownId = openId;
-        why.getChildren().setAll(WhyExpander.lazy(ctx, "explain the playlist", () -> ctx.controller().explain(shownId)));
+        why.getChildren().setAll(WhyExpander.lazy(ctx, "ActionExplain", () -> ctx.controller().explain(shownId)));
     }
 
     private HBox row(Track track) {

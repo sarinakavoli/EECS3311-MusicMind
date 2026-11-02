@@ -87,7 +87,7 @@ public final class SearchView implements TabView {
     /** After login the saved candidates are shown. */
     @Override
     public void onLogin(User user) {
-        ctx.run(status, "show your candidates", format.w("Working"), this::candidateState, this::show, search);
+        ctx.run(status, "ActionShowCandidates", format.w("Working"), this::candidateState, this::show, search);
     }
 
     private void runSearch() {
@@ -95,7 +95,7 @@ public final class SearchView implements TabView {
         if (text.isEmpty()) {
             return;
         }
-        ctx.run(status, "search", format.w("Searching"), () -> {
+        ctx.run(status, "ActionSearch", format.w("Searching"), () -> {
             List<Track> tracks = ctx.controller().searchMusic(text);
             return new Found(tracks, ctx.controller().lastSearchArtists(), ctx.controller().lastSearchLabel(),
                     ctx.controller().lastSearchNotice());
@@ -118,7 +118,7 @@ public final class SearchView implements TabView {
 
     /** Applies a change to the candidate list on the worker, then shows the list as it is now. */
     private void change(Runnable change, String doneMessage) {
-        ctx.run(status, "change your candidates", format.w("Working"), () -> {
+        ctx.run(status, "ActionChangeCandidates", format.w("Working"), () -> {
             change.run();
             return candidateState();
         }, state -> {

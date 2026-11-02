@@ -107,7 +107,7 @@ public final class CreatePlaylistDialog {
         String playlistName = name.getText() == null || name.getText().isBlank() ? null : name.getText().strip();
         PlaylistSpec flags = new PlaylistSpec(targetMinutes, allowExplicit.isSelected(), ratio, List.of(), playlistName);
         result.getChildren().clear();
-        ctx.run(status, "create the playlist", format.w("Creating"), () -> {
+        ctx.run(status, "ActionCreate", format.w("Creating"), () -> {
             ctx.controller().setProgressListener(state -> Platform.runLater(() -> status.busy(format.progress(state))));
             Playlist playlist = ctx.controller().createPlaylist(new AgentRequest(text, RequestKind.CREATE_PLAYLIST, flags));
             AgentSession session = ctx.controller().lastSession();

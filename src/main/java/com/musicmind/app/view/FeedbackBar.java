@@ -27,7 +27,7 @@ final class FeedbackBar extends HBox {
 
     private static void send(GuiContext ctx, StatusLine status, String trackId, String title, Verdict verdict,
                              Button accept, Button reject) {
-        ctx.run(status, "record your feedback", ctx.format().w("Working"), () -> {
+        ctx.run(status, "ActionFeedback", ctx.format().w("Working"), () -> {
             ctx.controller().recordFeedback(trackId, verdict);
             return ctx.controller().memory().warning();
         }, warning -> {

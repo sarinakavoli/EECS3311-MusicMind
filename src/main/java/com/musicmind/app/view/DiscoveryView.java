@@ -73,7 +73,7 @@ public final class DiscoveryView implements TabView {
 
     private void run() {
         Double chosen = usePreference.isSelected() ? null : novelty.getValue();
-        ctx.run(status, "find recommendations", format.w("Discovering"), () -> {
+        ctx.run(status, "ActionDiscover", format.w("Discovering"), () -> {
             PlaylistSpec spec = ctx.controller().discoverSpec(chosen);
             List<Recommendation> recommendations = ctx.controller().discover(spec);
             return new Found(recommendations, ctx.controller().lastDiscoverNotices(), ctx.controller().lastDecisionTrace());

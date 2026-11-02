@@ -14,7 +14,11 @@ import com.musicmind.domain.RangeChange;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.ValidationResult;
+import com.musicmind.llm.LLMException;
+import com.musicmind.memory.PersistenceException;
 import com.musicmind.music.AuthExpiredException;
+import com.musicmind.music.MusicServiceException;
+import com.musicmind.music.RateLimitException;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -24,6 +28,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalInt;
+import java.util.regex.Pattern;
 
 /**
  * What the GUI shows, worked out as plain text and numbers, so the views hold no logic and this class can
@@ -42,6 +47,9 @@ public final class ViewFormat {
 
     /** One line of the History list. */
     public record HistoryRow(String sessionId, String when, String status, String request, String playlistId) { }
+
+    /** A message with a web address, an HTTP status or a JSON body in it is not fit to show. */
+    private static final Pattern LOOKS_RAW = Pattern.compile("://|HTTP\\s*\\d{3}|[{}]");
 
     private final Config config;
     private final DateTimeFormatter timeFormat;
@@ -215,13 +223,30 @@ public final class ViewFormat {
         return lines;
     }
 
-    /** What to tell the user when {@code action} failed: an expired login asks to log in again, else the reason. */
-    public String failure(String action, Throwable error) {
+    /**
+     * What to tell the user when an action failed, as "Could not ...: reason". {@code actionKey} names the
+     * {@code text.gui} wording of the action. Spotify, model and database errors get fixed friendly wording,
+     * because their own messages carry HTTP statuses, addresses and response bodies; any other message is kept
+     * unless it looks like one of those.
+     */
+    public String failure(String actionKey, Throwable error) {
         if (error instanceof AuthExpiredException) {
             return config.wording("cliLoginExpired");
         }
-        String reason = error.getMessage() == null || error.getMessage().isBlank() ? w("UnknownError") : error.getMessage();
-        return cli("Failed", action, reason);
+        String reason;
+        if (error instanceof RateLimitException) {
+            reason = w("RateLimited");
+        } else if (error instanceof MusicServiceException) {
+            reason = config.wording("playlistCallFailed");
+        } else if (error instanceof LLMException) {
+            reason = w("LlmFailed");
+        } else if (error instanceof PersistenceException) {
+            reason = w("DatabaseFailed");
+        } else {
+            String message = error.getMessage();
+            reason = message == null || message.isBlank() || LOOKS_RAW.matcher(message).find() ? w("UnknownError") : message;
+        }
+        return cli("Failed", w(actionKey), reason);
     }
 
     /** A creation step shown as progress. */

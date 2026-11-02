@@ -184,7 +184,7 @@ public final class GuiContext {
                     node.setDisable(false);
                 }
                 if (finalFailure != null) {
-                    status.error(format.failure("log in to Spotify", finalFailure));
+                    status.error(format.failure("ActionLogin", finalFailure));
                     return;
                 }
                 status.info("");

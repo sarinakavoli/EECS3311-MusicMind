@@ -98,7 +98,7 @@ public final class HistoryView implements TabView {
     }
 
     private void load(User user) {
-        ctx.run(status, "show the history", format.w("Working"), () -> {
+        ctx.run(status, "ActionHistory", format.w("Working"), () -> {
             List<AgentSession> past = ctx.controller().getHistory(user);
             List<SnapshotInfo> snapshots = ctx.controller().getSnapshots(user);
             return new Loaded(past, snapshots, ctx.controller().memory().warning());
@@ -112,13 +112,13 @@ public final class HistoryView implements TabView {
     }
 
     private void openSession(String id) {
-        ctx.run(status, "show the session", format.w("Working"), () -> ctx.controller().getSession(id), session -> {
+        ctx.run(status, "ActionSession", format.w("Working"), () -> ctx.controller().getSession(id), session -> {
             sessionDetail.getChildren().setAll(format.sessionLines(session).stream().map(UiParts::wrapped).toList());
         });
     }
 
     private void restore(SnapshotInfo version, Button button) {
-        ctx.run(status, "restore the playlist", format.w("Restoring"), () -> {
+        ctx.run(status, "ActionRestore", format.w("Restoring"), () -> {
             try {
                 Playlist restored = ctx.controller().restore(version.id());
                 return new Outcome(ctx.controller().lastRestoreChanged()
@@ -146,7 +146,7 @@ public final class HistoryView implements TabView {
     }
 
     private void recreate(SnapshotInfo version, Button button) {
-        ctx.run(status, "recreate the playlist", format.w("Restoring"), () -> {
+        ctx.run(status, "ActionRecreate", format.w("Restoring"), () -> {
             Playlist created = ctx.controller().recreateFromSnapshot(version.id());
             return format.w("Recreated", created.name(), created.tracks().size());
         }, status::info, button);

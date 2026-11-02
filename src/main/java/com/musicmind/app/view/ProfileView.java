@@ -89,7 +89,7 @@ public final class ProfileView implements TabView {
     /** After login the stored profile is read from the database; Spotify is called only by "Refresh profile". */
     @Override
     public void onLogin(User user) {
-        ctx.run(status, "show your profile", format.w("Working"), () -> {
+        ctx.run(status, "ActionShowProfile", format.w("Working"), () -> {
             Optional<ListeningProfile> stored = ctx.controller().lastProfile(user);
             return stored.map(p -> new Shown(p, true, ctx.controller().memory().warning())).orElse(null);
         }, shown -> {
@@ -104,7 +104,7 @@ public final class ProfileView implements TabView {
     private void rebuild() {
         User user = ctx.userProperty().get();
         String chosen = range.getValue();
-        ctx.run(status, "build your profile", format.w("ProfileBuilding"), () -> {
+        ctx.run(status, "ActionBuildProfile", format.w("ProfileBuilding"), () -> {
             ListeningProfile profile = ctx.controller().analyzeTaste(user, chosen);
             return new Shown(profile, false, ctx.controller().memory().warning());
         }, this::show, refresh, range);

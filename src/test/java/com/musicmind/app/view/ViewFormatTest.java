@@ -16,7 +16,11 @@ import com.musicmind.domain.RequestKind;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.ValidationResult;
+import com.musicmind.llm.LLMException;
+import com.musicmind.memory.PersistenceException;
 import com.musicmind.music.AuthExpiredException;
+import com.musicmind.music.MusicServiceException;
+import com.musicmind.music.RateLimitException;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -219,17 +223,17 @@ class ViewFormatTest {
 
     @Test
     void anExpiredLoginAsksTheUserToLogInAgain() {
-        assertEquals(config.wording("cliLoginExpired"), format.failure("search", new AuthExpiredException("401 at https://x")));
+        assertEquals(config.wording("cliLoginExpired"), format.failure("ActionSearch", new AuthExpiredException("401 at https://x")));
     }
 
     @Test
     void otherFailuresNameTheActionAndKeepTheMessage() {
-        assertEquals("Could not search: no network", format.failure("search", new IllegalStateException("no network")));
+        assertEquals("Could not search: no network", format.failure("ActionSearch", new IllegalStateException("no network")));
     }
 
     @Test
     void aFailureWithoutAMessageStillReadsAsAnError() {
-        String text = format.failure("search", new NullPointerException());
+        String text = format.failure("ActionSearch", new NullPointerException());
         assertTrue(text.startsWith("Could not search"));
         assertFalse(text.contains("null"));
     }
@@ -268,5 +272,42 @@ class ViewFormatTest {
     void aSavedVersionIsDescribedByNameSizeAndTime() {
         SnapshotInfo info = new SnapshotInfo(4, "pl9", "Mix", 12, Instant.parse("2026-11-01T14:05:00Z"));
         assertEquals("Mix (12 tracks), saved 2026-11-01 14:05", format.snapshotLine(info));
+    }
+
+    @Test
+    void aSpotifyErrorNeverShowsTheStatusUrlOrBody() {
+        String raw = "Spotify API error (HTTP 500) on GET https://api.spotify.com/v1/me/top/artists: {\"error\":{\"status\":500}}";
+        String text = format.failure("ActionSearch", new MusicServiceException(raw, 500));
+
+        assertEquals("Could not search: " + config.wording("playlistCallFailed"), text);
+        assertFalse(text.contains("500") || text.contains("https") || text.contains("{"));
+    }
+
+    @Test
+    void aRateLimitAsksTheUserToWait() {
+        String text = format.failure("ActionSearch", new RateLimitException("Spotify rate limit hit on /v1/search", 5));
+        assertEquals("Could not search: " + format.w("RateLimited"), text);
+    }
+
+    @Test
+    void anLlmOrDatabaseFailureGetsItsOwnWording() {
+        assertEquals("Could not search: " + format.w("LlmFailed"),
+                format.failure("ActionSearch", new LLMException("The OpenAI request failed: HTTP 429 {\"error\":1}")));
+        assertEquals("Could not search: " + format.w("DatabaseFailed"),
+                format.failure("ActionSearch", new PersistenceException("connection refused to jdbc:postgresql://x", new RuntimeException())));
+    }
+
+    @Test
+    void aMessageThatLooksRawIsReplacedByAGenericOne() {
+        assertEquals("Could not search: " + format.w("UnknownError"),
+                format.failure("ActionSearch", new IllegalStateException("bad reply from https://x.example/y")));
+        assertEquals("Could not search: " + format.w("UnknownError"),
+                format.failure("ActionSearch", new IllegalStateException("{\"a\":1}")));
+    }
+
+    @Test
+    void aFriendlyMessageIsKeptWhole() {
+        String friendly = "Say what to change, for example \"remove explicit tracks\".";
+        assertEquals("Could not search: " + friendly, format.failure("ActionSearch", new IllegalArgumentException(friendly)));
     }
 }

@@ -80,7 +80,7 @@ public final class PreferencesView implements TabView {
     }
 
     private void load() {
-        ctx.run(status, "show your preferences", format.w("Working"), () -> {
+        ctx.run(status, "ActionShowPrefs", format.w("Working"), () -> {
             List<UserPreference> stored = ctx.controller().getPreferences();
             Map<String, String> values = new LinkedHashMap<>();
             for (UserPreference pref : stored) {
@@ -97,7 +97,7 @@ public final class PreferencesView implements TabView {
 
     private void save(String key) {
         String text = fields.get(key).getText() == null ? "" : fields.get(key).getText().strip();
-        ctx.run(status, "save the preference", format.w("Working"), () -> {
+        ctx.run(status, "ActionSavePref", format.w("Working"), () -> {
             UserPreference pref = ctx.controller().parsePreference(key, text);
             ctx.controller().setPreference(pref);
             return new Saved(key, ctx.controller().displayPreference(pref), pref.value().isBlank(),

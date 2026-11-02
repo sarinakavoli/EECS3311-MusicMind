@@ -59,7 +59,7 @@ public final class TrendsView implements TabView {
 
     private void run() {
         User user = ctx.userProperty().get();
-        ctx.run(status, "compare your listening", format.w("TrendsBuilding"),
+        ctx.run(status, "ActionCompare", format.w("TrendsBuilding"),
                 () -> ctx.controller().analyzeTrends(user), this::show, compare);
     }
 
