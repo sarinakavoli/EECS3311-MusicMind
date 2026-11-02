@@ -9,6 +9,7 @@ import com.musicmind.domain.AgentRequest;
 import com.musicmind.domain.AgentSession;
 import com.musicmind.domain.DecisionTrace;
 import com.musicmind.domain.Playlist;
+import com.musicmind.domain.PlaylistSummary;
 import com.musicmind.domain.RequestKind;
 import com.musicmind.domain.SnapshotInfo;
 import com.musicmind.domain.Track;
@@ -914,6 +915,32 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
         PlaylistChangeException down = assertThrows(PlaylistChangeException.class,
                 () -> controller(music, null, deadMemory()).restore(1));
         assertEquals(config.wording("snapshotUnavailable"), down.getMessage());
+    }
+
+    @Test
+    void aPlaylistMusicMindDidNotCreateIsNamedFromSpotify() {
+        Music music = new Music();
+        put(music, "p", t("a", false, "x"), t("b", false, "x"));
+        music.userPlaylists = List.of(new PlaylistSummary("p", "Road Trip", 2));
+        AppController c = controller(music, editReply("{\"commands\":[{\"type\":\"remove\",\"track\":\"2\"}]}"));
+
+        assertEquals("Road Trip", c.getPlaylist("p").name());
+        assertEquals(List.of(new PlaylistSummary("p", "Road Trip", 2)), c.getPlaylists());
+
+        c.modifyPlaylist("p", "remove the second track");
+        assertEquals("Road Trip", c.getSnapshots(c.currentUser()).get(0).name(), "the saved version keeps the real name");
+    }
+
+    @Test
+    void aPlaylistThatCannotBeNamedFromSpotifyStillOpens() {
+        Music music = new Music() {
+            @Override public List<PlaylistSummary> getUserPlaylists() {
+                throw new MusicServiceException("Spotify is down", 502);
+            }
+        };
+        put(music, "p", t("a", false, "x"));
+
+        assertEquals(config.wording("playlistUnnamed"), controller(music, null).getPlaylist("p").name());
     }
 
     @Test

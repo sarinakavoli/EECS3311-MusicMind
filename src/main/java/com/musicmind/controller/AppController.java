@@ -19,6 +19,7 @@ import com.musicmind.domain.Feedback;
 import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.Playlist;
 import com.musicmind.domain.PlaylistSpec;
+import com.musicmind.domain.PlaylistSummary;
 import com.musicmind.domain.Recommendation;
 import com.musicmind.domain.SnapshotInfo;
 import com.musicmind.domain.Track;
@@ -355,6 +356,20 @@ public class AppController {
         requireSpotify();
         signInIfNeeded();
         return facade.modifyPlaylist(id, instruction);
+    }
+
+    /** The playlists the user owns or collaborates on, for choosing one to open. */
+    public List<PlaylistSummary> getPlaylists() {
+        requireSpotify();
+        signInIfNeeded();
+        return facade.userPlaylists();
+    }
+
+    /** A playlist and its tracks as Spotify holds them now. */
+    public Playlist getPlaylist(String id) {
+        requireSpotify();
+        signInIfNeeded();
+        return facade.playlist(id);
     }
 
     /** What the last modify changed, in words; empty when nothing was changed. */

@@ -112,6 +112,42 @@ class CliAppTest extends PostgresTestBase {
     }
 
     @Test
+    void playlistsListsNameIdAndSize() {
+        Music music = new Music();
+        music.userPlaylists = List.of(new com.musicmind.domain.PlaylistSummary("p1", "Road Trip", 12));
+
+        Result r = run(controller(music, null), "", "playlists");
+
+        assertEquals(CliApp.OK, r.status());
+        assertTrue(r.out().contains("Road Trip") && r.out().contains("p1") && r.out().contains("12"), r.out());
+    }
+
+    @Test
+    void playlistsSaysSoWhenThereAreNone() {
+        Result r = run("playlists");
+
+        assertEquals(CliApp.OK, r.status());
+        assertTrue(r.out().contains(config.wording("cliNoPlaylists")), r.out());
+    }
+
+    @Test
+    void showPrintsThePlaylistsTracksAndLength() {
+        Music music = new Music();
+        music.seed("p1", "a", "b");
+
+        Result r = run(controller(music, null), "", "show", "p1");
+
+        assertEquals(CliApp.OK, r.status());
+        assertTrue(r.out().contains("Title a") && r.out().contains("Title b"), r.out());
+        assertTrue(r.out().contains("2 tracks") && r.out().contains("6 min"), r.out());
+    }
+
+    @Test
+    void showNeedsAPlaylistId() {
+        assertEquals(CliApp.USAGE, run("show").status());
+    }
+
+    @Test
     void helpNeedsNoControllerAndNoSpotify() {
         CliApp app = new CliApp(() -> { throw new AssertionError("no controller for help"); },
                 new BufferedReader(new StringReader("")), new PrintStream(new ByteArrayOutputStream()),

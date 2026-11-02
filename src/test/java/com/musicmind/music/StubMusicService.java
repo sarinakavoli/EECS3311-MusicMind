@@ -3,6 +3,7 @@ package com.musicmind.music;
 import com.musicmind.domain.Album;
 import com.musicmind.domain.Artist;
 import com.musicmind.domain.Playlist;
+import com.musicmind.domain.PlaylistSummary;
 import com.musicmind.domain.Track;
 
 import java.util.List;
@@ -25,5 +26,6 @@ public class StubMusicService implements MusicService {
     @Override public void reorderItems(String playlistId, int from, int to) { throw new UnsupportedOperationException(); }
     @Override public List<Track> getPlaylistItems(String playlistId) { throw new UnsupportedOperationException(); }
     @Override public void unfollowPlaylist(String playlistId) { throw new UnsupportedOperationException(); }
+    @Override public List<PlaylistSummary> getUserPlaylists() { throw new UnsupportedOperationException(); }
     @Override public String currentUserId() { throw new UnsupportedOperationException(); }
 }

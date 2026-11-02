@@ -11,6 +11,7 @@ import com.musicmind.domain.FeasibilityReport;
 import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.Playlist;
 import com.musicmind.domain.PlaylistSpec;
+import com.musicmind.domain.PlaylistSummary;
 import com.musicmind.domain.Recommendation;
 import com.musicmind.domain.Relaxation;
 import com.musicmind.domain.RequestKind;
@@ -56,7 +57,7 @@ public class CliApp {
 
     /** The commands in the order help lists them. */
     static final List<String> COMMANDS = List.of("login", "help", "exit", "profile", "trends", "search", "discover",
-            "create", "modify", "undo", "validate", "prefs", "feedback", "explain", "history", "restore");
+            "create", "playlists", "show", "modify", "undo", "validate", "prefs", "feedback", "explain", "history", "restore");
 
     /** How many genres and artists the text output lists. */
     private static final int GENRES_SHOWN = 8;
@@ -113,6 +114,8 @@ public class CliApp {
             case "prefs" -> { return runPrefs(rest); }
             case "feedback" -> { return runFeedback(rest); }
             case "create" -> { return runCreate(rest); }
+            case "playlists" -> { return runPlaylists(); }
+            case "show" -> { return runShow(rest); }
             case "modify" -> { return runModify(rest); }
             case "undo" -> { return runUndo(rest); }
             case "validate" -> { return runValidate(rest); }
@@ -499,6 +502,44 @@ public class CliApp {
             return usage("feedback", e.getMessage());
         } catch (RuntimeException e) {
             return failure("record your feedback", e);
+        }
+    }
+
+    /** F6 — the playlists that can be opened and changed, with the ids the other commands take. */
+    private int runPlaylists() {
+        if (signIn() == null) {
+            return FAILED;
+        }
+        try {
+            List<PlaylistSummary> playlists = controller().getPlaylists();
+            out.println(playlists.isEmpty() ? w("NoPlaylists") : w("PlaylistsHeading"));
+            playlists.forEach(p -> out.println("  " + w("PlaylistLine", p.name(), p.id(), p.trackCount())));
+            return OK;
+        } catch (RuntimeException e) {
+            return failure("list your playlists", e);
+        }
+    }
+
+    /** F6 — {@code show <playlistId>}. */
+    private int runShow(String[] rest) {
+        if (rest.length != 1) {
+            return usage("show", null);
+        }
+        if (signIn() == null) {
+            return FAILED;
+        }
+        try {
+            Playlist playlist = controller().getPlaylist(rest[0]);
+            long minutes = Math.round(playlist.totalDuration() / 60_000.0);
+            out.println(w("PlaylistHeading", playlist.name(), playlist.spotifyId(), playlist.tracks().size(), minutes));
+            for (int i = 0; i < playlist.tracks().size(); i++) {
+                Track t = playlist.tracks().get(i);
+                out.printf("%2d. %s  (%s)%n", i + 1, t.title(), t.id());
+            }
+            out.println(controller().spotifyAttribution());
+            return OK;
+        } catch (RuntimeException e) {
+            return failure("show the playlist", e);
         }
     }
 

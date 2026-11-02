@@ -174,6 +174,21 @@ class RetryingMusicServiceTest {
     }
 
     @Test
+    void readingTheUsersPlaylistsIsRetried() {
+        int[] calls = {0};
+        MusicService flaky = new StubMusicService() {
+            @Override public List<com.musicmind.domain.PlaylistSummary> getUserPlaylists() {
+                if (++calls[0] == 1) {
+                    throw new MusicServiceException("bad gateway", 502);
+                }
+                return List.of();
+            }
+        };
+        assertTrue(new RetryingMusicService(flaky, retries(3), s -> { }).getUserPlaylists().isEmpty());
+        assertEquals(2, calls[0]);
+    }
+
+    @Test
     void wrapsEveryMethodIncludingUnfollowPlaylist() {
         int[] calls = {0};
         MusicService flaky = new StubMusicService() {

@@ -44,6 +44,7 @@ import com.musicmind.domain.Relaxation;
 import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.Playlist;
 import com.musicmind.domain.PlaylistSpec;
+import com.musicmind.domain.PlaylistSummary;
 import com.musicmind.domain.Recommendation;
 import com.musicmind.domain.RequestKind;
 import com.musicmind.domain.SearchQuery;
@@ -756,7 +757,31 @@ public class MusicAgentFacade {
         AgentSession created = memory.findSessionByPlaylist(id);
         String name = created == null ? null : SessionRecord.specOf(created.derivedData())
                 .map(PlaylistSpec::name).orElse(null);
-        return new Playlist(id, name == null || name.isBlank() ? config.wording("playlistUnnamed") : name, tracks);
+        return new Playlist(id, name == null || name.isBlank() ? nameOnSpotify(id) : name, tracks);
+    }
+
+    /** The name Spotify lists for a playlist MusicMind did not create; a failed read only costs the name. */
+    private String nameOnSpotify(String id) {
+        try {
+            return create.music().getUserPlaylists().stream().filter(p -> p.id().equals(id))
+                    .map(PlaylistSummary::name).findFirst().orElse(config.wording("playlistUnnamed"));
+        } catch (MusicServiceException e) {
+            return config.wording("playlistUnnamed");
+        }
+    }
+
+    /** The playlists the user can open and edit (F6). */
+    public List<PlaylistSummary> userPlaylists() {
+        try {
+            return create.music().getUserPlaylists();
+        } catch (MusicServiceException e) {
+            throw playlistAccess(e);
+        }
+    }
+
+    /** The playlist as Spotify holds it, with full track details for display (F6). */
+    public Playlist playlist(String playlistId) {
+        return loadPlaylist(requirePlaylistId(playlistId));
     }
 
     /** Genres known per artist id from the stored taste profile (no Spotify call); empty if none is stored. */

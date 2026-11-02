@@ -24,6 +24,8 @@ public class FakeMusicService extends StubMusicService {
     public String failOn;
     /** When true the failure happens once, then {@code failOn} is cleared. */
     public boolean failOnce;
+    /** What {@link #getUserPlaylists()} answers. */
+    public List<com.musicmind.domain.PlaylistSummary> userPlaylists = new ArrayList<>();
     private int nextId = 1;
 
     public static Track track(String id) {
@@ -80,6 +82,10 @@ public class FakeMusicService extends StubMusicService {
 
     @Override public List<Track> getPlaylistItems(String playlistId) {
         return List.copyOf(playlists.get(playlistId));
+    }
+
+    @Override public List<com.musicmind.domain.PlaylistSummary> getUserPlaylists() {
+        return userPlaylists;
     }
 
     @Override public void unfollowPlaylist(String playlistId) {

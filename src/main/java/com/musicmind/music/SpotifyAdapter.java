@@ -8,6 +8,7 @@ import com.musicmind.config.Config;
 import com.musicmind.domain.Album;
 import com.musicmind.domain.Artist;
 import com.musicmind.domain.Playlist;
+import com.musicmind.domain.PlaylistSummary;
 import com.musicmind.domain.Track;
 
 import java.net.URI;
@@ -36,6 +37,7 @@ public class SpotifyAdapter implements MusicService {
     private final int maxItems;
     private final int maxSavedTracks;
     private final int playlistPage;
+    private final int userPlaylistPage;
     private final int addBatch;
     private final int topLimit;
     private final int recentLimit;
@@ -76,6 +78,7 @@ public class SpotifyAdapter implements MusicService {
         this.libraryPage = config.spotifyLibraryPageSize();
         this.maxItems = config.spotifyMaxItems();
         this.playlistPage = config.spotifyPlaylistPageSize();
+        this.userPlaylistPage = config.spotifyUserPlaylistPageSize();
         this.addBatch = config.spotifyAddBatchSize();
         this.topLimit = config.spotifyTopItemsLimit();
         this.recentLimit = config.spotifyRecentlyPlayedLimit();
@@ -205,6 +208,40 @@ public class SpotifyAdapter implements MusicService {
         return pagedTracks("/playlists/" + enc(playlistId) + "/items?limit=" + playlistPage,
                 "Permission denied: Spotify only lets an app read the items of playlists that are owned or "
                         + "collaborative, so this playlist cannot be read.", maxItems);
+    }
+
+    @Override
+    public List<PlaylistSummary> getUserPlaylists() {
+        String me = currentUserId();
+        List<PlaylistSummary> out = new ArrayList<>();
+        String url = api + "/me/playlists?limit=" + userPlaylistPage;
+        while (url != null) {
+            JsonObject page = sendUrl("GET", url, null);
+            for (JsonElement e : array(page, "items")) {
+                if (e.isJsonObject() && editableBy(me, e.getAsJsonObject())) {
+                    JsonObject p = e.getAsJsonObject();
+                    out.add(new PlaylistSummary(str(p, "id"), str(p, "name"), trackTotal(p)));
+                }
+            }
+            url = hasNext(page) ? page.get("next").getAsString() : null;
+            if (url != null && !url.startsWith(api)) {
+                throw new MusicServiceException("Spotify returned an unexpected next-page address; stopped paging.");
+            }
+        }
+        return out;
+    }
+
+    private static boolean editableBy(String userId, JsonObject playlist) {
+        JsonElement owner = playlist.get("owner");
+        boolean owned = owner != null && owner.isJsonObject() && userId.equals(str(owner.getAsJsonObject(), "id"));
+        return owned || (playlist.has("collaborative") && playlist.get("collaborative").getAsBoolean());
+    }
+
+    /** The playlist's item count: under {@code items} (Feb 2026), with {@code tracks} accepted as the legacy key. */
+    private static int trackTotal(JsonObject playlist) {
+        JsonElement counts = playlist.has("items") ? playlist.get("items") : playlist.get("tracks");
+        return counts != null && counts.isJsonObject() && counts.getAsJsonObject().has("total")
+                ? counts.getAsJsonObject().get("total").getAsInt() : 0;
     }
 
     @Override

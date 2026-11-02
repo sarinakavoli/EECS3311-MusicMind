@@ -4,6 +4,7 @@ import com.musicmind.config.Config;
 import com.musicmind.domain.Album;
 import com.musicmind.domain.Artist;
 import com.musicmind.domain.Playlist;
+import com.musicmind.domain.PlaylistSummary;
 import com.musicmind.domain.Track;
 import com.musicmind.memory.PersistenceException;
 import com.musicmind.memory.repository.GenreRepository;
@@ -132,6 +133,11 @@ public class GenreEnrichingMusicService implements MusicService {
     @Override
     public void unfollowPlaylist(String playlistId) {
         delegate.unfollowPlaylist(playlistId);
+    }
+
+    @Override
+    public List<PlaylistSummary> getUserPlaylists() {
+        return delegate.getUserPlaylists();
     }
 
     @Override

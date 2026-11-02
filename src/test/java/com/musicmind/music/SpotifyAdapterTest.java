@@ -180,6 +180,26 @@ class SpotifyAdapterTest {
     }
 
     @Test
+    void getUserPlaylistsKeepsOnlyOwnedOrCollaborativeOnesAcrossPages() {
+        String page2 = api.apiBase() + "/me/playlists?limit=50&offset=50";
+        api.respond(r -> {
+            if (r.path().equals("/v1/me")) {
+                return Reply.ok("{\"id\":\"sarina\"}");
+            }
+            return Reply.ok(r.query() != null && r.query().contains("offset=50")
+                    ? "{\"items\":[{\"id\":\"c\",\"name\":\"Shared\",\"collaborative\":true,\"owner\":{\"id\":\"friend\"},\"tracks\":{\"total\":3}}],\"next\":null}"
+                    : "{\"items\":[{\"id\":\"a\",\"name\":\"Mine\",\"collaborative\":false,\"owner\":{\"id\":\"sarina\"},\"items\":{\"total\":27}},"
+                            + "{\"id\":\"b\",\"name\":\"Followed\",\"collaborative\":false,\"owner\":{\"id\":\"friend\"},\"items\":{\"total\":9}},"
+                            + "null],\"next\":\"" + page2 + "\"}");
+        });
+
+        List<com.musicmind.domain.PlaylistSummary> found = adapter.getUserPlaylists();
+
+        assertEquals(List.of(new com.musicmind.domain.PlaylistSummary("a", "Mine", 27),
+                new com.musicmind.domain.PlaylistSummary("c", "Shared", 3)), found);
+    }
+
+    @Test
     void theSavedTrackCapDefaultsToFiveThousand() {
         api.respond(r -> Reply.ok(endlessPage(api, 50)));
 

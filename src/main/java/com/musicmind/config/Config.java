@@ -270,6 +270,11 @@ public final class Config {
         return text("spotify.authorizeUrl");
     }
 
+    /** Page size when listing the user's playlists. */
+    public int spotifyUserPlaylistPageSize() {
+        return integer("spotify.userPlaylistPageSize");
+    }
+
     /** Page size when reading playlist items. */
     public int spotifyPlaylistPageSize() {
         return integer("spotify.playlistPageSize");
