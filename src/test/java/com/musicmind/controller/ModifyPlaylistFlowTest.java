@@ -802,8 +802,9 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
         Music music = new Music();
         put(music, "p", t("a", true, "x"), t("b", false, "bad"), t("b", false, "bad"));
         storeCreatedSession("p", "{\"spec\":{\"targetMinutes\":0,\"allowExplicit\":false,\"familiarRatio\":0.5,"
-                + "\"blockedArtists\":[\"bad\"],\"name\":\"Mix\"}}", null);
+                + "\"blockedArtists\":[],\"name\":\"Mix\"}}", null);
         AppController c = controller(music, null);
+        c.setPreference(new UserPreference("blockedArtists", "bad", false, 0.5));
 
         ValidationResult r = c.validatePlaylist("p");
 
@@ -1039,6 +1040,27 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
 
         assertEquals(1, reads[0]);
         assertEquals("Road Trip", updated.name());
+    }
+
+    @Test
+    void aBlockRemovedAfterThePlaylistWasCreatedNoLongerApplies() {
+        Music music = new Music();
+        put(music, "p", t("a", false, "bad"), t("b", false, "x"));
+        storeCreatedSession("p", SAVED_SPEC.replace("\"blockedArtists\":[]", "\"blockedArtists\":[\"bad\"],\"blockedTracks\":[\"b\"]"), null);
+
+        assertTrue(controller(music, null).validatePlaylist("p").passed(), "your blocks are the ones in force now");
+    }
+
+    @Test
+    void restoreReplacesASnapshotsPlaceholderNameWithTheRealOne() {
+        Music music = new Music();
+        put(music, "p", t("a", false, "x"), t("b", false, "x"));
+        AppController c = controller(music, editReply("{\"commands\":[{\"type\":\"remove\",\"track\":\"2\"}]}"));
+        c.modifyPlaylist("p", "remove the second track");   // saved while Spotify's list gave no name
+        int snapshot = c.getSnapshots(c.currentUser()).get(0).id();
+        music.userPlaylists = List.of(new PlaylistSummary("p", "Road Trip", 1));
+
+        assertEquals("Road Trip", c.restore(snapshot).name());
     }
 
     @Test

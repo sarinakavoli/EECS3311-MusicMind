@@ -102,19 +102,21 @@ public final class PreferenceSettings {
      */
     public PlaylistSpec applyTo(PlaylistSpec spec) {
         boolean explicit = spec.allowExplicit() && explicitAllowed().orElse(true);
-        return withBlocks(spec).withAllowExplicit(explicit);
-    }
-
-    /**
-     * A copy of the spec with the stored blocked artists and tracks added. Blocks hold for every playlist from
-     * the moment they are set, unlike the other preferences, which shape a playlist when it is made.
-     */
-    public PlaylistSpec withBlocks(PlaylistSpec spec) {
         Set<String> artists = new LinkedHashSet<>(spec.blockedArtists());
         artists.addAll(blockedArtists);
         Set<String> tracks = new LinkedHashSet<>(spec.blockedTracks());
         tracks.addAll(blockedTracks);
-        return spec.withBlockedArtists(new ArrayList<>(artists)).withBlockedTracks(new ArrayList<>(tracks));
+        return spec.withAllowExplicit(explicit).withBlockedArtists(new ArrayList<>(artists))
+                .withBlockedTracks(new ArrayList<>(tracks));
+    }
+
+    /**
+     * A copy of a playlist's saved spec with exactly the blocks in force now. Blocks apply to every playlist
+     * from the moment they are set until they are removed, whatever was blocked when the playlist was made.
+     * The other preferences stay as they were when it was made.
+     */
+    public PlaylistSpec withCurrentBlocks(PlaylistSpec saved) {
+        return saved.withBlockedArtists(new ArrayList<>(blockedArtists)).withBlockedTracks(new ArrayList<>(blockedTracks));
     }
 
     /**
@@ -161,6 +163,9 @@ public final class PreferenceSettings {
 
     /** True for a list preference with nothing in it, which is stored as no preference at all. */
     public static boolean isEmptyList(UserPreference p) {
+        if (p == null || p.key() == null) {
+            return false;   // not a preference at all: saving it reports that
+        }
         boolean list = p.key().equals(BLOCKED_ARTISTS) || p.key().equals(BLOCKED_TRACKS) || p.key().equals(PREFERRED_STYLES);
         return list && (p.value() == null || p.value().isBlank());
     }

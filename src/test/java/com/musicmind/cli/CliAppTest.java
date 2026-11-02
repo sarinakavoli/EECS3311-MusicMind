@@ -366,6 +366,25 @@ class CliAppTest extends PostgresTestBase {
     }
 
     @Test
+    void aSharedNameNoticeDoesNotRepeatOnALaterPreference() {
+        Music music = new Music();
+        music.artists = List.of(new Artist(ID_A, "Eminem", List.of()), new Artist(ID_B, "Eminem", List.of()));
+        AppController c = controller(music, null);
+        run(c, "", "prefs", "set", "blockedArtists", "eminem");
+
+        Result later = run(c, "", "prefs", "set", "familiarBias", "0.5");
+
+        assertFalse(later.out().contains("Eminem") || later.out().contains("eminem"), later.out());
+    }
+
+    @Test
+    void settingANullPreferenceIsRefusedClearly() {
+        AppController c = controller(new Music(), null);
+
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> c.setPreference(null));
+    }
+
+    @Test
     void settingAListPreferenceToNothingRemovesIt() {
         Music music = new Music();
         music.artists = List.of(new Artist(ID_A, "Drake", List.of()));

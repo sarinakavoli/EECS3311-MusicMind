@@ -799,8 +799,8 @@ public class MusicAgentFacade {
     private record SpecChoice(PlaylistSpec spec, boolean fromSession) { }
 
     /**
-     * The constraints a playlist is judged by: the spec saved with the session that created it plus the blocks
-     * set since, else one built from the stored preferences. Either way the target length is the one the latest edit, undo or restore
+     * The constraints a playlist is judged by: the spec saved with the session that created it with the blocks
+     * in force now, else one built from the stored preferences. Either way the target length is the one the latest edit, undo or restore
      * left ({@link PlaylistTargets}), not necessarily the creation-time one.
      */
     private SpecChoice specFor(String userId, String playlistId) {
@@ -809,7 +809,7 @@ public class MusicAgentFacade {
         PreferenceSettings preferences = PreferenceSettings.from(memory.loadPreferences(userId));
         SpecChoice choice;
         if (saved.isPresent()) {
-            choice = new SpecChoice(preferences.withBlocks(saved.get()), true);
+            choice = new SpecChoice(preferences.withCurrentBlocks(saved.get()), true);
         } else {
             PlaylistSpec base = new PlaylistSpec(0, true, config.discoverDefaultFamiliarRatio(), List.of(), null);
             choice = new SpecChoice(preferences.applyTo(base), false);
@@ -1011,7 +1011,8 @@ public class MusicAgentFacade {
             int back = targets(userId, id).targetAt(snapshotId).orElse(current);
             saveChangeSession(id, config.wording("restoreRecordText"), PlaylistTargets.change(back, current, saved));
         }
-        return readBack(id, snapshot.name()).orElseGet(() -> new Playlist(id, snapshot.name(), snapshot.tracks()));
+        String name = snapshot.name().equals(config.wording("playlistUnnamed")) ? nameOnSpotify(id) : snapshot.name();
+        return readBack(id, name).orElseGet(() -> new Playlist(id, name, snapshot.tracks()));
     }
 
     /**

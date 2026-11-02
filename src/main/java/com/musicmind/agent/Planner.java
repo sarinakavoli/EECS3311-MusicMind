@@ -87,7 +87,8 @@ public class Planner {
         boolean explicit = fromGoal.allowExplicit() && (flags == null || flags.allowExplicit());
         String name = flags != null && flags.name() != null && !flags.name().isBlank() ? flags.name() : fromGoal.name();
         List<String> blocked = flags == null ? List.of() : flags.blockedArtists();
-        PlaylistSpec spec = prefs.applyTo(new PlaylistSpec(minutes, explicit, ratio, blocked, name));
+        List<String> blockedTracks = flags == null ? List.of() : flags.blockedTracks();
+        PlaylistSpec spec = prefs.applyTo(new PlaylistSpec(minutes, explicit, ratio, blocked, blockedTracks, name));
 
         Set<String> seeds = new LinkedHashSet<>();
         moods.genresFor(parsed.extras().mood()).forEach(g -> seeds.add(g.toLowerCase(Locale.ROOT)));

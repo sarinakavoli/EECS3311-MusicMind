@@ -172,6 +172,35 @@ class SpotifyAdapterTest {
     }
 
     @Test
+    void tracksTrimmedAtTheLimitAreNotCountedAsSkipped() throws Exception {
+        com.musicmind.config.Config capped = com.musicmind.config.Config.defaults()
+                .withTunables(java.util.Map.of("spotify.maxItems", "2"));
+        api.respond(r -> Reply.ok("{\"items\":[{\"item\":" + trackJson(1) + "},{\"item\":" + trackJson(2) + "},{\"item\":"
+                + trackJson(3) + "}],\"next\":null}"));
+
+        List<Track> tracks = adapterWith(capped).getPlaylistItems("p");
+
+        assertEquals(2, tracks.size());
+        assertEquals(0, TrackList.skipped(tracks));
+    }
+
+    @Test
+    void aNextLinkThatOnlyLooksLikeTheApiIsRefused() {
+        String lookalike = api.apiBase() + ".evil.example/page";
+        api.respond(r -> r.path().equals("/v1/me") ? Reply.ok("{\"id\":\"me\"}")
+                : Reply.ok("{\"items\":[],\"next\":\"" + lookalike + "\"}"));
+
+        assertThrows(MusicServiceException.class, () -> adapter.getUserPlaylists());
+    }
+
+    @Test
+    void anArtistWithNoNameIsLeftOutOfSearchResults() {
+        api.respond(r -> Reply.ok("{\"artists\":{\"items\":[{\"id\":\"a1\"},{\"id\":\"a2\",\"name\":\"Drake\"}],\"next\":null}}"));
+
+        assertEquals(List.of("a2"), adapter.searchArtists("Drake", 3).stream().map(com.musicmind.domain.Artist::id).toList());
+    }
+
+    @Test
     void aForeignNextLinkStopsTheUsersPlaylistList() {
         api.respond(r -> r.path().equals("/v1/me") ? Reply.ok("{\"id\":\"me\"}")
                 : Reply.ok("{\"items\":[],\"next\":\"https://elsewhere.example/steal\"}"));

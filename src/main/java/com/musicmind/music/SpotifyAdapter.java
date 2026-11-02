@@ -218,7 +218,7 @@ public class SpotifyAdapter implements MusicService {
                 ? body.getAsJsonObject("artists") : new JsonObject();
         List<Artist> out = new ArrayList<>();
         for (JsonElement e : array(page, "items")) {
-            if (e.isJsonObject()) {
+            if (e.isJsonObject() && str(e.getAsJsonObject(), "name") != null) {
                 out.add(toArtist(e.getAsJsonObject()));
             }
         }
@@ -317,7 +317,8 @@ public class SpotifyAdapter implements MusicService {
         }
         boolean truncated = url != null || out.size() > limit;
         int kept = Math.min(out.size(), limit);
-        return new TrackList(out.subList(0, kept), truncated, positions.subList(0, kept), position);
+        int entries = kept < out.size() ? positions.get(kept) : position;
+        return new TrackList(out.subList(0, kept), truncated, positions.subList(0, kept), entries);
     }
 
     private JsonObject send(String method, String path, String jsonBody) {
@@ -380,7 +381,7 @@ public class SpotifyAdapter implements MusicService {
     /** The next page's address, or null on the last page; a link off the API host is never followed. */
     private String nextUrl(JsonObject page) {
         String url = hasNext(page) ? page.get("next").getAsString() : null;
-        if (url != null && !url.startsWith(api)) {
+        if (url != null && !url.startsWith(api + "/")) {
             throw new MusicServiceException("Spotify returned an unexpected next-page address; stopped paging.");
         }
         return url;

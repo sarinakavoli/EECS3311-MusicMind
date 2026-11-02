@@ -1,6 +1,5 @@
 package com.musicmind.agent.state;
 
-import com.musicmind.agent.ConstraintChecker;
 import com.musicmind.agent.strategy.BalancedStrategy;
 import com.musicmind.config.Config;
 import com.musicmind.domain.AgentSession;
@@ -37,7 +36,7 @@ public class SelectingState implements SessionState {
         RunServices services = ctx.services;
         Config config = services.config();
         PlaylistSpec spec = ctx.spec();
-        List<Track> chosen = fittingCandidates(ctx.candidates, spec, config);
+        List<Track> chosen = ctx.fittingCandidates();
         long chosenMs = chosen.stream().mapToLong(Track::durationMs).sum();
         // Validation may have moved the length the recommender aims for; every other constraint is the spec's.
         int minutesLeft = ctx.engineMinutes - (int) Math.round(chosenMs / MS_PER_MINUTE);
@@ -61,7 +60,7 @@ public class SelectingState implements SessionState {
                 trace = services.engine().lastTrace();
                 notices.addAll(services.engine().lastNotices());
             }
-            reasons.putAll(trace.reasons());
+            trace.reasons().forEach(reasons::putIfAbsent);
             trace = new DecisionTrace(trace.strategyName(), reasons, trace.constraintsSatisfied(), trace.requestedGenres());
         } else {
             trace = new DecisionTrace(BalancedStrategy.class.getSimpleName(), reasons, List.of(), ctx.plan.seedGenres());
@@ -77,19 +76,5 @@ public class SelectingState implements SessionState {
         ctx.selectionNotices = notices;
         notices.forEach(session::addNotice);
         session.setState(new ValidatingState());
-    }
-
-    /** The candidates the spec allows, in the order added, as far as they fit in the target length. */
-    private static List<Track> fittingCandidates(List<Track> candidates, PlaylistSpec spec, Config config) {
-        double maxMs = spec.targetMinutes() * MS_PER_MINUTE * (1 + config.playlistDurationTolerance());
-        List<Track> fitting = new ArrayList<>();
-        long total = 0;
-        for (Track t : candidates) {
-            if (ConstraintChecker.eligible(t, spec) && total + t.durationMs() <= maxMs) {
-                fitting.add(t);
-                total += t.durationMs();
-            }
-        }
-        return fitting;
     }
 }

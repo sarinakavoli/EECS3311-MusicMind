@@ -1,6 +1,7 @@
 package com.musicmind.agent.state;
 
 import com.musicmind.agent.CandidatePool;
+import com.musicmind.agent.ConstraintChecker;
 import com.musicmind.agent.NegotiationHandler;
 import com.musicmind.agent.Retrieval;
 import com.musicmind.domain.AgentPlan;
@@ -26,6 +27,8 @@ import java.util.function.Consumer;
  * owns it, and the states read and write it.
  */
 public final class RunContext {
+
+    private static final double MS_PER_MINUTE = 60_000.0;
 
     final RunServices services;
     final AgentRequest request;
@@ -72,7 +75,22 @@ public final class RunContext {
         return playlist;
     }
 
-    /** What the run can choose from: the tracks retrieved, plus the user's candidates. */
+    /** The candidates the spec allows, in the order added, as far as they fit in the target length. */
+    List<Track> fittingCandidates() {
+        PlaylistSpec spec = spec();
+        double maxMs = spec.targetMinutes() * MS_PER_MINUTE * (1 + services.config().playlistDurationTolerance());
+        List<Track> fitting = new ArrayList<>();
+        long total = 0;
+        for (Track t : candidates) {
+            if (ConstraintChecker.eligible(t, spec) && total + t.durationMs() <= maxMs) {
+                fitting.add(t);
+                total += t.durationMs();
+            }
+        }
+        return fitting;
+    }
+
+    /** What the run can choose from: the tracks retrieved, plus the candidates it can use. */
     CandidatePool pool() {
         CandidatePool read = retrieval.pool();
         List<Track> familiar = new ArrayList<>(read.familiar());
@@ -80,7 +98,7 @@ public final class RunContext {
         Set<String> known = new HashSet<>();
         familiar.forEach(t -> known.add(t.id()));
         novel.forEach(t -> known.add(t.id()));
-        for (Track t : candidates) {
+        for (Track t : fittingCandidates()) {
             if (known.add(t.id())) {
                 (profile.familiarity(t) >= 1.0 ? familiar : novel).add(t);
             }

@@ -251,6 +251,55 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
     }
 
     @Test
+    void aCandidateTheRecommenderAlsoPickedKeepsItsOwnReason() {
+        Track both = new Track(CANDIDATE, "spotify:track:" + CANDIDATE, "Yours", 4 * 60_000, false, List.of("a0"));
+        Music music = new Music() {
+            @Override public List<Track> getTopItems(String type, String r) {
+                List<Track> tracks = new ArrayList<>(super.getTopItems(type, r));
+                tracks.add(both);
+                return tracks;
+            }
+        };
+        music.byId.put(CANDIDATE, both);
+        music.libraryTracks = 1;   // so few familiar tracks that the recommender needs this one too
+        AppController c = controller(music, new MockLLMProvider());
+        c.addCandidate(CANDIDATE);
+        PlaylistSpec half = new PlaylistSpec(16, true, 0.5, List.of(), null);
+
+        c.createPlaylist(new AgentRequest("a mix for working", RequestKind.CREATE_PLAYLIST, half));
+
+        assertEquals(config.wording("reasonCandidate"), c.lastSession().trace().reasons().get(CANDIDATE));
+    }
+
+    @Test
+    void aCandidateTooLongToUseDoesNotMakeARequestLookPossible() {
+        Music music = new Music();
+        music.libraryTracks = 12;
+        music.novelTracks = 2;
+        music.byId.put(CANDIDATE, new Track(CANDIDATE, "spotify:track:" + CANDIDATE, "Very long", 200 * 60_000, false, List.of("stranger")));
+        AppController c = controller(music, new MockLLMProvider());
+        c.addCandidate(CANDIDATE);
+        List<String> states = record(c);
+        PlaylistSpec hour = new PlaylistSpec(60, true, 0.5, List.of(), null);
+
+        assertThrows(RuntimeException.class,
+                () -> c.createPlaylist(new AgentRequest("a mix for working", RequestKind.CREATE_PLAYLIST, hour)));
+
+        assertFalse(states.contains("selecting"), states.toString());
+    }
+
+    @Test
+    void trackBlocksInARequestReachThePlan() {
+        Music music = new Music();
+        AppController c = controller(music, new MockLLMProvider());
+        PlaylistSpec flags = new PlaylistSpec(0, true, Double.NaN, List.of(), null).withBlockedTracks(List.of("t0"));
+
+        Playlist playlist = c.createPlaylist(new AgentRequest("a mix for working", RequestKind.CREATE_PLAYLIST, flags));
+
+        assertTrue(playlist.tracks().stream().noneMatch(t -> t.id().equals("t0")));
+    }
+
+    @Test
     void aCandidateTheConstraintsForbidIsLeftOutSaidAndKept() {
         Music music = new Music();
         music.byId.put(CANDIDATE, candidate(CANDIDATE, 4));

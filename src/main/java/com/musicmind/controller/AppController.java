@@ -79,6 +79,7 @@ public class AppController {
     private final Config config;
     private final BooleanSupplier browserLoginNeeded;
     private volatile User currentUser;
+    private volatile List<String> lastPreferenceNotices = List.of();
 
     /**
      * @param music  the Spotify service, or null when Spotify is not configured
@@ -527,8 +528,13 @@ public class AppController {
      * @throws IllegalArgumentException with a message fit to show, for an unknown key or unusable value
      */
     public UserPreference parsePreference(String key, String value) {
-        boolean artists = facade != null && key != null && key.strip().equals(PreferenceSettings.BLOCKED_ARTISTS);
-        return PreferenceSettings.parse(key, artists ? facade.artistIds(value) : value, config);
+        lastPreferenceNotices = List.of();
+        if (facade == null || key == null || !key.strip().equals(PreferenceSettings.BLOCKED_ARTISTS)) {
+            return PreferenceSettings.parse(key, value, config);
+        }
+        UserPreference parsed = PreferenceSettings.parse(key, facade.artistIds(value), config);
+        lastPreferenceNotices = facade.lastArtistNotices();
+        return parsed;
     }
 
     /** The value a view shows for a preference: blocked artists by name, which are never stored. */
@@ -556,7 +562,7 @@ public class AppController {
 
     /** What the last {@link #parsePreference} should tell the user, such as a name several artists share. */
     public List<String> lastPreferenceNotices() {
-        return facade == null ? List.of() : facade.lastArtistNotices();
+        return lastPreferenceNotices;
     }
 
     /** The user's stored preferences; the safe defaults (and a warning) while the database is down. */
