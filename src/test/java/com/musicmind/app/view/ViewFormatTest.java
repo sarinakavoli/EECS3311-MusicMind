@@ -269,6 +269,19 @@ class ViewFormatTest {
     }
 
     @Test
+    void aTimestampIsReadableInTheChosenZone() {
+        assertEquals("2026-11-02 14:32", format.timestamp(Instant.parse("2026-11-02T14:32:41.797014Z")));
+        ViewFormat eastern = new ViewFormat(config, java.time.ZoneId.of("America/Toronto"));
+        assertEquals("2026-11-02 09:32", eastern.timestamp(Instant.parse("2026-11-02T14:32:41.797014Z")));
+    }
+
+    @Test
+    void thumbsWordingSurvivesTheFileEncoding() {
+        assertTrue(config.wording("guiAccept").startsWith("\uD83D\uDC4D"));
+        assertTrue(config.wording("guiReject").startsWith("\uD83D\uDC4E"));
+    }
+
+    @Test
     void aSavedVersionIsDescribedByNameSizeAndTime() {
         SnapshotInfo info = new SnapshotInfo(4, "pl9", "Mix", 12, Instant.parse("2026-11-01T14:05:00Z"));
         assertEquals("Mix (12 tracks), saved 2026-11-01 14:05", format.snapshotLine(info));

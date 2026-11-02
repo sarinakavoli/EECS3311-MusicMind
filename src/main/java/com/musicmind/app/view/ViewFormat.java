@@ -275,6 +275,11 @@ public final class ViewFormat {
         return w("PlaylistTitle", playlist.name(), playlist.tracks().size(), minutes(playlist.totalDuration()));
     }
 
+    /** A moment as a readable date and time in the formatter's time zone. */
+    public String timestamp(java.time.Instant instant) {
+        return timeFormat.format(instant);
+    }
+
     /** A saved playlist version as one line of the restore list. */
     public String snapshotLine(SnapshotInfo info) {
         return w("VersionLine", info.name(), info.trackCount(), info.createdAt() == null ? "" : timeFormat.format(info.createdAt()));
