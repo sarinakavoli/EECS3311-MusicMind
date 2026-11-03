@@ -9,222 +9,387 @@
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>225</x><y>40</y><w>150</w><h>40</h></coordinates>
+    <coordinates><x>225</x><y>40</y><w>200</w><h>40</h></coordinates>
     <panel_attributes>ProfileView</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>410</x><y>40</y><w>150</w><h>40</h></coordinates>
-    <panel_attributes>AppController</panel_attributes>
+    <coordinates><x>440</x><y>40</y><w>200</w><h>40</h></coordinates>
+    <panel_attributes>AppController
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>595</x><y>40</y><w>150</w><h>40</h></coordinates>
-    <panel_attributes>MusicAgentFacade</panel_attributes>
+    <coordinates><x>655</x><y>40</y><w>200</w><h>40</h></coordinates>
+    <panel_attributes>MusicAgentFacade
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>780</x><y>40</y><w>150</w><h>40</h></coordinates>
+    <coordinates><x>870</x><y>40</y><w>200</w><h>40</h></coordinates>
     <panel_attributes>ToolManager</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>965</x><y>40</y><w>150</w><h>40</h></coordinates>
+    <coordinates><x>1085</x><y>40</y><w>200</w><h>40</h></coordinates>
+    <panel_attributes>GenreEnrichingMusicService
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>1300</x><y>40</y><w>200</w><h>40</h></coordinates>
+    <panel_attributes>MusicBrainzAdapter
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>1515</x><y>40</y><w>200</w><h>40</h></coordinates>
     <panel_attributes>MusicService</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>1150</x><y>40</y><w>150</w><h>40</h></coordinates>
-    <panel_attributes>ProfileBuilder</panel_attributes>
+    <coordinates><x>1730</x><y>40</y><w>200</w><h>40</h></coordinates>
+    <panel_attributes>ProfileBuilder
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>1335</x><y>40</y><w>150</w><h>40</h></coordinates>
+    <coordinates><x>1945</x><y>40</y><w>200</w><h>40</h></coordinates>
     <panel_attributes>LLMProvider</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>1520</x><y>40</y><w>150</w><h>40</h></coordinates>
-    <panel_attributes>MemoryManager</panel_attributes>
+    <coordinates><x>2160</x><y>40</y><w>200</w><h>40</h></coordinates>
+    <panel_attributes>MemoryManager
+bg=#CFE8FF</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLFrame</id>
+    <coordinates><x>75</x><y>154</y><w>2285</w><h>298</h></coordinates>
+    <panel_attributes>opt  [a stored profile exists and Refresh was not pressed (R5)]
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLFrame</id>
+    <coordinates><x>990</x><y>812</y><w>1230</w><h>190</h></coordinates>
+    <panel_attributes>loop  [each artist with no cached genres]
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLFrame</id>
+    <coordinates><x>685</x><y>1326</y><w>1460</w><h>114</h></coordinates>
+    <panel_attributes>alt  [no key or failure: computed summary, labelled]
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLFrame</id>
+    <coordinates><x>75</x><y>466</y><w>2285</w><h>1158</h></coordinates>
+    <panel_attributes>opt  [Refresh]</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>115</x><y>80</y><w>10</w><h>832</h></coordinates>
+    <coordinates><x>115</x><y>120</y><w>10</w><h>1698</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;832</additional_attributes>
+    <additional_attributes>0;0;0;1698</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>300</x><y>80</y><w>10</w><h>832</h></coordinates>
+    <coordinates><x>320</x><y>80</y><w>10</w><h>1738</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;832</additional_attributes>
+    <additional_attributes>5;0;5;1738</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>485</x><y>80</y><w>10</w><h>832</h></coordinates>
+    <coordinates><x>535</x><y>80</y><w>10</w><h>1738</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;832</additional_attributes>
+    <additional_attributes>5;0;5;1738</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>80</y><w>10</w><h>832</h></coordinates>
+    <coordinates><x>750</x><y>80</y><w>10</w><h>1738</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;832</additional_attributes>
+    <additional_attributes>5;0;5;1738</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>855</x><y>80</y><w>10</w><h>832</h></coordinates>
+    <coordinates><x>965</x><y>80</y><w>10</w><h>1738</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;832</additional_attributes>
+    <additional_attributes>5;0;5;1738</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1040</x><y>80</y><w>10</w><h>832</h></coordinates>
+    <coordinates><x>1180</x><y>80</y><w>10</w><h>1738</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;832</additional_attributes>
+    <additional_attributes>5;0;5;1738</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1225</x><y>80</y><w>10</w><h>832</h></coordinates>
+    <coordinates><x>1395</x><y>80</y><w>10</w><h>1738</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;832</additional_attributes>
+    <additional_attributes>5;0;5;1738</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1410</x><y>80</y><w>10</w><h>832</h></coordinates>
+    <coordinates><x>1610</x><y>80</y><w>10</w><h>1738</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;832</additional_attributes>
+    <additional_attributes>5;0;5;1738</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1595</x><y>80</y><w>10</w><h>832</h></coordinates>
+    <coordinates><x>1825</x><y>80</y><w>10</w><h>1738</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;832</additional_attributes>
+    <additional_attributes>5;0;5;1738</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>115</x><y>110</y><w>185</w><h>10</h></coordinates>
+    <coordinates><x>2040</x><y>80</y><w>10</w><h>1738</h></coordinates>
+    <panel_attributes>lt=.</panel_attributes>
+    <additional_attributes>5;0;5;1738</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>2255</x><y>80</y><w>10</w><h>1738</h></coordinates>
+    <panel_attributes>lt=.</panel_attributes>
+    <additional_attributes>5;0;5;1738</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>115</x><y>196</y><w>210</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
-open Profile / Refresh</panel_attributes>
-    <additional_attributes>0;0;185;0</additional_attributes>
+open Profile</panel_attributes>
+    <additional_attributes>0;0;210;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>300</x><y>156</y><w>185</w><h>10</h></coordinates>
+    <coordinates><x>325</x><y>242</y><w>215</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
-analyzeTaste(user)</panel_attributes>
-    <additional_attributes>0;0;185;0</additional_attributes>
+lastProfile(user)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;215;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>485</x><y>202</y><w>185</w><h>10</h></coordinates>
+    <coordinates><x>540</x><y>288</y><w>215</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
-analyzeTaste(user)</panel_attributes>
-    <additional_attributes>0;0;185;0</additional_attributes>
+lastProfile(user)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;215;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>248</y><w>185</w><h>10</h></coordinates>
+    <coordinates><x>755</x><y>334</y><w>1505</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
-execute(getTopItems)</panel_attributes>
-    <additional_attributes>0;0;185;0</additional_attributes>
+loadHistory(user)  (latest stored profile: histogram, ids, summary, date)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;1505;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>855</x><y>294</y><w>185</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-getTopItems("artists", range)</panel_attributes>
-    <additional_attributes>0;0;185;0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>855</x><y>340</y><w>185</w><h>10</h></coordinates>
+    <coordinates><x>755</x><y>380</y><w>1505</w><h>10</h></coordinates>
     <panel_attributes>lt=.&gt;
-top artists (genres)</panel_attributes>
-    <additional_attributes>185;0;0;0</additional_attributes>
+derived data
+fg=#C05A00</panel_attributes>
+    <additional_attributes>1505;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>386</y><w>185</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-execute(getSavedTracks)</panel_attributes>
-    <additional_attributes>0;0;185;0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>855</x><y>432</y><w>185</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-getSavedTracks()</panel_attributes>
-    <additional_attributes>0;0;185;0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>855</x><y>478</y><w>185</w><h>10</h></coordinates>
+    <coordinates><x>325</x><y>426</y><w>430</w><h>10</h></coordinates>
     <panel_attributes>lt=.&gt;
-saved tracks</panel_attributes>
-    <additional_attributes>185;0;0;0</additional_attributes>
+Optional&lt;ListeningProfile&gt;  (shown without a new Spotify read)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>430;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>524</y><w>555</w><h>10</h></coordinates>
+    <coordinates><x>115</x><y>508</y><w>210</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
-build(topItems, saved)</panel_attributes>
-    <additional_attributes>0;0;555;0</additional_attributes>
+Refresh (choose time range)</panel_attributes>
+    <additional_attributes>0;0;210;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>570</y><w>555</w><h>10</h></coordinates>
+    <coordinates><x>325</x><y>554</y><w>215</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+analyzeTaste(user, range)</panel_attributes>
+    <additional_attributes>0;0;215;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>540</x><y>600</y><w>215</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+analyzeTaste(user, range)</panel_attributes>
+    <additional_attributes>0;0;215;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>755</x><y>646</y><w>215</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+execute(getTopItems, type=artists, range)</panel_attributes>
+    <additional_attributes>0;0;215;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>970</x><y>692</y><w>215</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+getTopArtists(range)  (R1)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;215;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1185</x><y>738</y><w>430</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+getTopArtists(range)  (Spotify gives no genres, R18)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;430;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1185</x><y>784</y><w>430</w><h>10</h></coordinates>
     <panel_attributes>lt=.&gt;
-ListeningProfile</panel_attributes>
-    <additional_attributes>555;0;0;0</additional_attributes>
+artists without genres
+fg=#C05A00</panel_attributes>
+    <additional_attributes>430;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>616</y><w>740</w><h>10</h></coordinates>
+    <coordinates><x>1185</x><y>854</y><w>70</w><h>30</h></coordinates>
+    <panel_attributes>lt=-&gt;
+genres cached? (GenreRepository)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;70;0;70;26;0;26</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1185</x><y>930</y><w>215</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+lookup(artist)  (MusicBrainz, rate limited)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;215;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1185</x><y>976</y><w>215</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+Optional&lt;List&lt;String&gt;&gt; genres
+fg=#C05A00</panel_attributes>
+    <additional_attributes>215;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>970</x><y>1022</y><w>215</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+List&lt;Artist&gt; with genres
+fg=#C05A00</panel_attributes>
+    <additional_attributes>215;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>755</x><y>1068</y><w>215</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+ToolResult(artists)</panel_attributes>
+    <additional_attributes>215;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>755</x><y>1114</y><w>215</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+execute(getTopItems, type=tracks) ; execute(getSavedTracks)</panel_attributes>
+    <additional_attributes>0;0;215;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>970</x><y>1160</y><w>645</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+getTopItems(tracks, range) ; getSavedTracks()  (via the decorators)</panel_attributes>
+    <additional_attributes>0;0;645;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>755</x><y>1206</y><w>860</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+top tracks ; saved tracks (capped, noted)</panel_attributes>
+    <additional_attributes>860;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>755</x><y>1252</y><w>1075</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+build(TopItems(artists, tracks), saved)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;1075;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>755</x><y>1298</y><w>1075</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+ListeningProfile (genre histogram from MusicBrainz genres)</panel_attributes>
+    <additional_attributes>1075;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>755</x><y>1368</y><w>1290</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
 complete(summaryPrompt)</panel_attributes>
-    <additional_attributes>0;0;740;0</additional_attributes>
+    <additional_attributes>0;0;1290;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>662</y><w>740</w><h>10</h></coordinates>
+    <coordinates><x>755</x><y>1414</y><w>1290</w><h>10</h></coordinates>
     <panel_attributes>lt=.&gt;
 profile summary</panel_attributes>
-    <additional_attributes>740;0;0;0</additional_attributes>
+    <additional_attributes>1290;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>708</y><w>925</w><h>10</h></coordinates>
+    <coordinates><x>755</x><y>1460</y><w>1505</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
-saveSession(session)</panel_attributes>
-    <additional_attributes>0;0;925;0</additional_attributes>
+saveSession(session)  (derived data only)</panel_attributes>
+    <additional_attributes>0;0;1505;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>485</x><y>754</y><w>185</w><h>10</h></coordinates>
+    <coordinates><x>540</x><y>1506</y><w>215</w><h>10</h></coordinates>
     <panel_attributes>lt=.&gt;
 ListeningProfile + summary</panel_attributes>
-    <additional_attributes>185;0;0;0</additional_attributes>
+    <additional_attributes>215;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>300</x><y>800</y><w>185</w><h>10</h></coordinates>
+    <coordinates><x>325</x><y>1552</y><w>215</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+ListeningProfile + notices</panel_attributes>
+    <additional_attributes>215;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>115</x><y>1598</y><w>210</w><h>10</h></coordinates>
     <panel_attributes>lt=.&gt;
 render genres &amp; top artists</panel_attributes>
-    <additional_attributes>185;0;0;0</additional_attributes>
+    <additional_attributes>210;0;0;0</additional_attributes>
   </element>
   <element>
     <id>UMLNote</id>
-    <coordinates><x>40</x><y>834</y><w>300</w><h>30</h></coordinates>
-    <panel_attributes>alt little history -&gt; partial profile, flag gap</panel_attributes>
+    <coordinates><x>75</x><y>1658</y><w>430</w><h>88</h></coordinates>
+    <panel_attributes>Legend (Stage 2 update)
+Orange arrows and frames = new in Stage 2
+Yellow lifeline = new class
+Blue lifeline = Stage 1 class with additions
+White lifeline / black arrow = as in Stage 1</panel_attributes>
     <additional_attributes/>
   </element>
 </diagram>
