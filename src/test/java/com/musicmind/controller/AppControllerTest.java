@@ -135,4 +135,59 @@ class AppControllerTest extends PostgresTestBase {
         assertTrue(c.searchMusic("nothing").isEmpty());
         assertTrue(c.lastSearchNotice().contains("nothing"));
     }
+
+    private static Artist artist(String id, String name) {
+        return new Artist(id, name, List.of());
+    }
+
+    @Test
+    void savedFamiliarBias_readsStoredValue() {
+        AppController c = controller(new Music());
+        c.setPreference(c.parsePreference("familiarBias", "0.3"));
+        assertEquals(0.3, c.savedFamiliarBias().getAsDouble(), 1e-9);
+    }
+
+    @Test
+    void savedFamiliarBias_emptyWhenUnset() {
+        assertTrue(controller(new Music()).savedFamiliarBias().isEmpty());
+    }
+
+    @Test
+    void findArtists_listsEverySameName() {
+        Music music = new Music() {
+            @Override public List<Artist> searchArtists(String q, int limit) {
+                return List.of(artist("a1", "Other Band"), artist("a2", "nova"), artist("a3", "Nova"));
+            }
+        };
+        List<Artist> found = controller(music).findArtists("Nova");
+        assertEquals(List.of("a2", "a3"), found.stream().limit(2).map(Artist::id).toList());
+        assertEquals(3, found.size());
+    }
+
+    @Test
+    void blockTrack_keepsExistingBlocks() {
+        AppController c = controller(new Music());
+        String first = "1234567890123456789012";
+        String second = "abcdefghijABCDEFGHIJ12";
+        c.blockTrack(first);
+        c.blockTrack("spotify:track:" + second);
+        assertEquals(java.util.Set.of(first, second),
+                com.musicmind.agent.PreferenceSettings.from(c.getPreferences()).blockedTracks());
+    }
+
+    @Test
+    void blockArtist_addsChosenId() {
+        AppController c = controller(new Music());
+        c.blockArtist("artistOne");
+        c.blockArtist("artistTwo");
+        assertEquals(java.util.Set.of("artistOne", "artistTwo"),
+                com.musicmind.agent.PreferenceSettings.from(c.getPreferences()).blockedArtists());
+    }
+
+    @Test
+    void blockTrack_rejectsBadId() {
+        AppController c = controller(new Music());
+        assertThrows(IllegalArgumentException.class, () -> c.blockTrack("nope"));
+        assertTrue(c.getPreferences().isEmpty());
+    }
 }

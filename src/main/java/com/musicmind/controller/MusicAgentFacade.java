@@ -498,6 +498,18 @@ public class MusicAgentFacade {
         return String.join(",", ids);
     }
 
+    /** Artists Spotify finds for a name, those named exactly that (ignoring case) first, then the rest. */
+    public List<Artist> findArtists(String name) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException(config.wording("prefsArtistBlank"));
+        }
+        String typed = name.strip();
+        List<Artist> found = create.music().searchArtists(typed, config.searchArtistLimit());
+        List<Artist> ordered = new ArrayList<>(found.stream().filter(a -> a.name().equalsIgnoreCase(typed)).toList());
+        found.stream().filter(a -> !a.name().equalsIgnoreCase(typed)).forEach(ordered::add);
+        return ordered;
+    }
+
     private List<Artist> artistsNamed(String name) {
         return create.music().searchArtists(name, config.searchArtistLimit()).stream()
                 .filter(a -> a.name().equalsIgnoreCase(name)).toList();

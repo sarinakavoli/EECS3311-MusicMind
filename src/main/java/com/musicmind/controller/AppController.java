@@ -571,6 +571,48 @@ public class AppController {
         }
     }
 
+    /** The familiar share the user saved, or empty when none is saved (the safe-defaults record does not count). */
+    public java.util.OptionalDouble savedFamiliarBias() {
+        return getPreferences().stream().filter(p -> p.key().equals(PreferenceSettings.FAMILIAR_BIAS)).findFirst()
+                .map(p -> java.util.OptionalDouble.of(p.familiarBias())).orElse(java.util.OptionalDouble.empty());
+    }
+
+    /** Every artist Spotify finds for a name, those named exactly that first, so the user can choose one. */
+    public List<Artist> findArtists(String name) {
+        requireSpotify();
+        return facade.findArtists(name);
+    }
+
+    /** Tracks for what the user typed, the same ranked list as {@link #searchMusic}. */
+    public List<Track> findTracks(String text) {
+        return searchMusic(text);
+    }
+
+    /** Adds the chosen artist to the blocked artists, keeping the ones already blocked. */
+    public void blockArtist(String artistId) {
+        if (artistId == null || artistId.isBlank()) {
+            throw new IllegalArgumentException(config.wording("prefsBadArtistId"));
+        }
+        addBlock(PreferenceSettings.BLOCKED_ARTISTS, PreferenceSettings.from(getPreferences()).blockedArtists(),
+                artistId.strip());
+    }
+
+    /**
+     * Adds the chosen track to the blocked tracks, keeping the ones already blocked.
+     *
+     * @throws IllegalArgumentException if the id is not shaped like a Spotify track id
+     */
+    public void blockTrack(String trackId) {
+        addBlock(PreferenceSettings.BLOCKED_TRACKS, PreferenceSettings.from(getPreferences()).blockedTracks(),
+                requireTrackId(trackId));
+    }
+
+    private void addBlock(String key, java.util.Set<String> existing, String id) {
+        java.util.Set<String> all = new java.util.TreeSet<>(existing);
+        all.add(id);
+        setPreference(PreferenceSettings.parse(key, String.join(",", all), config));
+    }
+
     /** What the last {@link #parsePreference} should tell the user, such as a name several artists share. */
     public List<String> lastPreferenceNotices() {
         return lastPreferenceNotices;
