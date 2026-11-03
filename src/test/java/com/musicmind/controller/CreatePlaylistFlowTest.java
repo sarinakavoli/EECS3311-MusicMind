@@ -4,9 +4,11 @@ import com.musicmind.agent.ClarificationNeededException;
 import com.musicmind.agent.InfeasibleRequestException;
 import com.musicmind.agent.NegotiationCancelledException;
 import com.musicmind.agent.NegotiationHandler;
+import com.musicmind.agent.PromptBuilder;
 import com.musicmind.config.Config;
 import com.musicmind.domain.AgentRequest;
 import com.musicmind.domain.AgentSession;
+import com.musicmind.domain.Album;
 import com.musicmind.domain.Artist;
 import com.musicmind.domain.FeasibilityReport;
 import com.musicmind.domain.Playlist;
@@ -19,6 +21,7 @@ import com.musicmind.llm.LLMException;
 import com.musicmind.llm.LLMProvider;
 import com.musicmind.llm.MockLLMProvider;
 import com.musicmind.memory.MemoryManager;
+import com.musicmind.memory.PersistenceException;
 import com.musicmind.memory.PostgresTestBase;
 import com.musicmind.memory.repository.CandidateRepository;
 import com.musicmind.memory.repository.FeedbackRepository;
@@ -30,12 +33,15 @@ import com.musicmind.music.MusicServiceException;
 import com.musicmind.music.StubMusicService;
 import org.junit.jupiter.api.Test;
 
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -80,7 +86,7 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
         }
         @Override public List<Track> getSavedTracks() { return List.of(); }
         @Override public List<Track> getRecentlyPlayed() { return List.of(); }
-        @Override public List<com.musicmind.domain.Album> getArtistAlbums(String id) { return List.of(); }
+        @Override public List<Album> getArtistAlbums(String id) { return List.of(); }
         @Override public List<Track> search(String query, int limit) {
             searches.add(query);
             if (failOnSearch != null) {
@@ -107,7 +113,7 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
         @Override public void unfollowPlaylist(String playlistId) { calls.add("unfollow " + playlistId); }
         @Override public Track getTrack(String trackId) {
             if (!byId.containsKey(trackId)) {
-                throw new com.musicmind.music.MusicServiceException("gone", 404);
+                throw new MusicServiceException("gone", 404);
             }
             return byId.get(trackId);
         }
@@ -267,7 +273,7 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
         music.byId.put(CANDIDATE, candidate(CANDIDATE, 4));
         CandidateRepository stuck = new CandidateRepository(db, () -> "sp-user") {
             @Override public void delete(String trackId) {
-                throw new com.musicmind.memory.PersistenceException("down", new java.sql.SQLException("down"));
+                throw new PersistenceException("down", new SQLException("down"));
             }
         };
         MemoryManager memory = new MemoryManager(db, new PreferenceRepository(db, () -> "sp-user"),
@@ -764,10 +770,10 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
     private static final String PLAN_WITH_TERMS = PLAN_60.replace("\"mood\":\"\"", "\"mood\":\"\",\"searchTerms\":[\"gym workout\"]");
 
     /** Plan with search terms; the goal review gets {@code review}; anything else falls back to the mock. */
-    private static LLMProvider reviewing(List<String> prompts, java.util.function.Supplier<String> review) {
+    private static LLMProvider reviewing(List<String> prompts, Supplier<String> review) {
         MockLLMProvider mock = new MockLLMProvider();
         return prompt -> {
-            switch (com.musicmind.agent.PromptBuilder.kindOf(prompt).orElseThrow()) {
+            switch (PromptBuilder.kindOf(prompt).orElseThrow()) {
                 case PLAN: return PLAN_WITH_TERMS;
                 case GOAL_REVIEW:
                     prompts.add(prompt);
@@ -827,15 +833,15 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
     }
 
     /** The first review (the pool) removes nothing; the {@code later} ones answer with {@code pickReview}. */
-    private static LLMProvider reviewingPicks(List<String> prompts, java.util.function.Function<String, String> pickReview) {
+    private static LLMProvider reviewingPicks(List<String> prompts, Function<String, String> pickReview) {
         return reviewing(prompts, () -> "{\"remove\":[]}", pickReview);
     }
 
-    private static LLMProvider reviewing(List<String> prompts, java.util.function.Supplier<String> first,
-                                         java.util.function.Function<String, String> later) {
+    private static LLMProvider reviewing(List<String> prompts, Supplier<String> first,
+                                         Function<String, String> later) {
         MockLLMProvider mock = new MockLLMProvider();
         return prompt -> {
-            switch (com.musicmind.agent.PromptBuilder.kindOf(prompt).orElseThrow()) {
+            switch (PromptBuilder.kindOf(prompt).orElseThrow()) {
                 case PLAN: return PLAN_WITH_TERMS;
                 case GOAL_REVIEW:
                     prompts.add(prompt);

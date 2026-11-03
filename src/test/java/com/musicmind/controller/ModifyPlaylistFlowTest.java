@@ -1,13 +1,17 @@
 package com.musicmind.controller;
 
 import com.musicmind.agent.ClarificationNeededException;
+import com.musicmind.agent.InfeasibleRequestException;
+import com.musicmind.agent.NegotiationCancelledException;
 import com.musicmind.agent.command.FakeMusicService;
 import com.musicmind.agent.command.PlaylistChangeException;
+import com.musicmind.agent.command.PlaylistManager;
 import com.musicmind.agent.command.PlaylistMissingException;
 import com.musicmind.config.Config;
 import com.musicmind.domain.AgentRequest;
 import com.musicmind.domain.AgentSession;
 import com.musicmind.domain.DecisionTrace;
+import com.musicmind.domain.FeasibilityReport;
 import com.musicmind.domain.Playlist;
 import com.musicmind.domain.PlaylistSummary;
 import com.musicmind.domain.RequestKind;
@@ -15,8 +19,8 @@ import com.musicmind.domain.SnapshotInfo;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.UserPreference;
 import com.musicmind.domain.ValidationResult;
+import com.musicmind.llm.LLMException;
 import com.musicmind.llm.LLMProvider;
-import com.musicmind.agent.command.PlaylistManager;
 import com.musicmind.memory.Database;
 import com.musicmind.memory.MemoryManager;
 import com.musicmind.memory.PostgresTestBase;
@@ -33,6 +37,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -154,10 +159,10 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
     void anEditThatWouldEmptyThePlaylistOffersAPartialEditAndAppliesTheChosenOne() {
         Music music = threeTracks();
         AppController c = controller(music, editReply(REMOVE_ALL_THREE));
-        List<com.musicmind.domain.FeasibilityReport> asked = new ArrayList<>();
+        List<FeasibilityReport> asked = new ArrayList<>();
         c.setNegotiationHandler((report, options) -> {
             asked.add(report);
-            return java.util.Optional.of(report.relaxations().get(0));
+            return Optional.of(report.relaxations().get(0));
         });
 
         Playlist updated = c.modifyPlaylist("p", "shorten it by 200 minutes");
@@ -174,10 +179,10 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
     void cancellingTheModifyNegotiationMakesNoSpotifyWritesAndNoSnapshot() {
         Music music = threeTracks();
         AppController c = controller(music, editReply(REMOVE_ALL_THREE));
-        c.setNegotiationHandler((report, options) -> java.util.Optional.empty());
+        c.setNegotiationHandler((report, options) -> Optional.empty());
 
-        com.musicmind.agent.NegotiationCancelledException e = assertThrows(
-                com.musicmind.agent.NegotiationCancelledException.class, () -> c.modifyPlaylist("p", "remove everything"));
+        NegotiationCancelledException e = assertThrows(
+                NegotiationCancelledException.class, () -> c.modifyPlaylist("p", "remove everything"));
 
         assertEquals(config.wording("modifyCancelled"), e.getMessage());
         assertEquals(List.of("a", "b", "c"), ids(music, "p"));
@@ -192,10 +197,10 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
         put(music, "p", t("a", false, "x"));
         AppController c = controller(music, editReply("{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"}]}"));
         boolean[] asked = {false};
-        c.setNegotiationHandler((report, options) -> { asked[0] = true; return java.util.Optional.empty(); });
+        c.setNegotiationHandler((report, options) -> { asked[0] = true; return Optional.empty(); });
 
-        com.musicmind.agent.InfeasibleRequestException e = assertThrows(
-                com.musicmind.agent.InfeasibleRequestException.class, () -> c.modifyPlaylist("p", "remove it"));
+        InfeasibleRequestException e = assertThrows(
+                InfeasibleRequestException.class, () -> c.modifyPlaylist("p", "remove it"));
 
         assertTrue(e.getMessage().contains(config.wording("modifyNone")), e.getMessage());
         assertFalse(asked[0]);
@@ -207,8 +212,8 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
         Music music = threeTracks();
         AppController c = controller(music, editReply(REMOVE_ALL_THREE));
 
-        com.musicmind.agent.InfeasibleRequestException e = assertThrows(
-                com.musicmind.agent.InfeasibleRequestException.class, () -> c.modifyPlaylist("p", "remove everything"));
+        InfeasibleRequestException e = assertThrows(
+                InfeasibleRequestException.class, () -> c.modifyPlaylist("p", "remove everything"));
 
         assertTrue(e.getMessage().contains("Apply only the first 2 of 3 changes"), e.getMessage());
         assertEquals(List.of("a", "b", "c"), ids(music, "p"));
@@ -286,7 +291,7 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
         c.login();
         c.setPreference(c.parsePreference("explicitPolicy", "block"));
 
-        assertThrows(com.musicmind.agent.InfeasibleRequestException.class, () -> c.modifyPlaylist("p", "add rock"));
+        assertThrows(InfeasibleRequestException.class, () -> c.modifyPlaylist("p", "add rock"));
 
         assertEquals(3, prompts.size(), "one plan and two re-plans");
         assertEquals(List.of("a", "b"), ids(music, "p"));
@@ -300,7 +305,7 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
         AppController c = controller(music, replanning(ADD_ROCK, ADD_ROCK, prompts));
         c.setPreference(c.parsePreference("explicitPolicy", "block"));
 
-        assertThrows(com.musicmind.agent.InfeasibleRequestException.class, () -> c.modifyPlaylist("p", "add rock"));
+        assertThrows(InfeasibleRequestException.class, () -> c.modifyPlaylist("p", "add rock"));
 
         assertEquals(2, prompts.size(), "one plan and one re-plan that changed nothing, so no third attempt");
     }
@@ -313,10 +318,10 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
         Music music = withExplicitRockAndCleanSearch();
         AppController c = controller(music, replanning(REMOVE_A_ADD_ROCK, REMOVE_A_ADD_ROCK, new ArrayList<>()));
         c.setPreference(c.parsePreference("explicitPolicy", "block"));
-        List<com.musicmind.domain.FeasibilityReport> asked = new ArrayList<>();
+        List<FeasibilityReport> asked = new ArrayList<>();
         c.setNegotiationHandler((report, options) -> {
             asked.add(report);
-            return java.util.Optional.of(report.relaxations().get(0));
+            return Optional.of(report.relaxations().get(0));
         });
 
         c.modifyPlaylist("p", "swap a for rock");
@@ -331,9 +336,9 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
         Music music = withExplicitRockAndCleanSearch();
         AppController c = controller(music, replanning(REMOVE_A_ADD_ROCK, REMOVE_A_ADD_ROCK, new ArrayList<>()));
         c.setPreference(c.parsePreference("explicitPolicy", "block"));
-        c.setNegotiationHandler((report, options) -> java.util.Optional.empty());
+        c.setNegotiationHandler((report, options) -> Optional.empty());
 
-        assertThrows(com.musicmind.agent.NegotiationCancelledException.class, () -> c.modifyPlaylist("p", "swap a for rock"));
+        assertThrows(NegotiationCancelledException.class, () -> c.modifyPlaylist("p", "swap a for rock"));
 
         assertEquals(List.of("a", "b"), ids(music, "p"));
         assertTrue(music.calls.stream().noneMatch(x -> x.startsWith("remove") || x.startsWith("add") || x.startsWith("reorder")),
@@ -383,16 +388,16 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
             }
             prompts.add(p);
             if (prompts.size() > 1) {
-                throw new com.musicmind.llm.LLMException("rate limited");
+                throw new LLMException("rate limited");
             }
             return REMOVE_A_ADD_ROCK;
         };
         AppController c = controller(music, failsOnReplan);
         c.setPreference(c.parsePreference("explicitPolicy", "block"));
-        List<com.musicmind.domain.FeasibilityReport> asked = new ArrayList<>();
+        List<FeasibilityReport> asked = new ArrayList<>();
         c.setNegotiationHandler((report, options) -> {
             asked.add(report);
-            return java.util.Optional.of(report.relaxations().get(0));
+            return Optional.of(report.relaxations().get(0));
         });
 
         c.modifyPlaylist("p", "swap a for rock");
@@ -613,7 +618,7 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
         String removeAllStating = "{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"},{\"type\":\"remove\",\"track\":\"2\"},"
                 + "{\"type\":\"remove\",\"track\":\"3\"},{\"type\":\"remove\",\"track\":\"4\"}],\"lengthChangeMinutes\":-12}";
         AppController c = controller(music, editReply(removeAllStating));
-        c.setNegotiationHandler((report, options) -> java.util.Optional.of(report.relaxations().get(0)));
+        c.setNegotiationHandler((report, options) -> Optional.of(report.relaxations().get(0)));
 
         c.modifyPlaylist("p", "remove everything");
 

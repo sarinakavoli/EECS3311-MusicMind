@@ -1,11 +1,15 @@
 package com.musicmind.controller;
 
 import com.musicmind.config.Config;
+import com.musicmind.domain.AgentRequest;
+import com.musicmind.domain.AgentSession;
+import com.musicmind.domain.Album;
 import com.musicmind.domain.Artist;
 import com.musicmind.domain.DecisionTrace;
 import com.musicmind.domain.Feedback;
 import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.Recommendation;
+import com.musicmind.domain.RequestKind;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.UserPreference;
 import com.musicmind.domain.Verdict;
@@ -19,11 +23,15 @@ import com.musicmind.memory.repository.PlaylistHistoryRepository;
 import com.musicmind.memory.repository.PreferenceRepository;
 import com.musicmind.memory.repository.SessionRepository;
 import com.musicmind.music.StubMusicService;
+import com.musicmind.music.TrackList;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
@@ -59,7 +67,7 @@ class AppControllerDiscoverTest extends PostgresTestBase {
             return IntStream.range(0, 12).mapToObj(i ->
                     new Track(nid(i), "spotify:track:" + nid(i), "N" + i, 1000, i == 3, List.of("x" + i))).toList();
         }
-        @Override public List<com.musicmind.domain.Album> getArtistAlbums(String id) { return List.of(); }
+        @Override public List<Album> getArtistAlbums(String id) { return List.of(); }
     }
 
     private MemoryManager memory(Database database) {
@@ -117,8 +125,8 @@ class AppControllerDiscoverTest extends PostgresTestBase {
             return IntStream.range(0, 6).mapToObj(i ->
                     new Artist("a" + i, "N" + i, List.of(i % 2 == 0 ? "rock" : "jazz"))).toList();
         }
-        @Override public List<com.musicmind.domain.Album> getArtistAlbums(String id) {
-            return List.of(new com.musicmind.domain.Album("al-" + id, "Album", "2020"));
+        @Override public List<Album> getArtistAlbums(String id) {
+            return List.of(new Album("al-" + id, "Album", "2020"));
         }
         @Override public List<Track> getAlbumTracks(String albumId) {
             String artist = albumId.substring("al-".length());
@@ -148,18 +156,18 @@ class AppControllerDiscoverTest extends PostgresTestBase {
             + "\"partial\":false,\"notices\":[],\"generatedAt\":\"%s\"}";
 
     private void storeProfile(String generatedAt) {
-        com.musicmind.domain.AgentSession s = new com.musicmind.domain.AgentSession(
-                java.util.UUID.randomUUID().toString(), java.time.Instant.now(), null);
+        AgentSession s = new AgentSession(
+                UUID.randomUUID().toString(), Instant.now(), null);
         s.setStatus("done");
-        s.setRequest(new com.musicmind.domain.AgentRequest("view taste profile (medium)",
-                com.musicmind.domain.RequestKind.ANALYZE_TASTE));
+        s.setRequest(new AgentRequest("view taste profile (medium)",
+                RequestKind.ANALYZE_TASTE));
         s.setDerivedData(String.format(OLD_FORMAT, generatedAt));
         memory(db).saveSession(s);
     }
 
     @Test
     void aStoredProfileOlderThanTheLimitIsRebuilt() {
-        storeProfile(java.time.Instant.now().minus(java.time.Duration.ofHours(config.profileMaxAgeHours() + 1)).toString());
+        storeProfile(Instant.now().minus(Duration.ofHours(config.profileMaxAgeHours() + 1)).toString());
         AppController c = controller(new Music());
 
         c.discover(c.discoverSpec(0.5));
@@ -169,7 +177,7 @@ class AppControllerDiscoverTest extends PostgresTestBase {
 
     @Test
     void aRecentStoredProfileInTheOldFormatStillLoadsAndIsReused() {
-        storeProfile(java.time.Instant.now().minus(java.time.Duration.ofHours(1)).toString());
+        storeProfile(Instant.now().minus(Duration.ofHours(1)).toString());
         AppController c = controller(new Music());
 
         c.discover(c.discoverSpec(0.5));
@@ -180,7 +188,7 @@ class AppControllerDiscoverTest extends PostgresTestBase {
     @Test
     void discoverTellsTheUserWhenSomeSavedTracksWereNotChecked() {
         AppController c = controller(new Music() {
-            @Override public List<Track> getSavedTracks() { return new com.musicmind.music.TrackList(List.of(), true); }
+            @Override public List<Track> getSavedTracks() { return new TrackList(List.of(), true); }
         });
         String notice = String.format(config.wording("savedTracksCapped"), config.spotifyMaxSavedTracks());
 
