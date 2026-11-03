@@ -183,6 +183,31 @@ and questions are finished; then all of it is worked through together.
       type, colours, cards, buttons and clear empty states. It stays JavaFX, using a
       stylesheet in place of inline styling. Agree the look with Sarina first.
 
+25. **Searches by description are still weak (Search).** Live after the backend fixes,
+    "mellow alternative for studying" returned "Boss Battle" and "Alternative Rock",
+    and "upbeat" returned songs with "Dance" in the title. Exact titles now work, but
+    Spotify's text search matches title words, and this app has no tempo or mood data.
+    - **To do:** decide whether the goal review should also run on search results.
+
+## Backend status (Nov 2)
+
+Plan: `docs/superpowers/plans/2026-11-02-backend-test-fixes.md`. Forced run on c6d947f: 842
+tests, 0 failures.
+
+- **Done in the backend:** 3, 5, 12, 15 (choice), 16, 17 (honest wording), 19, 21, 22, and
+  the data for 4, 7 and 10.
+- **Exact title check:** "american girls" returned exact titles in the top 3 in 5 of 5
+  live runs.
+- **Not yet shown on screen:** artist names, the display name, the candidate choice, the
+  real mix, block choosers and delete. These wait for the frontend phase.
+- **Not yet proven:** whether playlists now suit their goal. Sarina needs to run Create
+  on several goals. No playlist has been created since the fixes.
+- **Limits:** Past week and Past 3 months have no Spotify period. Spotify gives no tempo
+  data, so goal fit depends on the AI judging titles and artists. Each Create makes up to
+  three extra AI calls.
+- **The GUI must catch** the `IllegalStateException` from `blockArtist` and `blockTrack`
+  and show its message.
+
 ## Passed
 
 - **Create in the GUI (F5), Nov 2.** It finished for real on Sarina's account: "workout",

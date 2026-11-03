@@ -477,3 +477,17 @@ Blocking an artist on Preferences affects later Discover and Create runs, so cle
 **Not verified live:** Create, Modify, Undo and Restore through the GUI, F11 with a real conflict, and Accept, Reject, Save and candidates through the GUI buttons. The same controller calls were tested live from the CLI on Nov 1. Mouse handling was also not tested by a person: the script pressed buttons in code.
 
 **Known limits:** track rows show titles without artist names, because `Track` carries artist ids only (the CLI is the same). Opening a playlist reads it from Spotify twice, once to show it and once to validate it, so large playlists take a moment.
+
+## Mon Nov 2 (evening): backend fixes from the GUI test
+
+**Sarina's GUI test:** Create finished for real ("workout", 6 tracks) and Modify ran on it. Song quality was poor. Her issues are in `docs/GUI_TEST_FINDINGS.md`. She did not report testing Undo or Restore in the GUI.
+
+**Fixed, test first:** exact title and artist matches rank first in search; duplicates removed; candidates optional in create (`--no-candidates`); goal search phrases; AI review of retrieved tracks and of the final picks; a penalty for stock titles; scores that differ by taste; block by choosing a song or artist; read of the saved mix; delete a playlist after saving a version (`delete <playlistId>`).
+
+**Verified:** forced run on c6d947f, 842 tests, 0 failures. Live read-only: `search "american girls"` gave exact titles in the top 3 in 5 of 5 runs.
+
+**Not verified:** no playlist was created after the fixes, so goal fit is unproven on the real account. `delete` has not been run live.
+
+**Still weak:** searches by description. "mellow alternative for studying" returned "Boss Battle" and "Alternative Rock".
+
+**To check in Create:** try workout, study and road trip goals.
