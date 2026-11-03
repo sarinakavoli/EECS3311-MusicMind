@@ -49,6 +49,7 @@ public class SpotifyAdapter implements MusicService {
     private final String api;
     private final Gson gson = new Gson();
     private String cachedUserId;
+    private String cachedDisplayName;
 
     public SpotifyAdapter(String clientId, String redirectUri) {
         this(new OAuthTokenStore(clientId, redirectUri));
@@ -273,10 +274,24 @@ public class SpotifyAdapter implements MusicService {
 
     @Override
     public String currentUserId() {
-        if (cachedUserId == null) {
-            cachedUserId = str(get("/me"), "id");
-        }
+        loadMe();
         return cachedUserId;
+    }
+
+    @Override
+    public String currentUserDisplayName() {
+        loadMe();
+        return cachedDisplayName;
+    }
+
+    /** One {@code /me} request serves both the id and the display name. */
+    private void loadMe() {
+        if (cachedUserId == null) {
+            JsonObject me = get("/me");
+            String name = str(me, "display_name");
+            cachedUserId = str(me, "id");
+            cachedDisplayName = name == null || name.isBlank() ? cachedUserId : name;
+        }
     }
 
     // ---- HTTP plumbing ----
@@ -436,9 +451,14 @@ public class SpotifyAdapter implements MusicService {
 
     private Track toTrack(JsonObject t) {
         List<String> artistIds = new ArrayList<>();
+        List<String> artistNames = new ArrayList<>();
         if (t.has("artists")) {
             for (JsonElement a : t.getAsJsonArray("artists")) {
                 artistIds.add(str(a.getAsJsonObject(), "id"));
+                String name = str(a.getAsJsonObject(), "name");
+                if (name != null) {
+                    artistNames.add(name);
+                }
             }
         }
         return new Track(
@@ -447,7 +467,8 @@ public class SpotifyAdapter implements MusicService {
                 str(t, "name"),
                 t.has("duration_ms") ? t.get("duration_ms").getAsInt() : 0,
                 t.has("explicit") && t.get("explicit").getAsBoolean(),
-                artistIds);
+                artistIds,
+                artistNames);
     }
 
     private Artist toArtist(JsonObject a) {

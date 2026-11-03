@@ -159,4 +159,9 @@ public class GenreEnrichingMusicService implements MusicService {
     public String currentUserId() {
         return delegate.currentUserId();
     }
+
+    @Override
+    public String currentUserDisplayName() {
+        return delegate.currentUserDisplayName();
+    }
 }

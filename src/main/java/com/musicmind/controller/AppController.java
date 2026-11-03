@@ -214,6 +214,12 @@ public class AppController {
         return currentUser;
     }
 
+    /** The signed-in user's Spotify display name (falls back to the id). */
+    public String currentUserName() {
+        requireSpotify();
+        return music.currentUserDisplayName();
+    }
+
     /** The user from {@link #login()}, or null if nobody has logged in. */
     public User currentUser() {
         return currentUser;

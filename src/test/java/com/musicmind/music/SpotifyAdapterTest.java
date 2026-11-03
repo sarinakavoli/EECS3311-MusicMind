@@ -60,6 +60,43 @@ class SpotifyAdapterTest {
     // ---- listening data ----
 
     @Test
+    void toTrack_readsArtistNames() {
+        api.respond(r -> Reply.ok("{\"id\":\"t1\",\"uri\":\"spotify:track:t1\",\"name\":\"S\",\"duration_ms\":1000,"
+                + "\"explicit\":false,\"artists\":[{\"id\":\"a1\",\"name\":\"Adele\"},{\"id\":\"a2\",\"name\":\"Greg\"}]}"));
+
+        Track t = adapter.getTrack("t1");
+
+        assertEquals(List.of("Adele", "Greg"), t.artistNames());
+        assertEquals(List.of("a1", "a2"), t.artistIds());
+    }
+
+    @Test
+    void toTrack_missingArtistNames_isEmpty() {
+        api.respond(r -> Reply.ok(trackJson(1)));
+
+        assertTrue(adapter.getTrack("t1").artistNames().isEmpty());
+    }
+
+    @Test
+    void displayName_usesDisplayName() {
+        api.respond(r -> Reply.ok("{\"id\":\"sarina\",\"display_name\":\"Sarina K\"}"));
+
+        assertEquals("Sarina K", adapter.currentUserDisplayName());
+        assertEquals("sarina", adapter.currentUserId());
+        assertEquals(1, api.requests.size());
+    }
+
+    @Test
+    void displayName_blankOrNull_fallsBackToId() throws Exception {
+        api.respond(r -> Reply.ok("{\"id\":\"sarina\",\"display_name\":\"  \"}"));
+        assertEquals("sarina", adapter.currentUserDisplayName());
+
+        api.respond(r -> Reply.ok("{\"id\":\"sarina\",\"display_name\":null}"));
+        SpotifyAdapter second = api.adapter(dir);
+        assertEquals("sarina", second.currentUserDisplayName());
+    }
+
+    @Test
     void currentUserIdCallsMeWithBearerTokenAndCachesTheAnswer() {
         api.respond(r -> Reply.ok("{\"id\":\"sarina\"}"));
 

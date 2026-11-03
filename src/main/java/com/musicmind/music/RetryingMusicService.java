@@ -218,4 +218,9 @@ public class RetryingMusicService implements MusicService {
     public String currentUserId() {
         return withBackoff(delegate::currentUserId);
     }
+
+    @Override
+    public String currentUserDisplayName() {
+        return withBackoff(delegate::currentUserDisplayName);
+    }
 }

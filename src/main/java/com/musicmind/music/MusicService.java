@@ -61,4 +61,9 @@ public interface MusicService {
 
     /** The current user's Spotify user id (needed to create playlists). */
     String currentUserId();
+
+    /** The current user's display name; never null, falls back to {@link #currentUserId()}. */
+    default String currentUserDisplayName() {
+        return currentUserId();
+    }
 }
