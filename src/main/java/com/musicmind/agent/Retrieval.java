@@ -6,6 +6,7 @@ import com.musicmind.domain.Track;
 
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -76,6 +77,25 @@ public final class Retrieval {
         return new Retrieval(profile, allowLibraryTracks, seedGenres, retriever, keeping(library, removed), libraryIds,
                 keeping(albumTracks, removed), genres, byGenre, origins, keeping(keywordTracks, removed), Set.copyOf(removed),
                 searchTerms);
+    }
+
+    /**
+     * The genres already known for a track, with no request made: the genre it was searched under, the genres of
+     * the user's own artists in the listening profile, and the cached MusicBrainz genres of its other artists.
+     * Empty when none is known for any of its artists.
+     */
+    public List<String> knownGenres(Track track, ArtistGenreCache cache) {
+        Set<String> found = new LinkedHashSet<>();
+        RecommendationEngine.Origin origin = origins.get(track.id());
+        if (origin != null && origin.genre() != null && !origin.genre().isBlank()) {
+            found.add(origin.genre());
+        }
+        for (String artistId : track.artistIds()) {
+            List<String> own = profile.topArtists().stream().filter(a -> a.id().equals(artistId))
+                    .flatMap(a -> a.genres().stream()).toList();
+            found.addAll(own.isEmpty() ? cache.cached(artistId).orElse(List.of()) : own);
+        }
+        return List.copyOf(found);
     }
 
     static List<Track> keeping(List<Track> tracks, Set<String> removed) {

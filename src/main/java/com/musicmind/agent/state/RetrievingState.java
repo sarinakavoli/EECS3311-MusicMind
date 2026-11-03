@@ -54,7 +54,8 @@ public class RetrievingState implements SessionState {
         List<Track> toReview = new ArrayList<>(pool.novel());
         toReview.addAll(pool.familiar());
         toReview.removeIf(t -> ctx.candidateIds.contains(t.id())); // a track the user picked may also be in the pool
-        GoalFitReviewer.Result result = ctx.services.reviewer().review(ctx.request.rawText(), toReview);
+        GoalFitReviewer.Result result = ctx.services.reviewer().review(ctx.request.rawText(), toReview,
+                ctx.services.reviewer().genresOf(ctx.retrieval));
         if (!result.reviewed()) {
             session.addNotice(ctx.services.config().wording("goalReviewSkipped"));
         } else if (!result.removedIds().isEmpty()) {

@@ -1,5 +1,6 @@
 package com.musicmind.controller;
 
+import com.musicmind.agent.ArtistGenreCache;
 import com.musicmind.agent.ClarificationNeededException;
 import com.musicmind.agent.ExplanationService;
 import com.musicmind.agent.InfeasibleRequestException;
@@ -115,6 +116,15 @@ public class AppController {
      */
     public AppController(MusicService music, MemoryManager memory, LLMProvider llm, Config config,
                          Runnable reauthenticator, BooleanSupplier browserLoginNeeded) {
+        this(music, memory, llm, config, reauthenticator, browserLoginNeeded, ArtistGenreCache.NONE);
+    }
+
+    /**
+     * @param genreCache read-only view of the cached MusicBrainz artist genres, which the goal review sends in place
+     *                   of any Spotify title or name
+     */
+    public AppController(MusicService music, MemoryManager memory, LLMProvider llm, Config config,
+                         Runnable reauthenticator, BooleanSupplier browserLoginNeeded, ArtistGenreCache genreCache) {
         this.browserLoginNeeded = browserLoginNeeded;
         this.music = music;
         this.memory = memory;
@@ -138,7 +148,7 @@ public class AppController {
                     new RecommendationEngine(tools, config),
                     () -> currentUser == null ? null : currentUser.id(),
                     new MusicAgentFacade.CreateSupport(music, new PlaylistManager(config, music, memory),
-                            explainer, reauthenticator));
+                            explainer, reauthenticator, genreCache));
         }
     }
 
@@ -163,13 +173,21 @@ public class AppController {
         // GET /me, so once login() has run this costs nothing; without Spotify nothing is written under a name.
         MusicService music = null;
         Runnable reauthenticator = null;
+        GenreRepository genreRepository = new GenreRepository(db);
+        ArtistGenreCache genreCache = artistId -> {
+            try {
+                return genreRepository.find(artistId, Instant.now().minus(Duration.ofDays(config.musicBrainzCacheDays())));
+            } catch (PersistenceException e) {
+                return Optional.empty(); // no database, no cached genres
+            }
+        };
         BooleanSupplier browserLoginNeeded = () -> false;
         Supplier<String> userId = () -> LOCAL_USER;
         if (config.spotifyConfigured()) {
             // Spotify returns no artist genres to this app, so MusicBrainz supplies them (R18).
             OAuthTokenStore auth = new OAuthTokenStore(config.spotifyClientId(), config.spotifyRedirectUri());
             music = new GenreEnrichingMusicService(new RetryingMusicService(new SpotifyAdapter(auth, config), config),
-                    new MusicBrainzAdapter(config), new GenreRepository(db), config);
+                    new MusicBrainzAdapter(config), genreRepository, config);
             userId = music::currentUserId;
             reauthenticator = auth::login;
             browserLoginNeeded = auth::needsBrowserLogin;
@@ -180,7 +198,7 @@ public class AppController {
                 new SessionRepository(db, userId),
                 new PlaylistHistoryRepository(db, userId),
                 new CandidateRepository(db, userId));
-        return new AppController(music, memory, llm, config, reauthenticator, browserLoginNeeded);
+        return new AppController(music, memory, llm, config, reauthenticator, browserLoginNeeded, genreCache);
     }
 
     public boolean isSpotifyConfigured() {

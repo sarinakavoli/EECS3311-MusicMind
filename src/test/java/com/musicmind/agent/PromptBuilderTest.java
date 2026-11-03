@@ -201,12 +201,67 @@ class PromptBuilderTest {
         assertTrue(prompt.contains("folk") && prompt.contains("jazz"), prompt);
     }
 
-    @Test
-    void theGoalReviewPromptSeparatesItsSentencesAndRejectsStockTitles() {
-        String prompt = builder.buildGoalReviewPrompt("a workout mix",
-                List.of(new Track("t1", "spotify:track:t1", "Workout Music", 1000, false, List.of("a"), List.of("Artist"))));
+    private static final String MARK_TITLE = "Zyxwv Distinct Title";
+    private static final String MARK_ARTIST = "Qwertz Distinct Artist";
 
-        assertTrue(prompt.contains("never add any track. Keep a track when unsure"), prompt);
-        assertTrue(prompt.contains("generic or functional") && prompt.contains("Workout Music"), prompt);
+    private static Track marked(String id) {
+        return new Track(id, "spotify:track:" + id, MARK_TITLE + " " + id, 180_000, false, List.of("art" + id),
+                List.of(MARK_ARTIST + " " + id));
+    }
+
+    @Test
+    void goalReviewPrompt_containsNoTitlesOrArtistNames() {
+        List<Track> tracks = List.of(marked("4uLU6hMC"), marked("7abc"));
+        Map<String, List<String>> genres = Map.of("4uLU6hMC", List.of("hip hop", "rap"), "7abc", List.of("jazz"));
+
+        String prompt = builder.buildGoalReviewPrompt("a workout mix", tracks, t -> genres.get(t.id()));
+
+        assertFalse(prompt.contains(MARK_TITLE), prompt);
+        assertFalse(prompt.contains(MARK_ARTIST), prompt);
+        assertFalse(prompt.contains("Zyxwv") || prompt.contains("Qwertz"), prompt);
+        assertTrue(prompt.contains("4uLU6hMC | hip hop, rap\n"), prompt);
+        assertTrue(prompt.contains("7abc | jazz\n"), prompt);
+        assertTrue(prompt.contains("a workout mix"), prompt);
+        assertTrue(prompt.contains("only the genres") && prompt.contains("keep it when unsure"), prompt);
+        assertFalse(prompt.contains("generic or functional"), prompt);
+    }
+
+    @Test
+    void noPromptBuilderPromptContainsATrackTitleOrArtistName() throws Exception {
+        Track t = marked("t1");
+        Artist artist = new Artist("art1", MARK_ARTIST, List.of("pop"));
+        ListeningProfile profile = new ListeningProfile(Map.of("pop", 1.0), List.of(artist), List.of(t),
+                List.of("t1"), null, Instant.now(), false, List.of());
+        TrendReport trend = new TrendReport(Map.of("short", List.of(artist), "long", List.of(artist)),
+                Map.of("short", Map.of("pop", 1.0)), List.of("pop"), List.of("jazz"), List.of("art1"), List.of(),
+                List.of(), null, List.of(new RangeChange("long", "short", List.of("pop"), List.of(), List.of("art1"), List.of())));
+        PlaylistContext playlist = new PlaylistContext("pl", List.of(t, marked("t2")), null);
+        // plan and search take only the user's own words and MusicMind constraints, no Spotify object; the other
+        // builders get the objects that can carry Spotify content (tracks, artists), filled with the markers.
+        Map<String, java.util.function.Supplier<String>> calls = Map.of(
+                "buildPlanPrompt", () -> builder.buildPlanPrompt(new AgentRequest("rainy day mix", RequestKind.CREATE_PLAYLIST,
+                        new PlaylistSpec(45, false, 0.8, List.of("art1"), null))),
+                "buildGoalReviewPrompt", () -> builder.buildGoalReviewPrompt("workout", List.of(t), x -> List.of("pop")),
+                "buildExplainPrompt", () -> builder.buildExplainPrompt(
+                        new DecisionTrace("Balanced", Map.of("t1", "matches pop"), List.of("no explicit"))),
+                "buildSummaryPrompt", () -> builder.buildSummaryPrompt(profile),
+                "buildTrendPrompt", () -> builder.buildTrendPrompt(trend),
+                "buildSearchPrompt", () -> builder.buildSearchPrompt("jazz"),
+                "buildEditPrompt", () -> builder.buildEditPrompt("remove the second", playlist),
+                "buildOptionsPrompt", () -> builder.buildOptionsPrompt(
+                        new FeasibilityReport(false, List.of("too short"), List.of("allow more explicit"))));
+
+        java.util.Set<String> built = new java.util.TreeSet<>();
+        for (java.lang.reflect.Method m : PromptBuilder.class.getDeclaredMethods()) {
+            if (java.lang.reflect.Modifier.isPublic(m.getModifiers()) && m.getName().startsWith("build")) {
+                built.add(m.getName());
+            }
+        }
+        assertEquals(new java.util.TreeSet<>(calls.keySet()), built,
+                "every public build* method of PromptBuilder must be covered by this leak guard");
+        calls.forEach((name, call) -> {
+            String p = call.get();
+            assertFalse(p.contains("Zyxwv") || p.contains("Qwertz"), name + ": " + p);
+        });
     }
 }
