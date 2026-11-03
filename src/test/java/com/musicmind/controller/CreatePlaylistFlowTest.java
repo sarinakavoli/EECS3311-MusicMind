@@ -789,9 +789,12 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
         music.byId.put(CANDIDATE, candidate(CANDIDATE, 4));
         List<String> prompts = new ArrayList<>();
         // No pick review here, so the removals can only come from the review of the retrieved pool.
+        // The strangers' tracks (n*) have a genre only for x0 and x1, from the MusicBrainz cache.
         AppController c = new AppController(music, memory(), reviewing(prompts,
                 () -> "{\"remove\":[\"n0\",\"n1\",\"t0\",\"" + CANDIDATE + "\"]}"),
-                config.withTunables(Map.of("goal.pickReviewRounds", "0")));
+                config.withTunables(Map.of("goal.pickReviewRounds", "0")), null, () -> false,
+                artistId -> artistId.equals("x0") || artistId.equals("x1")
+                        ? Optional.of(List.of("pop")) : Optional.empty());
         c.addCandidate(CANDIDATE);
 
         Playlist playlist = c.createPlaylist(request("a workout mix"));
@@ -800,6 +803,8 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
         assertEquals(1, prompts.size());
         prompts.forEach(p -> assertFalse(p.contains(CANDIDATE), "the user's candidates are never sent for review"));
         assertTrue(prompts.get(0).contains("a workout mix"));
+        assertTrue(prompts.get(0).contains("n0 | pop"), prompts.get(0));
+        assertFalse(prompts.get(0).contains("n2 |"), "a track with no known genre is not sent");
         assertEquals(CANDIDATE, ids.get(0), "a track the user picked is never removed");
         assertTrue(ids.stream().noneMatch(id -> id.equals("n0") || id.equals("n1") || id.equals("t0")), ids.toString());
         assertTrue(music.searches.contains("gym workout"), music.searches.toString());
@@ -824,7 +829,7 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
     /** The ids listed in a goal-review prompt, in order. */
     private static List<String> idsIn(String prompt) {
         List<String> ids = new ArrayList<>();
-        for (String line : prompt.substring(prompt.indexOf("Tracks (id | title | artists):")).split("\n")) {
+        for (String line : prompt.substring(prompt.indexOf("Tracks (id | genres):")).split("\n")) {
             if (line.contains(" | ") && !line.startsWith("Tracks")) {
                 ids.add(line.substring(0, line.indexOf(" | ")));
             }

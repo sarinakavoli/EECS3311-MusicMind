@@ -52,7 +52,8 @@ public class SelectingState implements SessionState {
                 break;
             }
             ctx.pickReviewRounds++;
-            GoalFitReviewer.Result result = services.reviewer().reviewPicks(ctx.request.rawText(), toReview);
+            GoalFitReviewer.Result result = services.reviewer().reviewPicks(ctx.request.rawText(), toReview,
+                    services.reviewer().genresOf(retrieval));
             if (!result.reviewed()) {
                 session.addNotice(config.wording("goalReviewSkipped"));
                 break;

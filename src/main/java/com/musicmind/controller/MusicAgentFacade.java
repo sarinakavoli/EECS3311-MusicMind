@@ -10,6 +10,7 @@ import com.musicmind.agent.ClarificationNeededException;
 import com.musicmind.agent.ConstraintChecker;
 import com.musicmind.agent.ExplanationService;
 import com.musicmind.agent.MoodGenreMap;
+import com.musicmind.agent.ArtistGenreCache;
 import com.musicmind.agent.GoalFitReviewer;
 import com.musicmind.agent.InfeasibleRequestException;
 import com.musicmind.agent.NegotiationCancelledException;
@@ -150,7 +151,16 @@ public class MusicAgentFacade {
      * may be null, in which case an expired token ends the run).
      */
     public record CreateSupport(MusicService music, PlaylistManager playlists, ExplanationService explainer,
-                                Runnable reauthenticator) {
+                                Runnable reauthenticator, ArtistGenreCache genreCache) {
+        public CreateSupport {
+            genreCache = genreCache == null ? ArtistGenreCache.NONE : genreCache;
+        }
+
+        /** Without the MusicBrainz genre cache: the goal review then knows only search and profile genres. */
+        public CreateSupport(MusicService music, PlaylistManager playlists, ExplanationService explainer,
+                             Runnable reauthenticator) {
+            this(music, playlists, explainer, reauthenticator, null);
+        }
     }
 
     public MusicAgentFacade(ToolManager tools, MemoryManager memory, ProfileBuilder profileBuilder,
@@ -172,7 +182,7 @@ public class MusicAgentFacade {
         this.create = Objects.requireNonNull(create, "create");
         this.editor = new PlaylistEditor(llm, prompts, parser, moods, config);
         this.playlistValidator = new PlaylistValidator(config);
-        this.goalReviewer = new GoalFitReviewer(llm, prompts, parser, config);
+        this.goalReviewer = new GoalFitReviewer(llm, prompts, parser, config, create.genreCache());
     }
 
     // ---- F1 ----
