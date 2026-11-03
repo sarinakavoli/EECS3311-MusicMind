@@ -131,36 +131,31 @@ fg=#C05A00</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates><x>115</x><y>156</y><w>200</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-Discover (novelty=0.3)</panel_attributes>
+    <panel_attributes>lt=-&gt;</panel_attributes>
     <additional_attributes>0;0;200;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>315</x><y>202</y><w>200</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-discover(spec)</panel_attributes>
+    <panel_attributes>lt=-&gt;</panel_attributes>
     <additional_attributes>0;0;200;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>515</x><y>248</y><w>200</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-discover(profile, spec)</panel_attributes>
+    <panel_attributes>lt=-&gt;</panel_attributes>
     <additional_attributes>0;0;200;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>715</x><y>294</y><w>200</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-loadPreferences + loadFeedback</panel_attributes>
+    <panel_attributes>lt=-&gt;</panel_attributes>
     <additional_attributes>0;0;200;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>715</x><y>340</y><w>70</w><h>30</h></coordinates>
     <panel_attributes>lt=-&gt;
-PreferenceSettings.applyTo(spec)  (blocks, explicit, bias)
 fg=#C05A00</panel_attributes>
     <additional_attributes>0;0;70;0;70;26;0;26</additional_attributes>
   </element>
@@ -168,22 +163,19 @@ fg=#C05A00</panel_attributes>
     <id>Relation</id>
     <coordinates><x>715</x><y>416</y><w>400</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
-chooseStrategy(familiarRatio)  (StrategySelector)
 fg=#C05A00</panel_attributes>
     <additional_attributes>0;0;400;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>1115</x><y>462</y><w>70</w><h>30</h></coordinates>
-    <panel_attributes>lt=-&gt;
-setStrategy(BalancedStrategy | DiscoveryStrategy)</panel_attributes>
+    <panel_attributes>lt=-&gt;</panel_attributes>
     <additional_attributes>0;0;70;0;70;26;0;26</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>715</x><y>538</y><w>400</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
-recommend(profile, spec, feedback, allowLibraryTracks=false)
 fg=#C05A00</panel_attributes>
     <additional_attributes>0;0;400;0</additional_attributes>
   </element>
@@ -191,50 +183,43 @@ fg=#C05A00</panel_attributes>
     <id>Relation</id>
     <coordinates><x>1115</x><y>604</y><w>400</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
-execute(getTopItems / getSavedTracks / getRecentlyPlayed)  (what the user already has)
 fg=#C05A00</panel_attributes>
     <additional_attributes>0;0;400;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>1115</x><y>650</y><w>400</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-execute(getArtistAlbums / getAlbumTracks / search by genre keyword)</panel_attributes>
+    <panel_attributes>lt=-&gt;</panel_attributes>
     <additional_attributes>0;0;400;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>1515</x><y>696</y><w>200</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-Spotify reads (retry; MusicBrainz genres)</panel_attributes>
+    <panel_attributes>lt=-&gt;</panel_attributes>
     <additional_attributes>0;0;200;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>1115</x><y>742</y><w>600</w><h>10</h></coordinates>
-    <panel_attributes>lt=.&gt;
-candidate tracks</panel_attributes>
+    <panel_attributes>lt=.&gt;</panel_attributes>
     <additional_attributes>600;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>1115</x><y>788</y><w>200</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-selectCandidates(pools, spec)</panel_attributes>
+    <panel_attributes>lt=-&gt;</panel_attributes>
     <additional_attributes>0;0;200;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>1115</x><y>834</y><w>200</w><h>10</h></coordinates>
-    <panel_attributes>lt=.&gt;
-familiar + novel split</panel_attributes>
+    <panel_attributes>lt=.&gt;</panel_attributes>
     <additional_attributes>200;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>1115</x><y>880</y><w>70</w><h>30</h></coordinates>
     <panel_attributes>lt=-&gt;
-library tracks excluded; blocked artists and tracks filtered; score()
 fg=#C05A00</panel_attributes>
     <additional_attributes>0;0;70;0;70;26;0;26</additional_attributes>
   </element>
@@ -242,50 +227,43 @@ fg=#C05A00</panel_attributes>
     <id>Relation</id>
     <coordinates><x>715</x><y>956</y><w>400</w><h>10</h></coordinates>
     <panel_attributes>lt=.&gt;
-List&lt;Recommendation&gt;  (+ DecisionTrace and notices)
 fg=#C05A00</panel_attributes>
     <additional_attributes>400;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>515</x><y>1002</y><w>200</w><h>10</h></coordinates>
-    <panel_attributes>lt=.&gt;
-recommendations</panel_attributes>
+    <panel_attributes>lt=.&gt;</panel_attributes>
     <additional_attributes>200;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>315</x><y>1048</y><w>200</w><h>10</h></coordinates>
-    <panel_attributes>lt=.&gt;
-recommendations + lastDiscoverNotices()</panel_attributes>
+    <panel_attributes>lt=.&gt;</panel_attributes>
     <additional_attributes>200;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>115</x><y>1094</y><w>200</w><h>10</h></coordinates>
-    <panel_attributes>lt=.&gt;
-show list (accept/reject)</panel_attributes>
+    <panel_attributes>lt=.&gt;</panel_attributes>
     <additional_attributes>200;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>115</x><y>1170</y><w>200</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-reject track</panel_attributes>
+    <panel_attributes>lt=-&gt;</panel_attributes>
     <additional_attributes>0;0;200;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>315</x><y>1216</y><w>200</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-recordFeedback(trackId, REJECT)</panel_attributes>
+    <panel_attributes>lt=-&gt;</panel_attributes>
     <additional_attributes>0;0;200;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>515</x><y>1262</y><w>400</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
-saveFeedback(f)  (AppController calls MemoryManager directly)
 fg=#C05A00</panel_attributes>
     <additional_attributes>0;0;400;0</additional_attributes>
   </element>
@@ -296,6 +274,189 @@ fg=#C05A00</panel_attributes>
 Orange arrows = new or changed in Stage 2
 Blue lifeline = Stage 1 class with additions
 White lifeline / black arrow = as in Stage 1</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>124</x><y>131</y><w>182</w><h>22</h></coordinates>
+    <panel_attributes>Discover (novelty=0.3)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>353</x><y>177</y><w>123</w><h>22</h></coordinates>
+    <panel_attributes>discover(spec)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>520</x><y>223</y><w>190</w><h>22</h></coordinates>
+    <panel_attributes>discover(profile, spec)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>694</x><y>269</y><w>242</w><h>22</h></coordinates>
+    <panel_attributes>loadPreferences + loadFeedback
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>791</x><y>346</y><w>449</w><h>22</h></coordinates>
+    <panel_attributes>PreferenceSettings.applyTo(spec)  (blocks, explicit, bias)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>724</x><y>391</y><w>382</w><h>22</h></coordinates>
+    <panel_attributes>chooseStrategy(familiarRatio)  (StrategySelector)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1191</x><y>468</y><w>382</w><h>22</h></coordinates>
+    <panel_attributes>setStrategy(BalancedStrategy | DiscoveryStrategy)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>683</x><y>513</y><w>464</w><h>22</h></coordinates>
+    <panel_attributes>recommend(profile, spec, feedback, allowLibraryTracks=false)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>987</x><y>579</y><w>656</w><h>22</h></coordinates>
+    <panel_attributes>execute(getTopItems / getSavedTracks / getRecentlyPlayed)  (what the user already has)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1057</x><y>625</y><w>515</w><h>22</h></coordinates>
+    <panel_attributes>execute(getArtistAlbums / getAlbumTracks / search by genre keyword)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1453</x><y>671</y><w>323</w><h>22</h></coordinates>
+    <panel_attributes>Spotify reads (retry; MusicBrainz genres)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1346</x><y>717</y><w>138</w><h>22</h></coordinates>
+    <panel_attributes>candidate tracks
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1098</x><y>763</y><w>234</w><h>22</h></coordinates>
+    <panel_attributes>selectCandidates(pools, spec)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1124</x><y>809</y><w>182</w><h>22</h></coordinates>
+    <panel_attributes>familiar + novel split
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1191</x><y>886</y><w>530</w><h>22</h></coordinates>
+    <panel_attributes>library tracks excluded; blocked artists and tracks filtered; score()
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>716</x><y>931</y><w>397</w><h>22</h></coordinates>
+    <panel_attributes>List&lt;Recommendation&gt;  (+ DecisionTrace and notices)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>549</x><y>977</y><w>131</w><h>22</h></coordinates>
+    <panel_attributes>recommendations
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>261</x><y>1023</y><w>308</w><h>22</h></coordinates>
+    <panel_attributes>recommendations + lastDiscoverNotices()
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>112</x><y>1069</y><w>205</w><h>22</h></coordinates>
+    <panel_attributes>show list (accept/reject)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>161</x><y>1145</y><w>108</w><h>22</h></coordinates>
+    <panel_attributes>reject track
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>290</x><y>1191</y><w>249</w><h>22</h></coordinates>
+    <panel_attributes>recordFeedback(trackId, REJECT)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>479</x><y>1237</y><w>471</w><h>22</h></coordinates>
+    <panel_attributes>saveFeedback(f)  (AppController calls MemoryManager directly)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
     <additional_attributes/>
   </element>
 </diagram>

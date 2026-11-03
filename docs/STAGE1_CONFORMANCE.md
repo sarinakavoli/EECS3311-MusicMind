@@ -465,7 +465,7 @@ Each is small and exists so that a Stage 1 class keeps one job. Full entries are
 - F11 against a real conflict, `delete`, recreate from a deleted playlist, and the GUI's Undo,
   Restore, Accept, Reject, Save and candidate buttons pressed by a person.
 - Searches by description, and genre data for artists MusicBrainz does not know.
-- The updated UML diagrams and `stage2-report` are not written yet.
+- The updated UML diagrams are in `docs/diagrams/` (`.uxf` sources, PNGs in `docs/diagrams/png/`, the Stage 1 PNGs in `docs/diagrams/png/stage1/`; the README there lists what changed). `stage2-report` is not written yet.
 - The GUI items in `docs/GUI_TEST_FINDINGS.md`: no delete or block chooser on screen, no artist
   names in track rows, no candidate choice in Create, plain styling.
 - **Open policy question (F6 edit prompt).** The edit prompt sends the model each track's id, explicit

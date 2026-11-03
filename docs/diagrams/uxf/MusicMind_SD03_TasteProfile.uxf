@@ -169,15 +169,13 @@ fg=#C05A00</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates><x>115</x><y>196</y><w>210</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-open Profile</panel_attributes>
+    <panel_attributes>lt=-&gt;</panel_attributes>
     <additional_attributes>0;0;210;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>325</x><y>242</y><w>215</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
-lastProfile(user)
 fg=#C05A00</panel_attributes>
     <additional_attributes>0;0;215;0</additional_attributes>
   </element>
@@ -185,7 +183,6 @@ fg=#C05A00</panel_attributes>
     <id>Relation</id>
     <coordinates><x>540</x><y>288</y><w>215</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
-lastProfile(user)
 fg=#C05A00</panel_attributes>
     <additional_attributes>0;0;215;0</additional_attributes>
   </element>
@@ -193,7 +190,6 @@ fg=#C05A00</panel_attributes>
     <id>Relation</id>
     <coordinates><x>755</x><y>334</y><w>1505</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
-loadHistory(user)  (latest stored profile: histogram, ids, summary, date)
 fg=#C05A00</panel_attributes>
     <additional_attributes>0;0;1505;0</additional_attributes>
   </element>
@@ -201,7 +197,6 @@ fg=#C05A00</panel_attributes>
     <id>Relation</id>
     <coordinates><x>755</x><y>380</y><w>1505</w><h>10</h></coordinates>
     <panel_attributes>lt=.&gt;
-derived data
 fg=#C05A00</panel_attributes>
     <additional_attributes>1505;0;0;0</additional_attributes>
   </element>
@@ -209,43 +204,37 @@ fg=#C05A00</panel_attributes>
     <id>Relation</id>
     <coordinates><x>325</x><y>426</y><w>430</w><h>10</h></coordinates>
     <panel_attributes>lt=.&gt;
-Optional&lt;ListeningProfile&gt;  (shown without a new Spotify read)
 fg=#C05A00</panel_attributes>
     <additional_attributes>430;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>115</x><y>508</y><w>210</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-Refresh (choose time range)</panel_attributes>
+    <panel_attributes>lt=-&gt;</panel_attributes>
     <additional_attributes>0;0;210;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>325</x><y>554</y><w>215</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-analyzeTaste(user, range)</panel_attributes>
+    <panel_attributes>lt=-&gt;</panel_attributes>
     <additional_attributes>0;0;215;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>540</x><y>600</y><w>215</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-analyzeTaste(user, range)</panel_attributes>
+    <panel_attributes>lt=-&gt;</panel_attributes>
     <additional_attributes>0;0;215;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>755</x><y>646</y><w>215</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-execute(getTopItems, type=artists, range)</panel_attributes>
+    <panel_attributes>lt=-&gt;</panel_attributes>
     <additional_attributes>0;0;215;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>970</x><y>692</y><w>215</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
-getTopArtists(range)  (R1)
 fg=#C05A00</panel_attributes>
     <additional_attributes>0;0;215;0</additional_attributes>
   </element>
@@ -253,7 +242,6 @@ fg=#C05A00</panel_attributes>
     <id>Relation</id>
     <coordinates><x>1185</x><y>738</y><w>430</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
-getTopArtists(range)  (Spotify gives no genres, R18)
 fg=#C05A00</panel_attributes>
     <additional_attributes>0;0;430;0</additional_attributes>
   </element>
@@ -261,7 +249,6 @@ fg=#C05A00</panel_attributes>
     <id>Relation</id>
     <coordinates><x>1185</x><y>784</y><w>430</w><h>10</h></coordinates>
     <panel_attributes>lt=.&gt;
-artists without genres
 fg=#C05A00</panel_attributes>
     <additional_attributes>430;0;0;0</additional_attributes>
   </element>
@@ -269,7 +256,6 @@ fg=#C05A00</panel_attributes>
     <id>Relation</id>
     <coordinates><x>1185</x><y>854</y><w>70</w><h>30</h></coordinates>
     <panel_attributes>lt=-&gt;
-genres cached? (GenreRepository)
 fg=#C05A00</panel_attributes>
     <additional_attributes>0;0;70;0;70;26;0;26</additional_attributes>
   </element>
@@ -277,7 +263,6 @@ fg=#C05A00</panel_attributes>
     <id>Relation</id>
     <coordinates><x>1185</x><y>930</y><w>215</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
-lookup(artist)  (MusicBrainz, rate limited)
 fg=#C05A00</panel_attributes>
     <additional_attributes>0;0;215;0</additional_attributes>
   </element>
@@ -285,7 +270,6 @@ fg=#C05A00</panel_attributes>
     <id>Relation</id>
     <coordinates><x>1185</x><y>976</y><w>215</w><h>10</h></coordinates>
     <panel_attributes>lt=.&gt;
-Optional&lt;List&lt;String&gt;&gt; genres
 fg=#C05A00</panel_attributes>
     <additional_attributes>215;0;0;0</additional_attributes>
   </element>
@@ -293,93 +277,80 @@ fg=#C05A00</panel_attributes>
     <id>Relation</id>
     <coordinates><x>970</x><y>1022</y><w>215</w><h>10</h></coordinates>
     <panel_attributes>lt=.&gt;
-List&lt;Artist&gt; with genres
 fg=#C05A00</panel_attributes>
     <additional_attributes>215;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>755</x><y>1068</y><w>215</w><h>10</h></coordinates>
-    <panel_attributes>lt=.&gt;
-ToolResult(artists)</panel_attributes>
+    <panel_attributes>lt=.&gt;</panel_attributes>
     <additional_attributes>215;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>755</x><y>1114</y><w>215</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-execute(getTopItems, type=tracks) ; execute(getSavedTracks)</panel_attributes>
+    <panel_attributes>lt=-&gt;</panel_attributes>
     <additional_attributes>0;0;215;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>970</x><y>1160</y><w>645</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-getTopItems(tracks, range) ; getSavedTracks()  (via the decorators)</panel_attributes>
+    <panel_attributes>lt=-&gt;</panel_attributes>
     <additional_attributes>0;0;645;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>755</x><y>1206</y><w>860</w><h>10</h></coordinates>
-    <panel_attributes>lt=.&gt;
-top tracks ; saved tracks (capped, noted)</panel_attributes>
+    <panel_attributes>lt=.&gt;</panel_attributes>
     <additional_attributes>860;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>755</x><y>1252</y><w>1075</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
-build(TopItems(artists, tracks), saved)
 fg=#C05A00</panel_attributes>
     <additional_attributes>0;0;1075;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>755</x><y>1298</y><w>1075</w><h>10</h></coordinates>
-    <panel_attributes>lt=.&gt;
-ListeningProfile (genre histogram from MusicBrainz genres)</panel_attributes>
+    <panel_attributes>lt=.&gt;</panel_attributes>
     <additional_attributes>1075;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>755</x><y>1368</y><w>1290</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-complete(summaryPrompt)</panel_attributes>
+    <panel_attributes>lt=-&gt;</panel_attributes>
     <additional_attributes>0;0;1290;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>755</x><y>1414</y><w>1290</w><h>10</h></coordinates>
-    <panel_attributes>lt=.&gt;
-profile summary</panel_attributes>
+    <panel_attributes>lt=.&gt;</panel_attributes>
     <additional_attributes>1290;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>755</x><y>1460</y><w>1505</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-saveSession(session)  (derived data only)</panel_attributes>
+    <panel_attributes>lt=-&gt;</panel_attributes>
     <additional_attributes>0;0;1505;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>540</x><y>1506</y><w>215</w><h>10</h></coordinates>
-    <panel_attributes>lt=.&gt;
-ListeningProfile + summary</panel_attributes>
+    <panel_attributes>lt=.&gt;</panel_attributes>
     <additional_attributes>215;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>325</x><y>1552</y><w>215</w><h>10</h></coordinates>
-    <panel_attributes>lt=.&gt;
-ListeningProfile + notices</panel_attributes>
+    <panel_attributes>lt=.&gt;</panel_attributes>
     <additional_attributes>215;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates><x>115</x><y>1598</y><w>210</w><h>10</h></coordinates>
-    <panel_attributes>lt=.&gt;
-render genres &amp; top artists</panel_attributes>
+    <panel_attributes>lt=.&gt;</panel_attributes>
     <additional_attributes>210;0;0;0</additional_attributes>
   </element>
   <element>
@@ -390,6 +361,251 @@ Orange arrows and frames = new in Stage 2
 Yellow lifeline = new class
 Blue lifeline = Stage 1 class with additions
 White lifeline / black arrow = as in Stage 1</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>166</x><y>171</y><w>108</w><h>22</h></coordinates>
+    <panel_attributes>open Profile
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>360</x><y>217</y><w>145</w><h>22</h></coordinates>
+    <panel_attributes>lastProfile(user)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>575</x><y>263</y><w>145</w><h>22</h></coordinates>
+    <panel_attributes>lastProfile(user)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1227</x><y>309</y><w>560</w><h>22</h></coordinates>
+    <panel_attributes>loadHistory(user)  (latest stored profile: histogram, ids, summary, date)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1453</x><y>355</y><w>108</w><h>22</h></coordinates>
+    <panel_attributes>derived data
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>301</x><y>401</y><w>478</w><h>22</h></coordinates>
+    <panel_attributes>Optional&lt;ListeningProfile&gt;  (shown without a new Spotify read)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>110</x><y>483</y><w>219</w><h>22</h></coordinates>
+    <panel_attributes>Refresh (choose time range)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>330</x><y>529</y><w>205</w><h>22</h></coordinates>
+    <panel_attributes>analyzeTaste(user, range)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>545</x><y>575</y><w>205</w><h>22</h></coordinates>
+    <panel_attributes>analyzeTaste(user, range)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>701</x><y>621</y><w>323</w><h>22</h></coordinates>
+    <panel_attributes>execute(getTopItems, type=artists, range)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>971</x><y>667</y><w>212</w><h>22</h></coordinates>
+    <panel_attributes>getTopArtists(range)  (R1)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1198</x><y>713</y><w>404</w><h>22</h></coordinates>
+    <panel_attributes>getTopArtists(range)  (Spotify gives no genres, R18)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1309</x><y>759</y><w>182</w><h>22</h></coordinates>
+    <panel_attributes>artists without genres
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1261</x><y>860</y><w>256</w><h>22</h></coordinates>
+    <panel_attributes>genres cached? (GenreRepository)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1123</x><y>905</y><w>338</w><h>22</h></coordinates>
+    <panel_attributes>lookup(artist)  (MusicBrainz, rate limited)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1175</x><y>951</y><w>234</w><h>22</h></coordinates>
+    <panel_attributes>Optional&lt;List&lt;String&gt;&gt; genres
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>979</x><y>997</y><w>197</w><h>22</h></coordinates>
+    <panel_attributes>List&lt;Artist&gt; with genres
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>782</x><y>1043</y><w>160</w><h>22</h></coordinates>
+    <panel_attributes>ToolResult(artists)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>634</x><y>1089</y><w>456</w><h>22</h></coordinates>
+    <panel_attributes>execute(getTopItems, type=tracks) ; execute(getSavedTracks)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1035</x><y>1135</y><w>515</w><h>22</h></coordinates>
+    <panel_attributes>getTopItems(tracks, range) ; getSavedTracks()  (via the decorators)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1023</x><y>1181</y><w>323</w><h>22</h></coordinates>
+    <panel_attributes>top tracks ; saved tracks (capped, noted)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1138</x><y>1227</y><w>308</w><h>22</h></coordinates>
+    <panel_attributes>build(TopItems(artists, tracks), saved)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1068</x><y>1273</y><w>449</w><h>22</h></coordinates>
+    <panel_attributes>ListeningProfile (genre histogram from MusicBrainz genres)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1305</x><y>1343</y><w>190</w><h>22</h></coordinates>
+    <panel_attributes>complete(summaryPrompt)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1334</x><y>1389</y><w>131</w><h>22</h></coordinates>
+    <panel_attributes>profile summary
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1346</x><y>1435</y><w>323</w><h>22</h></coordinates>
+    <panel_attributes>saveSession(session)  (derived data only)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>541</x><y>1481</y><w>212</w><h>22</h></coordinates>
+    <panel_attributes>ListeningProfile + summary
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>326</x><y>1527</y><w>212</w><h>22</h></coordinates>
+    <panel_attributes>ListeningProfile + notices
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>110</x><y>1573</y><w>219</w><h>22</h></coordinates>
+    <panel_attributes>render genres &amp; top artists
+bg=#FFFFFF
+transparency=0</panel_attributes>
     <additional_attributes/>
   </element>
 </diagram>
