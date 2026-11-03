@@ -5,10 +5,10 @@
 <title>MusicMind Stage 2 Implementation Report</title>
 <style>
   @page { size: A4; margin: 16mm 15mm 18mm 15mm; @bottom-center { content: "MusicMind Stage 2 report  |  page " counter(page); font: 8pt Helvetica, Arial, sans-serif; color: #666; } }
-  @page wide { size: A4 landscape; margin: 9mm 12mm 13mm 12mm; @bottom-center { content: "MusicMind Stage 2 report  |  page " counter(page); font: 8pt Helvetica, Arial, sans-serif; color: #666; } }
+  @page wide { size: A4 landscape; margin: 6mm 7mm 11mm 7mm; @bottom-center { content: "MusicMind Stage 2 report  |  page " counter(page); font: 8pt Helvetica, Arial, sans-serif; color: #666; } }
   :root { --ink:#1b1f27; --muted:#5a6270; --line:#c5cad3; --head:#12355b; --soft:#eef2f7; --warn:#fff4d6; --warnline:#e0b84a; }
   * { box-sizing: border-box; }
-  html { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 9.6pt; line-height: 1.38; color: var(--ink); }
+  html { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 9.4pt; line-height: 1.34; color: var(--ink); }
   body { margin: 0; }
   h1 { font-size: 20pt; color: var(--head); margin: 0 0 4mm; }
   h2 { font-size: 15pt; color: var(--head); border-bottom: 1.5pt solid var(--head); padding-bottom: 1.5mm; margin: 0 0 4mm; break-after: avoid; }
@@ -20,11 +20,13 @@
   code { font-family: Menlo, Consolas, "Courier New", monospace; font-size: 8.3pt; background: #f0f2f5; padding: 0 1pt; border-radius: 2pt; overflow-wrap: anywhere; }
   a { color: #0b5cad; text-decoration: none; }
   section.page { break-before: page; }
+  .keep { break-inside: avoid; }
   section.first { break-before: auto; }
   section.wide { page: wide; break-before: page; }
   table { width: 100%; border-collapse: collapse; margin: 1.5mm 0 4mm; font-size: 8.4pt; }
   th, td { border: 0.5pt solid var(--line); padding: 1.3mm 1.7mm; vertical-align: top; text-align: left; overflow-wrap: anywhere; }
   th { background: var(--soft); font-weight: 700; }
+  table.tight th, table.tight td { padding: 0.5mm 1.7mm; }
   thead { display: table-header-group; }
   tr { break-inside: avoid; }
   table.fields th { width: 31mm; background: var(--soft); }
@@ -36,7 +38,7 @@
   .feature h3 { margin-top: 4mm; }
   figure { margin: 0; text-align: center; }
   figure img { display: block; margin: 0 auto; }
-  figure.land img { max-width: 100%; max-height: 160mm; width: auto; height: auto; }
+  figure.land img { max-width: 100%; max-height: 166mm; width: auto; height: auto; }
   figure.port img { max-width: 100%; max-height: 215mm; width: auto; height: auto; }
   figcaption { font-size: 8pt; color: var(--muted); margin: 2mm 0 0; text-align: left; }
   .cover { text-align: left; padding-top: 22mm; }
@@ -111,7 +113,6 @@
     <tr><th>Music data</th><td>Spotify Web API (Authorization Code with PKCE, redirect <code>http://127.0.0.1:8080/callback</code>). Spotify returns no artist genres to this app, so genres come from MusicBrainz and are cached by artist id.</td></tr>
     <tr><th>Persistence</th><td>PostgreSQL through JDBC. Tests use an embedded PostgreSQL binary, so no server is needed to build.</td></tr>
     <tr><th>LLM</th><td>One model, <code>gpt-4o</code> from OpenAI, behind the <code>LLMProvider</code> interface (<code>OpenAiProvider</code>). The test double <code>MockLLMProvider</code> exists only under <code>src/test</code>.</td></tr>
-    <tr><th>Settings</th><td><code>src/main/resources/musicmind.properties</code> holds every tunable and all user-facing wording; <code>mood-genres.json</code> holds the mood-to-genre map. Keys live only in a local, git-ignored <code>.env</code>; <code>.env.example</code> holds placeholders.</td></tr>
   </table>
 
   <h3>1.3 How the AI and LLM take part</h3>
@@ -128,7 +129,7 @@
 
   <h3>1.4 Current working functionality</h3>
   <p>All twelve Stage 1 features (F1-F12) are implemented and reachable from both the CLI and the GUI. One feature was added that Stage 1 did not have (delete one of the listener's playlists, CLI only). No Stage 1 feature was dropped or replaced. Section 2 maps each one to its classes and methods; Section 6 records what was checked.</p>
-  <table>
+  <table class="tight">
     <thead><tr><th style="width:12mm">ID</th><th>Feature</th><th style="width:30mm">Type in the code</th><th style="width:22mm">Status</th></tr></thead>
     <tr><td>F1</td><td>Music Taste Profile</td><td>Hybrid</td><td>Modified</td></tr>
     <tr><td>F2</td><td>Taste-Change Analysis</td><td>Hybrid</td><td>Modified</td></tr>
@@ -157,8 +158,7 @@
     <li><strong>Policy correction (November 3).</strong> The first version of the goal-fit review sent track titles and artist names to OpenAI. Spotify Developer Policy section III item 14 forbids ingesting Spotify Content into an AI model. It was changed the same day to send track ids and MusicBrainz genres only (details in Section 4). The review is now less precise, does not judge tracks with no known genre, and was not re-run live.</li>
     <li><strong>Open policy question (F6 edit prompt).</strong> The prompt that turns an edit instruction into commands sends the model each track's id, explicit flag and length in minutes (no titles or names), because edits such as "15 minutes shorter" or "remove explicit" need them. Whether this counts as Spotify Content under the policy is unresolved and is for the author to decide.</li>
     <li><strong>Commit schedule.</strong> Period 1 (October 20-26) has no code commits and missed its minimum; the single 5-point deduction therefore applies (Section 6).</li>
-    <li><strong>Not in Stage 2 scope.</strong> The full deterministic test suite and KUMA agent validation belong to Stage 3.</li>
-    <li><strong>Remaining Stage 2 work at the time of writing:</strong> demonstration videos (links are placeholders in Section 7), cost figures (Section 5), merging the GUI and documentation branches, and the GUI redesign.</li>
+        <li><strong>Remaining work at the time of writing:</strong> the full deterministic test suite and KUMA agent validation are Stage 3; for Stage 2, demonstration videos (links are placeholders in Section 7), cost figures (Section 5), merging the GUI and documentation branches, and the GUI redesign.</li>
   </ul>
 </section>
 
@@ -394,7 +394,7 @@
 
   <h3>Interfaces</h3>
   <p><strong>CLI</strong> (<code>cli/CliApp</code>): an instance built from a controller factory and input and output streams so tests can drive it. Commands: <code>login</code>, <code>help</code>, <code>exit</code>, <code>profile</code>, <code>trends</code>, <code>search</code>, <code>candidates</code>, <code>discover</code>, <code>create</code>, <code>playlists</code>, <code>show</code>, <code>modify</code>, <code>undo</code>, <code>validate</code>, <code>prefs</code>, <code>feedback</code>, <code>explain</code>, <code>history</code>, <code>restore</code>, <code>delete</code>. Exit status 0 means done, 1 could not complete, 2 wrong command or arguments. With no arguments it runs an interactive session.
-  <strong>GUI</strong> (<code>app/GuiApp</code>, <code>app/view/*</code>): seven tabs, a Create playlist dialog and the F11 dialog. One background worker (<code>GuiContext</code>) runs every controller call, and opening the window contacts neither Spotify nor the browser.</p>
+  <strong>GUI</strong> (<code>app/GuiApp</code>, <code>app/view/*</code>): seven tabs, a Create playlist dialog and the F11 dialog. One background worker (<code>app/view/GuiContext.java</code>) runs every controller call, and opening the window contacts neither Spotify nor the browser.</p>
 </section>
 
 <!-- ============================ SECTION 3 ============================ -->
@@ -402,7 +402,7 @@
   <h2>3 Implemented design patterns</h2>
   <p>Five patterns are counted for the course: <strong>Adapter, Strategy, Command, State and Facade</strong>, as in Stage 1. MVC, Repository and Decorator are also used and are not counted. Each is explained below with its problem, participants, files and methods, and whether it matches Stage 1. Details by class are also in <code>docs/STAGE1_CONFORMANCE.md</code>, section 4.</p>
 
-  <h3>3.1 Adapter</h3>
+  <div class="keep"><h3>3.1 Adapter</h3>
   <p><strong>Problem.</strong> The core must not depend on the wire formats of Spotify, MusicBrainz or OpenAI, which change (Spotify removed endpoints in November 2024 and February 2026). <strong>Matches Stage 1:</strong> yes; the MusicBrainz adapter is new (R18).</p>
   <table>
     <thead><tr><th style="width:42mm">Class / interface</th><th style="width:22mm">Role</th><th>Responsibility</th></tr></thead>
@@ -414,7 +414,8 @@
   </table>
   <p><strong>Why useful.</strong> All Spotify knowledge is in one class, and the tests replace Spotify with a local HTTP server (<code>SpotifyAdapterTest</code>) and the LLM with a mock without touching the agent.</p>
 
-  <h3>3.2 Strategy</h3>
+  </div>
+<div class="keep"><h3>3.2 Strategy</h3>
   <p><strong>Problem.</strong> F4 and F5 need different mixes of familiar and new music, chosen at run time. <strong>Matches Stage 1:</strong> yes; <code>AbstractRecommendationStrategy.bindProfile(profile)</code> was added (R7) because the helper methods need the listener's profile.</p>
   <table>
     <thead><tr><th style="width:52mm">Class / interface</th><th style="width:22mm">Role</th><th>Responsibility</th></tr></thead>
@@ -426,7 +427,8 @@
   </table>
   <p><strong>Why useful.</strong> A new policy is a new class. <code>StrategyTest</code> and <code>StrategySelectorTest</code> test each in isolation. F4 uses the strategy the user's novelty setting selects; F5 uses <code>BalancedStrategy</code>.</p>
 
-  <h3>3.3 Command</h3>
+  </div>
+<div class="keep"><h3>3.3 Command</h3>
   <p><strong>Problem.</strong> Playlist edits must be discrete, reversible, composable operations, recorded for history and undoable, including across separate CLI runs. <strong>Matches Stage 1:</strong> yes; three commands were added and undo also works from stored snapshots (R10).</p>
   <table>
     <thead><tr><th style="width:52mm">Class / interface</th><th style="width:22mm">Role</th><th>Responsibility</th></tr></thead>
@@ -438,7 +440,8 @@
   </table>
   <p><strong>Why useful.</strong> F6 undo and F12 restore share one mechanism, and a failed multi-step change is undone instead of leaving a half-changed playlist.</p>
 
-  <h3>3.4 State</h3>
+  </div>
+<div class="keep"><h3>3.4 State</h3>
   <p><strong>Problem.</strong> A create run moves through ordered phases with different actions and failure handling in each. <strong>Matches Stage 1:</strong> yes; shared run data lives in <code>RunContext</code> and <code>RunServices</code>.</p>
   <table>
     <thead><tr><th style="width:52mm">Class / interface</th><th style="width:22mm">Role</th><th>Responsibility</th></tr></thead>
@@ -449,7 +452,8 @@
   </table>
   <p><strong>Why useful.</strong> The flow is explicit and testable (<code>CreatePlaylistFlowTest</code> checks the lifecycle, bounded retries, token renewal and rollback), and the GUI shows the state names as progress.</p>
 
-  <h3>3.5 Facade</h3>
+  </div>
+<div class="keep"><h3>3.5 Facade</h3>
   <p><strong>Problem.</strong> The GUI and CLI need one simple entry point over many collaborators, without duplicating orchestration. <strong>Matches Stage 1:</strong> yes; <code>AppController</code> adds the <code>last*()</code> accessors the interfaces need (R9).</p>
   <table>
     <thead><tr><th style="width:52mm">Class</th><th style="width:22mm">Role</th><th>Responsibility</th></tr></thead>
@@ -458,45 +462,53 @@
     <tr><td><code>controller/AppController</code></td><td>Client entry</td><td>The one class both interfaces call; it holds no business logic of its own beyond input checks.</td></tr>
   </table>
 
-  <h3>3.6 Also used (not counted)</h3>
+  </div>
+<div class="keep"><h3>3.6 Also used (not counted)</h3>
   <ul>
     <li><strong>MVC.</strong> Views (<code>app/view/*</code> and the CLI) call <code>AppController</code>; the domain classes are the model. Matches Stage 1.</li>
     <li><strong>Repository.</strong> <code>Repository&lt;T&gt;</code> with <code>PreferenceRepository</code>, <code>FeedbackRepository</code>, <code>SessionRepository</code>, <code>PlaylistHistoryRepository</code>, <code>CandidateRepository</code> behind <code>MemoryManager</code>; <code>GenreRepository</code> caches genres. <code>CandidateRepository</code> and <code>GenreRepository</code> are new.</li>
     <li><strong>Decorator.</strong> <code>RetryingMusicService</code> (backoff on HTTP 429; safe retries only) and <code>GenreEnrichingMusicService</code> (fills artist genres) wrap a <code>MusicService</code> without changing it. <code>GenreEnrichingMusicService</code> is new (R18).</li>
   </ul>
+</div>
 </section>
 
-<!-- UML figures -->
-<section class="wide">
-  <h3 style="margin-top:0">3.7 Updated UML: class diagram (application and agent architecture)</h3>
-  <figure class="land"><img src="../diagrams/png/MusicMind_ClassArchitecture.png" alt="Updated class architecture diagram">
-  <figcaption>Figure 3.1. Updated class diagram. Yellow = new in Stage 2; blue = a Stage 1 element with Stage 2 additions; white = unchanged. Small supporting classes are left out (listed in <code>docs/STAGE1_CONFORMANCE.md</code>, section 6). Full-resolution PNG: <code>docs/diagrams/png/MusicMind_ClassArchitecture.png</code>; source <code>docs/diagrams/uxf/</code>; the Stage 1 version is in <code>docs/diagrams/png/stage1/</code>.</figcaption></figure>
-</section>
-<section class="wide">
-  <h3 style="margin-top:0">3.8 Updated UML: domain model</h3>
-  <figure class="land"><img src="../diagrams/png/MusicMind_Domain.png" alt="Updated domain model diagram">
-  <figcaption>Figure 3.2. Updated domain model. New types include <code>TopItems</code>, <code>PlaylistSummary</code>, <code>SnapshotInfo</code>, <code>TrendReport</code>, <code>RangeChange</code>, <code>SearchQuery</code>, <code>FeasibilityReport</code>, <code>Relaxation</code>, <code>DecisionTrace</code>; new fields include <code>PlaylistSpec.blockedTracks</code>, <code>AgentRequest.useCandidates</code> and <code>Track.artistNames</code>.</figcaption></figure>
-</section>
-<section class="wide">
-  <h3 style="margin-top:0">3.9 Updated sequence diagram SD01: create playlist</h3>
-  <figure class="land"><img src="../diagrams/png/MusicMind_SD01_CreatePlaylist.png" alt="Updated create-playlist sequence diagram">
-  <figcaption>Figure 3.3. SD01 redrawn as the State pattern runs it: Planning, Retrieving (with the goal review, which sends only track ids and MusicBrainz genres), Selecting (pick review loop), Validating (loop back), Executing, Done; the F11 negotiation, token renewal and the lines <code>AgentSession.run()</code> owns. Orange = new in Stage 2.</figcaption></figure>
-</section>
-<section class="wide">
-  <h3 style="margin-top:0">3.10 Updated sequence diagram SD02: modify playlist with undo</h3>
-  <figure class="land"><img src="../diagrams/png/MusicMind_SD02_ModifyPlaylist.png" alt="Updated modify-playlist sequence diagram">
-  <figcaption>Figure 3.4. SD02: <code>PlaylistEditor</code> replaces the direct LLM and parser calls; the adjustment loop re-plans an edit that would break a rule; F11 offers a partial edit; a snapshot is saved before every modify; undo uses the latest snapshot when the history is empty.</figcaption></figure>
-</section>
-<section class="wide">
-  <h3 style="margin-top:0">3.11 Updated sequence diagram SD03: taste profile</h3>
-  <figure class="land"><img src="../diagrams/png/MusicMind_SD03_TasteProfile.png" alt="Updated taste-profile sequence diagram">
-  <figcaption>Figure 3.5. SD03: stored profile (R5), genres from MusicBrainz through the decorator and its cache (R1, R18), <code>TopItems</code>, and the labelled fallback summary.</figcaption></figure>
-</section>
-<section class="wide">
-  <h3 style="margin-top:0">3.12 Updated sequence diagram SD04: discover and feedback</h3>
-  <figure class="land"><img src="../diagrams/png/MusicMind_SD04_Discover.png" alt="Updated discovery sequence diagram">
-  <figcaption>Figure 3.6. SD04: preference merge, strategy choice, library tracks excluded, no LLM call; feedback goes from <code>AppController</code> to <code>MemoryManager</code>.</figcaption></figure>
-</section>
+<!-- UML figures: each page is one readable crop of a diagram (full PNGs are in docs/diagrams/png/) -->
+<section class="wide fig"><div class="figtitle">3.7 Updated class diagram (application and agent architecture): overview</div>
+  <figure class="land"><img src="../diagrams/png/MusicMind_ClassArchitecture.png" alt="3.7 Updated class diagram (application and agent architecture): overview"><figcaption>Figure 3.1. Overview of the whole diagram. It is too dense to read at this size; the next four pages show it in four readable quarters. Yellow = new in Stage 2; blue = a Stage 1 element with Stage 2 additions; white = unchanged. Small supporting classes are left out (<code>docs/STAGE1_CONFORMANCE.md</code>, section 6). Full PNG: <code>docs/diagrams/png/MusicMind_ClassArchitecture.png</code>; source: <code>docs/diagrams/uxf/</code>; Stage 1 version: <code>docs/diagrams/png/stage1/</code>.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.7 Class diagram, quarter 1 of 4 (top left)</div>
+  <figure class="land"><img src="figures/class_1.png" alt="3.7 Class diagram, quarter 1 of 4 (top left)"><figcaption>Figure 3.1 (continued). Crops overlap slightly. Colours as in the overview.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.7 Class diagram, quarter 2 of 4 (top right)</div>
+  <figure class="land"><img src="figures/class_2.png" alt="3.7 Class diagram, quarter 2 of 4 (top right)"><figcaption>Figure 3.1 (continued). Crops overlap slightly. Colours as in the overview.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.7 Class diagram, quarter 3 of 4 (bottom left)</div>
+  <figure class="land"><img src="figures/class_3.png" alt="3.7 Class diagram, quarter 3 of 4 (bottom left)"><figcaption>Figure 3.1 (continued). Crops overlap slightly. Colours as in the overview.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.7 Class diagram, quarter 4 of 4 (bottom right)</div>
+  <figure class="land"><img src="figures/class_4.png" alt="3.7 Class diagram, quarter 4 of 4 (bottom right)"><figcaption>Figure 3.1 (continued). Crops overlap slightly. Colours as in the overview.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.8 Updated domain model, part 1 of 2 (top half)</div>
+  <figure class="land"><img src="figures/domain_1.png" alt="3.8 Updated domain model, part 1 of 2 (top half)"><figcaption>Figure 3.2. Domain model. New types include <code>TopItems</code>, <code>PlaylistSummary</code>, <code>SnapshotInfo</code>, <code>TrendReport</code>, <code>RangeChange</code>, <code>SearchQuery</code>, <code>FeasibilityReport</code>, <code>Relaxation</code>, <code>DecisionTrace</code>; new fields include <code>PlaylistSpec.blockedTracks</code>, <code>AgentRequest.useCandidates</code>, <code>Track.artistNames</code>.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.8 Updated domain model, part 2 of 2 (bottom half)</div>
+  <figure class="land"><img src="figures/domain_2.png" alt="3.8 Updated domain model, part 2 of 2 (bottom half)"><figcaption>Figure 3.2. Domain model. New types include <code>TopItems</code>, <code>PlaylistSummary</code>, <code>SnapshotInfo</code>, <code>TrendReport</code>, <code>RangeChange</code>, <code>SearchQuery</code>, <code>FeasibilityReport</code>, <code>Relaxation</code>, <code>DecisionTrace</code>; new fields include <code>PlaylistSpec.blockedTracks</code>, <code>AgentRequest.useCandidates</code>, <code>Track.artistNames</code>.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.9 SD01 create playlist, part 1 of 6 (top left)</div>
+  <figure class="land"><img src="figures/sd01_1.png" alt="SD01 part 1"><figcaption>Figure 3.3. SD01 redrawn as the State pattern runs it: Planning, Retrieving (goal review sends only track ids and MusicBrainz genres), Selecting (pick review loop), Validating (loop back), Executing, Done; F11 negotiation and token renewal. Orange = new in Stage 2. Crops overlap slightly; full PNG in <code>docs/diagrams/png/</code>.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.9 SD01 create playlist, part 2 of 6 (top right)</div>
+  <figure class="land"><img src="figures/sd01_2.png" alt="SD01 part 2"><figcaption>Figure 3.3. SD01 redrawn as the State pattern runs it: Planning, Retrieving (goal review sends only track ids and MusicBrainz genres), Selecting (pick review loop), Validating (loop back), Executing, Done; F11 negotiation and token renewal. Orange = new in Stage 2. Crops overlap slightly; full PNG in <code>docs/diagrams/png/</code>.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.9 SD01 create playlist, part 3 of 6 (middle left)</div>
+  <figure class="land"><img src="figures/sd01_3.png" alt="SD01 part 3"><figcaption>Figure 3.3. SD01 redrawn as the State pattern runs it: Planning, Retrieving (goal review sends only track ids and MusicBrainz genres), Selecting (pick review loop), Validating (loop back), Executing, Done; F11 negotiation and token renewal. Orange = new in Stage 2. Crops overlap slightly; full PNG in <code>docs/diagrams/png/</code>.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.9 SD01 create playlist, part 4 of 6 (middle right)</div>
+  <figure class="land"><img src="figures/sd01_4.png" alt="SD01 part 4"><figcaption>Figure 3.3. SD01 redrawn as the State pattern runs it: Planning, Retrieving (goal review sends only track ids and MusicBrainz genres), Selecting (pick review loop), Validating (loop back), Executing, Done; F11 negotiation and token renewal. Orange = new in Stage 2. Crops overlap slightly; full PNG in <code>docs/diagrams/png/</code>.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.9 SD01 create playlist, part 5 of 6 (bottom left)</div>
+  <figure class="land"><img src="figures/sd01_5.png" alt="SD01 part 5"><figcaption>Figure 3.3. SD01 redrawn as the State pattern runs it: Planning, Retrieving (goal review sends only track ids and MusicBrainz genres), Selecting (pick review loop), Validating (loop back), Executing, Done; F11 negotiation and token renewal. Orange = new in Stage 2. Crops overlap slightly; full PNG in <code>docs/diagrams/png/</code>.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.9 SD01 create playlist, part 6 of 6 (bottom right)</div>
+  <figure class="land"><img src="figures/sd01_6.png" alt="SD01 part 6"><figcaption>Figure 3.3. SD01 redrawn as the State pattern runs it: Planning, Retrieving (goal review sends only track ids and MusicBrainz genres), Selecting (pick review loop), Validating (loop back), Executing, Done; F11 negotiation and token renewal. Orange = new in Stage 2. Crops overlap slightly; full PNG in <code>docs/diagrams/png/</code>.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.10 SD02 modify playlist with undo, part 1 of 2 (top half)</div>
+  <figure class="land"><img src="figures/sd02_1.png" alt="3.10 SD02 modify playlist with undo, part 1 of 2 (top half)"><figcaption>Figure 3.4. SD02: <code>PlaylistEditor</code> replaces the direct LLM and parser calls; adjustment loop; F11 partial edit; snapshot before every modify; undo from the latest snapshot when the history is empty.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.10 SD02 modify playlist with undo, part 2 of 2 (bottom half)</div>
+  <figure class="land"><img src="figures/sd02_2.png" alt="3.10 SD02 modify playlist with undo, part 2 of 2 (bottom half)"><figcaption>Figure 3.4. SD02: <code>PlaylistEditor</code> replaces the direct LLM and parser calls; adjustment loop; F11 partial edit; snapshot before every modify; undo from the latest snapshot when the history is empty.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.11 SD03 taste profile, part 1 of 2 (top half)</div>
+  <figure class="land"><img src="figures/sd03_1.png" alt="3.11 SD03 taste profile, part 1 of 2 (top half)"><figcaption>Figure 3.5. SD03: stored profile (R5), genres from MusicBrainz through the decorator and its cache (R1, R18), <code>TopItems</code>, labelled fallback summary.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.11 SD03 taste profile, part 2 of 2 (bottom half)</div>
+  <figure class="land"><img src="figures/sd03_2.png" alt="3.11 SD03 taste profile, part 2 of 2 (bottom half)"><figcaption>Figure 3.5. SD03: stored profile (R5), genres from MusicBrainz through the decorator and its cache (R1, R18), <code>TopItems</code>, labelled fallback summary.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.12 SD04 discover and feedback</div>
+  <figure class="land"><img src="../diagrams/png/MusicMind_SD04_Discover.png" alt="3.12 SD04 discover and feedback"><figcaption>Figure 3.6. SD04: preference merge, strategy choice, library tracks excluded, no LLM call; feedback goes from <code>AppController</code> to <code>MemoryManager</code>.</figcaption></figure></section>
 <section class="page">
   <h3 style="margin-top:0">3.13 Updated use-case diagram</h3>
   <figure class="port"><img src="../diagrams/png/MusicMind_UseCase.png" alt="Updated use-case diagram">
@@ -637,7 +649,7 @@
     <thead><tr><th style="width:16mm">Period</th><th style="width:30mm">Dates (inclusive)</th><th style="width:21mm">Required</th><th style="width:34mm">Code commits (non-merge)</th><th>Status</th></tr></thead>
     <tr><td>1</td><td>Oct 20-26</td><td>5</td><td>0</td><td><strong>Missed.</strong> There were no commits at all in this period: Stage 1 was committed on October 9 and the first Stage 2 commit is on October 30. The single 5-point deduction applies.</td></tr>
     <tr><td>2</td><td>Oct 27-Nov 2</td><td>5</td><td>147 (Oct 30: 23, Oct 31: 28, Nov 1: 55, Nov 2: 41)</td><td>Met. There were no commits on Oct 27-29.</td></tr>
-    <tr><td>3</td><td>Nov 3-9</td><td>5</td><td>2 so far (Nov 3)</td><td><strong>In progress.</strong> The minimum of 5 is not yet met; this table counts only commits that exist today. The other 18 commits made on Nov 3 (17 documentation, diagram and housekeeping commits, and one merge of the policy fix) do not count toward the minimum.</td></tr>
+    <tr><td>3</td><td>Nov 3-9</td><td>5</td><td>2 so far (Nov 3; 3 by path)</td><td><strong>In progress.</strong> The minimum of 5 is not yet met; this table counts only commits that exist today. By path, a third commit on Nov 3 touches <code>src/</code>, but it only edits <code>src/README.md</code> and is documentation. Before this report was added, the other commits of Nov 3 (up to <code>6803a41</code>, 17 documentation, diagram and housekeeping commits and one merge of the policy fix) do not count toward the minimum; the report and its fix commits are documentation too.</td></tr>
   </table>
 
   <h4>Period 1 (October 20-26)</h4>
@@ -673,10 +685,10 @@
     <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/0d69c162f77ef2688648868d4e05d04a153002fd"><code>0d69c16</code></a></td><td>Nov 2 09:52</td><td>GUI: the Create dialog no longer locks a bound slider (the bug that stopped Create from starting)</td></tr>
     <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/15019aa5b52f80c7da5f7c60ea51525eff1b8d15"><code>15019aa</code></a></td><td>Nov 2 20:48</td><td>Search puts exact title and artist matches first and removes duplicates</td></tr>
     <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/1bdd3cd46197d91e57ab4bdd97a964bc50f94fc8"><code>1bdd3cd</code></a></td><td>Nov 2 20:57</td><td>Create searches the goal's activity and reviews real tracks against the goal</td></tr>
-    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/1793e5c4fff7c832393fdb4bc755aa3b3a514463"><code>1793e5c</code></a></td><td>Nov 2 21:05</td><td>Delete a playlist after saving a snapshot</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/1793e5c4fff7c832393fdb4bc755aa3b3a514463"><code>1793e5c</code></a></td><td>Nov 2 21:09</td><td>Delete a playlist after saving a snapshot</td></tr>
     <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/fd5c556508cd3bde41e64eb65ddcb916376e939b"><code>fd5c556</code></a></td><td>Nov 2 21:18</td><td>Review the picked tracks against the goal and replace rejected ones</td></tr>
   </table>
-  <p class="small">All 147 are listed by <code>git log --since=2026-10-27 --until=2026-11-03 --no-merges -- src build.gradle settings.gradle</code> (with <code>TZ=America/Toronto</code>). The earlier pull requests #1 to #3 were merged into <code>main</code>.</p>
+  <p class="small">All 147 are listed by <code>git log --no-merges --since="2026-10-27 00:00 -0400" --until="2026-11-03 00:00 -0500" -- src build.gradle settings.gradle</code> (Toronto is UTC-4 until Nov 1 and UTC-5 after; this command returns 147). The earlier pull requests #1 to #3 were merged into <code>main</code>.</p>
 
   <h4>Period 3 (November 3-9): in progress, 2 code commits so far</h4>
   <table>
