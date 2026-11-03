@@ -7,11 +7,15 @@ import com.musicmind.domain.DecisionTrace;
 import com.musicmind.domain.FeasibilityReport;
 import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.PlaylistSpec;
+import com.musicmind.domain.RangeChange;
 import com.musicmind.domain.RequestKind;
+import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -166,9 +170,9 @@ class PromptBuilderTest {
     }
 
     private static PlaylistContext editContext(String... ids) {
-        List<com.musicmind.domain.Track> tracks = new java.util.ArrayList<>();
+        List<Track> tracks = new ArrayList<>();
         for (int i = 0; i < ids.length; i++) {
-            tracks.add(new com.musicmind.domain.Track(ids[i], "spotify:track:" + ids[i], "Title " + ids[i], 180_000,
+            tracks.add(new Track(ids[i], "spotify:track:" + ids[i], "Title " + ids[i], 180_000,
                     i == 1, List.of()));
         }
         return new PlaylistContext("pl", tracks, null);
@@ -176,24 +180,33 @@ class PromptBuilderTest {
 
     @Test
     void anEditPromptForAPlaylistLongerThanTheCapIsRefusedAndOneAtTheCapIsBuilt() {
-        int cap = Config.of(java.util.Map.of()).editMaxPromptTracks();
+        int cap = Config.of(Map.of()).editMaxPromptTracks();
         String[] ids = new String[cap + 1];
         for (int i = 0; i < ids.length; i++) {
             ids[i] = "t" + i;
         }
         assertThrows(IllegalArgumentException.class, () -> builder.buildEditPrompt("x", editContext(ids)));
-        String[] atCap = java.util.Arrays.copyOf(ids, cap);
+        String[] atCap = Arrays.copyOf(ids, cap);
         assertTrue(builder.buildEditPrompt("x", editContext(atCap)).contains(cap + ": t" + (cap - 1)));
     }
 
     @Test
     void theTrendPromptGivesEachStepBetweenRanges() {
         TrendReport r = new TrendReport(Map.of(), Map.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null,
-                List.of(new com.musicmind.domain.RangeChange("long", "medium", List.of("folk"), List.of("jazz"), List.of("a"), List.of())));
+                List.of(new RangeChange("long", "medium", List.of("folk"), List.of("jazz"), List.of("a"), List.of())));
 
         String prompt = new PromptBuilder(Config.of(Map.of())).buildTrendPrompt(r);
 
         assertTrue(prompt.contains("long to medium"), prompt);
         assertTrue(prompt.contains("folk") && prompt.contains("jazz"), prompt);
+    }
+
+    @Test
+    void theGoalReviewPromptSeparatesItsSentencesAndRejectsStockTitles() {
+        String prompt = builder.buildGoalReviewPrompt("a workout mix",
+                List.of(new Track("t1", "spotify:track:t1", "Workout Music", 1000, false, List.of("a"), List.of("Artist"))));
+
+        assertTrue(prompt.contains("never add any track. Keep a track when unsure"), prompt);
+        assertTrue(prompt.contains("generic or functional") && prompt.contains("Workout Music"), prompt);
     }
 }
