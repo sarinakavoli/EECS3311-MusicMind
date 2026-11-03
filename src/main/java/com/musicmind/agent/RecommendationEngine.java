@@ -49,7 +49,7 @@ public class RecommendationEngine {
     private static final String FAMILIAR_POOL = "familiar";
     private static final String NOVEL_POOL = "novel";
 
-    enum Source { LIBRARY, GENRE, ALBUM }
+    enum Source { LIBRARY, GENRE, ALBUM, KEYWORD }
 
     record Origin(Source source, String genre) { }
 
@@ -140,6 +140,16 @@ public class RecommendationEngine {
      */
     public synchronized Retrieval retrieve(ListeningProfile profile, PlaylistSpec spec,
                                            boolean allowLibraryTracks, List<String> seedGenres) {
+        return retrieve(profile, spec, allowLibraryTracks, seedGenres, List.of());
+    }
+
+    /**
+     * As the four-argument form, and also searches each of {@code searchTerms} (phrases for the goal's
+     * activity, such as "gym workout"); the tracks found join the new-music pool.
+     */
+    public synchronized Retrieval retrieve(ListeningProfile profile, PlaylistSpec spec,
+                                           boolean allowLibraryTracks, List<String> seedGenres,
+                                           List<String> searchTerms) {
         Objects.requireNonNull(profile, "profile");
         Objects.requireNonNull(spec, "spec");
         Map<String, Origin> found = new HashMap<>();
@@ -160,9 +170,16 @@ public class RecommendationEngine {
         List<Track> albumTracks = retriever.albumTracks(artistSeeds);
         albumTracks.forEach(t -> found.putIfAbsent(t.id(), new Origin(Source.ALBUM, null)));
 
+        Map<String, Track> keywordFound = new LinkedHashMap<>();
+        for (String term : searchTerms) {
+            retriever.byKeywords(term).forEach(t -> keywordFound.putIfAbsent(t.id(), t));
+        }
+        keywordFound.values().forEach(t -> found.putIfAbsent(t.id(), new Origin(Source.KEYWORD, null)));
+
         Set<String> seeds = new LinkedHashSet<>(seedGenres);
         Retrieval retrieval = new Retrieval(profile, allowLibraryTracks, seeds, retriever, library, libraryIds,
-                albumTracks, rankedGenres(profile, seeds), new HashMap<>(), found);
+                albumTracks, rankedGenres(profile, seeds), new HashMap<>(), found, List.copyOf(keywordFound.values()),
+                Set.of());
         fetchGenres(retrieval, config.discoverInitialGenres());
         return retrieval;
     }
@@ -200,6 +217,7 @@ public class RecommendationEngine {
             fetchGenres(retrieval, genreLimit);
             PlaylistSpec working = withRatio(spec, ratio);
             List<Track> novel = new ArrayList<>(retrieval.albumTracks);
+            novel.addAll(retrieval.keywordTracks);
             genres.subList(0, Math.min(genreLimit, genres.size()))
                     .forEach(g -> novel.addAll(retrieval.genreTracks.get(g)));
             selection = select(retrieval.library, retrieval.libraryIds, novel, working);
@@ -256,7 +274,7 @@ public class RecommendationEngine {
     private void fetchGenres(Retrieval retrieval, int limit) {
         for (String genre : retrieval.genres.subList(0, Math.min(limit, retrieval.genres.size()))) {
             retrieval.genreTracks.computeIfAbsent(genre, g -> {
-                List<Track> found = retrieval.retriever.byGenre(g);
+                List<Track> found = Retrieval.keeping(retrieval.retriever.byGenre(g), retrieval.removedIds);
                 found.forEach(t -> retrieval.origins.putIfAbsent(t.id(), new Origin(Source.GENRE, g)));
                 return found;
             });
@@ -404,6 +422,9 @@ public class RecommendationEngine {
         if (origin != null && origin.genre() != null && seedGenres.contains(origin.genre())) {
             best = 1.0; // the user asked for this genre
         }
+        if (origin != null && origin.source() == Source.KEYWORD) {
+            best = 1.0; // found by searching the activity the goal names
+        }
         for (String artistId : track.artistIds()) {
             best = Math.max(best, artistAffinity.getOrDefault(artistId, 0.0));
         }
@@ -472,6 +493,7 @@ public class RecommendationEngine {
                 case GENRE -> String.format(config.wording(seedGenres.contains(origin.genre())
                         ? "reasonSourceSeedGenre" : "reasonSourceGenre"), origin.genre());
                 case ALBUM -> config.wording("reasonSourceAlbum");
+                case KEYWORD -> config.wording("reasonSourceKeyword");
             });
         }
         Verdict verdict = verdicts.get(track.id());

@@ -26,11 +26,23 @@ public final class Retrieval {
     final List<String> genres;
     final Map<String, List<Track>> genreTracks;
     final Map<String, RecommendationEngine.Origin> origins;
+    /** Tracks found by searching the goal's activity phrases. */
+    final List<Track> keywordTracks;
+    /** Tracks the goal-fit review took out; genres read later are filtered by it too. */
+    final Set<String> removedIds;
 
     Retrieval(ListeningProfile profile, boolean allowLibraryTracks, Set<String> seedGenres,
               CandidateRetriever retriever, List<Track> library, Set<String> libraryIds,
               List<Track> albumTracks, List<String> genres, Map<String, List<Track>> genreTracks,
               Map<String, RecommendationEngine.Origin> origins) {
+        this(profile, allowLibraryTracks, seedGenres, retriever, library, libraryIds, albumTracks, genres,
+                genreTracks, origins, List.of(), Set.of());
+    }
+
+    Retrieval(ListeningProfile profile, boolean allowLibraryTracks, Set<String> seedGenres,
+              CandidateRetriever retriever, List<Track> library, Set<String> libraryIds,
+              List<Track> albumTracks, List<String> genres, Map<String, List<Track>> genreTracks,
+              Map<String, RecommendationEngine.Origin> origins, List<Track> keywordTracks, Set<String> removedIds) {
         this.profile = profile;
         this.allowLibraryTracks = allowLibraryTracks;
         this.seedGenres = seedGenres;
@@ -41,6 +53,26 @@ public final class Retrieval {
         this.genres = genres;
         this.genreTracks = genreTracks;
         this.origins = origins;
+        this.keywordTracks = keywordTracks;
+        this.removedIds = removedIds;
+    }
+
+    /**
+     * This retrieval without the tracks whose ids are given (the goal-fit review's removals). The user's own
+     * tracks, album tracks, genre and keyword tracks all lose them; the Spotify reads already made are shared,
+     * so nothing is read again.
+     */
+    public Retrieval without(Set<String> trackIds) {
+        Set<String> removed = new java.util.HashSet<>(removedIds);
+        removed.addAll(trackIds);
+        Map<String, List<Track>> byGenre = new LinkedHashMap<>();
+        genreTracks.forEach((genre, tracks) -> byGenre.put(genre, keeping(tracks, removed)));
+        return new Retrieval(profile, allowLibraryTracks, seedGenres, retriever, keeping(library, removed), libraryIds,
+                keeping(albumTracks, removed), genres, byGenre, origins, keeping(keywordTracks, removed), Set.copyOf(removed));
+    }
+
+    static List<Track> keeping(List<Track> tracks, Set<String> removed) {
+        return tracks.stream().filter(t -> !removed.contains(t.id())).toList();
     }
 
     /** True when nothing could be read at all (every Spotify read failed). */
@@ -58,6 +90,7 @@ public final class Retrieval {
         Map<String, Track> all = new LinkedHashMap<>();
         library.forEach(t -> all.putIfAbsent(t.id(), t));
         albumTracks.forEach(t -> all.putIfAbsent(t.id(), t));
+        keywordTracks.forEach(t -> all.putIfAbsent(t.id(), t));
         genreTracks.values().forEach(tracks -> tracks.forEach(t -> all.putIfAbsent(t.id(), t)));
         if (!allowLibraryTracks) {
             all.keySet().removeAll(libraryIds);

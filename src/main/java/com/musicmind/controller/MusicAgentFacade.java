@@ -10,6 +10,7 @@ import com.musicmind.agent.ClarificationNeededException;
 import com.musicmind.agent.ConstraintChecker;
 import com.musicmind.agent.ExplanationService;
 import com.musicmind.agent.MoodGenreMap;
+import com.musicmind.agent.GoalFitReviewer;
 import com.musicmind.agent.InfeasibleRequestException;
 import com.musicmind.agent.NegotiationCancelledException;
 import com.musicmind.agent.NegotiationHandler;
@@ -118,6 +119,7 @@ public class MusicAgentFacade {
     private final LLMProvider llm; // null when no key is configured
     private final Config config;
     private final Planner planner;
+    private final GoalFitReviewer goalReviewer;
     private final ResponseParser parser;
     private final SearchRanker ranker;
     private final MoodGenreMap moods = MoodGenreMap.load();
@@ -170,6 +172,7 @@ public class MusicAgentFacade {
         this.create = Objects.requireNonNull(create, "create");
         this.editor = new PlaylistEditor(llm, prompts, parser, moods, config);
         this.playlistValidator = new PlaylistValidator(config);
+        this.goalReviewer = new GoalFitReviewer(llm, prompts, parser, config);
     }
 
     // ---- F1 ----
@@ -546,7 +549,7 @@ public class MusicAgentFacade {
         User user = new User(userId, userId, userId);
         RunServices services = new RunServices(config, planner, new ConstraintChecker(config),
                 playlistValidator, engine, create.playlists(), create.music(), memory,
-                create.explainer(), currentUserId, () -> profileFor(user), create.reauthenticator());
+                create.explainer(), currentUserId, () -> profileFor(user), create.reauthenticator(), goalReviewer);
         AgentSession session = new AgentSession(UUID.randomUUID().toString(), Instant.now(), new IdleState());
         session.setRequest(request);
         session.setContext(new RunContext(services, request, negotiationHandler, progressListener));

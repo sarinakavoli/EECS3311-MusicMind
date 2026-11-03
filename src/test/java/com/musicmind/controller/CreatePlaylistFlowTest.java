@@ -757,4 +757,56 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
         assertTrue(playlist.tracks().stream().noneMatch(t -> t.artistIds().contains("a0")));
         assertEquals(15, playlist.tracks().size());
     }
+
+    private static final String PLAN_WITH_TERMS = PLAN_60.replace("\"mood\":\"\"", "\"mood\":\"\",\"searchTerms\":[\"gym workout\"]");
+
+    /** Plan with search terms; the goal review gets {@code review}; anything else falls back to the mock. */
+    private static LLMProvider reviewing(List<String> prompts, java.util.function.Supplier<String> review) {
+        MockLLMProvider mock = new MockLLMProvider();
+        return prompt -> {
+            switch (com.musicmind.agent.PromptBuilder.kindOf(prompt).orElseThrow()) {
+                case PLAN: return PLAN_WITH_TERMS;
+                case GOAL_REVIEW:
+                    prompts.add(prompt);
+                    return review.get();
+                default: return mock.complete(prompt);
+            }
+        };
+    }
+
+    @Test
+    void retrieving_appliesReview_andCandidatesAreNotReviewed() {
+        Music music = new Music();
+        music.byId.put(CANDIDATE, candidate(CANDIDATE, 4));
+        List<String> prompts = new ArrayList<>();
+        AppController c = controller(music, reviewing(prompts,
+                () -> "{\"remove\":[\"n0\",\"n1\",\"t0\",\"" + CANDIDATE + "\"]}"));
+        c.addCandidate(CANDIDATE);
+
+        Playlist playlist = c.createPlaylist(request("a workout mix"));
+
+        List<String> ids = playlist.tracks().stream().map(Track::id).toList();
+        assertEquals(1, prompts.size());
+        assertFalse(prompts.get(0).contains(CANDIDATE), "the user's candidates are never sent for review");
+        assertTrue(prompts.get(0).contains("a workout mix"));
+        assertEquals(CANDIDATE, ids.get(0), "a track the user picked is never removed");
+        assertTrue(ids.stream().noneMatch(id -> id.equals("n0") || id.equals("n1") || id.equals("t0")), ids.toString());
+        assertTrue(music.searches.contains("gym workout"), music.searches.toString());
+        assertFalse(c.lastSession().notices().contains(config.wording("goalReviewSkipped")));
+    }
+
+    @Test
+    void retrieving_failedReview_addsNotice_andContinues() {
+        Music music = new Music();
+        AppController c = controller(music, reviewing(new ArrayList<>(), () -> {
+            throw new LLMException("down");
+        }));
+
+        Playlist playlist = c.createPlaylist(request("a workout mix"));
+
+        assertEquals("pl1", playlist.spotifyId());
+        assertEquals(15, playlist.tracks().size());
+        assertTrue(c.lastSession().notices().contains(config.wording("goalReviewSkipped")), c.lastSession().notices().toString());
+        assertEquals("done", c.lastSession().status());
+    }
 }

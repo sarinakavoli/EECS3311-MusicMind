@@ -381,6 +381,21 @@ public final class Config {
         return integer("plan.maxNegotiationRounds");
     }
 
+    /** Most search phrases the plan may carry for a goal's activity. */
+    public int goalMaxSearchTerms() {
+        return integer("goal.maxSearchTerms");
+    }
+
+    /** Most retrieved tracks sent to the goal-fit review. */
+    public int goalReviewMaxTracks() {
+        return integer("goal.reviewMaxTracks");
+    }
+
+    /** The review is ignored if it would leave a smaller share than this of the tracks it saw. */
+    public double goalMinKeepShare() {
+        return Double.parseDouble(text("goal.minKeepShare"));
+    }
+
     // ---- Natural-language search (F3) ----
 
     /** Total tracks requested per search; the adapter fetches them in pages of at most the search page size. */

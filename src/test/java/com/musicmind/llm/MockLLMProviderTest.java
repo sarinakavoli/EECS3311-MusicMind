@@ -18,7 +18,8 @@ class MockLLMProviderTest {
             String out = mock.complete(kind.marker() + "\nanything at all");
             assertFalse(out.isBlank(), kind.name());
             boolean json = kind == PromptBuilder.Kind.PLAN || kind == PromptBuilder.Kind.SEARCH
-                    || kind == PromptBuilder.Kind.EDIT || kind == PromptBuilder.Kind.OPTIONS;
+                    || kind == PromptBuilder.Kind.EDIT || kind == PromptBuilder.Kind.OPTIONS
+                    || kind == PromptBuilder.Kind.GOAL_REVIEW;
             assertEquals(json, out.startsWith("{"), kind.name());
         }
     }

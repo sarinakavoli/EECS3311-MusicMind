@@ -22,6 +22,7 @@ public class MockLLMProvider implements LLMProvider {
             case EDIT -> "{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"}]}";
             case OPTIONS -> "{\"options\":[\"Relax the explicit-content filter\","
                     + "\"Shorten the target duration\",\"Allow more unfamiliar artists\"]}";
+            case GOAL_REVIEW -> "{\"remove\":[]}";
             case TREND -> "Your listening has shifted toward more upbeat genres since last time, "
                     + "while your long-time favourites remain steady.";
             case EXPLAIN -> "Selected a balance of familiar favourites and a few new artists "

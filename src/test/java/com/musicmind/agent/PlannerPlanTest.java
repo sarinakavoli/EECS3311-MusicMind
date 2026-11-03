@@ -159,4 +159,38 @@ class PlannerPlanTest {
         assertEquals(report.relaxationOptions(), planner(p -> "nonsense").phraseOptions(report));
         assertEquals(report.relaxationOptions(), planner(null).phraseOptions(report));
     }
+
+    @Test
+    void plan_readsSearchTerms() {
+        List<String> prompts = new ArrayList<>();
+        AgentPlan plan = planner(p -> {
+            prompts.add(p);
+            return PLAN.replace("\"mood\":\"chill\"", "\"mood\":\"\",\"searchTerms\":[\" gym workout \",\"running\",\"gym workout\",\"\"]");
+        }).plan(request("a workout mix", null));
+
+        assertEquals(List.of("gym workout", "running"), plan.searchTerms());
+        assertTrue(prompts.get(0).contains("searchTerms"), prompts.get(0));
+        assertTrue(prompts.get(0).contains("search phrases"), prompts.get(0));
+        assertTrue(prompts.get(0).contains("Do not name or choose any songs or artists"), prompts.get(0));
+        assertFalse(prompts.get(0).toLowerCase().contains("names of songs"), prompts.get(0));
+        assertTrue(planner(p -> PLAN).plan(request("x", null)).searchTerms().isEmpty());
+    }
+
+    @Test
+    void plan_capsSearchTerms() {
+        AgentPlan plan = planner(p -> PLAN.replace("\"mood\":\"chill\"", "\"mood\":\"\",\"searchTerms\":[\"a\",\"b\",\"c\",\"d\",\"e\"]"))
+                .plan(request("x", null));
+
+        assertEquals(List.of("a", "b", "c"), plan.searchTerms());
+        assertEquals(List.of("a", "b"), new Planner(p -> PLAN.replace("\"mood\":\"chill\"", "\"mood\":\"\",\"searchTerms\":[\"a\",\"b\",\"c\"]"),
+                new PromptBuilder(config), new ResponseParser(config.withTunables(Map.of("goal.maxSearchTerms", "2"))),
+                config.withTunables(Map.of("goal.maxSearchTerms", "2"))).plan(request("x", null)).searchTerms());
+    }
+
+    @Test
+    void aRegeneratedPlanKeepsItsSearchTerms() {
+        AgentPlan plan = planner(p -> PLAN.replace("\"mood\":\"chill\"", "\"mood\":\"\",\"searchTerms\":[\"gym\"]")).plan(request("x", null));
+        Relaxation chosen = new Relaxation(Relaxation.Kind.ALLOW_EXPLICIT, 1, "x");
+        assertEquals(List.of("gym"), planner(p -> PLAN).regenerate(plan, chosen).searchTerms());
+    }
 }

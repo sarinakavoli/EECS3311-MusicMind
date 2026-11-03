@@ -1,5 +1,7 @@
 package com.musicmind.agent.state;
 
+import com.musicmind.agent.CandidatePool;
+import com.musicmind.agent.GoalFitReviewer;
 import com.musicmind.domain.AgentSession;
 import com.musicmind.domain.FeasibilityReport;
 import com.musicmind.domain.Track;
@@ -25,11 +27,13 @@ public class RetrievingState implements SessionState {
         RunContext ctx = session.context();
         RunServices services = ctx.services;
         ctx.profile = services.profile().get();
-        ctx.retrieval = services.engine().retrieve(ctx.profile, ctx.spec(), true, ctx.plan.seedGenres());
+        ctx.retrieval = services.engine().retrieve(ctx.profile, ctx.spec(), true, ctx.plan.seedGenres(),
+                ctx.plan.searchTerms());
         if (ctx.retrieval.allReadsFailed()) {
             throw new MusicServiceException(String.format(services.config().wording("discoverAllReadsFailed"),
                     ctx.retrieval.failedReads()));
         }
+        reviewAgainstGoal(session, ctx);
         ctx.candidates = readCandidates(ctx);
         FeasibilityReport report = services.checker().checkFeasibility(ctx.spec(), ctx.pool());
         while (!report.feasible()) {
@@ -38,6 +42,23 @@ public class RetrievingState implements SessionState {
             report = services.checker().checkFeasibility(ctx.spec(), ctx.pool());
         }
         session.setState(new SelectingState());
+    }
+
+    /**
+     * Takes out the retrieved tracks the goal-fit review rejects. Only retrieved tracks are reviewed: the user's
+     * candidates are read afterwards and are never sent or removed. A review that could not be used leaves the
+     * tracks as they are and adds a notice.
+     */
+    private static void reviewAgainstGoal(AgentSession session, RunContext ctx) {
+        CandidatePool pool = ctx.retrieval.pool();
+        List<Track> toReview = new ArrayList<>(pool.novel());
+        toReview.addAll(pool.familiar());
+        GoalFitReviewer.Result result = ctx.services.reviewer().review(ctx.request.rawText(), toReview);
+        if (!result.reviewed()) {
+            session.addNotice(ctx.services.config().wording("goalReviewSkipped"));
+        } else if (!result.removedIds().isEmpty()) {
+            ctx.retrieval = ctx.retrieval.without(result.removedIds());
+        }
     }
 
     /** The candidates Spotify still has; one that cannot be read is left out, and the selection reports it. */

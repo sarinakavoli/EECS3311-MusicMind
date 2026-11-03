@@ -47,6 +47,14 @@ class CandidateRetriever {
         return new ArrayList<>(byId.values());
     }
 
+    /** Tracks Spotify's search returns for a phrase such as "gym workout", searched as typed. */
+    List<Track> byKeywords(String phrase) {
+        String query = new SearchQuery(phrase, null, Map.of(), 1.0).toSpotifyQuery();
+        Map<String, Track> byId = new LinkedHashMap<>();
+        addAll(byId, read("search", Map.of("query", query, "limit", config.discoverSearchLimit())));
+        return new ArrayList<>(byId.values());
+    }
+
     /** Tracks of the first few albums of each artist. */
     List<Track> albumTracks(List<String> artistIds) {
         Map<String, Track> byId = new LinkedHashMap<>();
