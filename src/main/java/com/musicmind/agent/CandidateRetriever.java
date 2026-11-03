@@ -41,15 +41,16 @@ class CandidateRetriever {
 
     /** Tracks Spotify's search returns for the genre, sent as a plain keyword (R19). */
     List<Track> byGenre(String genre) {
-        String query = new SearchQuery(null, genre, Map.of(), 1.0).toSpotifyQuery();
-        Map<String, Track> byId = new LinkedHashMap<>();
-        addAll(byId, read("search", Map.of("query", query, "limit", config.discoverSearchLimit())));
-        return new ArrayList<>(byId.values());
+        return searchTracks(new SearchQuery(null, genre, Map.of(), 1.0).toSpotifyQuery());
     }
 
     /** Tracks Spotify's search returns for a phrase such as "gym workout", searched as typed. */
     List<Track> byKeywords(String phrase) {
-        String query = new SearchQuery(phrase, null, Map.of(), 1.0).toSpotifyQuery();
+        return searchTracks(new SearchQuery(phrase, null, Map.of(), 1.0).toSpotifyQuery());
+    }
+
+    /** One search, {@code discover.searchLimit} tracks, de-duplicated by id. */
+    private List<Track> searchTracks(String query) {
         Map<String, Track> byId = new LinkedHashMap<>();
         addAll(byId, read("search", Map.of("query", query, "limit", config.discoverSearchLimit())));
         return new ArrayList<>(byId.values());

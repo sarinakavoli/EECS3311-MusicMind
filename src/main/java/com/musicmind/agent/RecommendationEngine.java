@@ -447,8 +447,9 @@ public class RecommendationEngine {
     /**
      * Genre affinity (0..1) of the track: the best taste affinity among its search genre and its top
      * artists. A track found for the goal (a genre the user asked for, or the activity's keywords) is
-     * lifted onto the range floor..1.0 (floor + (1 - floor) * taste), so it never ranks below an
-     * unrelated track yet still differs from other goal tracks by taste.
+     * lifted onto the range floor..1.0 (floor + (1 - floor) * taste), so its affinity never falls below the
+     * floor and it still differs from other goal tracks by taste. It is a floor, not a guarantee of rank: a
+     * non-goal track whose taste affinity is higher than the goal track's lifted value can still outrank it.
      */
     private double affinity(Track track) {
         Origin origin = origins.get(track.id());
