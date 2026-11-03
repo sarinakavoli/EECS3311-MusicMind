@@ -671,6 +671,40 @@ class MusicAgentFacadeTest extends PostgresTestBase {
     }
 
     @Test
+    void searchMusic_isCutToTheConfiguredResultLimit() {
+        FakeMusic music = new FakeMusic();
+        music.searchResults = IntStream.range(0, config.searchResultLimit() + 10)
+                .mapToObj(i -> named("id" + i, "Song " + i)).toList();
+        LLMProvider llm = p -> "{\"keywords\":\"songs\",\"genre\":\"\",\"filters\":{},\"confidence\":0.9}";
+
+        List<Track> found = facade(music, llm).searchMusic("some songs");
+
+        assertEquals(config.searchResultLimit(), found.size());
+        assertEquals("id0", found.get(0).id(), "Spotify's order is kept inside the cut");
+    }
+
+    @Test
+    void searchMusic_failedTypedSearch_leavesTheAiResults() {
+        FakeMusic music = new FakeMusic() {
+            @Override public List<Track> search(String query, int limit) {
+                super.search(query, limit);
+                if (query.equals("american girls")) {
+                    throw new MusicServiceException(RAW, 503);
+                }
+                return List.of(by("m", "Unrelated Song", "Someone"));
+            }
+        };
+        LLMProvider llm = p -> "{\"keywords\":\"girls anthem\",\"genre\":\"\",\"filters\":{},\"confidence\":0.9}";
+        MusicAgentFacade f = facade(music, llm);
+
+        List<Track> found = f.searchMusic("american girls");
+
+        assertEquals(List.of("girls anthem", "american girls"), music.searches);
+        assertEquals(List.of("m"), found.stream().map(Track::id).toList());
+        assertNull(f.lastSearchNotice());
+    }
+
+    @Test
     void searchMusic_moodOnlyQuery_skipsTypedPass() {
         FakeMusic music = new FakeMusic();
         music.searchResults = List.of(named("a", "Anything"));

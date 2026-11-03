@@ -12,6 +12,7 @@ import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.User;
 import com.musicmind.domain.UserPreference;
+import com.musicmind.memory.Database;
 import com.musicmind.memory.MemoryManager;
 import com.musicmind.memory.PersistenceException;
 import com.musicmind.memory.PostgresTestBase;
@@ -178,6 +179,31 @@ class AppControllerTest extends PostgresTestBase {
     }
 
     @Test
+    void findArtists_blankNameIsRefused() {
+        AppController c = controller(new Music());
+        for (String blank : new String[] {null, "", "   "}) {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> c.findArtists(blank));
+            assertEquals(config.wording("prefsArtistBlank"), e.getMessage());
+        }
+    }
+
+    @Test
+    void findTracks_isTheRankedSearch() {
+        Music music = new Music() {
+            @Override public List<Track> search(String q, int limit) {
+                return List.of(new Track("s1", "spotify:track:s1", "Jazz Night", 1, false, List.of()),
+                        new Track("s2", "spotify:track:s2", "Blue Jazz", 1, false, List.of()));
+            }
+        };
+        AppController c = controller(music);
+
+        List<Track> found = c.findTracks("jazz");
+
+        assertEquals(List.of("s1", "s2"), found.stream().map(Track::id).toList());
+        assertEquals(c.searchMusic("jazz"), found);
+    }
+
+    @Test
     void blockTrack_keepsExistingBlocks() {
         AppController c = controller(new Music());
         String first = "1234567890123456789012";
@@ -302,6 +328,24 @@ class AppControllerTest extends PostgresTestBase {
         assertEquals(String.format(config.wording("deleteNotOwner"), "theirs"), e.getMessage());
         assertTrue(music.calls.isEmpty(), music.calls.toString());
         assertTrue(c.memory().loadSnapshotSummaries("sp-user").isEmpty(), "nothing was saved either");
+    }
+
+    @Test
+    void delete_snapshotCannotBeSaved_playlistIsKept() {
+        PlaylistMusic music = new PlaylistMusic();
+        music.own("p", "a", "b");
+        Database dead = new Database("jdbc:postgresql://127.0.0.1:1/none", "u", "p");
+        AppController c = new AppController(music, new MemoryManager(dead,
+                new PreferenceRepository(dead, music::currentUserId), new FeedbackRepository(dead, music::currentUserId),
+                new SessionRepository(dead, music::currentUserId), new PlaylistHistoryRepository(dead, music::currentUserId),
+                new CandidateRepository(dead, music::currentUserId)), null, config);
+        c.login();
+
+        PlaylistChangeException e = assertThrows(PlaylistChangeException.class, () -> c.deletePlaylist("p"));
+
+        assertEquals(config.wording("snapshotSaveFailed"), e.getMessage());
+        assertTrue(music.calls.isEmpty(), "nothing is deleted without a saved copy: " + music.calls);
+        assertTrue(music.held.containsKey("p"));
     }
 
     @Test
