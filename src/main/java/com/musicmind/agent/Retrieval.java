@@ -6,6 +6,7 @@ import com.musicmind.domain.Track;
 
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -84,7 +85,7 @@ public final class Retrieval {
      * Empty when none is known for any of its artists.
      */
     public List<String> knownGenres(Track track, ArtistGenreCache cache) {
-        java.util.Set<String> found = new java.util.LinkedHashSet<>();
+        Set<String> found = new LinkedHashSet<>();
         RecommendationEngine.Origin origin = origins.get(track.id());
         if (origin != null && origin.genre() != null && !origin.genre().isBlank()) {
             found.add(origin.genre());

@@ -227,7 +227,7 @@ class PromptBuilderTest {
     }
 
     @Test
-    void noPromptBuilderPromptContainsATrackTitleOrArtistName() {
+    void noPromptBuilderPromptContainsATrackTitleOrArtistName() throws Exception {
         Track t = marked("t1");
         Artist artist = new Artist("art1", MARK_ARTIST, List.of("pop"));
         ListeningProfile profile = new ListeningProfile(Map.of("pop", 1.0), List.of(artist), List.of(t),
@@ -235,21 +235,33 @@ class PromptBuilderTest {
         TrendReport trend = new TrendReport(Map.of("short", List.of(artist), "long", List.of(artist)),
                 Map.of("short", Map.of("pop", 1.0)), List.of("pop"), List.of("jazz"), List.of("art1"), List.of(),
                 List.of(), null, List.of(new RangeChange("long", "short", List.of("pop"), List.of(), List.of("art1"), List.of())));
-        PlaylistSpec flags = new PlaylistSpec(45, false, 0.8, List.of("art1"), null);
-        List<String> prompts = List.of(
-                builder.buildPlanPrompt(new AgentRequest("rainy day mix", RequestKind.CREATE_PLAYLIST, flags)),
-                builder.buildGoalReviewPrompt("workout", List.of(t), x -> List.of("pop")),
-                builder.buildExplainPrompt(new DecisionTrace("Balanced", Map.of("t1", "matches pop"), List.of("no explicit"))),
-                builder.buildSummaryPrompt(profile),
-                builder.buildTrendPrompt(trend),
-                builder.buildSearchPrompt("jazz"),
-                builder.buildEditPrompt("remove the second", new PlaylistContext("pl", List.of(t, marked("t2")), null)),
-                builder.buildOptionsPrompt(new FeasibilityReport(false, List.of("too short"), List.of("allow more explicit"))));
+        PlaylistContext playlist = new PlaylistContext("pl", List.of(t, marked("t2")), null);
+        // plan and search take only the user's own words and MusicMind constraints, no Spotify object; the other
+        // builders get the objects that can carry Spotify content (tracks, artists), filled with the markers.
+        Map<String, java.util.function.Supplier<String>> calls = Map.of(
+                "buildPlanPrompt", () -> builder.buildPlanPrompt(new AgentRequest("rainy day mix", RequestKind.CREATE_PLAYLIST,
+                        new PlaylistSpec(45, false, 0.8, List.of("art1"), null))),
+                "buildGoalReviewPrompt", () -> builder.buildGoalReviewPrompt("workout", List.of(t), x -> List.of("pop")),
+                "buildExplainPrompt", () -> builder.buildExplainPrompt(
+                        new DecisionTrace("Balanced", Map.of("t1", "matches pop"), List.of("no explicit"))),
+                "buildSummaryPrompt", () -> builder.buildSummaryPrompt(profile),
+                "buildTrendPrompt", () -> builder.buildTrendPrompt(trend),
+                "buildSearchPrompt", () -> builder.buildSearchPrompt("jazz"),
+                "buildEditPrompt", () -> builder.buildEditPrompt("remove the second", playlist),
+                "buildOptionsPrompt", () -> builder.buildOptionsPrompt(
+                        new FeasibilityReport(false, List.of("too short"), List.of("allow more explicit"))));
 
-        assertEquals(PromptBuilder.Kind.values().length, prompts.size(), "one prompt per kind");
-        prompts.forEach(p -> {
-            assertFalse(p.contains("Zyxwv") || p.contains("Qwertz"), p);
-            assertTrue(p.length() > 0);
+        java.util.Set<String> built = new java.util.TreeSet<>();
+        for (java.lang.reflect.Method m : PromptBuilder.class.getDeclaredMethods()) {
+            if (java.lang.reflect.Modifier.isPublic(m.getModifiers()) && m.getName().startsWith("build")) {
+                built.add(m.getName());
+            }
+        }
+        assertEquals(new java.util.TreeSet<>(calls.keySet()), built,
+                "every public build* method of PromptBuilder must be covered by this leak guard");
+        calls.forEach((name, call) -> {
+            String p = call.get();
+            assertFalse(p.contains("Zyxwv") || p.contains("Qwertz"), name + ": " + p);
         });
     }
 }
