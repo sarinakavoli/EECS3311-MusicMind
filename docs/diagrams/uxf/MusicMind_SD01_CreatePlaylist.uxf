@@ -9,324 +9,684 @@
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>225</x><y>40</y><w>150</w><h>40</h></coordinates>
+    <coordinates><x>225</x><y>40</y><w>160</w><h>40</h></coordinates>
     <panel_attributes>PlaylistView</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>410</x><y>40</y><w>150</w><h>40</h></coordinates>
-    <panel_attributes>AppController</panel_attributes>
+    <coordinates><x>400</x><y>40</y><w>160</w><h>40</h></coordinates>
+    <panel_attributes>AppController
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>595</x><y>40</y><w>150</w><h>40</h></coordinates>
-    <panel_attributes>MusicAgentFacade</panel_attributes>
+    <coordinates><x>575</x><y>40</y><w>160</w><h>40</h></coordinates>
+    <panel_attributes>MusicAgentFacade
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>780</x><y>40</y><w>150</w><h>40</h></coordinates>
-    <panel_attributes>Planner</panel_attributes>
+    <coordinates><x>750</x><y>40</y><w>160</w><h>40</h></coordinates>
+    <panel_attributes>AgentSession
+bg=#FFE9A8</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>965</x><y>40</y><w>150</w><h>40</h></coordinates>
+    <coordinates><x>925</x><y>40</y><w>160</w><h>40</h></coordinates>
+    <panel_attributes>Planner
+bg=#CFE8FF</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>1100</x><y>40</y><w>160</w><h>40</h></coordinates>
     <panel_attributes>LLMProvider</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>1150</x><y>40</y><w>150</w><h>40</h></coordinates>
-    <panel_attributes>ConstraintChecker</panel_attributes>
+    <coordinates><x>1275</x><y>40</y><w>160</w><h>40</h></coordinates>
+    <panel_attributes>GoalFitReviewer
+bg=#FFE9A8</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>1335</x><y>40</y><w>150</w><h>40</h></coordinates>
+    <coordinates><x>1450</x><y>40</y><w>160</w><h>40</h></coordinates>
+    <panel_attributes>ExplanationService</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>1625</x><y>40</y><w>160</w><h>40</h></coordinates>
+    <panel_attributes>ConstraintChecker
+bg=#CFE8FF</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>1800</x><y>40</y><w>160</w><h>40</h></coordinates>
+    <panel_attributes>NegotiationHandler
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>1975</x><y>40</y><w>160</w><h>40</h></coordinates>
+    <panel_attributes>RecommendationEngine
+bg=#CFE8FF</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>2150</x><y>40</y><w>160</w><h>40</h></coordinates>
     <panel_attributes>ToolManager</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>1520</x><y>40</y><w>150</w><h>40</h></coordinates>
-    <panel_attributes>MusicService</panel_attributes>
+    <coordinates><x>2325</x><y>40</y><w>160</w><h>40</h></coordinates>
+    <panel_attributes>MusicService
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>1705</x><y>40</y><w>150</w><h>40</h></coordinates>
-    <panel_attributes>RecommendationEngine</panel_attributes>
-    <additional_attributes/>
-  </element>
-  <element>
-    <id>UMLClass</id>
-    <coordinates><x>1890</x><y>40</y><w>150</w><h>40</h></coordinates>
+    <coordinates><x>2500</x><y>40</y><w>160</w><h>40</h></coordinates>
     <panel_attributes>PlaylistValidator</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>2075</x><y>40</y><w>150</w><h>40</h></coordinates>
-    <panel_attributes>PlaylistManager</panel_attributes>
+    <coordinates><x>2675</x><y>40</y><w>160</w><h>40</h></coordinates>
+    <panel_attributes>PlaylistManager
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>2260</x><y>40</y><w>150</w><h>40</h></coordinates>
-    <panel_attributes>MemoryManager</panel_attributes>
+    <coordinates><x>2850</x><y>40</y><w>160</w><h>40</h></coordinates>
+    <panel_attributes>MemoryManager
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLFrame</id>
-    <coordinates><x>630</x><y>552</y><w>635</w><h>172</h></coordinates>
-    <panel_attributes>alt  [constraints infeasible -&gt; UC12]</panel_attributes>
+    <coordinates><x>735</x><y>364</y><w>2295</w><h>252</h></coordinates>
+    <panel_attributes>state: PlanningState  (IdleState hands over)
+fg=#C05A00</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLFrame</id>
-    <coordinates><x>630</x><y>782</y><w>1375</w><h>126</h></coordinates>
-    <panel_attributes>loop  [until valid / max retries]</panel_attributes>
+    <coordinates><x>755</x><y>1156</y><w>2255</w><h>202</h></coordinates>
+    <panel_attributes>loop  [alt: constraints infeasible -&gt; UC12 / F11, up to planMaxNegotiationRounds]
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLFrame</id>
+    <coordinates><x>735</x><y>630</y><w>2295</w><h>732</h></coordinates>
+    <panel_attributes>state: RetrievingState
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLFrame</id>
+    <coordinates><x>755</x><y>1488</y><w>2255</w><h>202</h></coordinates>
+    <panel_attributes>loop  [removals found and rounds &lt; goalPickReviewRounds]
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLFrame</id>
+    <coordinates><x>735</x><y>1376</y><w>2295</w><h>318</h></coordinates>
+    <panel_attributes>state: SelectingState
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLFrame</id>
+    <coordinates><x>755</x><y>1820</y><w>2255</w><h>140</h></coordinates>
+    <panel_attributes>loop  [until valid / planMaxValidationRetries]
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLFrame</id>
+    <coordinates><x>735</x><y>1708</y><w>2295</w><h>256</h></coordinates>
+    <panel_attributes>state: ValidatingState
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLFrame</id>
+    <coordinates><x>735</x><y>1978</y><w>2295</w><h>206</h></coordinates>
+    <panel_attributes>state: ExecutingState
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLFrame</id>
+    <coordinates><x>735</x><y>2198</y><w>2295</w><h>252</h></coordinates>
+    <panel_attributes>state: DoneState  (terminal)
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLFrame</id>
+    <coordinates><x>735</x><y>2464</y><w>2295</w><h>190</h></coordinates>
+    <panel_attributes>opt  [Spotify token expired mid-run]
+fg=#C05A00</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>115</x><y>80</y><w>10</w><h>1108</h></coordinates>
+    <coordinates><x>115</x><y>120</y><w>10</w><h>2752</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;1108</additional_attributes>
+    <additional_attributes>0;0;0;2752</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>300</x><y>80</y><w>10</w><h>1108</h></coordinates>
+    <coordinates><x>300</x><y>80</y><w>10</w><h>2792</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;1108</additional_attributes>
+    <additional_attributes>5;0;5;2792</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>485</x><y>80</y><w>10</w><h>1108</h></coordinates>
+    <coordinates><x>475</x><y>80</y><w>10</w><h>2792</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;1108</additional_attributes>
+    <additional_attributes>5;0;5;2792</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>80</y><w>10</w><h>1108</h></coordinates>
+    <coordinates><x>650</x><y>80</y><w>10</w><h>2792</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;1108</additional_attributes>
+    <additional_attributes>5;0;5;2792</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>855</x><y>80</y><w>10</w><h>1108</h></coordinates>
+    <coordinates><x>825</x><y>80</y><w>10</w><h>2792</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;1108</additional_attributes>
+    <additional_attributes>5;0;5;2792</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1040</x><y>80</y><w>10</w><h>1108</h></coordinates>
+    <coordinates><x>1000</x><y>80</y><w>10</w><h>2792</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;1108</additional_attributes>
+    <additional_attributes>5;0;5;2792</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1225</x><y>80</y><w>10</w><h>1108</h></coordinates>
+    <coordinates><x>1175</x><y>80</y><w>10</w><h>2792</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;1108</additional_attributes>
+    <additional_attributes>5;0;5;2792</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1410</x><y>80</y><w>10</w><h>1108</h></coordinates>
+    <coordinates><x>1350</x><y>80</y><w>10</w><h>2792</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;1108</additional_attributes>
+    <additional_attributes>5;0;5;2792</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1595</x><y>80</y><w>10</w><h>1108</h></coordinates>
+    <coordinates><x>1525</x><y>80</y><w>10</w><h>2792</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;1108</additional_attributes>
+    <additional_attributes>5;0;5;2792</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1780</x><y>80</y><w>10</w><h>1108</h></coordinates>
+    <coordinates><x>1700</x><y>80</y><w>10</w><h>2792</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;1108</additional_attributes>
+    <additional_attributes>5;0;5;2792</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1965</x><y>80</y><w>10</w><h>1108</h></coordinates>
+    <coordinates><x>1875</x><y>80</y><w>10</w><h>2792</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;1108</additional_attributes>
+    <additional_attributes>5;0;5;2792</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>2150</x><y>80</y><w>10</w><h>1108</h></coordinates>
+    <coordinates><x>2050</x><y>80</y><w>10</w><h>2792</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;1108</additional_attributes>
+    <additional_attributes>5;0;5;2792</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>2335</x><y>80</y><w>10</w><h>1108</h></coordinates>
+    <coordinates><x>2225</x><y>80</y><w>10</w><h>2792</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;1108</additional_attributes>
+    <additional_attributes>5;0;5;2792</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>115</x><y>110</y><w>185</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-submit goal + constraints</panel_attributes>
-    <additional_attributes>0;0;185;0</additional_attributes>
+    <coordinates><x>2400</x><y>80</y><w>10</w><h>2792</h></coordinates>
+    <panel_attributes>lt=.</panel_attributes>
+    <additional_attributes>5;0;5;2792</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>300</x><y>156</y><w>185</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-createPlaylist(request)</panel_attributes>
-    <additional_attributes>0;0;185;0</additional_attributes>
+    <coordinates><x>2575</x><y>80</y><w>10</w><h>2792</h></coordinates>
+    <panel_attributes>lt=.</panel_attributes>
+    <additional_attributes>5;0;5;2792</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>485</x><y>202</y><w>185</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-createPlaylist(request)</panel_attributes>
-    <additional_attributes>0;0;185;0</additional_attributes>
+    <coordinates><x>2750</x><y>80</y><w>10</w><h>2792</h></coordinates>
+    <panel_attributes>lt=.</panel_attributes>
+    <additional_attributes>5;0;5;2792</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>248</y><w>185</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-plan(request)</panel_attributes>
-    <additional_attributes>0;0;185;0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>855</x><y>294</y><w>185</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-complete(planPrompt)</panel_attributes>
-    <additional_attributes>0;0;185;0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>855</x><y>340</y><w>185</w><h>10</h></coordinates>
-    <panel_attributes>lt=.&gt;
-PlaylistSpec (JSON)</panel_attributes>
-    <additional_attributes>185;0;0;0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>670</x><y>386</y><w>185</w><h>10</h></coordinates>
-    <panel_attributes>lt=.&gt;
-AgentPlan</panel_attributes>
-    <additional_attributes>185;0;0;0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>670</x><y>432</y><w>1665</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-loadPreferences(user)</panel_attributes>
-    <additional_attributes>0;0;1665;0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>670</x><y>478</y><w>740</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-execute(getTopItems)</panel_attributes>
-    <additional_attributes>0;0;740;0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>1410</x><y>524</y><w>185</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-getTopItems(type, range)</panel_attributes>
-    <additional_attributes>0;0;185;0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>1410</x><y>570</y><w>185</w><h>10</h></coordinates>
-    <panel_attributes>lt=.&gt;
-candidate pool</panel_attributes>
-    <additional_attributes>185;0;0;0</additional_attributes>
+    <coordinates><x>2925</x><y>80</y><w>10</w><h>2792</h></coordinates>
+    <panel_attributes>lt=.</panel_attributes>
+    <additional_attributes>5;0;5;2792</additional_attributes>
   </element>
   <element>
     <id>UMLNote</id>
-    <coordinates><x>40</x><y>604</y><w>300</w><h>30</h></coordinates>
-    <panel_attributes>alt 429: RetryingMusicService backs off (Retry-After), retries</panel_attributes>
+    <coordinates><x>150</x><y>380</y><w>400</w><h>88</h></coordinates>
+    <panel_attributes>Legend (Stage 2 update)
+Orange arrows and frames = new in Stage 2
+Yellow lifeline = new class
+Blue lifeline = Stage 1 class with additions
+White lifeline / black arrow = as in Stage 1</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>662</y><w>555</w><h>10</h></coordinates>
+    <coordinates><x>115</x><y>156</y><w>190</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+submit goal + constraints</panel_attributes>
+    <additional_attributes>0;0;190;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>305</x><y>202</y><w>175</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+setNegotiationHandler(handler); setProgressListener(...)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;175;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>305</x><y>248</y><w>175</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+createPlaylist(request)</panel_attributes>
+    <additional_attributes>0;0;175;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>480</x><y>294</y><w>175</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+createPlaylist(request)</panel_attributes>
+    <additional_attributes>0;0;175;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>655</x><y>340</y><w>175</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+run()  (new AgentSession, RunContext)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;175;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>830</x><y>406</y><w>2100</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+loadPreferences, loadFeedback, loadCandidates(user)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;2100;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>830</x><y>452</y><w>175</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+plan(request, preferences)</panel_attributes>
+    <additional_attributes>0;0;175;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1005</x><y>498</y><w>175</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+complete(planPrompt)</panel_attributes>
+    <additional_attributes>0;0;175;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1005</x><y>544</y><w>175</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+PlaylistSpec + extras (JSON)</panel_attributes>
+    <additional_attributes>175;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>830</x><y>590</y><w>175</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+AgentPlan(spec, seedGenres, searchTerms)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>175;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>830</x><y>672</y><w>1225</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+retrieve(profile, spec, allowLibrary, seedGenres, searchTerms)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;1225;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>2055</x><y>718</y><w>175</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+execute(getTopItems / getSavedTracks / search / getArtistAlbums ...)</panel_attributes>
+    <additional_attributes>0;0;175;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>2230</x><y>764</y><w>175</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+Spotify reads (RetryingMusicService backs off on 429; genres from MusicBrainz, cached)</panel_attributes>
+    <additional_attributes>0;0;175;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>2055</x><y>810</y><w>350</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+candidate tracks</panel_attributes>
+    <additional_attributes>350;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>830</x><y>856</y><w>1225</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+Retrieval (library, albums, keyword tracks)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>1225;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>830</x><y>902</y><w>525</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+review(goal, tracks, genres)  - track ids + MusicBrainz genres only
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;525;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1180</x><y>948</y><w>175</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+complete(goalReviewPrompt)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>175;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1180</x><y>994</y><w>175</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+ids to remove (never adds or names a track)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;175;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>830</x><y>1040</y><w>525</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+removedIds -&gt; retrieval.without(ids)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>525;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>830</x><y>1086</y><w>875</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
 checkFeasibility(spec, pool)</panel_attributes>
-    <additional_attributes>0;0;555;0</additional_attributes>
+    <additional_attributes>0;0;875;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>708</y><w>1110</w><h>10</h></coordinates>
+    <coordinates><x>830</x><y>1132</y><w>875</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+FeasibilityReport</panel_attributes>
+    <additional_attributes>875;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>830</x><y>1198</y><w>175</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
-recommend(profile, spec, feedback)</panel_attributes>
-    <additional_attributes>0;0;1110;0</additional_attributes>
+phraseOptions(report)  (LLM wording, computed text as fallback)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;175;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>754</y><w>1110</w><h>10</h></coordinates>
+    <coordinates><x>830</x><y>1244</y><w>1050</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+choose(report, phrasedOptions)  (GUI dialog / CLI prompt)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;1050;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>830</x><y>1290</y><w>1050</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+Optional&lt;Relaxation&gt;  (empty: NegotiationCancelledException -&gt; FailedState)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>1050;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>830</x><y>1336</y><w>175</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+regenerate(plan, chosen)  -&gt; relaxed spec, then check again
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;175;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>830</x><y>1418</y><w>1225</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+recommend(retrieval, spec, feedback)  (BalancedStrategy)</panel_attributes>
+    <additional_attributes>0;0;1225;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>830</x><y>1464</y><w>1225</w><h>10</h></coordinates>
     <panel_attributes>lt=.&gt;
 List&lt;Recommendation&gt;</panel_attributes>
-    <additional_attributes>1110;0;0;0</additional_attributes>
+    <additional_attributes>1225;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>800</y><w>1295</w><h>10</h></coordinates>
+    <coordinates><x>830</x><y>1530</y><w>525</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+reviewPicks(goal, picks, genres)  (ids + genres only)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;525;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1180</x><y>1576</y><w>175</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+complete(goalReviewPrompt)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>175;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1180</x><y>1622</y><w>175</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+ids to remove
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;175;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>830</x><y>1668</y><w>1225</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+re-select without them (same Retrieval, no new Spotify reads)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;1225;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>830</x><y>1750</y><w>1750</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
 validate(tracks, spec)</panel_attributes>
-    <additional_attributes>0;0;1295;0</additional_attributes>
+    <additional_attributes>0;0;1750;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>846</y><w>1295</w><h>10</h></coordinates>
+    <coordinates><x>830</x><y>1796</y><w>1750</w><h>10</h></coordinates>
     <panel_attributes>lt=.&gt;
 ValidationResult</panel_attributes>
-    <additional_attributes>1295;0;0;0</additional_attributes>
+    <additional_attributes>1750;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>892</y><w>1480</w><h>10</h></coordinates>
+    <coordinates><x>830</x><y>1862</y><w>70</w><h>30</h></coordinates>
+    <panel_attributes>lt=-&gt;
+invalid: back to SelectingState
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;70;0;70;26;0;26</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>830</x><y>1938</y><w>875</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+describeShortfall(...) then F11 negotiation (as above)  when still too short
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;875;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>830</x><y>2020</y><w>1925</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
 executeAll([CreatePlaylistCommand, AddItemsCommand])</panel_attributes>
-    <additional_attributes>0;0;1480;0</additional_attributes>
+    <additional_attributes>0;0;1925;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1595</x><y>938</y><w>555</w><h>10</h></coordinates>
+    <coordinates><x>2405</x><y>2066</y><w>350</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
-createPlaylist(userId,name); addItems(...)</panel_attributes>
-    <additional_attributes>555;0;0;0</additional_attributes>
+createPlaylist(userId, name); addItems(playlistId, uris)</panel_attributes>
+    <additional_attributes>350;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1595</x><y>984</y><w>555</w><h>10</h></coordinates>
+    <coordinates><x>2405</x><y>2112</y><w>350</w><h>10</h></coordinates>
     <panel_attributes>lt=.&gt;
 Playlist</panel_attributes>
-    <additional_attributes>0;0;555;0</additional_attributes>
+    <additional_attributes>0;0;350;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>1030</y><w>1665</w><h>10</h></coordinates>
+    <coordinates><x>830</x><y>2158</y><w>1925</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+playlist id (BatchCommand pushed on the undo history)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>1925;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>830</x><y>2240</y><w>2100</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
-saveSession(session)</panel_attributes>
-    <additional_attributes>0;0;1665;0</additional_attributes>
+saveSession(session)  + remove used candidates</panel_attributes>
+    <additional_attributes>0;0;2100;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>485</x><y>1076</y><w>185</w><h>10</h></coordinates>
-    <panel_attributes>lt=.&gt;
-Playlist + explanation</panel_attributes>
-    <additional_attributes>185;0;0;0</additional_attributes>
+    <coordinates><x>830</x><y>2286</y><w>700</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+explain(session, titles)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;700;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>300</x><y>1122</y><w>185</w><h>10</h></coordinates>
+    <coordinates><x>1180</x><y>2332</y><w>350</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+complete(explainPrompt)  (grounded in DecisionTrace)</panel_attributes>
+    <additional_attributes>350;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1180</x><y>2378</y><w>350</w><h>10</h></coordinates>
     <panel_attributes>lt=.&gt;
-display playlist</panel_attributes>
-    <additional_attributes>185;0;0;0</additional_attributes>
+explanation text</panel_attributes>
+    <additional_attributes>0;0;350;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>830</x><y>2424</y><w>700</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+explanation</panel_attributes>
+    <additional_attributes>700;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>830</x><y>2506</y><w>1575</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+AuthExpiredException  (any state)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>1575;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>480</x><y>2552</y><w>350</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+reauthenticate()  (sign in again, once per run)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>350;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>830</x><y>2598</y><w>70</w><h>30</h></coordinates>
+    <panel_attributes>lt=-&gt;
+resume the same state
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;70;0;70;26;0;26</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>655</x><y>2674</y><w>175</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+run() returns (state DoneState)
+fg=#C05A00</panel_attributes>
+    <additional_attributes>175;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>480</x><y>2720</y><w>175</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+Playlist</panel_attributes>
+    <additional_attributes>175;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>305</x><y>2766</y><w>175</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+Playlist + lastSession().explanation</panel_attributes>
+    <additional_attributes>175;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>115</x><y>2812</y><w>190</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+display playlist + why</panel_attributes>
+    <additional_attributes>190;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>UMLNote</id>
+    <coordinates><x>150</x><y>760</y><w>420</w><h>72</h></coordinates>
+    <panel_attributes>Any other failure moves the session to FailedState:
+it saves a record, reports any leftover playlist and the
+cause; progress names (planning, retrieving, ...) go to the
+progress listener for the status line.
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
   </element>
 </diagram>
