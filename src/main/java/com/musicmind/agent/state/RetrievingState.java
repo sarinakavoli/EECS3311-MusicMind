@@ -46,13 +46,14 @@ public class RetrievingState implements SessionState {
 
     /**
      * Takes out the retrieved tracks the goal-fit review rejects. Only retrieved tracks are reviewed: the user's
-     * candidates are read afterwards and are never sent or removed. A review that could not be used leaves the
+     * candidates are never sent or removed, even where one is also in the pool. A review that could not be used leaves the
      * tracks as they are and adds a notice.
      */
     private static void reviewAgainstGoal(AgentSession session, RunContext ctx) {
         CandidatePool pool = ctx.retrieval.pool();
         List<Track> toReview = new ArrayList<>(pool.novel());
         toReview.addAll(pool.familiar());
+        toReview.removeIf(t -> ctx.candidateIds.contains(t.id())); // a track the user picked may also be in the pool
         GoalFitReviewer.Result result = ctx.services.reviewer().review(ctx.request.rawText(), toReview);
         if (!result.reviewed()) {
             session.addNotice(ctx.services.config().wording("goalReviewSkipped"));

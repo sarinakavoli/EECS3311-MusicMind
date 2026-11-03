@@ -62,6 +62,7 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
         int libraryTracks = 12;
         int novelTracks = 12;
         int minutes = 4;
+        final List<Track> extraLibrary = new ArrayList<>();
         RuntimeException failOnSearch;
         RuntimeException failOnAdd;
 
@@ -73,7 +74,9 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
             return IntStream.range(0, 3).mapToObj(i -> new Artist("a" + i, "N", List.of("rock"))).toList();
         }
         @Override public List<Track> getTopItems(String type, String r) {
-            return IntStream.range(0, libraryTracks).mapToObj(i -> track("t", i, "a" + i % 3)).toList();
+            List<Track> top = new ArrayList<>(IntStream.range(0, libraryTracks).mapToObj(i -> track("t", i, "a" + i % 3)).toList());
+            top.addAll(extraLibrary);
+            return top;
         }
         @Override public List<Track> getSavedTracks() { return List.of(); }
         @Override public List<Track> getRecentlyPlayed() { return List.of(); }
@@ -779,15 +782,17 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
         Music music = new Music();
         music.byId.put(CANDIDATE, candidate(CANDIDATE, 4));
         List<String> prompts = new ArrayList<>();
-        AppController c = controller(music, reviewing(prompts,
-                () -> "{\"remove\":[\"n0\",\"n1\",\"t0\",\"" + CANDIDATE + "\"]}"));
+        // No pick review here, so the removals can only come from the review of the retrieved pool.
+        AppController c = new AppController(music, memory(), reviewing(prompts,
+                () -> "{\"remove\":[\"n0\",\"n1\",\"t0\",\"" + CANDIDATE + "\"]}"),
+                config.withTunables(Map.of("goal.pickReviewRounds", "0")));
         c.addCandidate(CANDIDATE);
 
         Playlist playlist = c.createPlaylist(request("a workout mix"));
 
         List<String> ids = playlist.tracks().stream().map(Track::id).toList();
         assertEquals(1, prompts.size());
-        assertFalse(prompts.get(0).contains(CANDIDATE), "the user's candidates are never sent for review");
+        prompts.forEach(p -> assertFalse(p.contains(CANDIDATE), "the user's candidates are never sent for review"));
         assertTrue(prompts.get(0).contains("a workout mix"));
         assertEquals(CANDIDATE, ids.get(0), "a track the user picked is never removed");
         assertTrue(ids.stream().noneMatch(id -> id.equals("n0") || id.equals("n1") || id.equals("t0")), ids.toString());
@@ -808,5 +813,135 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
         assertEquals(15, playlist.tracks().size());
         assertTrue(c.lastSession().notices().contains(config.wording("goalReviewSkipped")), c.lastSession().notices().toString());
         assertEquals("done", c.lastSession().status());
+    }
+
+    /** The ids listed in a goal-review prompt, in order. */
+    private static List<String> idsIn(String prompt) {
+        List<String> ids = new ArrayList<>();
+        for (String line : prompt.substring(prompt.indexOf("Tracks (id | title | artists):")).split("\n")) {
+            if (line.contains(" | ") && !line.startsWith("Tracks")) {
+                ids.add(line.substring(0, line.indexOf(" | ")));
+            }
+        }
+        return ids;
+    }
+
+    /** The first review (the pool) removes nothing; the {@code later} ones answer with {@code pickReview}. */
+    private static LLMProvider reviewingPicks(List<String> prompts, java.util.function.Function<String, String> pickReview) {
+        return reviewing(prompts, () -> "{\"remove\":[]}", pickReview);
+    }
+
+    private static LLMProvider reviewing(List<String> prompts, java.util.function.Supplier<String> first,
+                                         java.util.function.Function<String, String> later) {
+        MockLLMProvider mock = new MockLLMProvider();
+        return prompt -> {
+            switch (com.musicmind.agent.PromptBuilder.kindOf(prompt).orElseThrow()) {
+                case PLAN: return PLAN_WITH_TERMS;
+                case GOAL_REVIEW:
+                    prompts.add(prompt);
+                    return prompts.size() == 1 ? first.get() : later.apply(prompt);
+                default: return mock.complete(prompt);
+            }
+        };
+    }
+
+    @Test
+    void selecting_rejectedFamiliarPick_isReplaced() {
+        Music music = new Music();
+        List<String> prompts = new ArrayList<>();
+        // The pool review keeps everything; the first pick review rejects the first library pick it is shown.
+        String[] rejected = new String[1];
+        AppController c = controller(music, reviewingPicks(prompts, prompt -> {
+            if (rejected[0] == null) {
+                rejected[0] = idsIn(prompt).stream().filter(id -> id.startsWith("t")).findFirst().orElseThrow();
+                return "{\"remove\":[\"" + rejected[0] + "\"]}";
+            }
+            return "{\"remove\":[]}";
+        }));
+
+        Playlist playlist = c.createPlaylist(request("a workout mix"));
+
+        List<String> ids = playlist.tracks().stream().map(Track::id).toList();
+        assertEquals(3, prompts.size(), "pool review, the picks, the replaced picks");
+        assertNotNull(rejected[0]);
+        assertFalse(ids.contains(rejected[0]), ids.toString());
+        assertEquals(15, ids.size());
+        assertFalse(idsIn(prompts.get(2)).contains(rejected[0]), "a replaced track is not offered again");
+        assertEquals("done", c.lastSession().status());
+        assertFalse(c.lastSession().notices().contains(config.wording("goalReviewPartial")));
+    }
+
+    @Test
+    void selecting_pickReview_candidatesNeverSent() {
+        Music music = new Music();
+        music.byId.put(CANDIDATE, candidate(CANDIDATE, 4));
+        List<String> prompts = new ArrayList<>();
+        AppController c = controller(music, reviewingPicks(prompts, prompt -> "{\"remove\":[\"" + CANDIDATE + "\"]}"));
+        c.addCandidate(CANDIDATE);
+
+        Playlist playlist = c.createPlaylist(request("a workout mix"));
+
+        assertTrue(prompts.size() >= 2, "the picks are reviewed too: " + prompts.size());
+        prompts.forEach(p -> assertFalse(p.contains(CANDIDATE) || p.contains("Picked by you"), p));
+        assertEquals(CANDIDATE, playlist.tracks().get(0).id(), "asking to remove a candidate changes nothing");
+    }
+
+    @Test
+    void selecting_pickReview_stopsAfterConfiguredRounds() {
+        for (int rounds : new int[] {1, 2}) {
+            Music music = new Music();
+            List<String> prompts = new ArrayList<>();
+            // Every pick review rejects the first pick it is shown, so only the bound ends the loop.
+            Config bounded = config.withTunables(Map.of("goal.pickReviewRounds", String.valueOf(rounds)));
+            AppController c = new AppController(music, memory(),
+                    reviewingPicks(prompts, prompt -> "{\"remove\":[\"" + idsIn(prompt).get(0) + "\"]}"), bounded);
+
+            Playlist playlist = c.createPlaylist(request("a workout mix"));
+
+            assertEquals(1 + rounds, prompts.size(), "pool review plus " + rounds + " pick review(s)");
+            assertEquals(15, playlist.tracks().size());
+            assertEquals("done", c.lastSession().status());
+        }
+    }
+
+    @Test
+    void selecting_tooFewLeft_keepsPicksWithNotice() {
+        Music music = new Music();
+        music.libraryTracks = 12;
+        music.novelTracks = 5; // 17 tracks for the 15 an hour needs: four rejected picks cannot all be replaced
+        List<String> prompts = new ArrayList<>();
+        List<String> rejected = new ArrayList<>();
+        AppController c = controller(music, reviewingPicks(prompts, prompt -> {
+            rejected.addAll(idsIn(prompt).subList(0, 4));
+            return "{\"remove\":" + rejected.stream().map(id -> "\"" + id + "\"").toList() + "}";
+        }));
+
+        Playlist playlist = c.createPlaylist(request("a workout mix"));
+
+        List<String> ids = playlist.tracks().stream().map(Track::id).toList();
+        assertEquals(15, ids.size());
+        assertTrue(ids.containsAll(rejected), "nothing could replace them, so they stay: " + ids);
+        assertEquals(2, prompts.size(), "no second pick review after a refused reselection");
+        assertEquals(1, c.lastSession().notices().stream().filter(config.wording("goalReviewPartial")::equals).count(),
+                c.lastSession().notices().toString());
+        assertEquals("done", c.lastSession().status());
+    }
+
+    @Test
+    void retrieving_candidateThatIsAlsoInThePool_isNeverSentForReview() {
+        Music music = new Music();
+        String inPool = "e".repeat(22); // a library track the user also picked as a candidate
+        Track both = new Track(inPool, "spotify:track:" + inPool, "Title", 4 * 60_000, false, List.of("a2"));
+        music.extraLibrary.add(both);
+        music.byId.put(inPool, both);
+        List<String> prompts = new ArrayList<>();
+        AppController c = controller(music, reviewing(prompts, () -> "{\"remove\":[\"" + inPool + "\"]}"));
+        c.addCandidate(inPool);
+
+        Playlist playlist = c.createPlaylist(request("a workout mix"));
+
+        assertFalse(prompts.isEmpty());
+        prompts.forEach(p -> assertFalse(idsIn(p).contains(inPool), p));
+        assertTrue(playlist.tracks().stream().anyMatch(t -> t.id().equals(inPool)));
     }
 }

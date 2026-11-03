@@ -119,6 +119,27 @@ class GoalFitReviewerTest {
     }
 
     @Test
+    void reviewPicks_hasNoKeepShareGuard_butKeepsEveryOtherFailureRule() {
+        // 9 of 10 removed would be ignored by review(); a pick review has no such guard.
+        GoalFitReviewer.Result heavy = reviewer(p -> "{\"remove\":[\"t0\",\"t1\",\"t2\",\"t3\",\"t4\",\"t5\",\"t6\",\"t7\",\"t8\",\"zz\"]}")
+                .reviewPicks("workout", tracks(10));
+        GoalFitReviewer.Result garbage = reviewer(p -> "nope").reviewPicks("workout", tracks(10));
+        GoalFitReviewer.Result failed = reviewer(p -> {
+            throw new LLMException("down");
+        }).reviewPicks("workout", tracks(10));
+        GoalFitReviewer.Result none = reviewer(null).reviewPicks("workout", tracks(10));
+
+        assertEquals(9, heavy.removedIds().size(), "unknown ids are ignored");
+        assertTrue(heavy.reviewed());
+        assertTrue(garbage.removedIds().isEmpty() && !garbage.reviewed());
+        assertTrue(failed.removedIds().isEmpty() && !failed.reviewed());
+        assertTrue(none.removedIds().isEmpty() && !none.reviewed());
+        assertTrue(reviewer(p -> {
+            throw new AssertionError("not called");
+        }).reviewPicks("workout", List.of()).reviewed());
+    }
+
+    @Test
     void review_noTracks_isReviewedWithoutCallingTheModel() {
         GoalFitReviewer.Result r = reviewer(p -> {
             throw new AssertionError("not called");

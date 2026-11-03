@@ -391,7 +391,12 @@ public final class Config {
         return integer("goal.reviewMaxTracks");
     }
 
-    /** The review is ignored if it would leave a smaller share than this of the tracks it saw. */
+    /** Most times per run the picked tracks are checked against the goal and the rejected ones replaced. */
+    public int goalPickReviewRounds() {
+        return integer("goal.pickReviewRounds");
+    }
+
+    /** The review is ignored if it would leave a smaller share than this of the list it was given. */
     public double goalMinKeepShare() {
         return Double.parseDouble(text("goal.minKeepShare"));
     }

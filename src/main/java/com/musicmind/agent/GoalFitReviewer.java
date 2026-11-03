@@ -43,8 +43,25 @@ public class GoalFitReviewer {
         this.config = Objects.requireNonNull(config, "config");
     }
 
-    /** The ids to remove among the first {@code goal.reviewMaxTracks} of {@code tracks}. */
+    /**
+     * The ids to remove among the first {@code goal.reviewMaxTracks} of {@code tracks}, ignored altogether if
+     * they would leave fewer than {@code goal.minKeepShare} of the list.
+     */
     public Result review(String goal, List<Track> tracks) {
+        return ask(goal, tracks, true);
+    }
+
+    /**
+     * As {@link #review}, for the tracks a selection has already picked: with no keep-share guard, because
+     * the picks are a short list the selection can refill, and rejecting most of it is a finding, not a glitch.
+     * Every other failure rule is the same: ids not among the picks are ignored, and no LLM, a failed call or
+     * a reply that is not the expected JSON removes nothing and says it was not reviewed.
+     */
+    public Result reviewPicks(String goal, List<Track> picks) {
+        return ask(goal, picks, false);
+    }
+
+    private Result ask(String goal, List<Track> tracks, boolean guardKeepShare) {
         if (tracks.isEmpty()) {
             return new Result(Set.of(), true);
         }
@@ -67,7 +84,7 @@ public class GoalFitReviewer {
         // The share is over the whole list passed in, not only what was sent: a large pool keeps its removals,
         // while a small pool (where the model saw everything) stays protected from a reply that removes most of it.
         double kept = (tracks.size() - removed.size()) / (double) tracks.size();
-        return kept < config.goalMinKeepShare() ? notReviewed() : new Result(removed, true);
+        return guardKeepShare && kept < config.goalMinKeepShare() ? notReviewed() : new Result(removed, true);
     }
 
     private static Result notReviewed() {
