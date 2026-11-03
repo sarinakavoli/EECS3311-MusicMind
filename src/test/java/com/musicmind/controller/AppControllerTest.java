@@ -190,4 +190,68 @@ class AppControllerTest extends PostgresTestBase {
         assertThrows(IllegalArgumentException.class, () -> c.blockTrack("nope"));
         assertTrue(c.getPreferences().isEmpty());
     }
+
+    /** A Spotify fake holding playlists, so delete and the restore that follows can be played through. */
+    private class PlaylistMusic extends Music {
+        final java.util.Map<String, List<Track>> held = new java.util.LinkedHashMap<>();
+        final List<String> calls = new java.util.ArrayList<>();
+        final List<String> owned = new java.util.ArrayList<>();
+        int next = 1;
+
+        void own(String id, String... trackIds) {
+            held.put(id, new java.util.ArrayList<>(java.util.Arrays.stream(trackIds).map(this::track).toList()));
+            owned.add(id);
+        }
+        Track track(String id) { return new Track(id, "spotify:track:" + id, "T" + id, 1000, false, List.of()); }
+        @Override public List<com.musicmind.domain.PlaylistSummary> getUserPlaylists() {
+            return owned.stream().map(id -> new com.musicmind.domain.PlaylistSummary(id, "Mix " + id, held.get(id).size())).toList();
+        }
+        @Override public List<Track> getPlaylistItems(String id) {
+            if (!held.containsKey(id)) {
+                throw new com.musicmind.music.MusicServiceException("gone", 404);
+            }
+            return List.copyOf(held.get(id));
+        }
+        @Override public void unfollowPlaylist(String id) { calls.add("unfollow " + id); held.remove(id); owned.remove(id); }
+        @Override public com.musicmind.domain.Playlist createPlaylist(String userId, String name) {
+            String id = "new" + next++;
+            held.put(id, new java.util.ArrayList<>());
+            owned.add(id);
+            return new com.musicmind.domain.Playlist(id, name, List.of());
+        }
+        @Override public void addItems(String id, List<String> uris) {
+            uris.forEach(u -> held.get(id).add(track(u.substring(u.lastIndexOf(':') + 1))));
+        }
+    }
+
+    @Test
+    void delete_notOwner_refused() {
+        PlaylistMusic music = new PlaylistMusic();
+        music.held.put("theirs", new java.util.ArrayList<>(List.of(music.track("a"))));   // not in the user's own list
+        AppController c = controller(music);
+        c.login();
+
+        com.musicmind.agent.command.PlaylistChangeException e = assertThrows(
+                com.musicmind.agent.command.PlaylistChangeException.class, () -> c.deletePlaylist("theirs"));
+
+        assertEquals(String.format(config.wording("deleteNotOwner"), "theirs"), e.getMessage());
+        assertTrue(music.calls.isEmpty(), music.calls.toString());
+        assertTrue(c.memory().loadSnapshotSummaries("sp-user").isEmpty(), "nothing was saved either");
+    }
+
+    @Test
+    void delete_canBeRecreatedFromSnapshot() {
+        PlaylistMusic music = new PlaylistMusic();
+        music.own("p", "a", "b", "c");
+        AppController c = controller(music);
+        c.login();
+
+        int snapshotId = c.deletePlaylist("p");
+
+        assertEquals(List.of("unfollow p"), music.calls);
+        assertThrows(com.musicmind.agent.command.PlaylistMissingException.class, () -> c.restore(snapshotId));
+        com.musicmind.domain.Playlist back = c.recreateFromSnapshot(snapshotId);
+        assertEquals("Mix p", back.name());
+        assertEquals(List.of("a", "b", "c"), music.held.get(back.spotifyId()).stream().map(Track::id).toList());
+    }
 }

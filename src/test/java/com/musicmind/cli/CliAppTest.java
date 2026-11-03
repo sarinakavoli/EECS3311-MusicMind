@@ -855,4 +855,51 @@ class CliAppTest extends PostgresTestBase {
         assertEquals(CliApp.USAGE, run(c, "", "feedback", TRACK_ID).status());
         assertTrue(c.memory().loadFeedback("sp-user").isEmpty());
     }
+
+    @Test
+    void cliDelete_wrongName_doesNothing() {
+        Music music = new Music();
+        music.seed("p1", "a", "b");
+        music.userPlaylists = List.of(new com.musicmind.domain.PlaylistSummary("p1", "Road Trip", 2));
+
+        Result r = run(controller(music, null), "Road Trp\n", "delete", "p1");
+
+        assertEquals(CliApp.FAILED, r.status());
+        assertTrue(r.out().contains("Road Trip"), "the prompt names the playlist: " + r.out());
+        assertTrue(r.out().contains(config.wording("cliDeleteCancelled")), r.out());
+        assertTrue(music.calls.stream().noneMatch(c -> c.startsWith("unfollow")), music.calls.toString());
+        assertEquals(List.of("a", "b"), music.ids("p1"));
+    }
+
+    @Test
+    void cliDelete_typedName_deletesAndSaysHowToGetItBack() {
+        Music music = new Music();
+        music.seed("p1", "a", "b");
+        music.userPlaylists = List.of(new com.musicmind.domain.PlaylistSummary("p1", "Road Trip", 2));
+
+        Result r = run(controller(music, null), "Road Trip\n", "delete", "p1");
+
+        assertEquals(CliApp.OK, r.status(), r.err());
+        assertTrue(music.calls.contains("unfollow p1"), music.calls.toString());
+        assertTrue(r.out().contains("restore"), r.out());
+    }
+
+    @Test
+    void cliDelete_needsAPlaylistId() {
+        Result r = run("delete");
+
+        assertEquals(CliApp.USAGE, r.status());
+        assertTrue(r.err().contains(usage("delete")), r.err());
+    }
+
+    @Test
+    void cliDelete_unknownPlaylist_isRefusedWithoutAsking() {
+        Music music = new Music();
+        music.seed("theirs", "a");
+
+        Result r = run(controller(music, null), "anything\n", "delete", "theirs");
+
+        assertEquals(CliApp.FAILED, r.status());
+        assertTrue(music.calls.stream().noneMatch(c -> c.startsWith("unfollow")), music.calls.toString());
+    }
 }

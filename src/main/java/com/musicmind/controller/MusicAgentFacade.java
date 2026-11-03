@@ -806,6 +806,29 @@ public class MusicAgentFacade {
         }
     }
 
+    /**
+     * Deletes one of the user's own playlists (an addition beyond Stage 1). Only a playlist in the user's own list
+     * is deleted; the current version is saved first, so F12 can bring it back.
+     *
+     * @return the id of the saved version
+     * @throws PlaylistChangeException if the playlist is not the user's own, too long to save whole, or the
+     *         snapshot cannot be saved (then nothing is deleted)
+     */
+    public synchronized int deletePlaylist(String playlistId) {
+        String id = requirePlaylistId(playlistId);
+        PlaylistSummary own = userPlaylists().stream().filter(p -> p.id().equals(id)).findFirst()
+                .orElseThrow(() -> new PlaylistChangeException(String.format(config.wording("deleteNotOwner"), id)));
+        List<Track> items = readItems(id);
+        requireComplete(items);
+        int snapshotId;
+        try {
+            snapshotId = create.playlists().delete(new Playlist(id, own.name(), items));
+        } catch (MusicServiceException e) {
+            throw playlistAccess(e);
+        }
+        return snapshotId;
+    }
+
     /** F7 on a track list: the deterministic rule set of {@link PlaylistValidator}. */
     public ValidationResult validate(Playlist playlist, PlaylistSpec spec) {
         return playlistValidator.validate(playlist.tracks(), spec);

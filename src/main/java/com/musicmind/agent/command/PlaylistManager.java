@@ -94,6 +94,27 @@ public class PlaylistManager {
     }
 
     /**
+     * Saves the playlist as it is now, then removes it from the user's library. If the snapshot cannot be saved
+     * nothing is removed. The command is not put on the undo stack (it cannot be undone in place) and the
+     * playlist's earlier commands are dropped, since they point at a playlist that is gone; F12 recreates it
+     * from the snapshot this returns.
+     *
+     * @param current the whole playlist, just read: the caller has refused one that was cut short
+     * @return the id of the snapshot taken first
+     */
+    public int delete(Playlist current) {
+        int snapshotId = snapshotBeforeModify(current);
+        try {
+            new DeletePlaylistCommand(config, music, current.spotifyId(), current.name(), current.tracks().size()).execute();
+        } catch (RuntimeException e) {
+            memory.markLatestSnapshotUndone(current.spotifyId());
+            throw e;
+        }
+        history.removeIf(c -> current.spotifyId().equals(c.playlistId()));
+        return snapshotId;
+    }
+
+    /**
      * Saves the playlist's current ids and name so a later undo or restore can return to it.
      *
      * @return the snapshot id

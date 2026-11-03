@@ -440,6 +440,20 @@ public class AppController {
     }
 
     /**
+     * Deletes one of the user's own playlists from their Spotify library. The playlist is saved first, so
+     * {@link #restore} (and {@link #recreateFromSnapshot}) can bring it back.
+     *
+     * @return the id of the saved version
+     * @throws com.musicmind.agent.command.PlaylistChangeException if the playlist is not the user's own, is too
+     *         long to save whole, or cannot be saved first (nothing is deleted then)
+     */
+    public int deletePlaylist(String playlistId) {
+        requireSpotify();
+        signInIfNeeded();
+        return facade.deletePlaylist(playlistId);
+    }
+
+    /**
      * F7 — checks a playlist on Spotify against the constraints saved when it was created, else against the
      * stored preferences ({@link #lastValidationNote()} says which).
      */

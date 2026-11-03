@@ -19,6 +19,7 @@ import java.util.Map;
 
 import static com.musicmind.agent.command.FakeMusicService.track;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -341,5 +342,46 @@ class PlaylistManagerTest extends PostgresTestBase {
         assertEquals(List.of("b", "c"), music.ids("p"));
         m.undo("p");
         assertEquals(List.of("a", "b", "c"), music.ids("p"));
+    }
+
+    @Test
+    void delete_snapshotsThenUnfollows() {
+        music.seed("p", "a", "b");
+        PlaylistManager m = manager();
+        m.execute(new RemoveTrackCommand(config, music, "p", track("a")));   // a history entry for p, now stale
+        Playlist before = current("p");
+
+        int snapshotId = m.delete(before);
+
+        assertEquals("unfollow p", music.calls.get(music.calls.size() - 1));
+        Playlist saved = memory(db).loadSnapshot(snapshotId);
+        assertEquals(List.of("b"), saved.tracks().stream().map(Track::id).toList());
+        assertEquals("Mix", saved.name());
+        assertTrue(m.history.isEmpty(), "the deleted playlist has nothing left to undo");
+    }
+
+    @Test
+    void delete_snapshotFails_playlistKept() {
+        Database dead = new Database("jdbc:postgresql://127.0.0.1:1/none", "u", "p");
+        PlaylistManager m = new PlaylistManager(config, music, memory(dead));
+        music.seed("p", "a", "b");
+
+        PlaylistChangeException e = assertThrows(PlaylistChangeException.class, () -> m.delete(current("p")));
+
+        assertEquals(config.wording("snapshotSaveFailed"), e.getMessage());
+        assertTrue(music.calls.stream().noneMatch(c -> c.startsWith("unfollow")), music.calls.toString());
+        assertEquals(List.of("a", "b"), music.ids("p"));
+    }
+
+    @Test
+    void delete_unfollowFails_snapshotIsMarkedUsedAndFailureIsReported() {
+        music.seed("p", "a");
+        music.failOn = "unfollow";
+        PlaylistManager m = manager();
+
+        assertThrows(MusicServiceException.class, () -> m.delete(current("p")));
+
+        assertEquals(List.of("a"), music.ids("p"));
+        assertNull(memory(db).loadLatestSnapshot("p"), "a delete that did not happen leaves no open snapshot to undo");
     }
 }

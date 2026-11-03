@@ -59,7 +59,7 @@ public class CliApp {
 
     /** The commands in the order help lists them. */
     static final List<String> COMMANDS = List.of("login", "help", "exit", "profile", "trends", "search", "candidates", "discover",
-            "create", "playlists", "show", "modify", "undo", "validate", "prefs", "feedback", "explain", "history", "restore");
+            "create", "playlists", "show", "modify", "undo", "validate", "prefs", "feedback", "explain", "history", "restore", "delete");
 
     /** How many genres and artists the text output lists. */
     private static final int GENRES_SHOWN = 8;
@@ -125,6 +125,7 @@ public class CliApp {
             case "explain" -> { return runExplain(rest); }
             case "history" -> { return runHistory(rest); }
             case "restore" -> { return runRestore(rest); }
+            case "delete" -> { return runDelete(rest); }
             default -> {
                 err.println(String.format(config.wording("cliUnknownCommand"), args[0]));
                 printHelp();
@@ -785,6 +786,37 @@ public class CliApp {
             }
         } catch (RuntimeException e) {
             return failure("restore the playlist", e);
+        }
+    }
+
+    /** {@code delete <playlistId>}: asks for the playlist's name to be typed, and deletes only if it matches. */
+    private int runDelete(String[] rest) {
+        if (rest.length != 1) {
+            return usage("delete", null);
+        }
+        if (signIn() == null) {
+            return FAILED;
+        }
+        AppController c = controller();
+        try {
+            String id = rest[0];
+            PlaylistSummary own = c.getPlaylists().stream().filter(p -> p.id().equals(id)).findFirst().orElse(null);
+            if (own == null) {
+                err.println(String.format(config.wording("deleteNotOwner"), id));
+                return FAILED;
+            }
+            out.print(w("DeletePrompt", own.name(), own.id()) + " ");
+            out.flush();
+            String typed = readLine();
+            if (typed == null || !typed.strip().equals(own.name().strip())) {
+                out.println(w("DeleteCancelled"));
+                return FAILED;
+            }
+            int snapshotId = c.deletePlaylist(id);
+            out.println(w("Deleted", own.name(), own.id(), snapshotId, snapshotId));
+            return OK;
+        } catch (RuntimeException e) {
+            return failure("delete the playlist", e);
         }
     }
 
