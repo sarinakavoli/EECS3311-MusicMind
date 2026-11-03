@@ -249,7 +249,9 @@ diagrams; the Stage 1 PNGs are kept in `docs/diagrams/png/stage1/`, and `docs/di
 
 The report is `docs/report/stage2-report.pdf`. It is generated from the tracked source
 `docs/report/stage2-report.html` (self-contained CSS; the UML images are read from `docs/diagrams/png/`)
-with headless Google Chrome. After editing the HTML, rebuild the PDF from the project folder:
+with headless Google Chrome. The UML images are first cropped into readable per-page figures
+(`docs/report/figures/`) by `docs/report/make-figures.py`, which needs Python 3 and Pillow (`pip install pillow`).
+After editing the HTML, rebuild the PDF from the project folder:
 
 ```bash
 docs/report/build-report.sh
@@ -257,6 +259,10 @@ docs/report/build-report.sh
 
 The script expects Chrome at `/Applications/Google Chrome.app` (macOS). On another system, set `CHROME` to
 the browser executable, for example `CHROME=/usr/bin/google-chrome docs/report/build-report.sh`.
+
+**Refresh before submission:** the merge status of pull requests #4 and #5, the Period 3 commit count,
+the demonstration video links, the AI token and money costs, and the GUI redesign status. Search the
+HTML for `REFRESH BEFORE SUBMISSION` to find each spot, edit it, and rebuild.
 
 ## External services and compliance
 

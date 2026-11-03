@@ -62,6 +62,7 @@
     <tr><th>Author</th><td>Sarina Kavoli (student ID 220816757)</td></tr>
     <tr><th>Repository</th><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind">https://github.com/sarinakavoli/EECS3311-MusicMind</a></td></tr>
     <tr><th>Report written</th><td>November 3, 2026 (Stage 2 is due November 10, 2026)</td></tr>
+    <!-- REFRESH BEFORE SUBMISSION -->
     <tr><th>Code state described</th><td>Branch <code>stage2-docs</code>, which holds the full implementation (CLI and GUI) plus the documentation. The GUI pull request (#4) and this documentation branch are not yet merged into <code>main</code> as of November 3.</td></tr>
     <tr><th>Automated tests</th><td>846 passing in 51 test classes (a forced clean build on November 3), with no API keys and no database server.</td></tr>
   </table>
@@ -71,6 +72,11 @@
     Anything that was not run against the real Spotify and OpenAI accounts is marked as such. Items that only the
     author can fill in are shown like this: <span class="ph">[to be filled by Sarina]</span> (token and money costs, and every demonstration video link).
     Period 3 of the commit schedule (November 3-9) is in progress, so its commit count here is a count of what exists today.
+  </div>
+
+  <!-- REFRESH BEFORE SUBMISSION -->
+  <div class="note">
+    <strong>Refresh before submission.</strong> These facts are true as of November 3 and change: (1) the merge status of pull requests #4 (GUI) and #5 (documentation and this report); (2) the Period 3 commit count (Section 6.1); (3) the demonstration video links (Sections 2 and 7); (4) the AI token and money costs (Section 5); (5) the status of the GUI redesign (Sections 1.5 and 4.3). After editing <code>docs/report/stage2-report.html</code>, rebuild the PDF with <code>docs/report/build-report.sh</code>. Search the HTML for <code>REFRESH BEFORE SUBMISSION</code> to find each spot.
   </div>
 
   <div class="toc">
@@ -158,7 +164,8 @@
     <li><strong>Policy correction (November 3).</strong> The first version of the goal-fit review sent track titles and artist names to OpenAI. Spotify Developer Policy section III item 14 forbids ingesting Spotify Content into an AI model. It was changed the same day to send track ids and MusicBrainz genres only (details in Section 4). The review is now less precise, does not judge tracks with no known genre, and was not re-run live.</li>
     <li><strong>Open policy question (F6 edit prompt).</strong> The prompt that turns an edit instruction into commands sends the model each track's id, explicit flag and length in minutes (no titles or names), because edits such as "15 minutes shorter" or "remove explicit" need them. Whether this counts as Spotify Content under the policy is unresolved and is for the author to decide.</li>
     <li><strong>Commit schedule.</strong> Period 1 (October 20-26) has no code commits and missed its minimum; the single 5-point deduction therefore applies (Section 6).</li>
-        <li><strong>Remaining work at the time of writing:</strong> the full deterministic test suite and KUMA agent validation are Stage 3; for Stage 2, demonstration videos (links are placeholders in Section 7), cost figures (Section 5), merging the GUI and documentation branches, and the GUI redesign.</li>
+        <!-- REFRESH BEFORE SUBMISSION -->
+        <li><strong>Remaining work at the time of writing:</strong> for Stage 2, demonstration videos (links are placeholders in Section 7), cost figures (Section 5), merging the GUI and documentation pull requests (#4 and #5), and the GUI redesign. The Stage 2 instructions say the full deterministic testing and KUMA agent validation "remain part of Stage 3"; Stage 2 already has 846 automated deterministic tests (Section 6.2).</li>
   </ul>
 </section>
 
@@ -605,6 +612,7 @@
   <h2>5 AI tools and collaboration log</h2>
   <p>Using AI development tools was mandatory in Stage 2. The AI wrote code and drafts; the author set the rules, chose directions, ran the checks that need her own Spotify and OpenAI accounts, reviewed the changes and decides what is merged. Every task was built test first and then reviewed by a separate agent, and the larger pull requests were reviewed again before merging. The full log is <code>docs/AI_COLLABORATION_LOG.md</code>; it holds no keys.</p>
 
+  <!-- REFRESH BEFORE SUBMISSION -->
   <h3>5.1 Tools and models</h3>
   <table>
     <thead><tr><th style="width:36mm">Tool / platform</th><th style="width:26mm">Model</th><th>Used for</th><th style="width:26mm">Total tokens</th><th style="width:24mm">Money cost</th></tr></thead>
@@ -649,6 +657,7 @@
     <thead><tr><th style="width:16mm">Period</th><th style="width:30mm">Dates (inclusive)</th><th style="width:21mm">Required</th><th style="width:34mm">Code commits (non-merge)</th><th>Status</th></tr></thead>
     <tr><td>1</td><td>Oct 20-26</td><td>5</td><td>0</td><td><strong>Missed.</strong> There were no commits at all in this period: Stage 1 was committed on October 9 and the first Stage 2 commit is on October 30. The single 5-point deduction applies.</td></tr>
     <tr><td>2</td><td>Oct 27-Nov 2</td><td>5</td><td>147 (Oct 30: 23, Oct 31: 28, Nov 1: 55, Nov 2: 41)</td><td>Met. There were no commits on Oct 27-29.</td></tr>
+    <!-- REFRESH BEFORE SUBMISSION -->
     <tr><td>3</td><td>Nov 3-9</td><td>5</td><td>2 so far (Nov 3; 3 by path)</td><td><strong>In progress.</strong> The minimum of 5 is not yet met; this table counts only commits that exist today. By path, a third commit on Nov 3 touches <code>src/</code>, but it only edits <code>src/README.md</code> and is documentation. Before this report was added, the other commits of Nov 3 (up to <code>6803a41</code>, 17 documentation, diagram and housekeeping commits and one merge of the policy fix) do not count toward the minimum; the report and its fix commits are documentation too.</td></tr>
   </table>
 
@@ -741,6 +750,7 @@
 
 <!-- ============================ SECTION 7 ============================ -->
 <section class="wide">
+  <!-- REFRESH BEFORE SUBMISSION -->
   <h2>7 Demonstration index</h2>
   <p>One row per feature. Each video segment must identify the feature ID and name, show how it is invoked and the required input, run in the actual application with its output, say briefly what it does and where AI is involved, and show an error or alternative case. The recordings together must show both the GUI and the CLI. Video links must be accessible to the instructor and teaching assistants without an access request, and no keys or credentials may appear.
   <span class="ph">All link and timestamp cells are placeholders for Sarina.</span> "Run on real accounts so far" repeats Section 6.2 so the author knows which paths are new when recording.</p>
