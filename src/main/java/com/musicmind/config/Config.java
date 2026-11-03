@@ -506,6 +506,10 @@ public final class Config {
         return Double.parseDouble(text("discover.weight.genre"));
     }
 
+    public double discoverSeedGenreBonus() {
+        return Double.parseDouble(text("discover.seedGenreBonus"));
+    }
+
     public double discoverGenreTitlePenalty() {
         return Double.parseDouble(text("discover.weight.genreTitlePenalty"));
     }

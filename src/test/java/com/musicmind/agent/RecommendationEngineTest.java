@@ -908,4 +908,61 @@ class RecommendationEngineTest {
 
         assertTrue(recs.stream().noneMatch(r -> r.track().id().equals(picked)));
     }
+
+    /** Seed genre "folk" (0.467); a2 (jazz, 0.733) and a3 (soul, 0.333) are both known artists, so fit matches. */
+    private RecommendationEngine seededEngine(Config cfg) {
+        ListeningProfile p = new ListeningProfile(profile().genreHistogram(),
+                List.of(new Artist("a2", "A2", List.of("jazz")), new Artist("a3", "A3", List.of("soul"))),
+                List.of(track("top0", "a2")), List.of("saved0"), null, Instant.EPOCH);
+        FakeMusic m = new FakeMusic();
+        m.top = List.of(track("top0", "a2"));
+        m.byGenre.put("folk", List.of(track("liked", "a2"), track("plain", "a3")));
+        RecommendationEngine e = new RecommendationEngine(toolsFor(m), cfg);
+        e.setStrategy(new DiscoveryStrategy());
+        e.recommend(p, spec(0.0), List.of(), false, List.of("folk"));
+        return e;
+    }
+
+    @Test
+    void score_seedTracksDifferByTaste() {
+        RecommendationEngine e = seededEngine(config);
+        double plain = e.score(track("plain", "a3"), spec(0.0));
+        double liked = e.score(track("liked", "a2"), spec(0.0));
+        assertTrue(liked > plain, "the better-liked artist scores higher within one seed genre");
+    }
+
+    @Test
+    void score_seedGenreStillBeatsNonSeed() {
+        // folk and blues weigh the same in the taste profile; only folk was asked for.
+        Map<String, Double> hist = new LinkedHashMap<>();
+        hist.put("rock", 0.30);
+        hist.put("folk", 0.15);
+        hist.put("blues", 0.15);
+        ListeningProfile p = new ListeningProfile(hist, List.of(), List.of(track("top0", "a1")),
+                List.of("saved0"), null, Instant.EPOCH);
+        FakeMusic m = new FakeMusic();
+        m.top = List.of(track("top0", "a1"));
+        m.byGenre.put("folk", List.of(track("seed", "stranger-seed")));
+        m.byGenre.put("blues", List.of(track("other", "stranger-other")));
+        m.byGenre.put("rock", List.of(track("rk", "stranger-rk")));
+        RecommendationEngine e = new RecommendationEngine(toolsFor(m), config.withTunables(Map.of("discover.initialGenres", "4")));
+        e.setStrategy(new DiscoveryStrategy());
+        e.recommend(p, spec(0.0), List.of(), false, List.of("folk"));
+
+        assertTrue(e.score(track("seed", "stranger-seed"), spec(0.0))
+                > e.score(track("other", "stranger-other"), spec(0.0)));
+    }
+
+    @Test
+    void score_acceptedStillBeatsRejected() {
+        FakeMusic m = new FakeMusic();
+        m.top = List.of(track("top0", "a1"));
+        m.byGenre.put("folk", List.of(track("good", "stranger-good"), track("bad", "stranger-bad")));
+        RecommendationEngine e = new RecommendationEngine(toolsFor(m), config);
+        e.setStrategy(new DiscoveryStrategy());
+        e.recommend(profile(), spec(0.0), List.of(
+                new Feedback("good", Verdict.ACCEPT, Instant.EPOCH), new Feedback("bad", Verdict.REJECT, Instant.EPOCH)),
+                false, List.of("folk"));
+        assertTrue(e.score(track("good", "stranger-good"), spec(0.0)) > e.score(track("bad", "stranger-bad"), spec(0.0)));
+    }
 }

@@ -415,20 +415,20 @@ public class RecommendationEngine {
         return profile == null ? 0.0 : profile.familiarity(track);
     }
 
-    /** Best genre affinity (0..1) of the track: its search genre and the genres of its top artists. */
+    /**
+     * Genre affinity (0..1) of the track: the best taste affinity among its search genre and its top
+     * artists, plus a bonus when the user asked for the track's genre or the activity that found it,
+     * capped at 1.0. The bonus lifts requested tracks without making them all score the same.
+     */
     private double affinity(Track track) {
         Origin origin = origins.get(track.id());
         double best = origin != null && origin.genre() != null ? genreAffinity.getOrDefault(origin.genre(), 0.0) : 0.0;
-        if (origin != null && origin.genre() != null && seedGenres.contains(origin.genre())) {
-            best = 1.0; // the user asked for this genre
-        }
-        if (origin != null && origin.source() == Source.KEYWORD) {
-            best = 1.0; // found by searching the activity the goal names
-        }
         for (String artistId : track.artistIds()) {
             best = Math.max(best, artistAffinity.getOrDefault(artistId, 0.0));
         }
-        return best;
+        boolean requested = origin != null
+                && ((origin.genre() != null && seedGenres.contains(origin.genre())) || origin.source() == Source.KEYWORD);
+        return requested ? Math.min(1.0, best + config.discoverSeedGenreBonus()) : best;
     }
 
     /** Each genre's weight scaled so the user's top genre is 1.0. */
