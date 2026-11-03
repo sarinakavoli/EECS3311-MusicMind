@@ -621,12 +621,57 @@ class MusicAgentFacadeTest extends PostgresTestBase {
 
         List<Track> found = f.searchMusic("dreamy alternative for studying");
 
-        assertEquals(List.of("dreamy alternative"), music.searches);
+        assertEquals(List.of("dreamy alternative", "dreamy alternative for studying"), music.searches);
         assertEquals(config.searchResultLimit(), music.searchLimit);
         assertEquals(List.of("a", "b"), found.stream().map(Track::id).toList(),
                 "Spotify's order leads (title match is only a small boost); duplicates dropped");
         assertNull(f.lastSearchLabel());
         assertNull(f.lastSearchNotice());
+    }
+
+    private static Track by(String id, String title, String artist) {
+        return new Track(id, "spotify:track:" + id, title, 1000, false, List.of(), List.of(artist));
+    }
+
+    @Test
+    void searchMusic_runsTypedWordsAndAiQuery() {
+        FakeMusic music = new FakeMusic() {
+            @Override public List<Track> search(String query, int limit) {
+                super.search(query, limit);
+                return query.equals("american girls")
+                        ? List.of(by("e", "American Girls", "Counting Crows"))
+                        : List.of(by("m", "Unrelated Song", "Someone"));
+            }
+        };
+        LLMProvider llm = p -> "{\"keywords\":\"girls anthem\",\"genre\":\"\",\"filters\":{},\"confidence\":0.9}";
+
+        List<Track> found = facade(music, llm).searchMusic("american girls");
+
+        assertEquals(List.of("girls anthem", "american girls"), music.searches);
+        assertEquals(List.of("e", "m"), found.stream().map(Track::id).toList());
+    }
+
+    @Test
+    void searchMusic_moodOnlyQuery_skipsTypedPass() {
+        FakeMusic music = new FakeMusic();
+        music.searchResults = List.of(named("a", "Anything"));
+        LLMProvider llm = p -> "{\"keywords\":\"upbeat\",\"genre\":\"\",\"filters\":{},\"confidence\":0.9}";
+
+        facade(music, llm).searchMusic("upbeat");
+
+        assertEquals(1, music.searches.size(), music.searches.toString());
+        assertFalse(music.searches.contains("upbeat"), "the mood word itself is never searched");
+    }
+
+    @Test
+    void searchMusic_sameAsTyped_searchesOnce() {
+        FakeMusic music = new FakeMusic();
+        music.searchResults = List.of(named("a", "Jazz Night"));
+        LLMProvider llm = p -> "{\"keywords\":\"Jazz Night\",\"genre\":\"\",\"filters\":{},\"confidence\":0.9}";
+
+        facade(music, llm).searchMusic("jazz night");
+
+        assertEquals(1, music.searches.size(), music.searches.toString());
     }
 
     @Test
@@ -637,7 +682,7 @@ class MusicAgentFacadeTest extends PostgresTestBase {
 
         facade(music, llm).searchMusic("upbeat indie songs for running");
 
-        assertEquals(1, music.searches.size());
+        assertEquals(2, music.searches.size(), "the AI query, then the typed words");
         assertFalse(music.searches.get(0).contains("upbeat"), music.searches.toString());
         assertTrue(music.searches.get(0).contains("running") && music.searches.get(0).contains("indie"), music.searches.toString());
     }
@@ -679,7 +724,7 @@ class MusicAgentFacadeTest extends PostgresTestBase {
         assertNotNull(notice);
         assertTrue(notice.contains("dreamy shoegaze from 1987"), notice);
         assertTrue(notice.contains("\"dreamy\""), "suggests the keywords alone: " + notice);
-        assertEquals(List.of("dreamy shoegaze year:1987", "dreamy"), music.searches, "retried once");
+        assertEquals(List.of("dreamy shoegaze year:1987", "dreamy", "dreamy shoegaze from 1987"), music.searches, "retried once, then typed");
     }
 
     @Test
@@ -696,7 +741,7 @@ class MusicAgentFacadeTest extends PostgresTestBase {
 
         List<Track> found = f.searchMusic("dreamy shoegaze from 1987");
 
-        assertEquals(List.of("dreamy shoegaze year:1987", "dreamy"), music.searches);
+        assertEquals(List.of("dreamy shoegaze year:1987", "dreamy", "dreamy shoegaze from 1987"), music.searches);
         assertEquals(List.of("r"), found.stream().map(Track::id).toList());
         assertNull(f.lastSearchNotice());
         assertNull(f.lastSearchLabel(), "a retry is not an LLM failure");

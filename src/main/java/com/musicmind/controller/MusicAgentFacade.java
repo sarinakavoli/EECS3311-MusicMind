@@ -68,6 +68,7 @@ import com.musicmind.tool.ToolResult;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -119,6 +120,7 @@ public class MusicAgentFacade {
     private final Planner planner;
     private final ResponseParser parser;
     private final SearchRanker ranker;
+    private final MoodGenreMap moods = MoodGenreMap.load();
     private final RecommendationEngine engine;
     private final Supplier<String> currentUserId;
     private final CreateSupport create;
@@ -166,7 +168,7 @@ public class MusicAgentFacade {
         this.engine = engine;
         this.currentUserId = currentUserId;
         this.create = Objects.requireNonNull(create, "create");
-        this.editor = new PlaylistEditor(llm, prompts, parser, MoodGenreMap.load(), config);
+        this.editor = new PlaylistEditor(llm, prompts, parser, moods, config);
         this.playlistValidator = new PlaylistValidator(config);
     }
 
@@ -296,6 +298,7 @@ public class MusicAgentFacade {
             // Genre and filters can empty a search Spotify would answer; try the keywords alone once.
             ranked = runSearch(new SearchQuery(keywords, null, Map.of(), parsed.confidence()));
         }
+        ranked = withTypedWords(query.strip(), parsed, ranked);
         if (ranked.isEmpty()) {
             String hint = suggestRelaxedQuery(parsed)
                     .map(q -> String.format(config.searchRelaxedHintTemplate(), q))
@@ -304,6 +307,30 @@ public class MusicAgentFacade {
         }
         lastSearchArtists = artistsNamedIn(query);
         return ranked;
+    }
+
+    /**
+     * The words as typed are searched too (the AI's reading can drift from them) and their matches are put
+     * first. Skipped when every typed word is a mood word, which Spotify would match to stock-music titles,
+     * and when the AI's query is the typed text. A failed typed search leaves the AI's results as they are.
+     */
+    private List<Track> withTypedWords(String typed, SearchQuery parsed, List<Track> meaning) {
+        boolean moodOnly = Arrays.stream(typed.split("\\s+"))
+                .map(w -> w.replaceAll("[^\\p{L}\\p{N}]", ""))
+                .allMatch(w -> !moods.genresFor(w).isEmpty());
+        boolean same = typed.equalsIgnoreCase(parsed.toSpotifyQuery().strip());
+        List<Track> merged = meaning;
+        if (!moodOnly && same) {
+            merged = ranker.merge(typed, meaning, meaning);
+        } else if (!moodOnly) {
+            ToolResult result = tools.execute("search", Map.of("query", typed, "limit", config.searchResultLimit()));
+            if (result.ok()) {
+                @SuppressWarnings("unchecked")
+                List<Track> results = (List<Track>) result.payload();
+                merged = ranker.merge(typed, parser.verifyTracks(results, results), meaning);
+            }
+        }
+        return merged.size() > config.searchResultLimit() ? merged.subList(0, config.searchResultLimit()) : merged;
     }
 
     /**
