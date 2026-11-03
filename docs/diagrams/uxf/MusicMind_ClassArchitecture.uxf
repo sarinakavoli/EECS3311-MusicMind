@@ -3,27 +3,35 @@
   <zoom_level>10</zoom_level>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>60</x><y>20</y><w>130</w><h>102</h></coordinates>
+    <coordinates><x>60</x><y>20</y><w>229</w><h>122</h></coordinates>
     <panel_attributes>GuiApp
 --
  
 --
-+start()</panel_attributes>
++start()
+--
+Stage 2:
+views call AppController only
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>210</x><y>20</y><w>130</w><h>102</h></coordinates>
+    <coordinates><x>330</x><y>20</y><w>251</w><h>122</h></coordinates>
     <panel_attributes>CliApp
 --
  
 --
-+run(args)</panel_attributes>
++run(args)
+--
+Stage 2:
+commands call AppController only
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>120</x><y>170</y><w>360</w><h>318</h></coordinates>
+    <coordinates><x>40</x><y>150</y><w>371</w><h>490</h></coordinates>
     <panel_attributes>AppController
 --
  
@@ -40,12 +48,27 @@
 +explain(sessionId): String
 +getHistory(user): List&lt;AgentSession&gt;
 +restore(snapshotId): Playlist
-+undo(playlistId)</panel_attributes>
++undo(playlistId)
+--
+Stage 2:
++login(): User
++currentUser(): User
++lastProfile(user): Optional&lt;ListeningProfile&gt;
++lastSession(): AgentSession
++setNegotiationHandler(NegotiationHandler)
++setProgressListener(Consumer&lt;String&gt;)
++deletePlaylist(playlistId): int
++getPlaylists(): List&lt;PlaylistSummary&gt;
++getSnapshots(user): List&lt;SnapshotInfo&gt;
++recreateFromSnapshot(snapshotId): Playlist
++addCandidate(trackId) / removeCandidate(trackId)
++blockArtist(artistId) / blockTrack(trackId)
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>120</x><y>560</y><w>360</w><h>210</h></coordinates>
+    <coordinates><x>560</x><y>150</y><w>379</w><h>314</h></coordinates>
     <panel_attributes>MusicAgentFacade
 --
  
@@ -56,76 +79,115 @@
 +createPlaylist(request): Playlist
 +modifyPlaylist(playlistId, instruction): Playlist
 +validate(playlist, spec): ValidationResult
-+explain(session): String</panel_attributes>
++explain(session): String
+--
+Stage 2:
++deletePlaylist(playlistId): int
++undo(playlistId)
++restore(snapshotId): Playlist
++recreateFromSnapshot(snapshotId): Playlist
++lastSession(): AgentSession
++userPlaylists(): List&lt;PlaylistSummary&gt;
++candidates(userId): List&lt;Track&gt;
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>40</x><y>860</y><w>300</w><h>138</h></coordinates>
+    <coordinates><x>150</x><y>760</y><w>471</w><h>170</h></coordinates>
     <panel_attributes>RecommendationEngine
 --
 -strategy: RecommendationStrategy
 --
 +setStrategy(s)
 +recommend(profile, spec, feedback): List&lt;Recommendation&gt;
-+score(track, spec): double</panel_attributes>
++score(track, spec): double
+--
+Stage 2:
++retrieve(profile, spec, allowLibrary, seeds, terms): Retrieval
++recommend(retrieval, spec, feedback): List&lt;Recommendation&gt;
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>380</x><y>860</y><w>210</w><h>120</h></coordinates>
+    <coordinates><x>507</x><y>1040</y><w>308</w><h>170</h></coordinates>
     <panel_attributes>Planner
 --
  
 --
 +plan(request): AgentPlan
-+parseGoal(text): PlaylistSpec</panel_attributes>
++parseGoal(text): PlaylistSpec
+--
+Stage 2:
++parseSearchQuery(text): SearchQuery
++regenerate(plan, relaxation): AgentPlan
++phraseOptions(report): List&lt;String&gt;
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>620</x><y>860</y><w>250</w><h>102</h></coordinates>
+    <coordinates><x>701</x><y>760</y><w>442</w><h>154</h></coordinates>
     <panel_attributes>ConstraintChecker
 --
  
 --
-+checkFeasibility(spec, pool): FeasibilityReport</panel_attributes>
++checkFeasibility(spec, pool): FeasibilityReport
+--
+Stage 2:
++describeShortfall(spec, pool, achieved): FeasibilityReport
++checkEdit(before, commands, spec): FeasibilityReport
++introduced(before, after, spec): List&lt;String&gt;
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>900</x><y>860</y><w>260</w><h>120</h></coordinates>
+    <coordinates><x>1223</x><y>760</y><w>357</w><h>138</h></coordinates>
     <panel_attributes>ProfileBuilder
 --
  
 --
 +build(topItems, saved): ListeningProfile
-+computeGenreHistogram(artists): Map</panel_attributes>
++computeGenreHistogram(artists): Map
+--
+Stage 2:
+topItems is a TopItems value (artists + tracks)
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>1200</x><y>860</y><w>240</w><h>102</h></coordinates>
+    <coordinates><x>1660</x><y>760</y><w>343</w><h>122</h></coordinates>
     <panel_attributes>PlaylistValidator
 --
  
 --
-+validate(tracks, spec): ValidationResult</panel_attributes>
++validate(tracks, spec): ValidationResult
+--
+Stage 2:
++durationStatus(tracks, spec): DurationStatus
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>1470</x><y>860</y><w>210</w><h>102</h></coordinates>
+    <coordinates><x>1914</x><y>1040</y><w>258</w><h>122</h></coordinates>
     <panel_attributes>ExplanationService
 --
  
 --
-+explain(session): String</panel_attributes>
++explain(session): String
+--
+Stage 2:
++explain(session, titles): String
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>1710</x><y>860</y><w>230</w><h>120</h></coordinates>
+    <coordinates><x>2083</x><y>760</y><w>279</w><h>94</h></coordinates>
     <panel_attributes>ToolManager
 --
  
@@ -136,7 +198,7 @@
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>1970</x><y>860</y><w>320</w><h>228</h></coordinates>
+    <coordinates><x>2962</x><y>760</y><w>379</w><h>314</h></coordinates>
     <panel_attributes>MemoryManager
 --
  
@@ -148,12 +210,96 @@
 +saveSession(s)
 +loadHistory(user): List&lt;AgentSession&gt;
 +saveSnapshot(playlist): int
-+loadSnapshot(id): Playlist</panel_attributes>
++loadSnapshot(id): Playlist
+--
+Stage 2:
++findSessionByPlaylist(playlistId): AgentSession
++loadLatestSnapshot(playlistId): Playlist
++loadSnapshotSummaries(userId): List&lt;SnapshotInfo&gt;
++markLatestSnapshotUndone(playlistId)
++addCandidate(trackId) / removeCandidate(trackId)
++loadCandidates(userId): List&lt;String&gt;
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>40</x><y>1160</y><w>280</w><h>120</h></coordinates>
+    <coordinates><x>1025</x><y>1040</y><w>315</w><h>110</h></coordinates>
+    <panel_attributes>GoalFitReviewer
+--
+-llm: LLMProvider
+--
++review(goal, tracks, genres): Result
++reviewPicks(goal, picks, genres): Result
++genresOf(retrieval): TrackGenres
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>1423</x><y>1040</y><w>393</w><h>94</h></coordinates>
+    <panel_attributes>PlaylistEditor
+--
+ 
+--
++plan(playlist, instruction, artistGenres): EditPlan
++requireLlm()
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>443</x><y>2384</y><w>251</w><h>110</h></coordinates>
+    <panel_attributes>&lt;&lt;record&gt;&gt;
+PlaylistContext
+--
+ 
+--
+playlistId, tracks, music, rules
++allows(track): boolean
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>40</x><y>2384</y><w>343</w><h>94</h></coordinates>
+    <panel_attributes>Retrieval
+--
+ 
+--
+one Spotify read shared by every re-selection
++without(trackIds): Retrieval
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>1500</x><y>20</y><w>400</w><h>94</h></coordinates>
+    <panel_attributes>&lt;&lt;interface&gt;&gt;
+NegotiationHandler
+--
+ 
+--
++choose(report, phrasedOptions): Optional&lt;Relaxation&gt;
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>754</x><y>2384</y><w>173</w><h>110</h></coordinates>
+    <panel_attributes>&lt;&lt;record&gt;&gt;
+TopItems
+--
+ 
+--
+artists: List&lt;Artist&gt;
+tracks: List&lt;Track&gt;
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>40</x><y>960</y><w>329</w><h>94</h></coordinates>
     <panel_attributes>&lt;&lt;interface&gt;&gt;
 RecommendationStrategy
 --
@@ -164,42 +310,216 @@ RecommendationStrategy
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>360</x><y>1160</y><w>250</w><h>120</h></coordinates>
+    <coordinates><x>40</x><y>1120</y><w>414</w><h>170</h></coordinates>
+    <panel_attributes>&lt;&lt;abstract&gt;&gt;
+AbstractRecommendationStrategy
+--
+ 
+--
+#scoreFamiliarity(track, profile): double
+#excludeKnown(candidates, profile): List&lt;Track&gt;
++selectCandidates(pools, spec): List&lt;Track&gt;  {abstract}
+--
+Stage 2:
++bindProfile(profile)
+bg=#CFE8FF</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>40</x><y>1380</y><w>160</w><h>22</h></coordinates>
+    <panel_attributes>FamiliarStrategy</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>230</x><y>1380</y><w>160</w><h>22</h></coordinates>
+    <panel_attributes>DiscoveryStrategy</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>420</x><y>1380</y><w>160</w><h>22</h></coordinates>
+    <panel_attributes>BalancedStrategy</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>40</x><y>1470</y><w>350</w><h>78</h></coordinates>
+    <panel_attributes>StrategySelector
+--
+ 
+--
++select(familiarRatio): RecommendationStrategy
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>40</x><y>1600</y><w>542</w><h>186</h></coordinates>
     <panel_attributes>PromptBuilder
 --
  
 --
 +buildPlanPrompt(request): String
-+buildExplainPrompt(trace): String</panel_attributes>
++buildExplainPrompt(trace): String
+--
+Stage 2:
++buildGoalReviewPrompt(goal, tracks, genres): String  (ids + genres only)
++buildEditPrompt(instruction, playlist): String
++buildSearchPrompt(text): String
++buildSummaryPrompt / buildTrendPrompt / buildOptionsPrompt
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>630</x><y>1160</y><w>300</w><h>138</h></coordinates>
+    <coordinates><x>642</x><y>1530</y><w>343</w><h>186</h></coordinates>
     <panel_attributes>ResponseParser
 --
  
 --
 +parsePlaylistSpec(json): PlaylistSpec
 +parseCommands(json): List&lt;PlaylistCommand&gt;
-+verifyTracks(tracks, results): List&lt;Track&gt;</panel_attributes>
++verifyTracks(tracks, results): List&lt;Track&gt;
+--
+Stage 2:
++forPlaylist(PlaylistContext): ResponseParser
++parseRemovedIds(json): List&lt;String&gt;
++parseSearchQuery(json): SearchQuery
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>960</x><y>1160</y><w>260</w><h>138</h></coordinates>
+    <coordinates><x>1276</x><y>1230</y><w>201</w><h>94</h></coordinates>
+    <panel_attributes>&lt;&lt;interface&gt;&gt;
+LLMProvider
+--
+ 
+--
++complete(prompt): String</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>1156</x><y>1360</y><w>150</w><h>22</h></coordinates>
+    <panel_attributes>OpenAiProvider</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>1426</x><y>1360</y><w>170</w><h>22</h></coordinates>
+    <panel_attributes>MockLLMProvider</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLNote</id>
+    <coordinates><x>1616</x><y>1355</y><w>200</w><h>40</h></coordinates>
+    <panel_attributes>test double only (src/test);
+never created by AppController</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>40</x><y>1906</y><w>293</w><h>218</h></coordinates>
     <panel_attributes>PlaylistManager
 --
 -history: Deque&lt;PlaylistCommand&gt;
 --
 +execute(command)
 +executeAll(commands)
-+undo(playlistId)</panel_attributes>
++undo(playlistId)
+--
+Stage 2:
++modify(current, commands): int
++restoreFrom(current, snapshotId): int
++delete(current): int
++snapshotBeforeModify(current): int
++restore(snapshotId)
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>1250</x><y>1160</y><w>220</w><h>138</h></coordinates>
+    <coordinates><x>700</x><y>1906</y><w>237</w><h>186</h></coordinates>
+    <panel_attributes>&lt;&lt;interface&gt;&gt;
+PlaylistCommand
+--
+ 
+--
++execute()
++undo()
+--
+Stage 2:
++describe(): String
++playlistId(): String
++simulate(tracks): List&lt;Track&gt;
+bg=#CFE8FF</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>40</x><y>2254</y><w>190</w><h>22</h></coordinates>
+    <panel_attributes>CreatePlaylistCommand</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>250</x><y>2254</y><w>190</w><h>22</h></coordinates>
+    <panel_attributes>AddItemsCommand</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>460</x><y>2254</y><w>190</w><h>22</h></coordinates>
+    <panel_attributes>RemoveTrackCommand</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>670</x><y>2254</y><w>190</w><h>22</h></coordinates>
+    <panel_attributes>ReplaceTrackCommand</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>880</x><y>2254</y><w>190</w><h>22</h></coordinates>
+    <panel_attributes>ReorderCommand</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>1090</x><y>2254</y><w>190</w><h>78</h></coordinates>
+    <panel_attributes>BatchCommand
+--
+ 
+--
+one undo step per edit
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>1300</x><y>2254</y><w>190</w><h>22</h></coordinates>
+    <panel_attributes>RestoreSnapshotCommand
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>1510</x><y>2254</y><w>222</w><h>78</h></coordinates>
+    <panel_attributes>DeletePlaylistCommand
+--
+ 
+--
++execute(): unfollowPlaylist
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>2083</x><y>890</y><w>208</w><h>110</h></coordinates>
     <panel_attributes>&lt;&lt;interface&gt;&gt;
 Tool
 --
@@ -211,18 +531,19 @@ Tool
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>1500</x><y>1160</y><w>220</w><h>120</h></coordinates>
-    <panel_attributes>&lt;&lt;interface&gt;&gt;
-LLMProvider
---
- 
---
-+complete(prompt): String</panel_attributes>
+    <coordinates><x>2253</x><y>1090</y><w>160</w><h>22</h></coordinates>
+    <panel_attributes>SpotifyTool</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>1760</x><y>1160</y><w>330</w><h>300</h></coordinates>
+    <coordinates><x>2463</x><y>1090</y><w>160</w><h>22</h></coordinates>
+    <panel_attributes>MemoryTool</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>2183</x><y>1474</y><w>322</w><h>394</h></coordinates>
     <panel_attributes>&lt;&lt;interface&gt;&gt;
 MusicService
 --
@@ -238,134 +559,41 @@ MusicService
 +addItems(playlistId, uris)
 +removeItems(playlistId, uris)
 +reorderItems(playlistId, from, to)
-+getPlaylistItems(playlistId): List&lt;Track&gt;</panel_attributes>
-    <additional_attributes/>
-  </element>
-  <element>
-    <id>UMLClass</id>
-    <coordinates><x>2110</x><y>1160</y><w>250</w><h>174</h></coordinates>
-    <panel_attributes>&lt;&lt;interface&gt;&gt;
-Repository&lt;T&gt;
++getPlaylistItems(playlistId): List&lt;Track&gt;
 --
- 
---
-+save(entity)
-+findById(id): T
-+findByUser(userId): List&lt;T&gt;
-+delete(id)</panel_attributes>
+Stage 2:
++getTopArtists(range): List&lt;Artist&gt;
++searchArtists(query, limit): List&lt;Artist&gt;
++getArtist(id): Artist
++getTrack(id): Track
++unfollowPlaylist(playlistId)
++getUserPlaylists(): List&lt;PlaylistSummary&gt;
++currentUserId(): String
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>20</x><y>1460</y><w>320</w><h>156</h></coordinates>
-    <panel_attributes>&lt;&lt;abstract&gt;&gt;
-AbstractRecommendationStrategy
---
- 
---
-#scoreFamiliarity(track, profile): double
-#excludeKnown(candidates, profile): List&lt;Track&gt;
-/+selectCandidates(pools, spec): List&lt;Track&gt;/</panel_attributes>
-    <additional_attributes/>
-  </element>
-  <element>
-    <id>UMLClass</id>
-    <coordinates><x>40</x><y>1680</y><w>150</w><h>46</h></coordinates>
-    <panel_attributes>FamiliarStrategy</panel_attributes>
-    <additional_attributes/>
-  </element>
-  <element>
-    <id>UMLClass</id>
-    <coordinates><x>210</x><y>1680</y><w>150</w><h>46</h></coordinates>
-    <panel_attributes>DiscoveryStrategy</panel_attributes>
-    <additional_attributes/>
-  </element>
-  <element>
-    <id>UMLClass</id>
-    <coordinates><x>380</x><y>1680</y><w>150</w><h>46</h></coordinates>
-    <panel_attributes>BalancedStrategy</panel_attributes>
-    <additional_attributes/>
-  </element>
-  <element>
-    <id>UMLClass</id>
-    <coordinates><x>700</x><y>1460</y><w>220</w><h>138</h></coordinates>
-    <panel_attributes>&lt;&lt;interface&gt;&gt;
-PlaylistCommand
---
- 
---
-+execute()
-+undo()</panel_attributes>
-    <additional_attributes/>
-  </element>
-  <element>
-    <id>UMLClass</id>
-    <coordinates><x>560</x><y>1640</y><w>180</w><h>46</h></coordinates>
-    <panel_attributes>CreatePlaylistCommand</panel_attributes>
-    <additional_attributes/>
-  </element>
-  <element>
-    <id>UMLClass</id>
-    <coordinates><x>560</x><y>1710</y><w>180</w><h>46</h></coordinates>
-    <panel_attributes>AddItemsCommand</panel_attributes>
-    <additional_attributes/>
-  </element>
-  <element>
-    <id>UMLClass</id>
-    <coordinates><x>760</x><y>1640</y><w>180</w><h>46</h></coordinates>
-    <panel_attributes>RemoveTrackCommand</panel_attributes>
-    <additional_attributes/>
-  </element>
-  <element>
-    <id>UMLClass</id>
-    <coordinates><x>760</x><y>1710</y><w>180</w><h>46</h></coordinates>
-    <panel_attributes>ReplaceTrackCommand</panel_attributes>
-    <additional_attributes/>
-  </element>
-  <element>
-    <id>UMLClass</id>
-    <coordinates><x>960</x><y>1640</y><w>180</w><h>46</h></coordinates>
-    <panel_attributes>ReorderCommand</panel_attributes>
-    <additional_attributes/>
-  </element>
-  <element>
-    <id>UMLClass</id>
-    <coordinates><x>1250</x><y>1420</y><w>150</w><h>46</h></coordinates>
-    <panel_attributes>SpotifyTool</panel_attributes>
-    <additional_attributes/>
-  </element>
-  <element>
-    <id>UMLClass</id>
-    <coordinates><x>1420</x><y>1420</y><w>150</w><h>46</h></coordinates>
-    <panel_attributes>MemoryTool</panel_attributes>
-    <additional_attributes/>
-  </element>
-  <element>
-    <id>UMLClass</id>
-    <coordinates><x>1500</x><y>1460</y><w>150</w><h>46</h></coordinates>
-    <panel_attributes>OpenAiProvider</panel_attributes>
-    <additional_attributes/>
-  </element>
-  <element>
-    <id>UMLClass</id>
-    <coordinates><x>1660</x><y>1460</y><w>150</w><h>46</h></coordinates>
-    <panel_attributes>MockLLMProvider</panel_attributes>
-    <additional_attributes/>
-  </element>
-  <element>
-    <id>UMLClass</id>
-    <coordinates><x>1760</x><y>1560</y><w>230</w><h>120</h></coordinates>
+    <coordinates><x>2617</x><y>1988</y><w>190</w><h>66</h></coordinates>
     <panel_attributes>SpotifyAdapter
 --
 -http: HttpClient
--auth: OAuthTokenStore
---
- </panel_attributes>
+-auth: OAuthTokenStore</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>2010</x><y>1560</y><w>230</w><h>102</h></coordinates>
+    <coordinates><x>2617</x><y>2118</y><w>215</w><h>78</h></coordinates>
+    <panel_attributes>OAuthTokenStore
+--
+ 
+--
+PKCE sign-in, token refresh</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>2347</x><y>1988</y><w>210</w><h>78</h></coordinates>
     <panel_attributes>RetryingMusicService
 --
 -delegate: MusicService
@@ -375,418 +603,662 @@ PlaylistCommand
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>2110</x><y>1420</y><w>200</w><h>46</h></coordinates>
+    <coordinates><x>1923</x><y>1988</y><w>364</w><h>126</h></coordinates>
+    <panel_attributes>GenreEnrichingMusicService
+--
+-delegate: MusicService
+-genres: GenreService
+-cache: GenreRepository
+--
++getTopArtists(range): List&lt;Artist&gt;  adds genres
+all other calls delegate
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>1923</x><y>2234</y><w>300</w><h>94</h></coordinates>
+    <panel_attributes>&lt;&lt;interface&gt;&gt;
+GenreService
+--
+ 
+--
++lookup(artist): Optional&lt;List&lt;String&gt;&gt;
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>1923</x><y>2398</y><w>300</w><h>78</h></coordinates>
+    <panel_attributes>MusicBrainzAdapter
+--
+ 
+--
++lookup(artist): Optional&lt;List&lt;String&gt;&gt;
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>2880</x><y>1434</y><w>660</w><h>186</h></coordinates>
+    <panel_attributes>&lt;&lt;interface&gt;&gt;
+Repository&lt;T&gt;
+--
+ 
+--
++save(entity)
++findById(id): T
++findByUser(userId): List&lt;T&gt;
++delete(id)
+--
+Stage 2:
+owner id comes from a Supplier&lt;String&gt;
+bg=#CFE8FF</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>2816</x><y>1184</y><w>200</w><h>22</h></coordinates>
     <panel_attributes>PreferenceRepository</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>2110</x><y>1490</y><w>200</w><h>46</h></coordinates>
+    <coordinates><x>3051</x><y>1184</y><w>200</w><h>22</h></coordinates>
     <panel_attributes>FeedbackRepository</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>2330</x><y>1420</y><w>200</w><h>46</h></coordinates>
+    <coordinates><x>3286</x><y>1184</y><w>200</w><h>22</h></coordinates>
     <panel_attributes>SessionRepository</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>2330</x><y>1490</y><w>210</w><h>46</h></coordinates>
+    <coordinates><x>2933</x><y>1294</y><w>201</w><h>22</h></coordinates>
     <panel_attributes>PlaylistHistoryRepository</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>2110</x><y>20</y><w>230</w><h>138</h></coordinates>
+    <coordinates><x>3147</x><y>1294</y><w>244</w><h>78</h></coordinates>
+    <panel_attributes>CandidateRepository
+--
+ 
+--
+Repository&lt;String&gt; of track ids
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>3396</x><y>1294</y><w>215</w><h>94</h></coordinates>
+    <panel_attributes>GenreRepository
+--
+ 
+--
++find(artistId, freshAfter)
++save(artistId, genres, at)
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>2197</x><y>150</y><w>180</w><h>154</h></coordinates>
     <panel_attributes>&lt;&lt;interface&gt;&gt;
 SessionState
 --
  
 --
 +handle(session)
-+name(): String</panel_attributes>
++name(): String
+--
+Stage 2:
++isTerminal(): boolean
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>1960</x><y>220</y><w>165</w><h>46</h></coordinates>
+    <coordinates><x>1100</x><y>430</y><w>170</w><h>22</h></coordinates>
     <panel_attributes>IdleState</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>2140</x><y>220</y><w>165</w><h>46</h></coordinates>
+    <coordinates><x>1295</x><y>430</y><w>170</w><h>22</h></coordinates>
     <panel_attributes>PlanningState</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>2320</x><y>220</y><w>165</w><h>46</h></coordinates>
+    <coordinates><x>1490</x><y>430</y><w>170</w><h>22</h></coordinates>
     <panel_attributes>RetrievingState</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>2500</x><y>220</y><w>165</w><h>46</h></coordinates>
+    <coordinates><x>1685</x><y>430</y><w>170</w><h>22</h></coordinates>
     <panel_attributes>SelectingState</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>1960</x><y>300</y><w>165</w><h>46</h></coordinates>
+    <coordinates><x>1880</x><y>430</y><w>170</w><h>22</h></coordinates>
     <panel_attributes>ValidatingState</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>2140</x><y>300</y><w>165</w><h>46</h></coordinates>
+    <coordinates><x>2075</x><y>430</y><w>170</w><h>22</h></coordinates>
     <panel_attributes>ExecutingState</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>2320</x><y>300</y><w>165</w><h>46</h></coordinates>
+    <coordinates><x>2270</x><y>430</y><w>170</w><h>22</h></coordinates>
     <panel_attributes>DoneState</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>2500</x><y>300</y><w>165</w><h>46</h></coordinates>
+    <coordinates><x>2465</x><y>430</y><w>170</w><h>22</h></coordinates>
     <panel_attributes>FailedState</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
-    <id>Relation</id>
-    <coordinates><x>125</x><y>122</y><w>175</w><h>48</h></coordinates>
-    <panel_attributes>lt=&lt;-</panel_attributes>
-    <additional_attributes>175;48;0;0</additional_attributes>
+    <id>UMLClass</id>
+    <coordinates><x>1748</x><y>150</y><w>379</w><h>154</h></coordinates>
+    <panel_attributes>AgentSession
+--
+ 
+--
++setState(state)
++getState(): SessionState
+--
+Stage 2:
++run(): loops handle(), resumes after token expiry
++context(): RunContext
+bg=#CFE8FF</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>1470</x><y>150</y><w>208</w><h>94</h></coordinates>
+    <panel_attributes>RunContext
+--
+ 
+--
+data shared by the states
++reauthenticate(): boolean
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>1100</x><y>150</y><w>300</w><h>110</h></coordinates>
+    <panel_attributes>&lt;&lt;record&gt;&gt;
+RunServices
+--
+ 
+--
+planner, checker, validator, engine,
+playlists, music, memory, reviewer, ...
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>2000</x><y>20</y><w>272</w><h>78</h></coordinates>
+    <panel_attributes>Negotiator
+--
+ 
+--
+one F11 round (ask, relax, re-plan)
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLNote</id>
+    <coordinates><x>700</x><y>20</y><w>404</w><h>104</h></coordinates>
+    <panel_attributes>Legend (Stage 2 update)
+Yellow = new in Stage 2
+Blue = Stage 1 element with Stage 2 additions
+White = unchanged from Stage 1
+Wording, tunables: Config + musicmind.properties
+Small helpers omitted (see STAGE1_CONFORMANCE s.6)</panel_attributes>
+    <additional_attributes/>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>275</x><y>122</y><w>25</w><h>48</h></coordinates>
-    <panel_attributes>lt=&lt;-</panel_attributes>
-    <additional_attributes>25;48;0;0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>300</x><y>488</y><w>10</w><h>72</h></coordinates>
-    <panel_attributes>lt=&lt;-</panel_attributes>
-    <additional_attributes>0;72;0;0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>190</x><y>770</y><w>110</w><h>90</h></coordinates>
+    <coordinates><x>385</x><y>464</y><w>467</w><h>296</h></coordinates>
     <panel_attributes>lt=&lt;&lt;&lt;&lt;-</panel_attributes>
-    <additional_attributes>110;0;0;90</additional_attributes>
+    <additional_attributes>468;0;0;296</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>300</x><y>770</y><w>185</w><h>90</h></coordinates>
+    <coordinates><x>867</x><y>464</y><w>55</w><h>296</h></coordinates>
     <panel_attributes>lt=&lt;&lt;&lt;&lt;-</panel_attributes>
-    <additional_attributes>0;0;185;90</additional_attributes>
+    <additional_attributes>0;0;55;296</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>300</x><y>770</y><w>445</w><h>90</h></coordinates>
+    <coordinates><x>881</x><y>464</y><w>520</w><h>296</h></coordinates>
     <panel_attributes>lt=&lt;&lt;&lt;&lt;-</panel_attributes>
-    <additional_attributes>0;0;445;90</additional_attributes>
+    <additional_attributes>0;0;520;296</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>300</x><y>770</y><w>730</w><h>90</h></coordinates>
+    <coordinates><x>895</x><y>464</y><w>936</w><h>296</h></coordinates>
     <panel_attributes>lt=&lt;&lt;&lt;&lt;-</panel_attributes>
-    <additional_attributes>0;0;730;90</additional_attributes>
+    <additional_attributes>0;0;936;296</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>300</x><y>770</y><w>1020</w><h>90</h></coordinates>
+    <coordinates><x>909</x><y>464</y><w>1313</w><h>296</h></coordinates>
     <panel_attributes>lt=&lt;&lt;&lt;&lt;-</panel_attributes>
-    <additional_attributes>0;0;1020;90</additional_attributes>
+    <additional_attributes>0;0;1314;296</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>300</x><y>770</y><w>1275</w><h>90</h></coordinates>
+    <coordinates><x>620</x><y>464</y><w>41</w><h>576</h></coordinates>
     <panel_attributes>lt=&lt;&lt;&lt;&lt;-</panel_attributes>
-    <additional_attributes>0;0;1275;90</additional_attributes>
+    <additional_attributes>0;0;41;236;41;576</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>300</x><y>770</y><w>1525</w><h>90</h></coordinates>
+    <coordinates><x>710</x><y>464</y><w>473</w><h>576</h></coordinates>
     <panel_attributes>lt=&lt;&lt;&lt;&lt;-</panel_attributes>
-    <additional_attributes>0;0;1525;90</additional_attributes>
+    <additional_attributes>0;0;473;236;473;576</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>300</x><y>770</y><w>1830</w><h>90</h></coordinates>
+    <coordinates><x>800</x><y>464</y><w>820</w><h>576</h></coordinates>
     <panel_attributes>lt=&lt;&lt;&lt;&lt;-</panel_attributes>
-    <additional_attributes>0;0;1830;90</additional_attributes>
+    <additional_attributes>0;0;820;236;820;576</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>485</x><y>980</y><w>1125</w><h>180</h></coordinates>
-    <panel_attributes>lt=&lt;.</panel_attributes>
-    <additional_attributes>1125;180;0;0</additional_attributes>
+    <coordinates><x>890</x><y>464</y><w>1153</w><h>576</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;&lt;-</panel_attributes>
+    <additional_attributes>0;0;1153;236;1153;576</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>485</x><y>980</y><w>10</w><h>180</h></coordinates>
-    <panel_attributes>lt=&lt;.</panel_attributes>
-    <additional_attributes>0;180;0;0</additional_attributes>
+    <coordinates><x>927</x><y>464</y><w>2224</w><h>296</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;&lt;-</panel_attributes>
+    <additional_attributes>0;0;2224;296</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>485</x><y>980</y><w>295</w><h>180</h></coordinates>
-    <panel_attributes>lt=&lt;.</panel_attributes>
-    <additional_attributes>295;180;0;0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>1575</x><y>962</y><w>35</w><h>198</h></coordinates>
-    <panel_attributes>lt=&lt;.</panel_attributes>
-    <additional_attributes>35;198;0;0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>485</x><y>962</y><w>1090</w><h>198</h></coordinates>
-    <panel_attributes>lt=&lt;.</panel_attributes>
-    <additional_attributes>0;198;1090;0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>180</x><y>998</y><w>10</w><h>162</h></coordinates>
+    <coordinates><x>2201</x><y>854</y><w>10</w><h>36</h></coordinates>
     <panel_attributes>lt=&lt;&lt;&lt;-
 m2=*</panel_attributes>
-    <additional_attributes>10;0;0;162</additional_attributes>
+    <additional_attributes>9;0;0;36</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1360</x><y>980</y><w>465</w><h>180</h></coordinates>
-    <panel_attributes>lt=&lt;&lt;&lt;-
-m2=*</panel_attributes>
-    <additional_attributes>465;0;0;180</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>180</x><y>1280</y><w>10</w><h>180</h></coordinates>
+    <coordinates><x>2238</x><y>1000</y><w>84</w><h>90</h></coordinates>
     <panel_attributes>lt=&lt;&lt;.</panel_attributes>
-    <additional_attributes>0;0;0;180</additional_attributes>
+    <additional_attributes>0;0;84;90</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>115</x><y>1616</y><w>65</w><h>64</h></coordinates>
+    <coordinates><x>2291</x><y>990</y><w>226</w><h>99</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>0;0;227;99</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>2916</x><y>1074</y><w>102</w><h>110</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;&lt;-</panel_attributes>
+    <additional_attributes>103;0;0;110</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>3151</x><y>1074</y><w>10</w><h>110</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;&lt;-</panel_attributes>
+    <additional_attributes>0;0;0;110</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>3283</x><y>1074</y><w>102</w><h>110</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;&lt;-</panel_attributes>
+    <additional_attributes>0;0;102;110</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>3033</x><y>1074</y><w>36</w><h>220</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;&lt;-</panel_attributes>
+    <additional_attributes>37;0;0;70;0;220</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>3232</x><y>1074</y><w>36</w><h>220</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;&lt;-</panel_attributes>
+    <additional_attributes>0;0;36;70;36;220</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>3341</x><y>1039</y><w>163</w><h>254</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;&lt;-</panel_attributes>
+    <additional_attributes>0;0;163;105;162;255</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>2916</x><y>1206</y><w>10</w><h>228</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>0;228;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>3151</x><y>1206</y><w>10</w><h>228</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>0;228;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>3386</x><y>1206</y><w>10</w><h>228</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>0;228;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>3033</x><y>1316</y><w>10</w><h>118</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>0;118;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>3269</x><y>1372</y><w>10</w><h>62</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>0;62;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>661</x><y>1210</y><w>655</w><h>20</h></coordinates>
+    <panel_attributes>lt=&lt;.</panel_attributes>
+    <additional_attributes>655;20;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1182</x><y>1150</y><w>173</w><h>80</h></coordinates>
+    <panel_attributes>lt=&lt;.</panel_attributes>
+    <additional_attributes>174;80;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1396</x><y>1134</y><w>222</w><h>96</h></coordinates>
+    <panel_attributes>lt=&lt;.</panel_attributes>
+    <additional_attributes>0;96;223;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1437</x><y>1162</y><w>606</w><h>68</h></coordinates>
+    <panel_attributes>lt=&lt;.</panel_attributes>
+    <additional_attributes>0;68;606;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1248</x><y>1324</y><w>55</w><h>36</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>56;0;0;36</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1443</x><y>1324</y><w>51</w><h>36</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>0;0;52;36</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>204</x><y>930</y><w>10</w><h>30</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-
+m2=*</panel_attributes>
+    <additional_attributes>0;0;0;30</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>214</x><y>1054</y><w>14</w><h>66</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>0;0;14;66</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>127</x><y>1290</y><w>61</w><h>90</h></coordinates>
     <panel_attributes>lt=&lt;&lt;-</panel_attributes>
-    <additional_attributes>65;0;0;64</additional_attributes>
+    <additional_attributes>61;0;0;90</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>180</x><y>1616</y><w>105</w><h>64</h></coordinates>
+    <coordinates><x>275</x><y>1290</y><w>30</w><h>90</h></coordinates>
     <panel_attributes>lt=&lt;&lt;-</panel_attributes>
-    <additional_attributes>0;0;105;64</additional_attributes>
+    <additional_attributes>0;0;30;90</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>180</x><y>1616</y><w>275</w><h>64</h></coordinates>
+    <coordinates><x>362</x><y>1290</y><w>122</w><h>90</h></coordinates>
     <panel_attributes>lt=&lt;&lt;-</panel_attributes>
-    <additional_attributes>0;0;275;64</additional_attributes>
+    <additional_attributes>0;0;122;90</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1325</x><y>1298</y><w>35</w><h>122</h></coordinates>
+    <coordinates><x>310</x><y>1402</y><w>10</w><h>68</h></coordinates>
+    <panel_attributes>lt=&lt;.
+creates</panel_attributes>
+    <additional_attributes>0;0;0;68</additional_attributes>
+  </element>
+  <element>
+    <id>UMLNote</id>
+    <coordinates><x>1045</x><y>1550</y><w>520</w><h>56</h></coordinates>
+    <panel_attributes>Planner, GoalFitReviewer, PlaylistEditor and ExplanationService
+build prompts with PromptBuilder and read replies with
+ResponseParser (dependencies not drawn to keep the page readable)</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>333</x><y>2002</y><w>367</w><h>10</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-
+m2=*</panel_attributes>
+    <additional_attributes>0;9;367;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>135</x><y>2092</y><w>585</w><h>162</h></coordinates>
     <panel_attributes>lt=&lt;&lt;.</panel_attributes>
-    <additional_attributes>35;0;0;122</additional_attributes>
+    <additional_attributes>585;0;0;162</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1360</x><y>1298</y><w>135</w><h>122</h></coordinates>
+    <coordinates><x>345</x><y>2092</y><w>403</w><h>162</h></coordinates>
     <panel_attributes>lt=&lt;&lt;.</panel_attributes>
-    <additional_attributes>0;0;135;122</additional_attributes>
+    <additional_attributes>403;0;0;162</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1325</x><y>1160</y><w>600</w><h>306</h></coordinates>
+    <coordinates><x>555</x><y>2092</y><w>221</w><h>162</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>221;0;0;162</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>765</x><y>2092</y><w>39</w><h>162</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>39;0;0;162</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>832</x><y>2092</y><w>142</w><h>162</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>0;0;142;162</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>860</x><y>2092</y><w>324</w><h>162</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>0;0;324;162</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>888</x><y>2092</y><w>506</w><h>162</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>0;0;506;162</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>917</x><y>2092</y><w>704</w><h>162</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>0;0;704;162</additional_attributes>
+  </element>
+  <element>
+    <id>UMLNote</id>
+    <coordinates><x>40</x><y>2524</y><w>760</w><h>40</h></coordinates>
+    <panel_attributes>New helper types (R20): Retrieval is made by RecommendationEngine;
+PlaylistContext is read by PlaylistEditor and ResponseParser; TopItems feeds ProfileBuilder</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>2105</x><y>1868</y><w>118</w><h>120</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>118;0;0;120</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>2344</x><y>1868</y><w>108</w><h>120</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>0;0;108;120</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>2465</x><y>1868</y><w>247</w><h>120</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>0;0;247;120</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>2073</x><y>2328</y><w>10</w><h>70</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>0;0;0;70</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>2079</x><y>2114</y><w>16</w><h>120</h></coordinates>
+    <panel_attributes>lt=&lt;.
+uses</panel_attributes>
+    <additional_attributes>17;0;0;120</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>2715</x><y>2054</y><w>10</w><h>64</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;&lt;-</panel_attributes>
+    <additional_attributes>0;0;6;64</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>2333</x><y>1112</y><w>10</w><h>362</h></coordinates>
     <panel_attributes>lt=&lt;.</panel_attributes>
-    <additional_attributes>600;0;0;306</additional_attributes>
+    <additional_attributes>0;0;7;362</additional_attributes>
+  </element>
+  <element>
+    <id>UMLNote</id>
+    <coordinates><x>1923</x><y>2518</y><w>560</w><h>40</h></coordinates>
+    <panel_attributes>Decorator chain built by AppController.create():
+GenreEnrichingMusicService -&gt; RetryingMusicService -&gt; SpotifyAdapter</panel_attributes>
+    <additional_attributes/>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1495</x><y>860</y><w>635</w><h>606</h></coordinates>
+    <coordinates><x>2127</x><y>227</y><w>70</w><h>10</h></coordinates>
+    <panel_attributes>lt=&lt;-
+state</panel_attributes>
+    <additional_attributes>70;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1678</x><y>205</y><w>70</w><h>10</h></coordinates>
+    <panel_attributes>lt=&lt;-
+context</panel_attributes>
+    <additional_attributes>0;0;70;6</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1400</x><y>199</y><w>70</w><h>10</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;&lt;-</panel_attributes>
+    <additional_attributes>70;0;0;2</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1900</x><y>61</y><w>100</w><h>10</h></coordinates>
     <panel_attributes>lt=&lt;.</panel_attributes>
-    <additional_attributes>635;0;0;606</additional_attributes>
+    <additional_attributes>0;2;100;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1575</x><y>1280</y><w>35</w><h>180</h></coordinates>
+    <coordinates><x>1241</x><y>244</y><w>955</w><h>185</h></coordinates>
     <panel_attributes>lt=&lt;&lt;.</panel_attributes>
-    <additional_attributes>35;0;0;180</additional_attributes>
+    <additional_attributes>955;0;0;186</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1610</x><y>1280</y><w>125</w><h>180</h></coordinates>
+    <coordinates><x>1426</x><y>248</y><w>770</w><h>181</h></coordinates>
     <panel_attributes>lt=&lt;&lt;.</panel_attributes>
-    <additional_attributes>0;0;125;180</additional_attributes>
+    <additional_attributes>770;0;0;182</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1875</x><y>1460</y><w>50</w><h>100</h></coordinates>
+    <coordinates><x>1611</x><y>254</y><w>585</w><h>175</h></coordinates>
     <panel_attributes>lt=&lt;&lt;.</panel_attributes>
-    <additional_attributes>50;0;0;100</additional_attributes>
+    <additional_attributes>585;0;0;176</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1925</x><y>1460</y><w>200</w><h>100</h></coordinates>
+    <coordinates><x>1796</x><y>264</y><w>400</w><h>165</h></coordinates>
     <panel_attributes>lt=&lt;&lt;.</panel_attributes>
-    <additional_attributes>0;0;200;100</additional_attributes>
+    <additional_attributes>400;0;0;166</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>2090</x><y>1310</y><w>35</w><h>250</h></coordinates>
-    <panel_attributes>lt=&lt;&lt;&lt;-
-m2=*</panel_attributes>
-    <additional_attributes>35;250;0;0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>810</x><y>1298</y><w>280</w><h>162</h></coordinates>
-    <panel_attributes>lt=&lt;&lt;&lt;-
-m2=*</panel_attributes>
-    <additional_attributes>280;0;0;162</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>650</x><y>1598</y><w>160</w><h>42</h></coordinates>
+    <coordinates><x>1981</x><y>286</y><w>215</w><h>143</h></coordinates>
     <panel_attributes>lt=&lt;&lt;.</panel_attributes>
-    <additional_attributes>160;0;0;42</additional_attributes>
+    <additional_attributes>215;0;0;143</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>650</x><y>1598</y><w>160</w><h>112</h></coordinates>
+    <coordinates><x>2166</x><y>304</y><w>74</w><h>126</h></coordinates>
     <panel_attributes>lt=&lt;&lt;.</panel_attributes>
-    <additional_attributes>160;0;0;112</additional_attributes>
+    <additional_attributes>75;0;0;126</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>810</x><y>1598</y><w>40</w><h>42</h></coordinates>
+    <coordinates><x>2311</x><y>304</y><w>40</w><h>126</h></coordinates>
     <panel_attributes>lt=&lt;&lt;.</panel_attributes>
-    <additional_attributes>0;0;40;42</additional_attributes>
+    <additional_attributes>0;0;40;126</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>810</x><y>1598</y><w>40</w><h>112</h></coordinates>
+    <coordinates><x>2377</x><y>300</y><w>159</w><h>129</h></coordinates>
     <panel_attributes>lt=&lt;&lt;.</panel_attributes>
-    <additional_attributes>0;0;40;112</additional_attributes>
+    <additional_attributes>0;0;159;130</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>810</x><y>1598</y><w>240</w><h>42</h></coordinates>
-    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
-    <additional_attributes>0;0;240;42</additional_attributes>
+    <coordinates><x>184</x><y>142</y><w>10</w><h>10</h></coordinates>
+    <panel_attributes>lt=&lt;-</panel_attributes>
+    <additional_attributes>1;8;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>920</x><y>1310</y><w>840</w><h>219</h></coordinates>
-    <panel_attributes>lt=&lt;.</panel_attributes>
-    <additional_attributes>840;0;0;219</additional_attributes>
+    <coordinates><x>404</x><y>142</y><w>10</w><h>10</h></coordinates>
+    <panel_attributes>lt=&lt;-</panel_attributes>
+    <additional_attributes>0;8;6;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>2210</x><y>1334</y><w>25</w><h>86</h></coordinates>
-    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
-    <additional_attributes>25;0;0;86</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>2210</x><y>1334</y><w>25</w><h>156</h></coordinates>
-    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
-    <additional_attributes>25;0;0;156</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>2235</x><y>1334</y><w>195</w><h>86</h></coordinates>
-    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
-    <additional_attributes>0;0;195;86</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>2235</x><y>1334</y><w>200</w><h>156</h></coordinates>
-    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
-    <additional_attributes>0;0;200;156</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>2210</x><y>974</y><w>80</w><h>446</h></coordinates>
-    <panel_attributes>lt=&lt;&lt;&lt;-
-m2=*</panel_attributes>
-    <additional_attributes>80;0;0;446</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>2210</x><y>974</y><w>80</w><h>516</h></coordinates>
-    <panel_attributes>lt=&lt;&lt;&lt;-
-m2=*</panel_attributes>
-    <additional_attributes>80;0;0;516</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>2290</x><y>974</y><w>140</w><h>446</h></coordinates>
-    <panel_attributes>lt=&lt;&lt;&lt;-
-m2=*</panel_attributes>
-    <additional_attributes>0;0;140;446</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>2290</x><y>974</y><w>145</w><h>516</h></coordinates>
-    <panel_attributes>lt=&lt;&lt;&lt;-
-m2=*</panel_attributes>
-    <additional_attributes>0;0;145;516</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>2042</x><y>158</y><w>183</w><h>62</h></coordinates>
-    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
-    <additional_attributes>183;0;0;62</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>2222</x><y>158</y><w>10</w><h>62</h></coordinates>
-    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
-    <additional_attributes>3;0;0;62</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>2225</x><y>158</y><w>177</w><h>62</h></coordinates>
-    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
-    <additional_attributes>0;0;177;62</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>2225</x><y>158</y><w>357</w><h>62</h></coordinates>
-    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
-    <additional_attributes>0;0;357;62</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>2042</x><y>158</y><w>183</w><h>142</h></coordinates>
-    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
-    <additional_attributes>183;0;0;142</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>2222</x><y>158</y><w>10</w><h>142</h></coordinates>
-    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
-    <additional_attributes>3;0;0;142</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>2225</x><y>158</y><w>177</w><h>142</h></coordinates>
-    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
-    <additional_attributes>0;0;177;142</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>2225</x><y>158</y><w>357</w><h>142</h></coordinates>
-    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
-    <additional_attributes>0;0;357;142</additional_attributes>
+    <coordinates><x>411</x><y>338</y><w>149</w><h>25</h></coordinates>
+    <panel_attributes>lt=&lt;-</panel_attributes>
+    <additional_attributes>149;0;0;25</additional_attributes>
   </element>
 </diagram>
