@@ -202,6 +202,34 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
     }
 
     @Test
+    void create_noCandidates_usesNone_andKeepsThemSaved() {
+        Music music = new Music();
+        music.byId.put(CANDIDATE, candidate(CANDIDATE, 4));
+        AppController c = controller(music, new MockLLMProvider());
+        c.addCandidate(CANDIDATE);
+
+        Playlist playlist = c.createPlaylist(new AgentRequest("a mix for working", RequestKind.CREATE_PLAYLIST, null, false));
+
+        assertTrue(playlist.tracks().stream().noneMatch(t -> t.id().equals(CANDIDATE)));
+        assertFalse(c.lastSession().trace().reasons().containsKey(CANDIDATE));
+        assertEquals(List.of(CANDIDATE), memory().loadCandidates("sp-user"));
+    }
+
+    @Test
+    void create_default_stillStartsWithCandidates() {
+        Music music = new Music();
+        music.byId.put(CANDIDATE, candidate(CANDIDATE, 4));
+        AppController c = controller(music, new MockLLMProvider());
+        c.addCandidate(CANDIDATE);
+
+        assertTrue(new AgentRequest("x", RequestKind.CREATE_PLAYLIST).useCandidates());
+        assertTrue(new AgentRequest("x", RequestKind.CREATE_PLAYLIST, null).useCandidates());
+        Playlist playlist = c.createPlaylist(request("a mix for working"));
+
+        assertEquals(CANDIDATE, playlist.tracks().get(0).id());
+    }
+
+    @Test
     void withNoCandidatesTheRecommenderAlwaysRunsHoweverShortTheAim() {
         Config longTracks = config.withTunables(Map.of("strategy.avgTrackMinutes", "10"));
         Music music = new Music();

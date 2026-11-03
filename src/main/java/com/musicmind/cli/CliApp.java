@@ -388,18 +388,20 @@ public class CliApp {
     }
 
     /**
-     * F5 and F11 — {@code create "<goal>" [--minutes 90] [--no-explicit] [--familiar 0.7] [--name "..."]}.
+     * F5 and F11 — {@code create "<goal>" [--minutes 90] [--no-explicit] [--familiar 0.7] [--name "..."] [--no-candidates]}.
      * A request that cannot be met as stated is put to the user as a numbered prompt.
      */
     private int runCreate(String[] rest) {
         String goal = null;
         int minutes = 0;
         boolean noExplicit = false;
+        boolean useCandidates = true;
         double familiar = Double.NaN;
         String name = null;
         for (int i = 0; i < rest.length; i++) {
             try {
                 switch (rest[i]) {
+                    case "--no-candidates" -> useCandidates = false;
                     case "--minutes" -> minutes = Integer.parseInt(valueOf(rest, ++i, "--minutes"));
                     case "--no-explicit" -> noExplicit = true;
                     case "--familiar" -> familiar = Double.parseDouble(valueOf(rest, ++i, "--familiar"));
@@ -429,7 +431,7 @@ public class CliApp {
         c.setProgressListener(state -> out.println(w("Progress", state)));
         c.setNegotiationHandler(this::askToRelax);
         try {
-            Playlist playlist = c.createPlaylist(new AgentRequest(goal, RequestKind.CREATE_PLAYLIST, flags));
+            Playlist playlist = c.createPlaylist(new AgentRequest(goal, RequestKind.CREATE_PLAYLIST, flags, useCandidates));
             AgentSession session = c.lastSession();
             out.println();
             out.println(w("Created", playlist.name(), playlist.spotifyId(), playlist.tracks().size()));

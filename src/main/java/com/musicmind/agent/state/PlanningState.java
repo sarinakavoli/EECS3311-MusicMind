@@ -2,6 +2,8 @@ package com.musicmind.agent.state;
 
 import com.musicmind.domain.AgentSession;
 
+import java.util.List;
+
 /** Loads what the user has told MusicMind (preferences, feedback) and has the Planner turn the goal into a plan. */
 public class PlanningState implements SessionState {
 
@@ -18,7 +20,7 @@ public class PlanningState implements SessionState {
         // Preferences and feedback load first because plan() merges the stored preferences into the spec.
         ctx.preferences = services.memory().loadPreferences(userId);
         ctx.feedback = services.memory().loadFeedback(userId);
-        ctx.candidateIds = services.memory().loadCandidates(userId);
+        ctx.candidateIds = ctx.request.useCandidates() ? services.memory().loadCandidates(userId) : List.of();
         ctx.plan = services.planner().plan(ctx.request, ctx.preferences);
         ctx.engineMinutes = ctx.spec().targetMinutes();
         session.setPlanSteps(ctx.plan.steps());

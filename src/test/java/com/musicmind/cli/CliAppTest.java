@@ -108,7 +108,7 @@ class CliAppTest extends PostgresTestBase {
                 assertTrue(r.out().contains(config.wording("cliUsage." + command)), command + " is missing from: " + r.out());
             }
             assertTrue(r.out().contains("profile [--refresh] [--range short|medium|long]"));
-            assertTrue(r.out().contains("create \"<goal>\" [--minutes 90] [--no-explicit] [--familiar 0.7] [--name \"...\"]"));
+            assertTrue(r.out().contains("create \"<goal>\" [--minutes 90] [--no-explicit] [--familiar 0.7] [--name \"...\"] [--no-candidates]"));
             assertTrue(r.out().contains("modify <playlistId> \"<instruction>\""));
             assertTrue(r.out().contains("feedback <trackId> accept|reject"));
         }
@@ -596,6 +596,19 @@ class CliAppTest extends PostgresTestBase {
         assertTrue(r.out().contains("planning..."), "progress is shown: " + r.out());
         assertTrue(r.out().contains(config.spotifyAttribution()));
         assertTrue(music.calls.stream().anyMatch(c -> c.startsWith("create sp-user")), music.calls.toString());
+    }
+
+    @Test
+    void createNoCandidatesFlagLeavesTheStoredCandidatesAlone() {
+        String id = "c".repeat(22);
+        AppController c = controller(new Music(), new MockLLMProvider());
+        c.addCandidate(id);
+
+        Result r = run(c, "", "create", "a mix for working", "--no-candidates");
+
+        assertEquals(CliApp.OK, r.status(), r.err());
+        assertTrue(c.lastSession().trace().reasons().keySet().stream().noneMatch(id::equals));
+        assertEquals(List.of(id), memory().loadCandidates("sp-user"));
     }
 
     @Test

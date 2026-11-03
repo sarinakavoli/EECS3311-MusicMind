@@ -57,6 +57,13 @@ class PromptBuilderTest {
     }
 
     @Test
+    void explainPrompt_forbidsClaimingCandidatesFitTheGoal() {
+        String p = builder.buildExplainPrompt(new DecisionTrace("Balanced", Map.of("t1", "you added it from search"), List.of()));
+        assertTrue(p.contains("added by the user"), p);
+        assertTrue(p.contains("fits a mood") && p.contains("reason says so"), p);
+    }
+
+    @Test
     void explainPromptSaysTheRequestedGenresCameFromTheGoalNotFromTheUsersTaste() {
         DecisionTrace trace = new DecisionTrace("Balanced", Map.of("t1", "matches dance"), List.of(), List.of("dance", "edm"));
         String p = builder.buildExplainPrompt(trace);
