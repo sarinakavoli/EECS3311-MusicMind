@@ -16,7 +16,7 @@ import java.util.Set;
  * the ids to take out: it never names or adds a track, and the final selection stays deterministic.
  *
  * <p>The review is best effort. With no LLM, a failed call, a reply that is not the expected JSON, or a
- * reply that would remove so many tracks that fewer than {@code goal.minKeepShare} remain, nothing is
+ * reply that would remove so many tracks that fewer than {@code goal.minKeepShare} of the list remain, nothing is
  * removed and the result says it was not reviewed.
  */
 public class GoalFitReviewer {
@@ -64,7 +64,9 @@ public class GoalFitReviewer {
         } catch (RuntimeException e) {
             return notReviewed(); // LLMException, ParseException or anything else: the tracks stay unchecked
         }
-        double kept = (sentIds.size() - removed.size()) / (double) sentIds.size();
+        // The share is over the whole list passed in, not only what was sent: a large pool keeps its removals,
+        // while a small pool (where the model saw everything) stays protected from a reply that removes most of it.
+        double kept = (tracks.size() - removed.size()) / (double) tracks.size();
         return kept < config.goalMinKeepShare() ? notReviewed() : new Result(removed, true);
     }
 

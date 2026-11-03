@@ -106,6 +106,19 @@ class GoalFitReviewerTest {
     }
 
     @Test
+    void review_largePool_appliesHeavyRejection() {
+        // 30 tracks, only the first 10 are sent and 8 of those are rejected. Over the tracks sent that is 20% kept,
+        // but over the whole list 22 of 30 stay, so the removals are applied.
+        Config small = config.withTunables(Map.of("goal.reviewMaxTracks", "10"));
+        GoalFitReviewer.Result r = new GoalFitReviewer(
+                p -> "{\"remove\":[\"t0\",\"t1\",\"t2\",\"t3\",\"t4\",\"t5\",\"t6\",\"t7\"]}",
+                new PromptBuilder(small), new ResponseParser(small), small).review("workout", tracks(30));
+
+        assertEquals(8, r.removedIds().size());
+        assertTrue(r.reviewed());
+    }
+
+    @Test
     void review_noTracks_isReviewedWithoutCallingTheModel() {
         GoalFitReviewer.Result r = reviewer(p -> {
             throw new AssertionError("not called");
