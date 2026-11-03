@@ -47,6 +47,16 @@ public class SearchRanker {
      * the same title, artists and duration in seconds count once; the first stays.
      */
     public List<Track> merge(String typed, List<Track> typedResults, List<Track> meaningResults) {
+        return merge(typed, typedResults, meaningResults, true);
+    }
+
+    /**
+     * As {@link #merge(String, List, List)}, but {@code keepUnmatchedTyped} says whether typed results that match
+     * no tier may be kept when the AI's reading found nothing. A query with a mood word in it passes false: Spotify
+     * matches the mood word to stock-music titles, so an unmatched typed result is probably one of those.
+     */
+    public List<Track> merge(String typed, List<Track> typedResults, List<Track> meaningResults,
+                             boolean keepUnmatchedTyped) {
         String typedText = normalise(typed);
         Set<String> typedWords = words(typed);
         if (typedWords.isEmpty()) {
@@ -68,7 +78,7 @@ public class SearchRanker {
                 tier = 2;
             } else if (meaningIds.contains(t.id())) {
                 tier = 3;
-            } else if (meaningResults.isEmpty()) {
+            } else if (keepUnmatchedTyped && meaningResults.isEmpty()) {
                 tier = 4;
             } else {
                 continue;

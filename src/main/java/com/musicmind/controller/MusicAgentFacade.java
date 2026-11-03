@@ -315,22 +315,24 @@ public class MusicAgentFacade {
     /**
      * The words as typed are searched too (the AI's reading can drift from them) and their matches are put
      * first. Skipped when every typed word is a mood word, which Spotify would match to stock-music titles,
-     * and when the AI's query is the typed text. A failed typed search leaves the AI's results as they are.
+     * and when the AI's query is the typed text. When any typed word is a mood word, typed results that match
+     * no tier stay out even if the AI found nothing. A failed typed search leaves the AI's results as they are.
      */
     private List<Track> withTypedWords(String typed, SearchQuery parsed, List<Track> meaning) {
-        boolean moodOnly = Arrays.stream(typed.split("\\s+"))
-                .map(w -> w.replaceAll("[^\\p{L}\\p{N}]", ""))
-                .allMatch(w -> !moods.genresFor(w).isEmpty());
+        List<String> typedWords = Arrays.stream(typed.split("\\s+"))
+                .map(w -> w.replaceAll("[^\\p{L}\\p{N}]", "")).toList();
+        boolean moodOnly = typedWords.stream().allMatch(w -> !moods.genresFor(w).isEmpty());
+        boolean anyMood = typedWords.stream().anyMatch(w -> !moods.genresFor(w).isEmpty());
         boolean same = typed.equalsIgnoreCase(parsed.toSpotifyQuery().strip());
         List<Track> merged = meaning;
         if (!moodOnly && same) {
-            merged = ranker.merge(typed, meaning, meaning);
+            merged = ranker.merge(typed, meaning, meaning, !anyMood);
         } else if (!moodOnly) {
             ToolResult result = tools.execute("search", Map.of("query", typed, "limit", config.searchResultLimit()));
             if (result.ok()) {
                 @SuppressWarnings("unchecked")
                 List<Track> results = (List<Track>) result.payload();
-                merged = ranker.merge(typed, parser.verifyTracks(results, results), meaning);
+                merged = ranker.merge(typed, parser.verifyTracks(results, results), meaning, !anyMood);
             }
         }
         return merged.size() > config.searchResultLimit() ? merged.subList(0, config.searchResultLimit()) : merged;

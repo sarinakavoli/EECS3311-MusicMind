@@ -652,6 +652,25 @@ class MusicAgentFacadeTest extends PostgresTestBase {
     }
 
     @Test
+    void searchMusic_moodWordInQuery_doesNotShowUnmatchedTyped() {
+        FakeMusic music = new FakeMusic() {
+            @Override public List<Track> search(String query, int limit) {
+                super.search(query, limit);
+                return query.equals("chill jazz")
+                        ? List.of(by("x", "Study Beats", "Someone"), by("e", "Chill Jazz Cafe", "Band"))
+                        : List.of(); // the AI's reading found nothing
+            }
+        };
+        LLMProvider llm = p -> "{\"keywords\":\"smooth jazz\",\"genre\":\"\",\"filters\":{},\"confidence\":0.9}";
+
+        List<Track> found = facade(music, llm).searchMusic("chill jazz");
+
+        assertEquals(List.of("smooth jazz", "chill jazz"), music.searches);
+        assertEquals(List.of("e"), found.stream().map(Track::id).toList(),
+                "a title holding every typed word still counts; a result matching no tier stays out");
+    }
+
+    @Test
     void searchMusic_moodOnlyQuery_skipsTypedPass() {
         FakeMusic music = new FakeMusic();
         music.searchResults = List.of(named("a", "Anything"));
