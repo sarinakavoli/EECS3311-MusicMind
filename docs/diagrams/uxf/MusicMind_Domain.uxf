@@ -358,7 +358,7 @@ bg=#FFE9A8</panel_attributes>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>1500</x><y>800</y><w>200</w><h>130</h></coordinates>
+    <coordinates><x>1330</x><y>800</y><w>200</w><h>130</h></coordinates>
     <panel_attributes>&lt;&lt;enumeration&gt;&gt;
 RequestKind
 --
@@ -530,10 +530,10 @@ m2=0..1</panel_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1043</x><y>858</y><w>457</w><h>10</h></coordinates>
+    <coordinates><x>1043</x><y>859</y><w>287</w><h>10</h></coordinates>
     <panel_attributes>lt=&lt;.
 kind</panel_attributes>
-    <additional_attributes>0;0;457;5</additional_attributes>
+    <additional_attributes>0;0;287;4</additional_attributes>
   </element>
   <element>
     <id>Relation</id>

@@ -64,7 +64,8 @@ Create Playlist</panel_attributes>
     <id>UMLUseCase</id>
     <coordinates><x>340</x><y>610</y><w>180</w><h>74</h></coordinates>
     <panel_attributes>UC07
-Modify Playlist</panel_attributes>
+Modify Playlist
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
@@ -92,14 +93,16 @@ View History / Restore</panel_attributes>
     <id>UMLUseCase</id>
     <coordinates><x>660</x><y>440</y><w>180</w><h>74</h></coordinates>
     <panel_attributes>UC05
-Discover Music</panel_attributes>
+Discover Music
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLUseCase</id>
     <coordinates><x>660</x><y>560</y><w>180</w><h>74</h></coordinates>
     <panel_attributes>UC12
-Negotiate Constraints</panel_attributes>
+Negotiate Constraints
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
@@ -232,12 +235,6 @@ Explain Selections</panel_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>840</x><y>477</y><w>200</w><h>393</h></coordinates>
-    <panel_attributes>lt=-</panel_attributes>
-    <additional_attributes>200;393;0;0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
     <coordinates><x>520</x><y>537</y><w>520</w><h>333</h></coordinates>
     <panel_attributes>lt=-</panel_attributes>
     <additional_attributes>520;333;0;0</additional_attributes>
@@ -287,5 +284,41 @@ Explain Selections</panel_attributes>
     <panel_attributes>lt=&lt;.
 &lt;&lt;include&gt;&gt;</panel_attributes>
     <additional_attributes>140;0;0;60</additional_attributes>
+  </element>
+  <element>
+    <id>UMLUseCase</id>
+    <coordinates><x>340</x><y>1040</y><w>180</w><h>74</h></coordinates>
+    <panel_attributes>UC14
+Delete Playlist
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>130</x><y>610</y><w>210</w><h>467</h></coordinates>
+    <panel_attributes>lt=-</panel_attributes>
+    <additional_attributes>0;0;210;467</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>520</x><y>250</y><w>520</w><h>827</h></coordinates>
+    <panel_attributes>lt=-</panel_attributes>
+    <additional_attributes>0;827;520;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>520</x><y>597</y><w>140</w><h>50</h></coordinates>
+    <panel_attributes>lt=&lt;.
+&lt;&lt;include&gt;&gt;</panel_attributes>
+    <additional_attributes>140;0;0;50</additional_attributes>
+  </element>
+  <element>
+    <id>UMLNote</id>
+    <coordinates><x>960</x><y>1000</y><w>440</w><h>90</h></coordinates>
+    <panel_attributes>Legend (Stage 2 update)
+Yellow = new in Stage 2 (UC14 Delete Playlist)
+Blue = changed: UC05 no longer uses the LLM;
+UC07 includes UC12 (an infeasible edit is negotiated)</panel_attributes>
+    <additional_attributes/>
   </element>
 </diagram>
