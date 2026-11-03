@@ -65,9 +65,12 @@ Auth: **Authorization Code with PKCE**, redirect `http://127.0.0.1:8080/callback
 The LLM never names or adds a track. Since Nov 2 it may return ids of already retrieved tracks to
 remove (`GoalFitReviewer`); selection stays deterministic. Keep this true and recorded
 (`docs/STAGE2_PLAN.md` section 4).
+No prompt may contain Spotify titles, artist names or album names (Spotify Developer Policy,
+section III item 14). Prompts carry ids, counts, the user's own words and MusicBrainz genres; a
+guard test over `PromptBuilder` enforces it.
 
 ## Current status
-All twelve features are implemented (CLI and GUI); 842 tests pass. Open: the GUI redesign
+All twelve features are implemented (CLI and GUI); 846 tests pass. Open: the GUI redesign
 (`docs/GUI_TEST_FINDINGS.md`), the Stage 2 report, updated UML, demo videos. What was tried against
 the real accounts is in `docs/DAILY_TEST_NOTES.md`; status by feature is in
 `docs/STAGE1_CONFORMANCE.md`.

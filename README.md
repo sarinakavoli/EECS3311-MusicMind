@@ -80,7 +80,7 @@ cd EECS3311-MusicMind
 
 The first build downloads Gradle 9.1, the libraries (JavaFX 21, the PostgreSQL driver, Gson,
 dotenv-java, JUnit) and the embedded PostgreSQL binaries the tests use. It takes a few minutes.
-A passing build ends with `BUILD SUCCESSFUL` and runs the unit tests (842 of them) with no keys and
+A passing build ends with `BUILD SUCCESSFUL` and runs the unit tests (846 of them) with no keys and
 no database server.
 
 ## Set up PostgreSQL
@@ -252,8 +252,9 @@ the Stage 2 report.
   call are used; discovery is built from your own listening data, not Spotify's retired recommender.
 - Spotify sends no artist genres to this app, so genres come from **MusicBrainz**
   (<https://musicbrainz.org>) and are cached by artist id.
-- Playlist goals are interpreted by an **OpenAI** model. For goal-fit review, track ids, titles and
-  artist names from your search results are sent to OpenAI in the prompt for that request.
+- Playlist goals are interpreted by an **OpenAI** model. Prompts carry your own words, ids, counts and
+  MusicBrainz genres. They never contain Spotify track titles, artist names or album names. The
+  goal-fit review sends only track ids and genres, and may only name ids to remove.
 - Per the Spotify Developer Terms: no model is trained on Spotify data, Spotify content (titles,
   artist and album names) is not stored durably (only ids and MusicMind's own derived data), and
   content is attributed to Spotify in both interfaces.

@@ -14,7 +14,7 @@ How to read it:
   listed under it), or *Added* (not in Stage 1).
 - **Live** says what `docs/DAILY_TEST_NOTES.md` records as run against the real accounts. Anything
   not named there was only tested with stand-in Spotify and LLM servers and an embedded
-  PostgreSQL. The automated suite is 842 tests in 51 test classes; a forced clean build on Nov 3
+  PostgreSQL. The automated suite is 846 tests in 51 test classes; a forced clean build on Nov 3
   passed all of them, using no keys and no database server.
 - The GUI is described as it is today: seven plain JavaFX tabs, a Create dialog and a conflict
   dialog. A visual redesign is planned (`docs/GUI_TEST_FINDINGS.md`) and is not done.
@@ -173,13 +173,18 @@ All of this runs through `controller/AppController` and `controller/MusicAgentFa
   goal. It never names or adds a track; selection, order and length are computed.
 - **Differences:**
   - **Constraint 2 of the implementation plan ("the LLM never selects tracks and never receives bulk
-    catalogue data") no longer holds exactly.** Since Nov 2, `GoalFitReviewer` sends up to
-    `goal.reviewMaxTracks` (120) retrieved tracks (id, title, artist names) to the LLM, which
-    returns ids to remove. This is called from `RetrievingState` and `SelectingState`. The reason is
-    Sarina's live test, which produced unsuitable songs for a "workout" playlist; Spotify gives
-    this app no audio features, so title and artist are the only signals available. The review is
-    best effort and says so when skipped. It is not yet proven to improve playlists on the real
-    account (see `docs/STAGE2_PLAN.md`, section 4).
+    catalogue data") is restated.** Since Nov 2, `GoalFitReviewer` asks the LLM which of up to
+    `goal.reviewMaxTracks` (120) retrieved tracks do not suit the goal; the LLM may only return ids
+    to **remove** and never names or adds a track. Since Nov 3 (Spotify Developer Policy, section
+    III item 14: no ingesting Spotify Content into an AI model) the prompt carries only each
+    track's id and the genres known for it (from the search that found it, the user's profile, or
+    cached MusicBrainz genres). It holds no title, artist name or album name. A track with no
+    known genre is not sent and is kept. A test checks that no `PromptBuilder` prompt contains a
+    title or artist name. The call comes from `RetrievingState` and `SelectingState`. The reason
+    for the review is Sarina's live test, which produced unsuitable songs for a "workout"
+    playlist, with no audio features available. It is best effort, says so when skipped, is less
+    precise than a title-based review and cannot judge tracks without a genre, and is not yet
+    proven to improve playlists on the real account (see `docs/STAGE2_PLAN.md`, section 4).
   - New tracks also come from the goal's activity words (`CandidateRetriever.byKeywords`); a "familiar"
     track is one by an artist the user knows; scores differ by taste (`discover.goalAffinityFloor`);
     stored candidates are optional (`--no-candidates`).
@@ -191,7 +196,7 @@ All of this runs through `controller/AppController` and `controller/MusicAgentFa
   `validationRetriesAreBoundedAndNothingIsCreated`, `anExpiredTokenIsRenewedOnceAndTheRunResumes`,
   `aFailureWhileCreatingRollsBackAndIsReported`, `withoutAnLlmKeyTheRequestSaysSoAndTouchesNothing`),
   `agent/PlannerPlanTest`, `agent/PlannerTest`, `agent/ConstraintCheckerTest`,
-  `agent/RecommendationEngineTest`, `agent/GoalFitReviewerTest`, `agent/MoodGenreMapTest`,
+  `agent/RecommendationEngineTest`, `agent/GoalFitReviewerTest`, `agent/PromptBuilderTest` (a reflective check that no `build*` prompt holds a title or artist name), `agent/MoodGenreMapTest`,
   `agent/command/PlaylistManagerTest`, `agent/command/PlaylistCommandsTest`, `cli/CliAppTest`.
 - **GUI:** `app/view/CreatePlaylistDialog` (goal, length in minutes, explicit toggle, familiar
   slider, name; progress shows the state names). The dialog has no candidate choice yet.
@@ -407,7 +412,7 @@ in Stage 1. Repository and Decorator are used as well and are not counted.
 | 2 | R18: genres from MusicBrainz | Spotify returns no genres to this app | section 2 |
 | 3 | R19: genre sent as a plain keyword | `genre:` filter returned 0 to 1 tracks in live tests | section 2 |
 | 4 | R20: supporting classes (section 6 below) | Keep Stage 1 classes focused | this file |
-| 5 | LLM may remove retrieved tracks and sees up to 120 track titles | Unsuitable workout songs in live testing; no audio features | `STAGE2_PLAN.md` section 4 |
+| 5 | LLM may remove retrieved tracks; it sees ids and MusicBrainz genres only, no titles or names | Unsuitable workout songs in live testing; no audio features; Spotify policy | `STAGE2_PLAN.md` section 4 |
 | 6 | F4 never calls the LLM | Stage 1 made it optional; computed reasons are enough | `STAGE2_PLAN.md` section 3 |
 | 7 | Stored candidates, optional per run | Candidates forced into a workout playlist | `STAGE2_PLAN.md` section 4 |
 | 8 | Blocks in force now judge every playlist | A block stands for the user's current wishes | section 6 of the plan |
@@ -428,7 +433,8 @@ Each is small and exists so that a Stage 1 class keeps one job. Full entries are
 
 - **Agent:** `CandidatePool` (familiar and novel tracks for the feasibility check), `Retrieval`
   (one Spotify read shared by every re-selection), `CandidateRetriever` (reads pools from Spotify),
-  `GoalFitReviewer` (the removal-only review), `MoodGenreMap` (curated mood to genre data),
+  `GoalFitReviewer` (the removal-only review), `TrackGenres` (the genres MusicMind already knows for a
+  track, so the review needs no title) and `ArtistGenreCache` (read-only view of cached MusicBrainz genres), `MoodGenreMap` (curated mood to genre data),
   `SearchRanker`, `TrendComparator`, `PreferenceSettings` (preferences as F4 and F5 use them),
   `PlaylistEditor` (edit instruction to commands), `PlaylistContext`, `CommandSpec` (an edit
   before it is bound to real tracks), `NegotiationHandler` (the F11 choice), and the exceptions
@@ -462,3 +468,7 @@ Each is small and exists so that a Stage 1 class keeps one job. Full entries are
 - The updated UML diagrams and `stage2-report` are not written yet.
 - The GUI items in `docs/GUI_TEST_FINDINGS.md`: no delete or block chooser on screen, no artist
   names in track rows, no candidate choice in Create, plain styling.
+- **Open policy question (F6 edit prompt).** The edit prompt sends the model each track's id, explicit
+  flag and length in minutes (Spotify metadata, not titles or names), because Stage 1 F6 needs
+  them for edits such as "15 minutes shorter" or "remove explicit". Whether this counts as Spotify
+  Content under the Developer Policy is unresolved and is for Sarina to decide.
