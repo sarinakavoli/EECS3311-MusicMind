@@ -1,31 +1,48 @@
 # AI Tools & Collaboration Log
 
-Stage 2 requires documenting the AI tools used during implementation. This log
-is updated as development proceeds and is summarised in the Stage 2 report
-(Section 5).
+Stage 2 requires documenting the AI tools used during implementation. This log is updated as
+development proceeds and is summarised in the Stage 2 report (Section 5). It holds no keys or
+credentials.
 
 ## Tools used
 
 | Tool / platform | Model | Used for |
 |---|---|---|
-| Claude (claude.ai) | Claude Opus 4.8 | Stage 1 design; Stage 2 architecture, scaffolding, implementation, review |
-| Claude Code | Claude Opus 4.8 | Local run/debug loop, live fixes, running the app and recording demos |
+| Claude Code (Anthropic's coding agent, desktop app and CLI) | Claude Opus 5.5, as the coordinating session | Planning, the rulings R1-R20, task briefs, code review of each task and pull request, live checks and fixes, the Stage 2 documents |
+| Claude Code subagents | Claude Sonnet 5.5 | Implementing each task test first (`ProfileBuilder`, `TrendComparator`, `RecommendationEngine`, the create flow and state classes, the Command classes and `PlaylistManager`, the CLI, the GUI views, the backend fixes, the documentation) and independent review of each task |
+| OpenAI API (the app's own `LLMProvider`) | `gpt-4o` | Runs inside MusicMind, not a development tool: goal and search parsing, summaries, option wording, explanations, goal-fit review |
+
+If you used another tool for Stage 1 or for part of Stage 2 (for example a chat assistant), add a
+row here with its model and what it was used for. The report needs every major tool.
 
 ## Cost
 
-- **Claude Pro subscription** — flat monthly fee (record the amount here, e.g. $X CAD/month). Individual token counts are not separately metered on the Pro plan.
-- **Spotify Web API** — free (developer app, personal use).
-- **LLM API for the app's own LLMProvider** — record provider, model, and actual spend here (e.g. Gemini free tier = $0.00).
+Cost cells are blank on purpose. Sarina fills them from her own accounts before submission; the
+numbers cannot be read from the repository.
 
-> Replace the bracketed amounts with your real figures before submission.
+| Tool | Model | Total tokens (input / output) | Money cost | Where to read it |
+|---|---|---|---|---|
+| Claude Code | Opus 5.5 | **TO FILL (Sarina)** | **TO FILL (Sarina)** | Claude usage page or the plan's billing page |
+| Claude Code subagents | Sonnet 5.5 | **TO FILL (Sarina)** | **TO FILL (Sarina)** | Same page |
+| OpenAI API (inside the app) | gpt-4o | **TO FILL (Sarina)** | **TO FILL (Sarina)** of the USD 10 credit paid | platform.openai.com, usage page |
+
+- Sarina paid USD 10 of OpenAI credit for the app's own LLM calls during testing.
+- The Spotify Web API (development app) and MusicBrainz are free.
+- Claude Code runs under Sarina's own Claude subscription; record the plan fee and the share of
+  usage here if the report needs a money figure.
 
 ## Collaboration entries
+
+The AI wrote code and drafts; Sarina set the rules and chose directions, ran the live checks that need
+her accounts, reviewed the diffs and decides what is merged. Every task was built test first, then
+reviewed by a separate agent, and the larger pull requests were reviewed again before merging.
 
 | Date | Task | AI contribution | Human (Sarina) contribution | Outcome |
 |---|---|---|---|---|
 | 2026-10-30 | Project scaffold | Generated Gradle+JavaFX build, domain model, core interfaces, PlaylistValidator (+tests), Strategy classes, MockLLMProvider, CLI skeleton | Reviewed design, confirmed Java/JavaFX stack, ran/verified locally | Compiling skeleton pushed; Period 2 commit cadence started |
-| 2026-10-30 | Phase 1 — spine + F1 | Implemented `SpotifyAdapter` (Authorization Code + PKCE) + `RetryingMusicService` (Decorator, 429 backoff); SQLite `Database`, repositories + `MemoryManager`; `GeminiLLMProvider`; `ProfileBuilder` + `ProfileSummarizer`; `AppController` + `MusicAgentFacade` (Facade); wired **F1 View Taste Profile** in CLI + GUI; added JUnit tests (retry, memory round-trip, genre aggregation, summary fallback) | Approved the JDK 17 install and branch; to add Spotify + LLM keys to local `.env`, run the live F1 demo and review the code | Build + all tests green; F1 wired through CLI + GUI but not yet run against live Spotify; 8 commits on `phase1-spine-f1` |
+| 2026-10-30 | Phase 1 — spine + F1 | Implemented `SpotifyAdapter` (Authorization Code + PKCE) + `RetryingMusicService` (Decorator, 429 backoff); a first storage layer with repositories + `MemoryManager`; a first LLM provider; `ProfileBuilder` + a summary step; `AppController` + `MusicAgentFacade` (Facade); wired **F1 View Taste Profile** in CLI + GUI; added JUnit tests (retry, memory round-trip, genre aggregation, summary fallback) | Approved the JDK 17 install and branch; to add Spotify + LLM keys to local `.env`, run the live F1 demo and review the code | Build + all tests green; F1 wired through CLI + GUI but not yet run against live Spotify; 8 commits on `phase1-spine-f1`. The storage layer and LLM provider were replaced in the next row. |
 | 2026-10-30 | Portable build | Upgraded Gradle wrapper 8.14.3 → 9.1.0, added the foojay toolchain resolver, verified a clean build from an empty Gradle home on JDK 25; fixed `LLM_MODEL` placeholder handling; found and fixed a GUI launch crash on macOS 26 by moving JavaFX 17.0.6 → 21.0.13 | Asked for the build to work on JDK 25 | Builds on JDK 25 with no `JAVA_HOME` setup; Java 17 toolchain downloaded automatically; GUI launches |
+| 2026-10-30 | Stage 2 Tasks 1-5: foundation | Scheduled Claude Code session (Opus 5.5 coordinating, Sonnet 5.5 implementers and reviewers). Replaced the first storage layer with PostgreSQL behind `Database`, `MemoryManager` and the Stage 1 `Repository<T>`, with tests on embedded PostgreSQL; moved the Spotify calls to the Feb 2026 endpoint shapes; replaced the first LLM provider with `OpenAiProvider`; added `Config` with `musicmind.properties`; built `ToolManager`, `SpotifyTool`, `MemoryTool`, `PromptBuilder` and `ResponseParser` | Approved the Stage 2 plan and its rulings (R1-R20), including that no hard-coded results remain in `src/main` | Build green with no keys or database server; nothing yet run against live Spotify or OpenAI |
 | 2026-10-31 | Stage 2 Tasks 6-8: F1, F2, F3, F4, F8, F9 | Scheduled Claude Code session (Opus 5.5 coordinating, Sonnet 5.5 implementers and independent reviewers per task). Built `ProfileBuilder.build`, `TrendComparator`, `Planner.parseSearchQuery`, `SearchRanker`, `MoodGenreMap`, `RecommendationEngine`, `CandidateRetriever`, `PreferenceSettings`, `StrategySelector`, and CLI commands `profile`, `trends`, `search`, `discover`, `prefs`, `feedback`. Reviews found and fixes corrected: an LLM failure that could skip the fallback, a stored profile shown without its range, widening overwriting the chosen strategy, and two config sources for one decision | To run the live checks in `docs/DAILY_TEST_NOTES.md` with real Spotify and OpenAI keys | 285 tests pass, build green, branch pushed; not yet run against live Spotify or OpenAI |
 | 2026-10-31 | Live test and genre fix | Diagnosed `(no genre data)`: Spotify's replies have no `genres` field for this app. Tested MusicBrainz, then built `GenreEnrichingMusicService`, `MusicBrainzAdapter` and a genre cache (Sonnet 5.5 implementer and reviewers). Review caught a missing timeout and a crash on malformed replies, both fixed | Ran the first live test, found the gap, chose MusicBrainz | Genres shown for 13 of 20 top artists on the real account |
 | 2026-11-01 | Stage 2 Task 10: F5 create flow and F11 negotiation | Claude Code (Sonnet 5.5 implementer under the Opus 5.5 controller) wrote `Planner.plan`, `ConstraintChecker`, `NegotiationHandler`, the eight session states with `AgentSession.run()`, `ExplanationService`, `AppController.createPlaylist`, and a thin `create` CLI command; split `RecommendationEngine` into `retrieve` and `recommend(Retrieval, ...)` so feasibility and selection share one Spotify read; wired the mood map and preferred styles into selection | To review the diff, run `create` against live Spotify and OpenAI, and judge the negotiation prompts | Tests written first for each part; passing locally, not yet run live |
@@ -36,5 +53,23 @@ is updated as development proceeds and is summarised in the Stage 2 report
 | 2026-11-01 | Progress report and Stage 1 gaps | Claude Code (Opus 5.5) wrote a progress report from the code and test records, which exposed six gaps against Stage 1, then closed them test-first: playlist listing, session detail, comparison of every time range, blocked tracks, blocking artists by name, and a candidate set that feeds Create | Read the report, chose to close the gaps before starting the GUI | All tests pass; checked live, including a create using a candidate and both kinds of block |
 | 2026-11-02 | Stage 2 Task 13: GUI | Scheduled Claude Code session (Opus 5.5 coordinating, Sonnet 5.5 implementer and independent reviewers) built the seven JavaFX tabs, the Create and F11 dialogs, and the single background worker over `AppController`. The reviewer found thumbs labels garbled by the properties encoding, a Create dialog length entry that failed silently, and a swallowed expired login. Opus 5.5 ran the real app with a throwaway read-only script, which confirmed the first and found duplicated attribution and a raw timestamp. The PR code review then found that the Create button could never start (it disabled a bound slider), which 768 tests and the task reviews had missed, plus stale tabs and misleading messages. These were fixed and a write-free probe confirmed the Create click path. | Sarina set the rules (no Spotify writes without her say-so), and reviews the PR and runs the write checks in `docs/DAILY_TEST_NOTES.md`. | GUI open as a PR, not merged. All tests pass on a forced run. |
 | 2026-11-02 | Backend test fixes: final review round | Claude Code (Sonnet 5.5 implementer under the Opus 5.5 controller) fixed the findings of the final code review test-first: the goal review now covers 120 tracks and keeps removals from a large pool, the picked tracks are reviewed again after selection and rejected ones replaced (bounded per run, with notices), stock-music titles from activity searches rank lower, blocks are never saved over an unreadable preference store, artist ids are validated, and a mood word keeps unmatched typed results out of a search. Review-call removal was tried to confirm the tests fail by assertion. | The controller session set the rulings (120 tracks, 2 pick rounds, keep share over the whole list, 0.3 penalty); the diff is reviewed after this report. | Tests and the Stage 2 plan entries updated; see the fix report. |
+| 2026-11-03 | Stage 2 Task 14: documentation and conformance | Claude Code (Sonnet 5.5 implementer under the Opus 5.5 controller) rewrote `docs/STAGE2_PLAN.md` into Original -> Change -> Reason -> Impact entries, wrote `docs/STAGE1_CONFORMANCE.md` (every feature to classes, tests and entry points), updated the README, `CLAUDE.md`, `src/README.md` and `.env.example`, and checked class and key names in the docs against the code | The task rules: the docs say only what was tested live, and the removal-only LLM review is recorded as a change from Stage 1 | Docs match the code as of this commit; diff reviewed after the report |
 
-_Add a row per working session: what you asked for, what the AI produced, what you reviewed/changed/ran, and the result._
+## Representative interactions
+
+1. **A live result changed the design (Oct 31).** Sarina ran `profile` on her real account and saw
+   `(no genre data)`. Claude Code (Opus 5.5) did not guess: it checked the raw Spotify reply, found
+   no `genres` field for this app, tested MusicBrainz as a source, and built a Decorator over
+   `MusicService`. Sarina chose MusicBrainz as the source. The reviewers then caught a missing timeout and a crash
+   on a malformed reply, both fixed. Recorded as R18 in `docs/STAGE2_PLAN.md`.
+2. **A review found what the tests missed (Nov 2).** After 768 tests and the per-task reviews had
+   passed, the PR code review found that the GUI Create button could never start, because it
+   disabled a slider that was bound to a property. It was fixed, and a write-free script then
+   confirmed the click path.
+3. **A user test led to a change from Stage 1 (Nov 2).** Sarina's GUI test produced a "workout"
+   playlist with unsuitable songs. Spotify gives this app no audio features, so the plan was to let the
+   LLM review real retrieved tracks and remove those that do not fit. The agreed rule: it may only
+   return ids to remove, never name or add a track. This is recorded as a difference from Stage 1 in
+   `docs/STAGE1_CONFORMANCE.md` and `docs/STAGE2_PLAN.md`.
+
+_Add a row per working session: what you asked for, what the AI produced, what you reviewed, changed or ran, and the result._
