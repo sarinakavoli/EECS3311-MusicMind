@@ -34,3 +34,6 @@ tmp/
 # UMLet autosave / backups
 *.uxf.bak
 ~*.uxf
+
+# Local working files
+.superpowers/
