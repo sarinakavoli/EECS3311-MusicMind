@@ -953,6 +953,50 @@ class RecommendationEngineTest {
                 > e.score(track("other", "stranger-other"), spec(0.0)));
     }
 
+    private static ListeningProfile rockBluesProfile() {
+        Map<String, Double> hist = new LinkedHashMap<>();
+        hist.put("rock", 0.30);
+        hist.put("blues", 0.18); // affinity 0.6
+        return new ListeningProfile(hist, List.of(), List.of(track("top0", "a1")),
+                List.of("saved0"), null, Instant.EPOCH);
+    }
+
+    @Test
+    void score_zeroTasteGoalTrackBeatsModerateTasteNonGoalTrack() {
+        FakeMusic m = new FakeMusic();
+        m.top = List.of(track("top0", "a1"));
+        m.byGenre.put("polka", List.of(track("goal", "stranger-goal"))); // asked for, no taste at all
+        m.byGenre.put("blues", List.of(track("other", "stranger-other"))); // not asked for, affinity 0.6
+        m.byGenre.put("rock", List.of(track("rk", "stranger-rk")));
+        RecommendationEngine e = new RecommendationEngine(toolsFor(m), config);
+        e.setStrategy(new DiscoveryStrategy());
+        e.recommend(rockBluesProfile(), spec(0.0), List.of(), false, List.of("polka"));
+
+        assertTrue(e.score(track("goal", "stranger-goal"), spec(0.0))
+                > e.score(track("other", "stranger-other"), spec(0.0)));
+    }
+
+    @Test
+    void score_keywordTrackGetsTheSameFloorAsSeed() {
+        FakeMusic m = new FakeMusic();
+        m.top = List.of(track("top0", "a1"));
+        m.byGenre.put("polka", List.of(track("seed", "stranger-seed")));
+        m.byGenre.put("blues", List.of(track("other", "stranger-other")));
+        m.byGenre.put("rock", List.of(track("rk", "stranger-rk")));
+        // keyword search: the fake matches the query text exactly, as byKeywords builds it
+        String q = new com.musicmind.domain.SearchQuery("zumba", null, Map.of(), 1.0).toSpotifyQuery();
+        m.byGenre.put(q, List.of(track("kw", "stranger-kw")));
+        RecommendationEngine e = new RecommendationEngine(toolsFor(m), config);
+        e.setStrategy(new DiscoveryStrategy());
+        e.recommend(e.retrieve(rockBluesProfile(), spec(0.0), false, List.of("polka"), List.of("zumba")),
+                spec(0.0), List.of());
+
+        double seed = e.score(track("seed", "stranger-seed"), spec(0.0));
+        double kw = e.score(track("kw", "stranger-kw"), spec(0.0));
+        assertEquals(seed, kw, 1e-9, "no taste either way, so the floor alone decides");
+        assertTrue(kw > e.score(track("other", "stranger-other"), spec(0.0)));
+    }
+
     @Test
     void score_acceptedStillBeatsRejected() {
         FakeMusic m = new FakeMusic();

@@ -417,8 +417,9 @@ public class RecommendationEngine {
 
     /**
      * Genre affinity (0..1) of the track: the best taste affinity among its search genre and its top
-     * artists, plus a bonus when the user asked for the track's genre or the activity that found it,
-     * capped at 1.0. The bonus lifts requested tracks without making them all score the same.
+     * artists. A track found for the goal (a genre the user asked for, or the activity's keywords) is
+     * lifted onto the range floor..1.0 (floor + (1 - floor) * taste), so it never ranks below an
+     * unrelated track yet still differs from other goal tracks by taste.
      */
     private double affinity(Track track) {
         Origin origin = origins.get(track.id());
@@ -428,7 +429,8 @@ public class RecommendationEngine {
         }
         boolean requested = origin != null
                 && ((origin.genre() != null && seedGenres.contains(origin.genre())) || origin.source() == Source.KEYWORD);
-        return requested ? Math.min(1.0, best + config.discoverSeedGenreBonus()) : best;
+        double floor = config.discoverGoalAffinityFloor();
+        return requested ? floor + (1.0 - floor) * best : best;
     }
 
     /** Each genre's weight scaled so the user's top genre is 1.0. */

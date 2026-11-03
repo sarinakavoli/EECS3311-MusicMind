@@ -506,8 +506,8 @@ public final class Config {
         return Double.parseDouble(text("discover.weight.genre"));
     }
 
-    public double discoverSeedGenreBonus() {
-        return Double.parseDouble(text("discover.seedGenreBonus"));
+    public double discoverGoalAffinityFloor() {
+        return Double.parseDouble(text("discover.goalAffinityFloor"));
     }
 
     public double discoverGenreTitlePenalty() {
