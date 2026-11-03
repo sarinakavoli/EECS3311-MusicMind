@@ -70,7 +70,8 @@ section III item 14). Prompts carry ids, counts, the user's own words and MusicB
 guard test over `PromptBuilder` enforces it.
 
 ## Current status
-All twelve features are implemented (CLI and GUI); 846 tests pass. Open: the GUI redesign
-(`docs/GUI_TEST_FINDINGS.md`), the Stage 2 report, updated UML, demo videos. What was tried against
-the real accounts is in `docs/DAILY_TEST_NOTES.md`; status by feature is in
+All twelve features are implemented (CLI and GUI); 846 tests pass. The Stage 2 report
+(`docs/report/`) and the updated UML (`docs/diagrams/`) are done. Open: the GUI redesign
+(`docs/GUI_TEST_FINDINGS.md`), the demo videos, and the report placeholders (video links, AI costs). What was
+tried against the real accounts is in `docs/DAILY_TEST_NOTES.md`; status by feature is in
 `docs/STAGE1_CONFORMANCE.md`.
