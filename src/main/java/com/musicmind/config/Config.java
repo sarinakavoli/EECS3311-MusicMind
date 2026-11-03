@@ -532,6 +532,11 @@ public final class Config {
         return Double.parseDouble(text("discover.feedback.rejectPenalty"));
     }
 
+    /** A Spotify artist id, or its {@code spotify:artist:} URI, as accepted when blocking an artist. */
+    public java.util.regex.Pattern prefsArtistIdPattern() {
+        return java.util.regex.Pattern.compile(text("prefs.artistIdPattern"));
+    }
+
     /** What a track id or Spotify track URI typed for feedback must look like. */
     public java.util.regex.Pattern feedbackTrackIdPattern() {
         return java.util.regex.Pattern.compile(text("feedback.trackIdPattern"));

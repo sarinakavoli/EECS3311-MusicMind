@@ -1,23 +1,36 @@
 package com.musicmind.controller;
 
+import com.musicmind.agent.PreferenceSettings;
+import com.musicmind.agent.command.PlaylistChangeException;
+import com.musicmind.agent.command.PlaylistMissingException;
 import com.musicmind.config.Config;
 import com.musicmind.domain.Artist;
 import com.musicmind.domain.ListeningProfile;
+import com.musicmind.domain.Playlist;
+import com.musicmind.domain.PlaylistSummary;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.User;
+import com.musicmind.domain.UserPreference;
 import com.musicmind.memory.MemoryManager;
+import com.musicmind.memory.PersistenceException;
 import com.musicmind.memory.PostgresTestBase;
 import com.musicmind.memory.repository.CandidateRepository;
 import com.musicmind.memory.repository.FeedbackRepository;
 import com.musicmind.memory.repository.PlaylistHistoryRepository;
 import com.musicmind.memory.repository.PreferenceRepository;
 import com.musicmind.memory.repository.SessionRepository;
+import com.musicmind.music.MusicServiceException;
 import com.musicmind.music.StubMusicService;
 import org.junit.jupiter.api.Test;
 
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -171,17 +184,69 @@ class AppControllerTest extends PostgresTestBase {
         String second = "abcdefghijABCDEFGHIJ12";
         c.blockTrack(first);
         c.blockTrack("spotify:track:" + second);
-        assertEquals(java.util.Set.of(first, second),
-                com.musicmind.agent.PreferenceSettings.from(c.getPreferences()).blockedTracks());
+        assertEquals(Set.of(first, second),
+                PreferenceSettings.from(c.getPreferences()).blockedTracks());
     }
 
     @Test
     void blockArtist_addsChosenId() {
         AppController c = controller(new Music());
-        c.blockArtist("artistOne");
-        c.blockArtist("artistTwo");
-        assertEquals(java.util.Set.of("artistOne", "artistTwo"),
-                com.musicmind.agent.PreferenceSettings.from(c.getPreferences()).blockedArtists());
+        c.blockArtist(ARTIST_ONE);
+        c.blockArtist(ARTIST_TWO);
+        assertEquals(Set.of(ARTIST_ONE, ARTIST_TWO), PreferenceSettings.from(c.getPreferences()).blockedArtists());
+    }
+
+    private static final String ARTIST_ONE = "0TnOYISbd1XYRBk9myaseg";
+    private static final String ARTIST_TWO = "1vCWHaC5f2uS3yhpwWbIA6";
+
+    @Test
+    void blockArtist_rejectsBadId() {
+        AppController c = controller(new Music());
+        for (String bad : new String[] {null, " ", "artistOne", "spotify:track:" + ARTIST_ONE, ARTIST_ONE + "x", "a,b"}) {
+            IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> c.blockArtist(bad), bad);
+            assertEquals(config.wording("prefsBadArtistId"), e.getMessage());
+        }
+        assertTrue(c.getPreferences().isEmpty(), "nothing was saved");
+    }
+
+    @Test
+    void blockArtist_acceptsUri() {
+        AppController c = controller(new Music());
+        c.blockArtist("spotify:artist:" + ARTIST_ONE);
+        c.blockArtist(ARTIST_ONE);
+        assertEquals(Set.of(ARTIST_ONE), PreferenceSettings.from(c.getPreferences()).blockedArtists());
+    }
+
+    @Test
+    void blockTrack_preferencesUnreadable_savesNothing() {
+        Music music = new Music();
+        AppController working = controller(music);
+        String kept = "1234567890123456789012";
+        working.blockTrack(kept);
+        List<String> saved = new ArrayList<>();
+        PreferenceRepository unreadable = new PreferenceRepository(db, music::currentUserId) {
+            @Override public List<UserPreference> findByUser(String userId) {
+                throw new PersistenceException("down", new SQLException("down"));
+            }
+            @Override public void save(UserPreference pref) {
+                saved.add(pref.key());
+                super.save(pref);
+            }
+        };
+        AppController c = new AppController(music, new MemoryManager(db, unreadable,
+                new FeedbackRepository(db, music::currentUserId), new SessionRepository(db, music::currentUserId),
+                new PlaylistHistoryRepository(db, music::currentUserId), new CandidateRepository(db, music::currentUserId)),
+                null, config);
+
+        IllegalStateException track = assertThrows(IllegalStateException.class,
+                () -> c.blockTrack("abcdefghijABCDEFGHIJ12"));
+        IllegalStateException artist = assertThrows(IllegalStateException.class, () -> c.blockArtist(ARTIST_ONE));
+
+        assertEquals(config.wording("prefsUnavailable"), track.getMessage());
+        assertEquals(config.wording("prefsUnavailable"), artist.getMessage());
+        assertTrue(saved.isEmpty(), saved.toString());
+        assertEquals(Set.of(kept), PreferenceSettings.from(working.getPreferences()).blockedTracks(),
+                "the blocks already stored are untouched");
     }
 
     @Test
@@ -193,31 +258,31 @@ class AppControllerTest extends PostgresTestBase {
 
     /** A Spotify fake holding playlists, so delete and the restore that follows can be played through. */
     private class PlaylistMusic extends Music {
-        final java.util.Map<String, List<Track>> held = new java.util.LinkedHashMap<>();
-        final List<String> calls = new java.util.ArrayList<>();
-        final List<String> owned = new java.util.ArrayList<>();
+        final Map<String, List<Track>> held = new LinkedHashMap<>();
+        final List<String> calls = new ArrayList<>();
+        final List<String> owned = new ArrayList<>();
         int next = 1;
 
         void own(String id, String... trackIds) {
-            held.put(id, new java.util.ArrayList<>(java.util.Arrays.stream(trackIds).map(this::track).toList()));
+            held.put(id, new ArrayList<>(Arrays.stream(trackIds).map(this::track).toList()));
             owned.add(id);
         }
         Track track(String id) { return new Track(id, "spotify:track:" + id, "T" + id, 1000, false, List.of()); }
-        @Override public List<com.musicmind.domain.PlaylistSummary> getUserPlaylists() {
-            return owned.stream().map(id -> new com.musicmind.domain.PlaylistSummary(id, "Mix " + id, held.get(id).size())).toList();
+        @Override public List<PlaylistSummary> getUserPlaylists() {
+            return owned.stream().map(id -> new PlaylistSummary(id, "Mix " + id, held.get(id).size())).toList();
         }
         @Override public List<Track> getPlaylistItems(String id) {
             if (!held.containsKey(id)) {
-                throw new com.musicmind.music.MusicServiceException("gone", 404);
+                throw new MusicServiceException("gone", 404);
             }
             return List.copyOf(held.get(id));
         }
         @Override public void unfollowPlaylist(String id) { calls.add("unfollow " + id); held.remove(id); owned.remove(id); }
-        @Override public com.musicmind.domain.Playlist createPlaylist(String userId, String name) {
+        @Override public Playlist createPlaylist(String userId, String name) {
             String id = "new" + next++;
-            held.put(id, new java.util.ArrayList<>());
+            held.put(id, new ArrayList<>());
             owned.add(id);
-            return new com.musicmind.domain.Playlist(id, name, List.of());
+            return new Playlist(id, name, List.of());
         }
         @Override public void addItems(String id, List<String> uris) {
             uris.forEach(u -> held.get(id).add(track(u.substring(u.lastIndexOf(':') + 1))));
@@ -227,12 +292,12 @@ class AppControllerTest extends PostgresTestBase {
     @Test
     void delete_notOwner_refused() {
         PlaylistMusic music = new PlaylistMusic();
-        music.held.put("theirs", new java.util.ArrayList<>(List.of(music.track("a"))));   // not in the user's own list
+        music.held.put("theirs", new ArrayList<>(List.of(music.track("a"))));   // not in the user's own list
         AppController c = controller(music);
         c.login();
 
-        com.musicmind.agent.command.PlaylistChangeException e = assertThrows(
-                com.musicmind.agent.command.PlaylistChangeException.class, () -> c.deletePlaylist("theirs"));
+        PlaylistChangeException e = assertThrows(
+                PlaylistChangeException.class, () -> c.deletePlaylist("theirs"));
 
         assertEquals(String.format(config.wording("deleteNotOwner"), "theirs"), e.getMessage());
         assertTrue(music.calls.isEmpty(), music.calls.toString());
@@ -249,8 +314,8 @@ class AppControllerTest extends PostgresTestBase {
         int snapshotId = c.deletePlaylist("p");
 
         assertEquals(List.of("unfollow p"), music.calls);
-        assertThrows(com.musicmind.agent.command.PlaylistMissingException.class, () -> c.restore(snapshotId));
-        com.musicmind.domain.Playlist back = c.recreateFromSnapshot(snapshotId);
+        assertThrows(PlaylistMissingException.class, () -> c.restore(snapshotId));
+        Playlist back = c.recreateFromSnapshot(snapshotId);
         assertEquals("Mix p", back.name());
         assertEquals(List.of("a", "b", "c"), music.held.get(back.spotifyId()).stream().map(Track::id).toList());
     }
