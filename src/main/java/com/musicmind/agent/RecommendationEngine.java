@@ -24,6 +24,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -67,6 +68,8 @@ public class RecommendationEngine {
     private Map<String, Origin> origins = Map.of();
     // Genres the user asked for in this run (a mood, preferred styles); searched first and always a good match.
     private Set<String> seedGenres = Set.of();
+    // The words of the goal's search phrases, lower case; a keyword result titled with one is likely stock music.
+    private Set<String> keywordWords = Set.of();
     // The ones of those genres that were actually searched, for the trace.
     private List<String> searchedSeeds = List.of();
     private Map<String, Double> genreAffinity = Map.of();
@@ -179,7 +182,7 @@ public class RecommendationEngine {
         Set<String> seeds = new LinkedHashSet<>(seedGenres);
         Retrieval retrieval = new Retrieval(profile, allowLibraryTracks, seeds, retriever, library, libraryIds,
                 albumTracks, rankedGenres(profile, seeds), new HashMap<>(), found, List.copyOf(keywordFound.values()),
-                Set.of());
+                Set.of(), List.copyOf(searchTerms));
         fetchGenres(retrieval, config.discoverInitialGenres());
         return retrieval;
     }
@@ -203,6 +206,7 @@ public class RecommendationEngine {
         this.artistAffinity = artistAffinities(profile, max);
         this.origins = retrieval.origins;
         this.seedGenres = retrieval.seedGenres;
+        this.keywordWords = wordsOf(retrieval.searchTerms);
         List<String> notes = new ArrayList<>();
 
         CandidateRetriever retriever = retrieval.retriever;
@@ -293,6 +297,9 @@ public class RecommendationEngine {
         if (isBareGenreTitle(track)) {
             score -= config.discoverGenreTitlePenalty();
         }
+        if (isKeywordStockTitle(track)) {
+            score -= config.discoverKeywordTitlePenalty();
+        }
         Verdict verdict = verdicts.get(track.id());
         if (verdict == Verdict.ACCEPT) {
             score += config.discoverAcceptBoost();
@@ -313,8 +320,30 @@ public class RecommendationEngine {
                 && squash(track.title()).equals(squash(origin.genre()));
     }
 
+    /**
+     * True for a track found by a goal search (the activity's phrases) whose title holds a word of the phrases:
+     * "Workout Music" for "gym workout". Spotify returns such stock titles first for an activity phrase.
+     */
+    private boolean isKeywordStockTitle(Track track) {
+        Origin origin = origins.get(track.id());
+        return origin != null && origin.source() == Source.KEYWORD && track.title() != null
+                && wordsOf(List.of(track.title())).stream().anyMatch(keywordWords::contains);
+    }
+
+    private static Set<String> wordsOf(List<String> texts) {
+        Set<String> words = new HashSet<>();
+        for (String text : texts) {
+            for (String word : text.toLowerCase(Locale.ROOT).split("[^\\p{L}\\p{N}]+")) {
+                if (!word.isEmpty()) {
+                    words.add(word);
+                }
+            }
+        }
+        return words;
+    }
+
     private static String squash(String text) {
-        return text.toLowerCase(java.util.Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]", "");
+        return text.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]", "");
     }
 
     // ---- selection ----

@@ -514,6 +514,11 @@ public final class Config {
         return Double.parseDouble(text("discover.weight.genreTitlePenalty"));
     }
 
+    /** Taken off a goal-search result whose title repeats a word of the search phrase (usually stock music). */
+    public double discoverKeywordTitlePenalty() {
+        return Double.parseDouble(text("discover.weight.keywordTitlePenalty"));
+    }
+
     public double discoverAcceptBoost() {
         return Double.parseDouble(text("discover.feedback.acceptBoost"));
     }

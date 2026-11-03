@@ -1,8 +1,10 @@
 package com.musicmind.agent;
 
 import com.musicmind.domain.ListeningProfile;
+import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.Track;
 
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,7 +13,7 @@ import java.util.Set;
 /**
  * What {@link RecommendationEngine#retrieve} read from Spotify for one run: the user's own tracks,
  * the albums of their top artists and the tracks found for the first genres. It is handed back to
- * {@link RecommendationEngine#recommend(Retrieval, com.musicmind.domain.PlaylistSpec, List)} so
+ * {@link RecommendationEngine#recommend(Retrieval, PlaylistSpec, List)} so
  * selecting, and selecting again after a relaxation or a failed validation, never reads Spotify twice.
  */
 public final class Retrieval {
@@ -30,19 +32,22 @@ public final class Retrieval {
     final List<Track> keywordTracks;
     /** Tracks the goal-fit review took out; genres read later are filtered by it too. */
     final Set<String> removedIds;
+    /** The phrases searched for the goal's activity; a result titled with one of their words is usually stock music. */
+    final List<String> searchTerms;
 
     Retrieval(ListeningProfile profile, boolean allowLibraryTracks, Set<String> seedGenres,
               CandidateRetriever retriever, List<Track> library, Set<String> libraryIds,
               List<Track> albumTracks, List<String> genres, Map<String, List<Track>> genreTracks,
               Map<String, RecommendationEngine.Origin> origins) {
         this(profile, allowLibraryTracks, seedGenres, retriever, library, libraryIds, albumTracks, genres,
-                genreTracks, origins, List.of(), Set.of());
+                genreTracks, origins, List.of(), Set.of(), List.of());
     }
 
     Retrieval(ListeningProfile profile, boolean allowLibraryTracks, Set<String> seedGenres,
               CandidateRetriever retriever, List<Track> library, Set<String> libraryIds,
               List<Track> albumTracks, List<String> genres, Map<String, List<Track>> genreTracks,
-              Map<String, RecommendationEngine.Origin> origins, List<Track> keywordTracks, Set<String> removedIds) {
+              Map<String, RecommendationEngine.Origin> origins, List<Track> keywordTracks, Set<String> removedIds,
+              List<String> searchTerms) {
         this.profile = profile;
         this.allowLibraryTracks = allowLibraryTracks;
         this.seedGenres = seedGenres;
@@ -55,6 +60,7 @@ public final class Retrieval {
         this.origins = origins;
         this.keywordTracks = keywordTracks;
         this.removedIds = removedIds;
+        this.searchTerms = searchTerms;
     }
 
     /**
@@ -63,12 +69,13 @@ public final class Retrieval {
      * so nothing is read again.
      */
     public Retrieval without(Set<String> trackIds) {
-        Set<String> removed = new java.util.HashSet<>(removedIds);
+        Set<String> removed = new HashSet<>(removedIds);
         removed.addAll(trackIds);
         Map<String, List<Track>> byGenre = new LinkedHashMap<>();
         genreTracks.forEach((genre, tracks) -> byGenre.put(genre, keeping(tracks, removed)));
         return new Retrieval(profile, allowLibraryTracks, seedGenres, retriever, keeping(library, removed), libraryIds,
-                keeping(albumTracks, removed), genres, byGenre, origins, keeping(keywordTracks, removed), Set.copyOf(removed));
+                keeping(albumTracks, removed), genres, byGenre, origins, keeping(keywordTracks, removed), Set.copyOf(removed),
+                searchTerms);
     }
 
     static List<Track> keeping(List<Track> tracks, Set<String> removed) {

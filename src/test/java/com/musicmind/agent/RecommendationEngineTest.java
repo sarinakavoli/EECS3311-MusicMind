@@ -998,6 +998,25 @@ class RecommendationEngineTest {
     }
 
     @Test
+    void score_keywordStockTitleRanksBelowOtherKeywordTrack() {
+        FakeMusic m = new FakeMusic();
+        m.top = List.of(track("top0", "a1"));
+        String q = new com.musicmind.domain.SearchQuery("gym workout", null, Map.of(), 1.0).toSpotifyQuery();
+        Track stock = new Track("stock", "spotify:track:stock", "Workout Music", 1000, false, List.of("stranger-stock"));
+        Track real = new Track("real", "spotify:track:real", "Eye of the Tiger", 1000, false, List.of("stranger-real"));
+        m.byGenre.put(q, List.of(stock, real));
+        RecommendationEngine e = new RecommendationEngine(toolsFor(m), config);
+        e.setStrategy(new DiscoveryStrategy());
+        e.recommend(e.retrieve(rockBluesProfile(), spec(0.0), false, List.of(), List.of("gym workout")),
+                spec(0.0), List.of());
+
+        double penalty = config.discoverKeywordTitlePenalty();
+        assertEquals(0.3, penalty, 1e-9);
+        assertEquals(penalty, e.score(real, spec(0.0)) - e.score(stock, spec(0.0)), 1e-9);
+        assertTrue(e.score(stock, spec(0.0)) > 0, "a nudge, not a filter");
+    }
+
+    @Test
     void score_acceptedStillBeatsRejected() {
         FakeMusic m = new FakeMusic();
         m.top = List.of(track("top0", "a1"));
