@@ -17,7 +17,7 @@ interface (JavaFX) and a command-line interface (CLI) that share one application
 | Stage | Deliverable | Status |
 |-------|-------------|--------|
 | Stage 1 | Design report (`docs/`) | Done |
-| Stage 2 | Implementation | All 12 features implemented; GUI redesign, report and videos still to do |
+| Stage 2 | Implementation | All 12 features implemented; report written (`docs/report/stage2-report.pdf`); GUI redesign and demonstration videos still to do |
 | Stage 3 | Verification and testing | Not started |
 
 This is one repository used across all three stages.
@@ -232,8 +232,8 @@ MusicMind/
 
 All UML diagrams are authored in **UMLet**. The editable sources are in `docs/diagrams/uxf/`. To
 view or export them, open the `.uxf` file in [UMLet](https://www.umlet.com/) and use
-`File -> Export as...`. The diagrams are the Stage 1 versions; the updated class diagram comes with
-the Stage 2 report.
+`File -> Export as...`. The `.uxf` files and the PNGs in `docs/diagrams/png/` are the updated Stage 2
+diagrams; the Stage 1 PNGs are kept in `docs/diagrams/png/stage1/`, and `docs/diagrams/README.md` lists what changed.
 
 | File | Diagram |
 |------|---------|
@@ -244,6 +244,19 @@ the Stage 2 report.
 | `MusicMind_SD02_ModifyPlaylist.uxf` | Sequence: modify playlist with undo |
 | `MusicMind_SD03_TasteProfile.uxf` | Sequence: view taste profile |
 | `MusicMind_SD04_Discover.uxf` | Sequence: discover and feedback |
+
+## Stage 2 report (rebuilding the PDF)
+
+The report is `docs/report/stage2-report.pdf`. It is generated from the tracked source
+`docs/report/stage2-report.html` (self-contained CSS; the UML images are read from `docs/diagrams/png/`)
+with headless Google Chrome. After editing the HTML, rebuild the PDF from the project folder:
+
+```bash
+docs/report/build-report.sh
+```
+
+The script expects Chrome at `/Applications/Google Chrome.app` (macOS). On another system, set `CHROME` to
+the browser executable, for example `CHROME=/usr/bin/google-chrome docs/report/build-report.sh`.
 
 ## External services and compliance
 
