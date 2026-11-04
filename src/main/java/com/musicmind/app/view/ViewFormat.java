@@ -366,6 +366,38 @@ public final class ViewFormat {
         return Long.parseLong(typed);
     }
 
+    /**
+     * What to tell the user when a block could not be saved. A refused value gets one plain sentence (the
+     * underlying message may talk about ids); a refusal because the stored blocks cannot be read keeps its own wording.
+     */
+    public String blockFailure(Throwable error) {
+        if (error instanceof IllegalArgumentException) {
+            return w("BlockRefused");
+        }
+        if (error instanceof IllegalStateException && error.getMessage() != null && !error.getMessage().isBlank()) {
+            return error.getMessage();
+        }
+        return failure("ActionBlock", error);
+    }
+
+    /** The artist's name for the blocked list; a missing name, or the id itself, becomes plain words. */
+    public String blockedArtistName(String id, String name) {
+        return name == null || name.isBlank() || name.strip().equals(id) ? w("BlockedArtistUnknown") : name.strip();
+    }
+
+    /** The song's title for the blocked list, or plain words when the title is not known. */
+    public String blockedSongName(String title) {
+        return title == null || title.isBlank() ? w("BlockedSongUnknown") : title;
+    }
+
+    /** The line above the artist choices: how many artists carry the typed name. */
+    public String artistMatchesLine(String typed, int count) {
+        if (count <= 0) {
+            return w("ArtistMatchesNone", typed);
+        }
+        return count == 1 ? w("ArtistMatchesOne", typed) : w("ArtistMatchesMany", count, typed);
+    }
+
     /** A moment as a readable date and time in the formatter's time zone. */
     public String timestamp(java.time.Instant instant) {
         return timeFormat.format(instant);

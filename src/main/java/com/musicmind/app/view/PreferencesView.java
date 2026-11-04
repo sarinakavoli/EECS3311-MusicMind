@@ -1,67 +1,164 @@
 package com.musicmind.app.view;
 
 import com.musicmind.agent.PreferenceSettings;
+import com.musicmind.domain.Artist;
+import com.musicmind.domain.Track;
 import com.musicmind.domain.User;
 import com.musicmind.domain.UserPreference;
+import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.RadioButton;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.Slider;
 import javafx.scene.control.TextField;
-import javafx.scene.layout.GridPane;
+import javafx.scene.control.ToggleGroup;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
-import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
-/** F8: a settings screen with one editable row per preference; artist names are looked up on Save. */
+/**
+ * F8: the rules MusicMind follows. Explicit songs, the mix and the styles are plain controls with a Save;
+ * artists and songs to never use are chosen by name from a list of matches, never typed as ids.
+ */
 public final class PreferencesView implements TabView {
 
-    /** The preferences as they are stored, each already worded for display. */
-    private record Loaded(Map<String, String> values, String warning) { }
+    /** One blocked artist as the screen lists it. */
+    private record BlockedArtist(String id, String name) { }
 
-    /** What a Save did: the stored value as shown, notices from the lookup, and whether the database took it. */
-    private record Saved(String key, String shown, boolean cleared, List<String> notices, String warning) { }
+    /** The stored rules, read on the worker: what each control shows and the warning if the database is down. */
+    private record Loaded(boolean explicitAllowed, double familiarShare, String styles,
+                          List<BlockedArtist> artists, List<String> songIds, String warning) { }
 
-    /** The preference keys in the order the screen lists them. */
-    private static final List<String> KEYS = List.of(PreferenceSettings.BLOCKED_ARTISTS, PreferenceSettings.BLOCKED_TRACKS,
-            PreferenceSettings.EXPLICIT_POLICY, PreferenceSettings.FAMILIAR_BIAS, PreferenceSettings.PREFERRED_STYLES);
+    /** Artists found for a typed name. */
+    private record Matches(String typed, List<Artist> artists) { }
+
+    /** Songs found for the block search. */
+    private record Songs(List<Track> tracks, Map<String, com.musicmind.domain.Verdict> verdicts) { }
 
     private final GuiContext ctx;
     private final ViewFormat format;
     private final StatusLine status = new StatusLine();
-    private final Map<String, TextField> fields = new LinkedHashMap<>();
-    private final Map<String, Button> buttons = new LinkedHashMap<>();
-    private final Label notices = UiParts.muted("");
+    private final ToggleGroup explicit = new ToggleGroup();
+    private final RadioButton allow = new RadioButton();
+    private final RadioButton block = new RadioButton();
+    private final Button saveExplicit = new Button();
+    /** The share of new artists the slider shows (1 minus the saved familiar share), as on Discover. */
+    private final Slider novelty = new Slider(0, 1, 0);
+    private final Label mixLabel = new Label();
+    private final Button saveMix = new Button();
+    private final TextField styles = new TextField();
+    private final Button saveStyles = new Button();
+    private final TextField artistQuery = new TextField();
+    private final Button findArtist = new Button();
+    private final Label artistMatches = UiParts.muted("");
+    private final VBox artistChoices = new VBox(2);
+    private final VBox blockedArtists = new VBox(2);
+    private final TextField songQuery = new TextField();
+    private final Button findSong = new Button();
+    private final VBox songChoices = new VBox(2);
+    private final VBox blockedSongs = new VBox(2);
+    /** Titles of songs seen in this session; Spotify content is not stored, so older blocks have none. */
+    private final Map<String, String> knownTitles = new HashMap<>();
     private final Node root;
 
     public PreferencesView(GuiContext ctx) {
         this.ctx = ctx;
         this.format = ctx.format();
-        GridPane grid = new GridPane();
-        grid.setHgap(UiParts.GAP);
-        grid.setVgap(UiParts.GAP);
-        int row = 0;
-        for (String key : KEYS) {
-            Label label = new Label(format.w("Pref." + key));
-            TextField field = new TextField();
-            GridPane.setHgrow(field, Priority.ALWAYS);
-            Button save = new Button(format.w("Save"));
-            save.setOnAction(e -> save(key));
-            field.setOnAction(e -> save(key));
-            fields.put(key, field);
-            buttons.put(key, save);
-            grid.add(label, 0, row);
-            grid.add(field, 1, row);
-            grid.add(save, 2, row);
-            row++;
-        }
-        VBox page = UiParts.page(format.w("Menu.preferences"), format.w("Desc.preferences"), format.w("Example.preferences"), UiParts.wrapped(format.w("PrefsIntro")), grid, status, notices);
-        root = new LoginGate(ctx, page, true);
+        VBox page = UiParts.page(format.w("Menu.preferences"), format.w("Desc.preferences"), format.w("Example.preferences"),
+                status, explicitSection(), mixSection(), artistSection(), songSection(), stylesSection());
+        ScrollPane scroll = new ScrollPane(page);
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        root = new LoginGate(ctx, scroll, true);
         if (!ctx.spotifyConfigured()) {
             load();
         }
+    }
+
+    private Node explicitSection() {
+        allow.setText(format.w("ExplicitAllow"));
+        block.setText(format.w("ExplicitBlock"));
+        allow.setToggleGroup(explicit);
+        block.setToggleGroup(explicit);
+        allow.setSelected(true);
+        saveExplicit.setText(format.w("Save"));
+        saveExplicit.setOnAction(e -> savePref(PreferenceSettings.EXPLICIT_POLICY, allow.isSelected() ? "allow" : "block", saveExplicit));
+        return section(format.w("ExplicitHeading"), UiParts.muted(format.w("ExplicitHint")), new HBox(UiParts.GAP, allow, block), saveExplicit);
+    }
+
+    private Node mixSection() {
+        double defaultShare = ctx.config().discoverDefaultFamiliarRatio();
+        novelty.setValue(1 - defaultShare);
+        novelty.getStyleClass().add("mm-mix-slider");
+        mixLabel.getStyleClass().add("mm-mix-label");
+        mixLabel.textProperty().bind(javafx.beans.binding.Bindings.createStringBinding(
+                () -> format.mixLabel(1 - novelty.getValue()), novelty.valueProperty()));
+        Region gap = new Region();
+        HBox.setHgrow(gap, Priority.ALWAYS);
+        HBox ends = new HBox(UiParts.muted(format.w("MixKnown")), gap, UiParts.muted(format.w("MixNew")));
+        VBox slider = new VBox(novelty, ends);
+        slider.getStyleClass().add("mm-slider-box");
+        saveMix.setText(format.w("Save"));
+        saveMix.setOnAction(e -> savePref(PreferenceSettings.FAMILIAR_BIAS, String.valueOf(1 - novelty.getValue()), saveMix));
+        return section(format.w("MixHeading"), UiParts.muted(format.w("MixRuleHint")), mixLabel, slider, saveMix);
+    }
+
+    private Node artistSection() {
+        artistQuery.setPromptText(format.w("ArtistPrompt"));
+        HBox.setHgrow(artistQuery, Priority.ALWAYS);
+        findArtist.setText(format.w("FindButton"));
+        findArtist.getStyleClass().add("mm-primary");
+        findArtist.setOnAction(e -> findArtists());
+        artistQuery.setOnAction(e -> findArtists());
+        HBox bar = new HBox(UiParts.GAP, artistQuery, findArtist);
+        bar.setAlignment(Pos.CENTER_LEFT);
+        artistMatches.setManaged(false);
+        artistMatches.setVisible(false);
+        blockedArtists.getChildren().add(UiParts.muted(format.w("BlockedArtistsNone")));
+        return section(format.w("BlockedArtistsHeading"), UiParts.muted(format.w("BlockedArtistsHint")), bar,
+                artistMatches, artistChoices, UiParts.heading(format.w("BlockedNow")), blockedArtists);
+    }
+
+    private Node songSection() {
+        songQuery.setPromptText(format.w("BlockSearchPrompt"));
+        HBox.setHgrow(songQuery, Priority.ALWAYS);
+        findSong.setText(format.w("SearchButton"));
+        findSong.getStyleClass().add("mm-primary");
+        findSong.setOnAction(e -> findSongs());
+        songQuery.setOnAction(e -> findSongs());
+        HBox bar = new HBox(UiParts.GAP, songQuery, findSong);
+        bar.setAlignment(Pos.CENTER_LEFT);
+        blockedSongs.getChildren().add(UiParts.muted(format.w("BlockedSongsNone")));
+        return section(format.w("BlockedSongsHeading"), UiParts.muted(format.w("BlockedSongsHint")), bar, songChoices, UiParts.heading(format.w("BlockedNow")), blockedSongs);
+    }
+
+    private Node stylesSection() {
+        styles.setPromptText(format.w("StylesHint"));
+        saveStyles.setText(format.w("Save"));
+        saveStyles.setOnAction(e -> savePref(PreferenceSettings.PREFERRED_STYLES,
+                styles.getText() == null ? "" : styles.getText().strip(), saveStyles));
+        styles.setOnAction(e -> saveStyles.fire());
+        HBox.setHgrow(styles, Priority.ALWAYS);
+        HBox bar = new HBox(UiParts.GAP, styles, saveStyles);
+        bar.setAlignment(Pos.CENTER_LEFT);
+        return section(format.w("StylesHeading"), UiParts.muted(format.w("StylesHint")), bar);
+    }
+
+    private static VBox section(String heading, Node... children) {
+        VBox box = new VBox(UiParts.GAP, UiParts.heading(heading));
+        box.getChildren().addAll(children);
+        box.getStyleClass().add("mm-section");
+        return box;
     }
 
     @Override
@@ -89,37 +186,217 @@ public final class PreferencesView implements TabView {
         load();
     }
 
-    private void load() {
-        ctx.run(status, "ActionShowPrefs", format.w("Working"), () -> {
-            List<UserPreference> stored = ctx.controller().getPreferences();
-            Map<String, String> values = new LinkedHashMap<>();
-            for (UserPreference pref : stored) {
-                values.put(pref.key(), ctx.controller().displayPreference(pref));
-            }
-            return new Loaded(values, ctx.controller().memory().warning());
-        }, loaded -> {
-            fields.forEach((key, field) -> field.setText(loaded.values().getOrDefault(key, "")));
-            if (loaded.warning() != null) {
-                status.info(ctx.config().wording("cliShowingDefaults") + ": " + loaded.warning());
-            }
-        }, buttons.values().toArray(Node[]::new));
+    @Override
+    public void onShown() {
+        if (ctx.userProperty().get() != null || !ctx.spotifyConfigured()) {
+            load();
+        }
     }
 
-    private void save(String key) {
-        String text = fields.get(key).getText() == null ? "" : fields.get(key).getText().strip();
-        ctx.run(status, "ActionSavePref", format.w("Working"), () -> {
-            UserPreference pref = ctx.controller().parsePreference(key, text);
-            ctx.controller().setPreference(pref);
-            return new Saved(key, ctx.controller().displayPreference(pref), pref.value().isBlank(),
-                    ctx.controller().lastPreferenceNotices(), ctx.controller().memory().warning());
-        }, saved -> {
-            fields.get(key).setText(saved.shown());
-            notices.setText(String.join("\n", saved.notices()));
-            if (saved.warning() != null) {
-                status.error(ctx.config().wording("cliNotSaved").formatted(saved.warning()));
-            } else {
-                status.info(format.w(saved.cleared() ? "ClearedPref" : "SavedPref", format.w("Pref." + key)));
+    private Node[] locked() {
+        return new Node[] {saveExplicit, saveMix, saveStyles, findArtist, findSong};
+    }
+
+    /** Reads the stored rules on the worker and fills every control; blocked artists are looked up by name. */
+    private void load() {
+        load(null);
+    }
+
+    /** As {@link #load()}, then shows {@code doneMessage} (when given) once the lists are up to date. */
+    private void load(String doneMessage) {
+        ctx.run(status, "ActionShowPrefs", format.w("Working"), () -> {
+            List<UserPreference> stored = ctx.controller().getPreferences();
+            PreferenceSettings settings = PreferenceSettings.from(stored);
+            List<BlockedArtist> artists = new ArrayList<>();
+            for (String id : settings.blockedArtists()) {
+                String name = ctx.controller().displayPreference(new UserPreference(PreferenceSettings.BLOCKED_ARTISTS, id, false, 0));
+                artists.add(new BlockedArtist(id, format.blockedArtistName(id, name)));
             }
-        }, buttons.values().toArray(Node[]::new));
+            double share = settings.familiarBias().orElse(ctx.config().discoverDefaultFamiliarRatio());
+            return new Loaded(settings.explicitAllowed().orElse(true), share, String.join(", ", settings.preferredStyles()),
+                    artists, new ArrayList<>(new TreeSet<>(settings.blockedTracks())), ctx.controller().memory().warning());
+        }, loaded -> {
+            show(loaded);
+            if (doneMessage != null && loaded.warning() == null) {
+                status.info(doneMessage);
+            }
+        }, locked());
+    }
+
+    private void show(Loaded loaded) {
+        (loaded.explicitAllowed() ? allow : block).setSelected(true);
+        novelty.setValue(1 - loaded.familiarShare());
+        styles.setText(loaded.styles());
+        fillBlockedArtists(loaded.artists());
+        fillBlockedSongs(loaded.songIds());
+        if (loaded.warning() != null) {
+            status.info(format.w("PrefsDatabaseDown"));
+        }
+    }
+
+    private void fillBlockedArtists(List<BlockedArtist> artists) {
+        if (artists.isEmpty()) {
+            blockedArtists.getChildren().setAll(UiParts.muted(format.w("BlockedArtistsNone")));
+            return;
+        }
+        blockedArtists.getChildren().setAll(artists.stream()
+                .map(a -> blockedRow(a.name(), () -> removeArtist(a))).toList());
+    }
+
+    private void fillBlockedSongs(List<String> ids) {
+        if (ids.isEmpty()) {
+            blockedSongs.getChildren().setAll(UiParts.muted(format.w("BlockedSongsNone")));
+            return;
+        }
+        blockedSongs.getChildren().setAll(ids.stream()
+                .map(id -> blockedRow(format.blockedSongName(knownTitles.get(id)), () -> removeSong(id))).toList());
+    }
+
+    private Node blockedRow(String name, Runnable remove) {
+        Label label = new Label(name);
+        label.getStyleClass().add("mm-track-title");
+        label.setTextOverrun(javafx.scene.control.OverrunStyle.ELLIPSIS);
+        label.setMaxWidth(Double.MAX_VALUE);
+        label.setMinWidth(0);
+        HBox.setHgrow(label, Priority.ALWAYS);
+        Button button = new Button(format.w("RemoveButton"));
+        button.setMinWidth(Region.USE_PREF_SIZE);
+        button.setOnAction(e -> remove.run());
+        HBox row = new HBox(UiParts.GAP, label, button);
+        row.getStyleClass().add("mm-row");
+        return row;
+    }
+
+    // ---- Explicit, mix and styles ----
+
+    private void savePref(String key, String value, Button saveButton) {
+        ctx.run(status, "ActionSavePref", format.w("Working"), () -> {
+            UserPreference pref = ctx.controller().parsePreference(key, value);
+            ctx.controller().setPreference(pref);
+            return ctx.controller().memory().warning();
+        }, warning -> {
+            if (warning != null) {
+                status.error(ctx.config().wording("cliNotSaved").formatted(warning));
+            } else {
+                status.info(format.w(value.isBlank() ? "ClearedPref" : "SavedPref", format.w("Pref." + key)));
+            }
+        }, saveButton);
+    }
+
+    // ---- Blocked artists ----
+
+    private void findArtists() {
+        String typed = artistQuery.getText() == null ? "" : artistQuery.getText().strip();
+        if (typed.isEmpty()) {
+            status.error(ctx.config().wording("prefsArtistBlank"));
+            return;
+        }
+        ctx.run(status, "ActionFindArtists", format.w("Searching"),
+                () -> new Matches(typed, ctx.controller().findArtists(typed)), matches -> {
+                    artistMatches.setText(format.artistMatchesLine(matches.typed(), matches.artists().size()));
+                    artistMatches.setManaged(true);
+                    artistMatches.setVisible(true);
+                    artistChoices.getChildren().setAll(matches.artists().stream().map(this::artistChoice).toList());
+                }, findArtist);
+    }
+
+    private Node artistChoice(Artist artist) {
+        Label name = new Label(artist.name());
+        name.getStyleClass().add("mm-track-title");
+        VBox text = new VBox(2, name);
+        if (artist.genres() != null && !artist.genres().isEmpty()) {
+            Label genres = new Label(String.join(", ", artist.genres()));
+            genres.getStyleClass().addAll("mm-muted", "mm-track-artists");
+            text.getChildren().add(genres);
+        }
+        text.setMinWidth(0);
+        HBox.setHgrow(text, Priority.ALWAYS);
+        Button choose = new Button(format.w("BlockButton"));
+        choose.setMinWidth(Region.USE_PREF_SIZE);
+        choose.setOnAction(e -> blockArtist(artist));
+        HBox row = new HBox(UiParts.GAP, text, choose);
+        row.getStyleClass().add("mm-row");
+        return row;
+    }
+
+    private void blockArtist(Artist artist) {
+        runBlock("ActionBlock", () -> ctx.controller().blockArtist(artist.id()),
+                format.w("BlockedArtist", artist.name()), () -> {
+                    artistChoices.getChildren().clear();
+                    artistMatches.setManaged(false);
+                    artistMatches.setVisible(false);
+                    artistQuery.clear();
+                });
+    }
+
+    private void removeArtist(BlockedArtist artist) {
+        runBlock("ActionRemoveBlock", () -> removeFromList(PreferenceSettings.BLOCKED_ARTISTS, artist.id()),
+                format.w("RemovedBlock", artist.name()), () -> { });
+    }
+
+    // ---- Blocked songs ----
+
+    private void findSongs() {
+        String typed = songQuery.getText() == null ? "" : songQuery.getText().strip();
+        if (typed.isEmpty()) {
+            return;
+        }
+        ctx.run(status, "ActionFindBlockSongs", format.w("Searching"), () -> {
+            List<Track> tracks = ctx.controller().findTracks(typed);
+            return new Songs(tracks, ctx.controller().feedbackFor());
+        }, found -> {
+            if (found.tracks().isEmpty()) {
+                songChoices.getChildren().setAll(UiParts.muted(format.w("NoResults")));
+                return;
+            }
+            TrackRow.Options options = TrackRow.Options.plain().withBlock(this::blockSong);
+            songChoices.getChildren().setAll(found.tracks().stream()
+                    .map(t -> TrackRow.of(ctx, status, t, options, found.verdicts().get(t.id()))).toList());
+        }, findSong);
+    }
+
+    private void blockSong(Track track) {
+        knownTitles.put(track.id(), track.title());
+        runBlock("ActionBlock", () -> ctx.controller().blockTrack(track.id()),
+                format.w("BlockedSong", track.title()), () -> songChoices.getChildren().clear());
+    }
+
+    private void removeSong(String id) {
+        String title = format.blockedSongName(knownTitles.get(id));
+        runBlock("ActionRemoveBlock", () -> removeFromList(PreferenceSettings.BLOCKED_TRACKS, id),
+                format.w("RemovedBlock", title), () -> { });
+    }
+
+    /** Saves the stored list without {@code id}; an empty list is stored as no rule. Refuses when the rules cannot be read. */
+    private void removeFromList(String key, String id) {
+        List<UserPreference> stored = ctx.controller().getPreferences();
+        if (stored.stream().anyMatch(p -> UserPreference.DEFAULTS_KEY.equals(p.key()))) {
+            throw new IllegalStateException(ctx.config().wording("prefsUnavailable"));
+        }
+        PreferenceSettings settings = PreferenceSettings.from(stored);
+        Set<String> rest = new TreeSet<>(PreferenceSettings.BLOCKED_ARTISTS.equals(key) ? settings.blockedArtists() : settings.blockedTracks());
+        rest.remove(id);
+        ctx.controller().setPreference(ctx.controller().parsePreference(key, String.join(",", rest)));
+    }
+
+    /** Runs a block or unblock on the worker, shows a plain message when it is refused, then re-reads the rules. */
+    private void runBlock(String action, Runnable change, String doneMessage, Runnable afterwards) {
+        ctx.run(status, action, format.w("Working"), () -> {
+            try {
+                change.run();
+                return new String[] {null, ctx.controller().memory().warning()};
+            } catch (IllegalArgumentException | IllegalStateException e) {
+                return new String[] {format.blockFailure(e), null};
+            }
+        }, result -> {
+            if (result[0] != null) {
+                status.error(result[0]);
+            } else if (result[1] != null) {
+                status.error(ctx.config().wording("cliNotSaved").formatted(result[1]));
+            } else {
+                afterwards.run();
+                load(doneMessage);
+            }
+        }, locked());
     }
 }

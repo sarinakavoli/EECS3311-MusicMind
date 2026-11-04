@@ -481,4 +481,50 @@ class ViewFormatTest {
                 format.candidateAdded("All the Old Things", 2));
         assertEquals("Added Idol. 1 song is waiting for your next playlist.", format.candidateAdded("Idol", 1));
     }
+
+    @Test
+    void preferenceError_isPlain() {
+        String raw = config.wording("feedbackBadTrackId");
+        String shown = format.blockFailure(new IllegalArgumentException(raw));
+        assertFalse(shown.contains("22-character"), shown);
+        assertFalse(shown.toLowerCase(java.util.Locale.ROOT).contains(" id"), shown);
+        assertFalse(shown.isBlank());
+        assertEquals(format.blockFailure(new IllegalArgumentException("x")), shown);
+    }
+
+    @Test
+    void blockFailure_keepsTheStoredBlocksMessage() {
+        String message = config.wording("prefsUnavailable");
+        assertEquals(message, format.blockFailure(new IllegalStateException(message)));
+    }
+
+    @Test
+    void blockedArtistName_neverShowsARawId() {
+        String id = "4Z8W4fKeB5YxbusRsdQVPb";
+        assertEquals("Ebi", format.blockedArtistName(id, "Ebi"));
+        assertEquals(format.w("BlockedArtistUnknown"), format.blockedArtistName(id, id));
+        assertEquals(format.w("BlockedArtistUnknown"), format.blockedArtistName(id, " "));
+        assertEquals(format.w("BlockedArtistUnknown"), format.blockedArtistName(id, null));
+    }
+
+    @Test
+    void blockedSongName_usesTheTitleOrAPlainPhrase() {
+        assertEquals("Hello", format.blockedSongName("Hello"));
+        assertEquals(format.w("BlockedSongUnknown"), format.blockedSongName(null));
+        assertFalse(format.w("BlockedSongUnknown").contains("id"));
+    }
+
+    @Test
+    void artistMatchesLine_saysHowManyAndToChoose() {
+        assertEquals(format.w("ArtistMatchesMany", 3, "Ebi"), format.artistMatchesLine("Ebi", 3));
+        assertEquals(format.w("ArtistMatchesOne", "Ebi"), format.artistMatchesLine("Ebi", 1));
+        assertEquals(format.w("ArtistMatchesNone", "Ebi"), format.artistMatchesLine("Ebi", 0));
+        assertEquals(true, format.artistMatchesLine("Ebi", 3).contains("3"));
+    }
+
+    @Test
+    void preferencesWording_matchesTheControls() {
+        assertFalse(format.w("Example.preferences").toLowerCase(java.util.Locale.ROOT).contains("save"));
+        assertEquals(true, format.w("Example.preferences").toLowerCase(java.util.Locale.ROOT).contains("block"));
+    }
 }

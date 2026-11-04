@@ -321,6 +321,23 @@
     -fx-border-color: #2e2e2e;
 }
 
+.radio-button .radio {
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+}
+
+.radio-button:selected .radio {
+    -fx-background-color: #1db954;
+}
+
+.radio-button .dot {
+    -fx-background-color: transparent;
+}
+
+.radio-button:selected .dot {
+    -fx-background-color: #000000;
+}
+
 .check-box:selected .mark {
     -fx-background-color: #000000;
 }
@@ -524,4 +541,19 @@
     -fx-border-color: #e8a33d;
     -fx-text-fill: #e8a33d;
     -fx-background-color: transparent;
+}
+
+.mm-section {
+    -fx-background-color: #181818;
+    -fx-background-radius: 8;
+    -fx-padding: 14;
+    -fx-spacing: 8;
+}
+
+.mm-mix-slider {
+    -fx-max-width: 420;
+}
+
+.mm-pick-box {
+    -fx-spacing: 2;
 }
