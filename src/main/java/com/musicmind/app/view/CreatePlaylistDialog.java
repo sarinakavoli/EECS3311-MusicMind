@@ -5,7 +5,6 @@ import com.musicmind.domain.AgentSession;
 import com.musicmind.domain.Playlist;
 import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.RequestKind;
-import com.musicmind.domain.Track;
 import com.musicmind.domain.Verdict;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
@@ -25,6 +24,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.stage.Screen;
 import javafx.stage.Window;
 
 import java.util.List;
@@ -42,8 +42,11 @@ public final class CreatePlaylistDialog {
     /** A finished run: the playlist, the run's notices, its explanation and the verdicts already given. */
     private record Created(Playlist playlist, List<String> notices, String explanation, Map<String, Verdict> verdicts) { }
 
-    private static final double TRACKS_HEIGHT = 200;
     private static final double WAITING_HEIGHT = 90;
+    /** Room the dialog keeps for its header and the button row, below the scrolling part. */
+    private static final double BUTTON_AREA = 130;
+    private static final double PREFERRED_WIDTH = 600;
+    private static final double PREFERRED_HEIGHT = 640;
 
     private final GuiContext ctx;
     private final ViewFormat format;
@@ -63,7 +66,9 @@ public final class CreatePlaylistDialog {
     private final TextField name = new TextField();
     private final StatusLine status = new StatusLine();
     private final VBox result = new VBox(UiParts.GAP);
+    private final VBox form;
     private final ButtonType createButton;
+    private final ButtonType openButton;
     private boolean haveWaiting;
     private Node createNode;
 
@@ -73,6 +78,7 @@ public final class CreatePlaylistDialog {
         this.format = ctx.format();
         this.onCreated = onCreated;
         createButton = new ButtonType(format.w("Create"), ButtonBar.ButtonData.OK_DONE);
+        openButton = new ButtonType(format.w("OpenCreated"), ButtonBar.ButtonData.OK_DONE);
 
         dialog.setTitle(format.w("CreateTitle"));
         dialog.setHeaderText(format.w("CreateTitle"));
@@ -113,11 +119,24 @@ public final class CreatePlaylistDialog {
         waitingBox.setManaged(false);
         name.setPromptText(format.w("PlaylistName"));
 
-        VBox content = new VBox(UiParts.GAP, UiParts.muted(format.w("Goal")), goal,
+        form = new VBox(UiParts.GAP, UiParts.muted(format.w("Goal")), goal,
                 UiParts.muted(format.w("Length")), length, UiParts.muted(format.w("LengthHint")), allowExplicit,
-                mixFromGoal, mixHint, mixBox, waitingBox, UiParts.muted(format.w("PlaylistName")), name, status, result);
+                mixFromGoal, mixHint, mixBox, waitingBox, UiParts.muted(format.w("PlaylistName")), name);
+        VBox content = new VBox(UiParts.GAP, form, result);
         content.getStyleClass().add("mm-dialog-content");
-        dialog.getDialogPane().setContent(content);
+        // The form and the result scroll; the buttons below stay in view and the window can be resized.
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.getStyleClass().add("mm-dialog-scroll");
+        double screenHeight = Screen.getPrimary().getVisualBounds().getHeight();
+        scroll.setPrefViewportWidth(PREFERRED_WIDTH);
+        scroll.setPrefViewportHeight(UiParts.fitHeight(PREFERRED_HEIGHT, screenHeight) - BUTTON_AREA);
+        dialog.setResizable(true);
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+        // The status line sits outside the scrolling part, so progress and errors are always seen.
+        VBox pane = new VBox(UiParts.GAP, scroll, status);
+        dialog.getDialogPane().setContent(pane);
         dialog.getDialogPane().getButtonTypes().addAll(createButton, new ButtonType(format.w("Close"),
                 ButtonBar.ButtonData.CANCEL_CLOSE));
         UiParts.dark(dialog.getDialogPane());
@@ -162,7 +181,6 @@ public final class CreatePlaylistDialog {
             scroll.setMaxHeight(WAITING_HEIGHT);
             scroll.getStyleClass().add("mm-why-scroll");
             waitingBox.getChildren().setAll(useWaiting, UiParts.muted(format.w("UseWaitingHint")), scroll);
-            dialog.getDialogPane().getScene().getWindow().sizeToScene();
         }, createNode);   // Create stays off until the waiting songs are known, so they are not missed
     }
 
@@ -198,22 +216,23 @@ public final class CreatePlaylistDialog {
         }, this::showResult, create, goal, hours, minutes, allowExplicit, mixFromGoal, novelty, useWaiting, name);
     }
 
+    /**
+     * After a successful run the form gives way to a short summary (name, count, notices, the reasons collapsed)
+     * and the Create button to "Open playlist", so nothing needs scrolling to reach the buttons.
+     */
     private void showResult(Created created) {
         Playlist playlist = created.playlist();
-        status.info(format.w("Created", playlist.name(), playlist.tracks().size()));
-        VBox rows = new VBox(2);
-        for (Track track : playlist.tracks()) {
-            rows.getChildren().add(TrackRow.of(ctx, status, track, TrackRow.Options.feedbackOnly(),
-                    created.verdicts().get(track.id())));
-        }
-        ScrollPane tracks = new ScrollPane(rows);
-        tracks.setFitToWidth(true);
-        tracks.setPrefViewportHeight(TRACKS_HEIGHT);
-        tracks.setMaxHeight(TRACKS_HEIGHT);
-        result.getChildren().setAll(tracks);
+        status.info("");
+        form.setVisible(false);
+        form.setManaged(false);
+        Label summary = UiParts.heading(format.w("CreatedSummary", playlist.name(), playlist.tracks().size()));
+        summary.setWrapText(true);
+        result.getChildren().setAll(summary);
         created.notices().forEach(n -> result.getChildren().add(UiParts.muted(n)));
         result.getChildren().add(WhyExpander.of(format, "WhyTheseSongs", created.explanation()));
-        dialog.getDialogPane().getScene().getWindow().sizeToScene();
+        dialog.getDialogPane().getButtonTypes().remove(createButton);
+        dialog.getDialogPane().getButtonTypes().add(0, openButton);
+        dialog.getDialogPane().lookupButton(openButton).getStyleClass().add("mm-primary");
         onCreated.accept(playlist);
     }
 }
