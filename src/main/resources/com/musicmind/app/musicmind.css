@@ -380,6 +380,19 @@
     -fx-background-color: #2a2a2a;
 }
 
+/* Buttons on a selected playlist row stay readable against the row colour. */
+.list-cell:filled:selected .button {
+    -fx-background-color: #3a3a3a;
+    -fx-border-color: #5a5a5a;
+    -fx-text-fill: #ffffff;
+}
+
+.list-cell:filled:selected .button.mm-danger {
+    -fx-background-color: transparent;
+    -fx-border-color: #8a8a8a;
+    -fx-text-fill: #ffffff;
+}
+
 .table-view .column-header-background,
 .table-view .column-header,
 .table-view .filler {

@@ -343,7 +343,7 @@ public final class PlaylistView implements TabView {
         }, title -> {
             ctx.dataChanged();
             open(shownId);
-            feedbackStatus.info(format.w("BlockedSong", title));
+            feedbackStatus.info(format.w("BlockedSongInPlaylist", title));
         });
     }
 

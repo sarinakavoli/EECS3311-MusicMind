@@ -65,6 +65,7 @@ public final class CreatePlaylistDialog {
     private final VBox result = new VBox(UiParts.GAP);
     private final ButtonType createButton;
     private boolean haveWaiting;
+    private Node createNode;
 
     /** @param onCreated called on the JavaFX thread with the playlist once it exists */
     public CreatePlaylistDialog(GuiContext ctx, Consumer<Playlist> onCreated) {
@@ -122,6 +123,7 @@ public final class CreatePlaylistDialog {
         UiParts.dark(dialog.getDialogPane());
         Node create = dialog.getDialogPane().lookupButton(createButton);
         create.getStyleClass().add("mm-primary");
+        createNode = create;
         create.addEventFilter(ActionEvent.ACTION, event -> {
             event.consume();   // the dialog stays open to show progress and the result
             start(create);
@@ -161,7 +163,7 @@ public final class CreatePlaylistDialog {
             scroll.getStyleClass().add("mm-why-scroll");
             waitingBox.getChildren().setAll(useWaiting, UiParts.muted(format.w("UseWaitingHint")), scroll);
             dialog.getDialogPane().getScene().getWindow().sizeToScene();
-        });
+        }, createNode);   // Create stays off until the waiting songs are known, so they are not missed
     }
 
     private void start(Node create) {
@@ -193,7 +195,7 @@ public final class CreatePlaylistDialog {
             } finally {
                 ctx.controller().setProgressListener(null);   // a null listener means no progress is reported
             }
-        }, this::showResult, create, goal, hours, minutes, allowExplicit, mixFromGoal, useWaiting, name);
+        }, this::showResult, create, goal, hours, minutes, allowExplicit, mixFromGoal, novelty, useWaiting, name);
     }
 
     private void showResult(Created created) {

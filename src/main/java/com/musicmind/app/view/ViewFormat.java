@@ -119,6 +119,16 @@ public final class ViewFormat {
         return w(total == 1 ? "CandidateAddedOne" : "CandidateAddedMany", title, total);
     }
 
+    /** The line when a song is added again: it is already on the waiting list. */
+    public String candidateAlreadyWaiting(String title) {
+        return w("CandidateAlready", title);
+    }
+
+    /** "N waiting" for the results heading; blank when nothing waits. */
+    public String waitingCount(int count) {
+        return count <= 0 ? "" : w("WaitingCount", count);
+    }
+
     /** The title, then " - " and the artists when there are any. */
     public String trackTitleLine(Track track) {
         String artists = artists(track);

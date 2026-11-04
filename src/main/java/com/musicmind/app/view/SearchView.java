@@ -4,6 +4,7 @@ import com.musicmind.domain.Artist;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.User;
 import com.musicmind.domain.Verdict;
+import javafx.beans.binding.Bindings;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
@@ -29,6 +30,8 @@ public final class SearchView implements TabView {
     private record Candidates(List<Track> tracks, Map<String, Verdict> verdicts, String warning) { }
 
     private static final double LIST_HEIGHT = 220;
+    private static final double MIN_LIST_HEIGHT = 48;
+    private static final double SCROLL_PADDING = 4;
 
     private final GuiContext ctx;
     private final ViewFormat format;
@@ -39,6 +42,7 @@ public final class SearchView implements TabView {
     private final VBox candidates = new VBox(2);
     private final Label artists = UiParts.wrapped("");
     private final Label notices = UiParts.muted("");
+    private final Label waitingCount = UiParts.muted("");
     private final Button clear;
     private final Node root;
 
@@ -60,8 +64,10 @@ public final class SearchView implements TabView {
 
         HBox bar = new HBox(UiParts.GAP, query, search);
         bar.setAlignment(Pos.CENTER_LEFT);
-        VBox left = new VBox(4, UiParts.heading(format.w("Results")), scroll(results));
-        VBox right = new VBox(4, UiParts.heading(format.w("Candidates")), scroll(candidates), clear);
+        HBox resultsHeading = new HBox(UiParts.GAP, UiParts.heading(format.w("Results")), waitingCount);
+        resultsHeading.setAlignment(Pos.CENTER_LEFT);
+        VBox left = new VBox(4, resultsHeading, scroll(results, false));
+        VBox right = new VBox(4, UiParts.heading(format.w("Candidates")), scroll(candidates, true), clear);
         ctx.onDataChanged(() -> {
             if (ctx.userProperty().get() != null) {
                 onLogin(ctx.userProperty().get());
@@ -71,11 +77,17 @@ public final class SearchView implements TabView {
         root = new LoginGate(ctx, page, false);
     }
 
-    private static ScrollPane scroll(VBox content) {
+    /** @param shrink true to fit the content (up to the list height) so no empty gap sits before the button below */
+    private static ScrollPane scroll(VBox content, boolean shrink) {
         ScrollPane pane = new ScrollPane(content);
         pane.setFitToWidth(true);
         pane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        pane.setPrefHeight(LIST_HEIGHT);
+        if (shrink) {
+            pane.prefHeightProperty().bind(Bindings.min(LIST_HEIGHT,
+                    Bindings.max(MIN_LIST_HEIGHT, content.heightProperty().add(SCROLL_PADDING))));
+        } else {
+            pane.setPrefHeight(LIST_HEIGHT);
+        }
         return pane;
     }
 
@@ -115,7 +127,7 @@ public final class SearchView implements TabView {
             return new Found(tracks, ctx.controller().lastSearchArtists(), ctx.controller().lastSearchLabel(),
                     ctx.controller().lastSearchNotice(), ctx.controller().feedbackFor());
         }, found -> {
-            fill(results, found.tracks(), found.verdicts(), TrackRow.Options.feedbackOnly().withAdd(this::add), "NoResults");
+            fill(results, found.tracks(), found.verdicts(), TrackRow.Options.feedbackOnly().withAdd(this::add), "NoMatches");
             artists.setText(found.artists().isEmpty() ? ""
                     : ctx.config().wording("cliArtistsFound") + " "
                     + String.join(", ", format.artistNames(found.artists(), ctx.config().guiArtistsShown())));
@@ -124,8 +136,14 @@ public final class SearchView implements TabView {
     }
 
     private void add(Track track) {
-        change(() -> ctx.controller().addCandidate(track.id()),
-                state -> format.candidateAdded(track.title(), state.tracks().size()));
+        boolean[] already = {false};
+        change(() -> {
+            already[0] = ctx.controller().getCandidates().stream().anyMatch(t -> t.id().equals(track.id()));
+            if (!already[0]) {
+                ctx.controller().addCandidate(track.id());
+            }
+        }, state -> already[0] ? format.candidateAlreadyWaiting(track.title())
+                : format.candidateAdded(track.title(), state.tracks().size()));
     }
 
     private void remove(Track track) {
@@ -154,6 +172,7 @@ public final class SearchView implements TabView {
 
     private void show(Candidates state) {
         fill(candidates, state.tracks(), state.verdicts(), TrackRow.Options.feedbackOnly().withRemove(this::remove), "NoCandidates");
+        waitingCount.setText(format.waitingCount(state.tracks().size()));
         if (state.warning() != null) {
             status.error(ctx.config().wording("cliNotSaved").formatted(state.warning()));
         }

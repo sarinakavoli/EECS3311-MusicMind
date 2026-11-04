@@ -69,7 +69,9 @@ public final class TrendsView implements TabView {
 
     @Override
     public void onLogin(User user) {
-        status.info(format.w("TrendsHint"));
+        if (columns.getChildren().isEmpty()) {   // the hint is stale once a comparison is on screen
+            status.info(format.w("TrendsHint"));
+        }
     }
 
     private void run() {

@@ -415,6 +415,30 @@ class ViewFormatTest {
     }
 
     @Test
+    void parseHoursMinutes_belowPlannerMinimum_refusedWithTheRange() {
+        ViewFormat strict = new ViewFormat(config.withTunables(Map.of("parser.minTargetMinutes", "5")), ZoneOffset.UTC);
+        assertEquals(5, strict.parseHoursMinutes("", "5"));
+        refused(() -> strict.parseHoursMinutes("", "4"));
+        try {
+            strict.parseHoursMinutes("0", "1");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("between 5 and"), e.getMessage());
+        }
+    }
+
+    @Test
+    void candidateAlreadyWaiting_saysSoInsteadOfAdded() {
+        assertEquals("Idol is already waiting for your next playlist.", format.candidateAlreadyWaiting("Idol"));
+    }
+
+    @Test
+    void waitingCount_isShownNextToTheResultsHeading() {
+        assertEquals("1 waiting", format.waitingCount(1));
+        assertEquals("3 waiting", format.waitingCount(3));
+        assertEquals("", format.waitingCount(0));
+    }
+
+    @Test
     void aCancelledNegotiationIsShownAsItsOwnMessageWithoutCouldNot() {
         String message = config.wording("negotiationCancelled");
         assertEquals(message, format.failure("ActionCreate", new NegotiationCancelledException(message)));
