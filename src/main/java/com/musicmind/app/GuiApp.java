@@ -128,6 +128,8 @@ public class GuiApp extends Application {
         login.setOnAction(e -> ctx.login(status, login));
         ctx.userProperty().addListener((observable, was, user) -> {
             login.setDisable(user != null || !ctx.spotifyConfigured());
+            login.setVisible(user == null);
+            login.setManaged(user == null);
             if (user == null) {
                 who.setText(format.w("NotLoggedIn"));
                 return;
