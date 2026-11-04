@@ -9,6 +9,7 @@ import com.musicmind.domain.Artist;
 import com.musicmind.domain.DecisionTrace;
 import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.Playlist;
+import com.musicmind.domain.PlaylistSummary;
 import com.musicmind.domain.SnapshotInfo;
 import com.musicmind.domain.RangeChange;
 import com.musicmind.domain.RequestKind;
@@ -104,23 +105,23 @@ public final class ViewFormat {
     }
 
     /**
-     * The playlist list with MusicMind's own song counts in place of Spotify's total for the playlists we
-     * created or opened: the total (items.total) lags just after a change and showed "0 songs" for a new playlist.
+     * The playlist list with MusicMind's own song counts in place of Spotify's total while that total is lower:
+     * the total (items.total) lags just after a change and showed "0 songs" for a new playlist. A total at or
+     * above our count is Spotify's own and is used as it is.
      */
-    public List<com.musicmind.domain.PlaylistSummary> mergeTrackCounts(List<com.musicmind.domain.PlaylistSummary> listed,
-                                                                       Map<String, Integer> known) {
+    public List<PlaylistSummary> mergeTrackCounts(List<PlaylistSummary> listed, Map<String, Integer> known) {
         return listed.stream()
-                .map(p -> known.containsKey(p.id())
-                        ? new com.musicmind.domain.PlaylistSummary(p.id(), p.name(), known.get(p.id())) : p)
+                .map(p -> known.containsKey(p.id()) && p.trackCount() < known.get(p.id())
+                        ? new PlaylistSummary(p.id(), p.name(), known.get(p.id())) : p)
                 .toList();
     }
 
-    /** The own counts still worth keeping: not once Spotify's total equals them, nor for a playlist no longer listed. */
-    public Map<String, Integer> countsStillAhead(List<com.musicmind.domain.PlaylistSummary> listed, Map<String, Integer> known) {
-        Map<String, Integer> left = new java.util.LinkedHashMap<>();
-        for (com.musicmind.domain.PlaylistSummary p : listed) {
+    /** The own counts still lagging: kept only while Spotify's total is below them, dropped once it reports as many or more. */
+    public Map<String, Integer> countsStillLagging(List<PlaylistSummary> listed, Map<String, Integer> known) {
+        Map<String, Integer> left = new LinkedHashMap<>();
+        for (PlaylistSummary p : listed) {
             Integer own = known.get(p.id());
-            if (own != null && own != p.trackCount()) {
+            if (own != null && p.trackCount() < own) {
                 left.put(p.id(), own);
             }
         }

@@ -515,8 +515,10 @@ public class SpotifyAdapter implements MusicService {
         if (timeRange == null) return "medium_term";
         return switch (timeRange.toLowerCase()) {
             case "short", "short_term", "recent" -> "short_term";
+            case "medium", "medium_term" -> "medium_term";
             case "long", "long_term", "all", "all_time" -> "long_term";
-            default -> "medium_term";
+            default -> throw new IllegalArgumentException("Unknown time range '" + timeRange
+                    + "'; Spotify offers short, medium and long.");
         };
     }
 

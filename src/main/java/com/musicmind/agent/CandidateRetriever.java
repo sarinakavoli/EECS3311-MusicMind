@@ -33,7 +33,9 @@ class CandidateRetriever {
     /** Top tracks for the range, then saved tracks, then recently played. */
     List<Track> library(String range) {
         Map<String, Track> byId = new LinkedHashMap<>();
-        addAll(byId, read("getTopItems", Map.of("type", "tracks", "range", range)));
+        // Spotify has no top items for a week; that range is built from recent plays and is read here as the default.
+        String spotifyRange = "week".equals(range) ? config.profileDefaultRange() : range;
+        addAll(byId, read("getTopItems", Map.of("type", "tracks", "range", spotifyRange)));
         addAll(byId, read("getSavedTracks", Map.of()));
         addAll(byId, read("getRecentlyPlayed", Map.of()));
         return new ArrayList<>(byId.values());

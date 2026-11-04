@@ -47,6 +47,20 @@ class CandidateRetrieverTest {
     }
 
     @Test
+    void library_neverSendsWeekToSpotifyTopItems() {
+        List<String> ranges = new ArrayList<>();
+        Music music = new Music() {
+            @Override public List<Track> getTopItems(String type, String range) { ranges.add(range); return List.of(); }
+            @Override public List<Track> getSavedTracks() { return List.of(); }
+            @Override public List<Track> getRecentlyPlayed() { return List.of(); }
+        };
+
+        new CandidateRetriever(tools(music), config).library("week");
+
+        assertEquals(List.of(config.profileDefaultRange()), ranges);
+    }
+
+    @Test
     void byKeywords_searchesThePhraseAsTyped_andRemovesDuplicates() {
         Music music = new Music();
         List<Track> found = new CandidateRetriever(tools(music), config).byKeywords("gym workout");

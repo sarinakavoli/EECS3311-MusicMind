@@ -26,7 +26,9 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * F6, F7 and F10 on a playlist: the user's playlists, an opened playlist with its tracks (thumbs up / down on
@@ -69,7 +71,7 @@ public final class PlaylistView implements TabView {
     private boolean quietSelection;
     private boolean changedHere;
     /** Song counts from our own reads (created or opened), by playlist id; Spotify's list total lags behind them. */
-    private java.util.Map<String, Integer> knownCounts = new java.util.HashMap<>();
+    private Map<String, Integer> knownCounts = new HashMap<>();
 
     public PlaylistView(GuiContext ctx) {
         this.ctx = ctx;
@@ -175,7 +177,7 @@ public final class PlaylistView implements TabView {
         ctx.run(listStatus, "ActionListPlaylists", format.w("Working"), () -> ctx.controller().getPlaylists(), list -> {
             quietSelection = !openIt;
             try {
-                knownCounts = new java.util.HashMap<>(format.countsStillAhead(list, knownCounts));
+                knownCounts = new HashMap<>(format.countsStillLagging(list, knownCounts));
                 List<PlaylistSummary> shown = format.mergeTrackCounts(list, knownCounts);
                 playlists.setItems(FXCollections.observableArrayList(shown));
                 if (selectId != null) {

@@ -740,11 +740,21 @@ class ViewFormatTest {
     }
 
     @Test
-    void countsStillAhead_dropsACountOnceSpotifyHasCaughtUpOrTheListNoLongerHasIt() {
-        Map<String, Integer> known = Map.of("lagging", 7, "caught", 21, "gone", 4);
-        Map<String, Integer> left = format.countsStillAhead(
-                List.of(listed("lagging", 0), listed("caught", 21)), known);
+    void mergeTrackCounts_spotifysTotalIsUsedOnceItIsAtLeastOurCount() {
+        Map<String, Integer> known = Map.of("same", 7, "more", 7);
+        List<com.musicmind.domain.PlaylistSummary> merged = format.mergeTrackCounts(
+                List.of(listed("same", 7), listed("more", 9)), known);
 
-        assertEquals(Map.of("lagging", 7), left);
+        assertEquals(7, merged.get(0).trackCount());
+        assertEquals(9, merged.get(1).trackCount(), "edited elsewhere: Spotify's higher total is shown");
+    }
+
+    @Test
+    void countsStillLagging_keptOnlyWhileSpotifysTotalIsBelowOurs() {
+        Map<String, Integer> known = Map.of("below", 7, "equal", 21, "above", 4, "gone", 4);
+        Map<String, Integer> left = format.countsStillLagging(
+                List.of(listed("below", 0), listed("equal", 21), listed("above", 9)), known);
+
+        assertEquals(Map.of("below", 7), left);
     }
 }

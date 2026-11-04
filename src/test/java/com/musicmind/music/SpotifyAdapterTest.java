@@ -359,6 +359,11 @@ class SpotifyAdapterTest {
     }
 
     @Test
+    void getTopItemsRefusesARangeSpotifyDoesNotHave() {
+        assertThrows(IllegalArgumentException.class, () -> adapter.getTopItems("tracks", "week"));
+    }
+
+    @Test
     void getRecentPlaysCarriesWhenEachTrackWasPlayed() {
         api.respond(r -> Reply.ok("{\"items\":[{\"track\":" + trackJson(7) + ",\"played_at\":\"2026-11-03T10:15:30.123Z\"},"
                 + "{\"track\":" + trackJson(8) + ",\"played_at\":\"not a time\"}]}"));

@@ -244,7 +244,7 @@ Status added Nov 4 after the frontend redesign and its read-only live check (`do
     - **Status (Nov 4):** **Done:** Your Taste offers Past week, built from the last 7 days of the 50 most recent plays (top artists and songs by play count, genres from MusicBrainz) with a notice "Built from your last N plays (Spotify only keeps your 50 most recent)", or a plain "No plays in the last 7 days". Trends keeps Spotify's three periods, because a 50-play sample would not compare fairly. Tested with a fake music service; not tried against the real account.
 
 35. **A new playlist shows "0 songs" in the Playlists list ("Slow Dance 0 songs" with 7 tracks, "yoga 0 songs" with 21).** Spotify's playlist total lags just after creation.
-    - **Status (Nov 4):** **Done:** the row of a playlist just created or opened shows the count from MusicMind's own read; it is kept on refresh until Spotify's total matches it (`ViewFormat.mergeTrackCounts` and `countsStillAhead`, tested). Other rows keep Spotify's total. Not retried against the real account.
+    - **Status (Nov 4):** **Done:** the row of a playlist just created or opened shows the count from MusicMind's own read; it is kept on refresh only while Spotify's total is below it (`ViewFormat.mergeTrackCounts` and `countsStillLagging`, tested). Other rows keep Spotify's total. Not retried against the real account.
 
 ## Backend status (Nov 2)
 
