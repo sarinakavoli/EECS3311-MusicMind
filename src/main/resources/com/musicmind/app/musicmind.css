@@ -454,9 +454,11 @@
     -fx-padding: 0 1 0 1;
 }
 
+/* 16px regular: the bold 14px face drew "60%new" with the space after "%" squashed out
+   (13 to 15px still crowd it); this size renders every space. */
 .mm-mix-label {
-    -fx-font-size: 14px;
-    -fx-font-weight: bold;
+    -fx-font-size: 16px;
+    -fx-font-weight: normal;
     -fx-text-fill: #ffffff;
 }
 
@@ -543,17 +545,23 @@
 }
 
 .mm-dialog-content {
-    -fx-pref-width: 540;
     -fx-spacing: 8;
+    -fx-padding: 4 8 8 4;
 }
 
-/* Delete in a playlist row: quiet until pointed at, then amber like a warning. */
+.mm-dialog-scroll,
+.mm-dialog-scroll > .viewport {
+    -fx-background-color: #181818;
+}
+
+/* Delete in a playlist row: quiet until pointed at, then amber like a warning. Border and text are light
+   enough to read on the dark list without looking like the main action. */
 .button.mm-danger {
     -fx-background-color: transparent;
-    -fx-border-color: #2e2e2e;
+    -fx-border-color: #5a5a5a;
     -fx-border-radius: 999;
     -fx-background-radius: 999;
-    -fx-text-fill: #b3b3b3;
+    -fx-text-fill: #e0e0e0;
 }
 
 .button.mm-danger:hover {
@@ -596,10 +604,64 @@
 }
 
 .mm-preview-scroll {
-    -fx-pref-width: 520;
+    -fx-pref-width: 410;
     -fx-pref-height: 360;
 }
 
 .mm-clickable {
     -fx-cursor: hand;
+}
+
+/* ---- In-app question (ConfirmDialog): one dark surface, no stock icon ----- */
+.mm-confirm {
+    -fx-background-color: #181818;
+    -fx-border-color: #2e2e2e;
+    -fx-border-width: 1;
+    -fx-padding: 22;
+    -fx-spacing: 14;
+}
+
+.mm-confirm-title {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #ffffff;
+}
+
+.mm-confirm-message {
+    -fx-text-fill: #d6d6d6;
+    -fx-font-size: 13px;
+}
+
+.mm-confirm-buttons {
+    -fx-padding: 6 0 0 0;
+    -fx-spacing: 8;
+}
+
+/* A destructive main action: solid red, white text. */
+.button.mm-danger-solid {
+    -fx-background-color: #e5484d;
+    -fx-border-color: transparent;
+    -fx-text-fill: #ffffff;
+    -fx-font-weight: bold;
+    -fx-padding: 9 20 9 20;
+}
+
+.button.mm-danger-solid:hover {
+    -fx-background-color: #ef5a5f;
+}
+
+/* Small "play in Spotify" button on a song row. */
+.button.mm-play-button {
+    -fx-background-color: transparent;
+    -fx-border-color: #2e2e2e;
+    -fx-text-fill: #1db954;
+    -fx-font-size: 12px;
+    -fx-padding: 0 12 0 12;
+    -fx-min-height: 30;
+    -fx-pref-height: 30;
+}
+
+.button.mm-play-button:hover {
+    -fx-background-color: #2a2a2a;
+    -fx-border-color: #1db954;
 }

@@ -11,10 +11,7 @@ import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
-import javafx.scene.control.ButtonBar;
-import javafx.scene.control.ButtonType;
 import javafx.scene.control.OverrunStyle;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
@@ -330,7 +327,7 @@ public final class PlaylistView implements TabView {
     }
 
     private Node row(Track track, java.util.Map<String, com.musicmind.domain.Verdict> verdicts) {
-        return TrackRow.of(ctx, feedbackStatus, track, TrackRow.Options.feedbackOnly().withBlock(this::block),
+        return TrackRow.of(ctx, feedbackStatus, track, TrackRow.Options.feedbackOnly().withPlay().withBlock(this::block),
                 verdicts.get(track.id()));
     }
 
@@ -371,18 +368,9 @@ public final class PlaylistView implements TabView {
     }
 
     private void confirmDelete(PlaylistSummary item) {
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-        ButtonType yes = new ButtonType(format.w("DeleteYes"), ButtonBar.ButtonData.OK_DONE);
-        ButtonType no = new ButtonType(format.w("DeleteNo"), ButtonBar.ButtonData.CANCEL_CLOSE);
-        alert.getButtonTypes().setAll(yes, no);
-        alert.setTitle(format.w("DeleteTitle"));
-        alert.setHeaderText(format.w("DeleteTitle"));
-        alert.setContentText(format.w("DeleteConfirm", item.name()));
-        UiParts.dark(alert.getDialogPane());
-        if (root.getScene() != null) {
-            alert.initOwner(root.getScene().getWindow());
-        }
-        if (alert.showAndWait().orElse(no) != yes) {
+        if (!ConfirmDialog.confirm(root.getScene() == null ? null : root.getScene().getWindow(),
+                format.w("DeleteTitle"), format.w("DeleteConfirm", item.name()), format.w("DeleteNo"),
+                format.w("DeleteYes"), true)) {
             return;
         }
         ctx.run(listStatus, "ActionDelete", format.w("Deleting"), () -> {

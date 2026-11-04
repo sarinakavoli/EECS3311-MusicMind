@@ -67,6 +67,14 @@ final class UiParts {
 
     private static final String STYLESHEET = "/com/musicmind/app/musicmind.css";
 
+    /** Gives a scene of its own (an in-app dialog) the dark stylesheet. */
+    static void dark(javafx.scene.Scene scene) {
+        java.net.URL sheet = UiParts.class.getResource(STYLESHEET);
+        if (sheet != null && !scene.getStylesheets().contains(sheet.toExternalForm())) {
+            scene.getStylesheets().add(sheet.toExternalForm());
+        }
+    }
+
     /** Gives a dialog the dark look even when it has no owner window to inherit the stylesheet from. */
     static void dark(javafx.scene.control.DialogPane pane) {
         java.net.URL sheet = UiParts.class.getResource(STYLESHEET);

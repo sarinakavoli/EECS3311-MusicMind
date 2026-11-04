@@ -9,19 +9,17 @@ import com.musicmind.domain.Track;
 import com.musicmind.domain.User;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
-import javafx.scene.control.ButtonBar.ButtonData;
-import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.CheckBox;
-import javafx.scene.control.Dialog;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.OverrunStyle;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.util.StringConverter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,6 +43,8 @@ public final class HistoryView implements TabView {
     private final Button refresh;
     private final StatusLine status = new StatusLine();
     private final CheckBox showRoutine = new CheckBox();
+    private final ComboBox<Boolean> sort = new ComboBox<>();
+    private final ComboBox<ViewFormat.ActivityType> type = new ComboBox<>();
     private final VBox timeline = new VBox(2);
     private final Button more;
     private final VBox versions = new VBox(UiParts.GAP);
@@ -65,22 +65,60 @@ public final class HistoryView implements TabView {
             }
         });
         showRoutine.setText(format.w("ShowRoutine"));
-        showRoutine.setOnAction(e -> {
-            shown = PAGE_SIZE;
-            fillTimeline();
+        showRoutine.setOnAction(e -> refilter());
+        sort.getItems().setAll(true, false);   // true: newest first
+        sort.setValue(true);
+        sort.setConverter(new StringConverter<>() {
+            @Override
+            public String toString(Boolean newest) {
+                return newest == null || newest ? format.w("SortNewest") : format.w("SortOldest");
+            }
+
+            @Override
+            public Boolean fromString(String text) {
+                return format.w("SortNewest").equals(text);
+            }
         });
+        sort.setOnAction(e -> refilter());
+        type.getItems().setAll(ViewFormat.ActivityType.ALL, ViewFormat.ActivityType.CREATED,
+                ViewFormat.ActivityType.CHANGED, ViewFormat.ActivityType.RESTORED, ViewFormat.ActivityType.TASTE);
+        type.setValue(ViewFormat.ActivityType.ALL);
+        type.setConverter(new StringConverter<>() {
+            @Override
+            public String toString(ViewFormat.ActivityType chosen) {
+                return chosen == null ? "" : format.activityTypeLabel(chosen);
+            }
+
+            @Override
+            public ViewFormat.ActivityType fromString(String text) {
+                return ViewFormat.ActivityType.ALL;
+            }
+        });
+        type.setOnAction(e -> refilter());
         more = new Button(format.w("ShowMore"));
         more.setOnAction(e -> {
             shown += PAGE_SIZE;
             fillTimeline();
         });
 
-        VBox page = UiParts.page(format.w("Menu.history"), format.w("Desc.history"), "", new HBox(UiParts.GAP, refresh, showRoutine), status,
+        VBox page = UiParts.page(format.w("Menu.history"), format.w("Desc.history"), "", controls(), status,
                 UiParts.heading(format.w("HistoryTitle")), timeline, more,
                 UiParts.heading(format.w("SavedVersions")), UiParts.muted(format.w("SavedVersionsHint")), versions);
         ScrollPane scroll = new ScrollPane(page);
         scroll.setFitToWidth(true);
         root = new LoginGate(ctx, scroll, false);
+    }
+
+    private Node controls() {
+        HBox bar = new HBox(UiParts.GAP, refresh, UiParts.muted(format.w("SortLabel")), sort,
+                UiParts.muted(format.w("TypeLabel")), type, showRoutine);
+        bar.setAlignment(Pos.CENTER_LEFT);
+        return bar;
+    }
+
+    private void refilter() {
+        shown = PAGE_SIZE;
+        fillTimeline();
     }
 
     @Override
@@ -121,14 +159,16 @@ public final class HistoryView implements TabView {
     // ---- activity timeline ----
 
     private void fillTimeline() {
-        List<AgentSession> visible = loadedSessions.stream().filter(s -> showRoutine.isSelected() || !format.isRoutine(s)).toList();
+        List<AgentSession> visible = format.activity(loadedSessions, type.getValue(), sort.getValue(), showRoutine.isSelected());
         List<Node> rows = new ArrayList<>();
         for (AgentSession session : visible.subList(0, Math.min(shown, visible.size()))) {
             rows.add(timelineEntry(session));
         }
         if (rows.isEmpty()) {
-            boolean hidden = !showRoutine.isSelected() && !loadedSessions.isEmpty();
-            rows.add(UiParts.muted(format.w(hidden ? "HideRoutineHint" : "NoActivity")));
+            boolean routineOnly = !loadedSessions.isEmpty() && type.getValue() == ViewFormat.ActivityType.ALL
+                    && !showRoutine.isSelected();
+            boolean filtered = !loadedSessions.isEmpty() && type.getValue() != ViewFormat.ActivityType.ALL;
+            rows.add(UiParts.muted(format.w(routineOnly ? "HideRoutineHint" : filtered ? "NoActivityOfType" : "NoActivity")));
         }
         timeline.getChildren().setAll(rows);
         more.setVisible(visible.size() > shown);
@@ -260,16 +300,9 @@ public final class HistoryView implements TabView {
         if (preview.stoppedEarly()) {
             content.getChildren().add(1, UiParts.muted(format.w("PreviewStopped")));
         }
-        content.getStyleClass().add("mm-dialog-content");
-        Dialog<ButtonType> dialog = new Dialog<>();
-        dialog.setTitle(format.w("Restore"));
-        dialog.setHeaderText(format.previewTitle(version));
-        dialog.getDialogPane().setContent(content);
-        ButtonType yes = new ButtonType(format.w("PreviewRestore"), ButtonData.OK_DONE);
-        ButtonType no = new ButtonType(format.w("PreviewCancel"), ButtonData.CANCEL_CLOSE);
-        dialog.getDialogPane().getButtonTypes().setAll(yes, no);
-        UiParts.dark(dialog.getDialogPane());
-        return dialog.showAndWait().filter(yes::equals).isPresent();
+        return ConfirmDialog.show(root.getScene() == null ? null : root.getScene().getWindow(),
+                format.previewTitle(version), content, List.of(ConfirmDialog.Choice.secondary(format.w("PreviewCancel")),
+                        ConfirmDialog.Choice.primary(format.w("PreviewRestore")))) == 1;
     }
 
     private void restore(SnapshotInfo version, Button button) {
@@ -302,11 +335,9 @@ public final class HistoryView implements TabView {
     }
 
     private boolean confirmRecreate(String message) {
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION, message + "\n\n" + format.w("RecreatePrompt"),
-                ButtonType.YES, ButtonType.NO);
-        alert.setHeaderText(format.w("RecreateTitle"));
-        UiParts.dark(alert.getDialogPane());
-        return alert.showAndWait().filter(ButtonType.YES::equals).isPresent();
+        return ConfirmDialog.confirm(root.getScene() == null ? null : root.getScene().getWindow(),
+                format.w("RecreateTitle"), message + "\n\n" + format.w("RecreatePrompt"), format.w("PreviewCancel"),
+                format.w("RecreateYes"), false);
     }
 
     private void recreate(SnapshotInfo version, Button button) {
