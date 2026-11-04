@@ -59,6 +59,7 @@ public class GuiApp extends Application {
     @Override
     public void start(Stage stage) {
         ViewFormat format = ctx.format();
+        ctx.setHostServices(getHostServices());
         List<TabView> views = List.of(new ProfileView(ctx), new TrendsView(ctx), new SearchView(ctx),
                 new DiscoveryView(ctx), new PlaylistView(ctx), new PreferencesView(ctx), new HistoryView(ctx));
         ctx.onLogin(user -> views.forEach(view -> view.onLogin(user)));

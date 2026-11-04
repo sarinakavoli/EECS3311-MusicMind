@@ -24,28 +24,34 @@ import java.util.function.Consumer;
 final class TrackRow {
 
     /** What a row shows beside the song. A null handler hides its button. */
-    record Options(boolean feedback, Consumer<Track> onAdd, Consumer<Track> onBlock, Consumer<Track> onRemove) {
+    record Options(boolean feedback, Consumer<Track> onAdd, Consumer<Track> onBlock, Consumer<Track> onRemove,
+                   boolean play) {
 
         /** Only the like and not-for-me icons. */
         static Options feedbackOnly() {
-            return new Options(true, null, null, null);
+            return new Options(true, null, null, null, false);
         }
 
         /** No icons at all. */
         static Options plain() {
-            return new Options(false, null, null, null);
+            return new Options(false, null, null, null, false);
         }
 
         Options withAdd(Consumer<Track> handler) {
-            return new Options(feedback, handler, onBlock, onRemove);
+            return new Options(feedback, handler, onBlock, onRemove, play);
         }
 
         Options withBlock(Consumer<Track> handler) {
-            return new Options(feedback, onAdd, handler, onRemove);
+            return new Options(feedback, onAdd, handler, onRemove, play);
         }
 
         Options withRemove(Consumer<Track> handler) {
-            return new Options(feedback, onAdd, onBlock, handler);
+            return new Options(feedback, onAdd, onBlock, handler, play);
+        }
+
+        /** Adds a small "Play in Spotify" button that opens the song in the user's Spotify app or web player. */
+        Options withPlay() {
+            return new Options(feedback, onAdd, onBlock, onRemove, true);
         }
     }
 
@@ -89,6 +95,19 @@ final class TrackRow {
             like.setOnAction(e -> send(ctx, status, track, Verdict.ACCEPT, like, notForMe));
             notForMe.setOnAction(e -> send(ctx, status, track, Verdict.REJECT, like, notForMe));
             row.getChildren().addAll(like, notForMe);
+        }
+        if (options.play()) {
+            Button play = new Button(format.w("PlayButton"));
+            play.getStyleClass().add("mm-play-button");
+            play.setMinWidth(Region.USE_PREF_SIZE);
+            play.setTooltip(new Tooltip(format.w("PlayTip")));
+            play.setAccessibleText(format.w("PlayTip"));
+            play.setOnAction(e -> {
+                if (!ctx.openInSpotify(track)) {
+                    status.error(format.w("PlayFailed", track.title()));
+                }
+            });
+            row.getChildren().add(play);
         }
         action(row, format.w("AddButton"), "mm-primary", options.onAdd(), track);
         action(row, format.w("BlockButton"), null, options.onBlock(), track);

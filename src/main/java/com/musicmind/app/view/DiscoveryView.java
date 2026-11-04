@@ -165,7 +165,7 @@ public final class DiscoveryView implements TabView {
 
     private VBox card(Recommendation rec, java.util.Map<String, com.musicmind.domain.Verdict> verdicts) {
         Label familiarity = UiParts.muted(format.familiarityLabel(rec.familiarity()));
-        VBox card = new VBox(4, TrackRow.of(ctx, feedbackStatus, rec.track(), TrackRow.Options.feedbackOnly().withAdd(this::add),
+        VBox card = new VBox(4, TrackRow.of(ctx, feedbackStatus, rec.track(), TrackRow.Options.feedbackOnly().withPlay().withAdd(this::add),
                 verdicts.get(rec.track().id())), familiarity,
                 WhyExpander.of(format, "WhyThisSong", rec.reason()));
         card.getStyleClass().add("mm-card");

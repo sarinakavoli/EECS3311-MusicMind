@@ -24,7 +24,7 @@ public final class SearchView implements TabView {
 
     /** Everything the last search left in the controller, read on the worker before it changes. */
     private record Found(List<Track> tracks, List<Artist> artists, String label, String notice,
-                         Map<String, Verdict> verdicts) { }
+                         Map<String, Verdict> verdicts, List<Track> waiting) { }
 
     /** The candidate list, the verdicts already given and whether the database accepted the change. */
     private record Candidates(List<Track> tracks, Map<String, Verdict> verdicts, String warning) { }
@@ -45,6 +45,11 @@ public final class SearchView implements TabView {
     private final Label waitingCount = UiParts.muted("");
     private final Button clear;
     private final Node root;
+    /** The songs the last search found, whole; the results show these minus the ones waiting. */
+    private List<Track> foundTracks;
+    private Map<String, Verdict> foundVerdicts = Map.of();
+    /** The songs waiting for the next playlist, as last shown. */
+    private List<Track> waitingTracks = List.of();
 
     public SearchView(GuiContext ctx) {
         this.ctx = ctx;
@@ -125,9 +130,12 @@ public final class SearchView implements TabView {
         ctx.run(status, "ActionSearch", format.w("Searching"), () -> {
             List<Track> tracks = ctx.controller().searchMusic(text);
             return new Found(tracks, ctx.controller().lastSearchArtists(), ctx.controller().lastSearchLabel(),
-                    ctx.controller().lastSearchNotice(), ctx.controller().feedbackFor());
+                    ctx.controller().lastSearchNotice(), ctx.controller().feedbackFor(), ctx.controller().getCandidates());
         }, found -> {
-            fill(results, found.tracks(), found.verdicts(), TrackRow.Options.feedbackOnly().withAdd(this::add), "NoMatches");
+            foundTracks = found.tracks();
+            foundVerdicts = found.verdicts();
+            waitingTracks = found.waiting();
+            showResults();
             artists.setText(found.artists().isEmpty() ? ""
                     : ctx.config().wording("cliArtistsFound") + " "
                     + String.join(", ", format.artistNames(found.artists(), ctx.config().guiArtistsShown())));
@@ -170,8 +178,20 @@ public final class SearchView implements TabView {
         return new Candidates(tracks, verdicts, warning != null ? warning : ctx.controller().memory().warning());
     }
 
+    /** The results are the found songs that are not waiting: adding one removes it here, removing it brings it back. */
+    private void showResults() {
+        if (foundTracks == null) {
+            return;
+        }
+        List<Track> visible = format.withoutWaiting(foundTracks, waitingTracks);
+        fill(results, visible, foundVerdicts, TrackRow.Options.feedbackOnly().withPlay().withAdd(this::add),
+                foundTracks.isEmpty() || visible.isEmpty() && waitingTracks.isEmpty() ? "NoMatches" : "AllFoundWaiting");
+    }
+
     private void show(Candidates state) {
-        fill(candidates, state.tracks(), state.verdicts(), TrackRow.Options.feedbackOnly().withRemove(this::remove), "NoCandidates");
+        waitingTracks = state.tracks();
+        showResults();
+        fill(candidates, state.tracks(), state.verdicts(), TrackRow.Options.feedbackOnly().withPlay().withRemove(this::remove), "NoCandidates");
         waitingCount.setText(format.waitingCount(state.tracks().size()));
         if (state.warning() != null) {
             status.error(ctx.config().wording("cliNotSaved").formatted(state.warning()));
