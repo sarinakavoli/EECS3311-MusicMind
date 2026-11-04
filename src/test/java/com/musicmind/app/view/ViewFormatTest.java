@@ -418,4 +418,11 @@ class ViewFormatTest {
         assertEquals("T1", format.trackTitleLine(track("1", 3, false)));
         assertEquals("Song - Ado", format.trackTitleLine(named("Song", "Ado")));
     }
+
+    @Test
+    void candidateAdded_includesRunningTotal() {
+        assertEquals("Added All the Old Things. 2 songs are waiting for your next playlist.",
+                format.candidateAdded("All the Old Things", 2));
+        assertEquals("Added Idol. 1 song is waiting for your next playlist.", format.candidateAdded("Idol", 1));
+    }
 }

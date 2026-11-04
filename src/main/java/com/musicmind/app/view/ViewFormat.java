@@ -109,6 +109,11 @@ public final class ViewFormat {
         return track.artistNames().stream().filter(n -> n != null && !n.isBlank()).collect(Collectors.joining(", "));
     }
 
+    /** The line after adding a song: its title and how many songs now wait for the next playlist. */
+    public String candidateAdded(String title, int total) {
+        return w(total == 1 ? "CandidateAddedOne" : "CandidateAddedMany", title, total);
+    }
+
     /** The title, then " - " and the artists when there are any. */
     public String trackTitleLine(Track track) {
         String artists = artists(track);

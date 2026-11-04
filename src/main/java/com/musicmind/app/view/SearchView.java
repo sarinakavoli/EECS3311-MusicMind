@@ -3,40 +3,40 @@ package com.musicmind.app.view;
 import com.musicmind.domain.Artist;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.User;
-import javafx.collections.FXCollections;
+import com.musicmind.domain.Verdict;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.control.ListCell;
-import javafx.scene.control.ListView;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 import java.util.List;
-import java.util.function.Consumer;
+import java.util.Map;
+import java.util.function.Function;
 
-/** F3: a search bar with a results list (each with "add to candidates") and the visible candidate list. */
+/** F3: a search bar with a list of found songs (each with "+ Add") and the visible list of added songs. */
 public final class SearchView implements TabView {
 
     /** Everything the last search left in the controller, read on the worker before it changes. */
-    private record Found(List<Track> tracks, List<Artist> artists, String label, String notice) { }
+    private record Found(List<Track> tracks, List<Artist> artists, String label, String notice,
+                         Map<String, Verdict> verdicts) { }
 
-    /** The candidate list and whether the database accepted the change. */
-    private record Candidates(List<Track> tracks, String warning) { }
+    /** The candidate list, the verdicts already given and whether the database accepted the change. */
+    private record Candidates(List<Track> tracks, Map<String, Verdict> verdicts, String warning) { }
 
-    private static final double LIST_HEIGHT = 320;
+    private static final double LIST_HEIGHT = 220;
 
     private final GuiContext ctx;
     private final ViewFormat format;
     private final TextField query = new TextField();
     private final Button search;
     private final StatusLine status = new StatusLine();
-    private final ListView<Track> results = new ListView<>();
-    private final ListView<Track> candidates = new ListView<>();
+    private final VBox results = new VBox(2);
+    private final VBox candidates = new VBox(2);
     private final Label artists = UiParts.wrapped("");
     private final Label notices = UiParts.muted("");
     private final Button clear;
@@ -48,34 +48,35 @@ public final class SearchView implements TabView {
         query.setPromptText(format.w("SearchPrompt"));
         HBox.setHgrow(query, Priority.ALWAYS);
         search = new Button(format.w("SearchButton"));
+        search.getStyleClass().add("mm-primary");
         search.setDefaultButton(true);
         search.setOnAction(e -> runSearch());
         query.setOnAction(e -> runSearch());
         clear = new Button(format.w("ClearCandidates"));
-        clear.setOnAction(e -> change(() -> {
-            ctx.controller().clearCandidates();
-        }, format.w("CandidatesCleared")));
+        clear.setOnAction(e -> change(() -> ctx.controller().clearCandidates(), state -> format.w("CandidatesCleared")));
 
-        results.setPlaceholder(new Label(format.w("NoResults")));
-        results.setCellFactory(list -> new TrackCell(format.w("AddCandidate"), this::add));
-        results.setPrefHeight(LIST_HEIGHT);
-        candidates.setPlaceholder(new Label(format.w("NoCandidates")));
-        candidates.setCellFactory(list -> new TrackCell(format.w("RemoveCandidate"), this::remove));
-        candidates.setPrefHeight(LIST_HEIGHT);
+        results.getChildren().add(UiParts.muted(format.w("NoResults")));
+        candidates.getChildren().add(UiParts.muted(format.w("NoCandidates")));
 
         HBox bar = new HBox(UiParts.GAP, query, search);
         bar.setAlignment(Pos.CENTER_LEFT);
-        VBox left = new VBox(4, UiParts.heading(format.w("Results")), results);
-        VBox right = new VBox(4, UiParts.heading(format.w("Candidates")), candidates, clear);
-        HBox.setHgrow(left, Priority.ALWAYS);
-        HBox.setHgrow(right, Priority.ALWAYS);
+        VBox left = new VBox(4, UiParts.heading(format.w("Results")), scroll(results));
+        VBox right = new VBox(4, UiParts.heading(format.w("Candidates")), scroll(candidates), clear);
         ctx.onDataChanged(() -> {
             if (ctx.userProperty().get() != null) {
                 onLogin(ctx.userProperty().get());
             }
         });
-        VBox page = UiParts.page(format.w("Menu.search"), format.w("Desc.search"), format.w("Example.search"), bar, status, new HBox(UiParts.PAD, left, right), artists, notices);
+        VBox page = UiParts.page(format.w("Menu.search"), format.w("Desc.search"), format.w("Example.search"), bar, status, new VBox(UiParts.PAD, left, right), artists, notices);
         root = new LoginGate(ctx, page, false);
+    }
+
+    private static ScrollPane scroll(VBox content) {
+        ScrollPane pane = new ScrollPane(content);
+        pane.setFitToWidth(true);
+        pane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        pane.setPrefHeight(LIST_HEIGHT);
+        return pane;
     }
 
     @Override
@@ -112,9 +113,9 @@ public final class SearchView implements TabView {
         ctx.run(status, "ActionSearch", format.w("Searching"), () -> {
             List<Track> tracks = ctx.controller().searchMusic(text);
             return new Found(tracks, ctx.controller().lastSearchArtists(), ctx.controller().lastSearchLabel(),
-                    ctx.controller().lastSearchNotice());
+                    ctx.controller().lastSearchNotice(), ctx.controller().feedbackFor());
         }, found -> {
-            results.setItems(FXCollections.observableArrayList(found.tracks()));
+            fill(results, found.tracks(), found.verdicts(), TrackRow.Options.feedbackOnly().withAdd(this::add), "NoResults");
             artists.setText(found.artists().isEmpty() ? ""
                     : ctx.config().wording("cliArtistsFound") + " "
                     + String.join(", ", format.artistNames(found.artists(), ctx.config().guiArtistsShown())));
@@ -123,22 +124,23 @@ public final class SearchView implements TabView {
     }
 
     private void add(Track track) {
-        change(() -> ctx.controller().addCandidate(track.id()), format.w("CandidateAdded", track.title()));
+        change(() -> ctx.controller().addCandidate(track.id()),
+                state -> format.candidateAdded(track.title(), state.tracks().size()));
     }
 
     private void remove(Track track) {
-        change(() -> ctx.controller().removeCandidate(track.id()), format.w("CandidateRemoved", track.title()));
+        change(() -> ctx.controller().removeCandidate(track.id()), state -> format.w("CandidateRemoved", track.title()));
     }
 
     /** Applies a change to the candidate list on the worker, then shows the list as it is now. */
-    private void change(Runnable change, String doneMessage) {
+    private void change(Runnable change, Function<Candidates, String> doneMessage) {
         ctx.run(status, "ActionChangeCandidates", format.w("Working"), () -> {
             change.run();
             return candidateState();
         }, state -> {
             show(state);
             if (state.warning() == null) {
-                status.info(doneMessage);
+                status.info(doneMessage.apply(state));
             }
         }, search, clear);
     }
@@ -146,50 +148,27 @@ public final class SearchView implements TabView {
     private Candidates candidateState() {
         String warning = ctx.controller().memory().warning();
         List<Track> tracks = ctx.controller().getCandidates();
-        return new Candidates(tracks, warning != null ? warning : ctx.controller().memory().warning());
+        Map<String, Verdict> verdicts = ctx.controller().feedbackFor();
+        return new Candidates(tracks, verdicts, warning != null ? warning : ctx.controller().memory().warning());
     }
 
     private void show(Candidates state) {
-        candidates.setItems(FXCollections.observableArrayList(state.tracks()));
+        fill(candidates, state.tracks(), state.verdicts(), TrackRow.Options.feedbackOnly().withRemove(this::remove), "NoCandidates");
         if (state.warning() != null) {
             status.error(ctx.config().wording("cliNotSaved").formatted(state.warning()));
         }
     }
 
-    private static String joinLines(String... lines) {
-        return String.join("\n", java.util.Arrays.stream(lines).filter(l -> l != null && !l.isBlank()).toList());
+    private void fill(VBox box, List<Track> tracks, Map<String, Verdict> verdicts, TrackRow.Options options, String emptyKey) {
+        if (tracks.isEmpty()) {
+            box.getChildren().setAll(UiParts.muted(format.w(emptyKey)));
+            return;
+        }
+        box.getChildren().setAll(tracks.stream()
+                .map(t -> TrackRow.of(ctx, status, t, options, verdicts.get(t.id()))).toList());
     }
 
-    /** A row: the title, its length and one button. */
-    private final class TrackCell extends ListCell<Track> {
-        private final Label title = new Label();
-        private final Label length = UiParts.muted("");
-        private final Button action;
-        private final HBox row;
-
-        TrackCell(String actionLabel, Consumer<Track> onAction) {
-            action = new Button(actionLabel);
-            action.setOnAction(e -> {
-                if (getItem() != null) {
-                    onAction.accept(getItem());
-                }
-            });
-            Region spacer = new Region();
-            HBox.setHgrow(spacer, Priority.ALWAYS);
-            row = new HBox(UiParts.GAP, title, spacer, length, action);
-            row.setAlignment(Pos.CENTER_LEFT);
-        }
-
-        @Override
-        protected void updateItem(Track track, boolean empty) {
-            super.updateItem(track, empty);
-            if (empty || track == null) {
-                setGraphic(null);
-                return;
-            }
-            title.setText(track.title());
-            length.setText(format.duration(track.durationMs()));
-            setGraphic(row);
-        }
+    private static String joinLines(String... lines) {
+        return String.join("\n", java.util.Arrays.stream(lines).filter(l -> l != null && !l.isBlank()).toList());
     }
 }
