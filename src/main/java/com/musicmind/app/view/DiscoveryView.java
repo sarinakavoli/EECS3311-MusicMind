@@ -20,7 +20,8 @@ import java.util.List;
 public final class DiscoveryView implements TabView {
 
     /** The recommendations and what the controller said about them, read on the worker straight after the call. */
-    private record Found(List<Recommendation> recommendations, List<String> notices, DecisionTrace trace) { }
+    private record Found(List<Recommendation> recommendations, List<String> notices, DecisionTrace trace,
+                         java.util.Map<String, com.musicmind.domain.Verdict> verdicts) { }
 
     private final GuiContext ctx;
     private final ViewFormat format;
@@ -86,7 +87,8 @@ public final class DiscoveryView implements TabView {
         ctx.run(status, "ActionDiscover", format.w("Discovering"), () -> {
             PlaylistSpec spec = ctx.controller().discoverSpec(chosen);
             List<Recommendation> recommendations = ctx.controller().discover(spec);
-            return new Found(recommendations, ctx.controller().lastDiscoverNotices(), ctx.controller().lastDecisionTrace());
+            return new Found(recommendations, ctx.controller().lastDiscoverNotices(), ctx.controller().lastDecisionTrace(),
+                    ctx.controller().feedbackFor());
         }, this::show, discover);
     }
 
@@ -103,13 +105,14 @@ public final class DiscoveryView implements TabView {
             listNotes.getChildren().add(WhyExpander.of(format, String.join("\n", traceLines)));
         }
         for (Recommendation rec : found.recommendations()) {
-            list.getChildren().add(card(rec));
+            list.getChildren().add(card(rec, found.verdicts()));
         }
     }
 
-    private VBox card(Recommendation rec) {
+    private VBox card(Recommendation rec, java.util.Map<String, com.musicmind.domain.Verdict> verdicts) {
         Label detail = UiParts.muted(format.recommendationDetail(rec));
-        VBox card = new VBox(4, TrackRow.of(ctx, feedbackStatus, rec.track(), TrackRow.Options.feedbackOnly()), detail,
+        VBox card = new VBox(4, TrackRow.of(ctx, feedbackStatus, rec.track(), TrackRow.Options.feedbackOnly(),
+                verdicts.get(rec.track().id())), detail,
                 WhyExpander.of(format, rec.reason()));
         card.getStyleClass().add("mm-card");
         return card;

@@ -26,6 +26,7 @@ import com.musicmind.music.StubMusicService;
 import org.junit.jupiter.api.Test;
 
 import java.sql.SQLException;
+import com.musicmind.domain.Verdict;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -362,5 +363,35 @@ class AppControllerTest extends PostgresTestBase {
         Playlist back = c.recreateFromSnapshot(snapshotId);
         assertEquals("Mix p", back.name());
         assertEquals(List.of("a", "b", "c"), music.held.get(back.spotifyId()).stream().map(Track::id).toList());
+    }
+
+    @Test
+    void feedbackFor_beforeLogin_isEmpty() {
+        AppController c = controller(new Music());
+        assertTrue(c.feedbackFor().isEmpty());
+        assertNull(c.currentUser(), "reading feedback must not sign in");
+    }
+
+    @Test
+    void feedbackFor_returnsLatestVerdictPerTrack() {
+        AppController c = controller(new Music());
+        c.login();
+        c.recordFeedback("4uLU6hMCjMI75M1A2tKUQC", Verdict.ACCEPT);
+        c.recordFeedback("1301WleyT98MSxVHPtVN9C", Verdict.REJECT);
+        c.recordFeedback("4uLU6hMCjMI75M1A2tKUQC", Verdict.REJECT);
+
+        assertEquals(Map.of("4uLU6hMCjMI75M1A2tKUQC", Verdict.REJECT, "1301WleyT98MSxVHPtVN9C", Verdict.REJECT), c.feedbackFor());
+    }
+
+    @Test
+    void feedbackFor_databaseDown_isEmpty() {
+        Music music = new Music();
+        Database dead = new Database("jdbc:postgresql://127.0.0.1:1/none", "u", "p");
+        AppController c = new AppController(music, new MemoryManager(dead,
+                new PreferenceRepository(dead, music::currentUserId), new FeedbackRepository(dead, music::currentUserId),
+                new SessionRepository(dead, music::currentUserId), new PlaylistHistoryRepository(dead, music::currentUserId),
+                new CandidateRepository(dead, music::currentUserId)), null, config);
+        c.login();
+        assertTrue(c.feedbackFor().isEmpty());
     }
 }

@@ -30,6 +30,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalInt;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * What the GUI shows, worked out as plain text and numbers, so the views hold no logic and this class can
@@ -88,7 +89,7 @@ public final class ViewFormat {
 
     /** The artist names of a track joined by ", "; empty when the track has none. */
     public String artists(Track track) {
-        return track.artistNames().stream().filter(n -> n != null && !n.isBlank()).collect(java.util.stream.Collectors.joining(", "));
+        return track.artistNames().stream().filter(n -> n != null && !n.isBlank()).collect(Collectors.joining(", "));
     }
 
     /** The title, then " - " and the artists when there are any. */

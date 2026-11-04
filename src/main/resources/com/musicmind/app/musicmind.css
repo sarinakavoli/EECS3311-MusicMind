@@ -233,11 +233,10 @@
     -fx-border-color: #2e2e2e;
     -fx-border-radius: 999;
     -fx-text-fill: #b3b3b3;
-    -fx-min-width: 30;
     -fx-min-height: 30;
-    -fx-pref-width: 30;
     -fx-pref-height: 30;
-    -fx-padding: 0;
+    -fx-padding: 0 12 0 12;
+    -fx-font-size: 12px;
     -fx-alignment: center;
 }
 
@@ -252,6 +251,15 @@
 .button.mm-icon-on:hover {
     -fx-border-color: #1db954;
     -fx-text-fill: #1db954;
+    -fx-background-color: transparent;
+}
+
+/* Chosen "not for me": amber, so a rejected song never looks approved. */
+.mm-icon-off-on,
+.button.mm-icon-off-on,
+.button.mm-icon-off-on:hover {
+    -fx-border-color: #e8a33d;
+    -fx-text-fill: #e8a33d;
     -fx-background-color: transparent;
 }
 

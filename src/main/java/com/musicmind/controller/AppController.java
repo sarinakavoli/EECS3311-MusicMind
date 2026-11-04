@@ -59,7 +59,9 @@ import com.musicmind.tool.ToolManager;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.Set;
@@ -695,6 +697,18 @@ public class AppController {
             throw new IllegalArgumentException("Choose accept or reject.");
         }
         memory.saveFeedback(new Feedback(id, verdict, Instant.now()));
+    }
+
+    /** Track id to the user's latest verdict, so screens can show what was chosen; empty before login or with the database down. */
+    public Map<String, Verdict> feedbackFor() {
+        Map<String, Verdict> latest = new LinkedHashMap<>();
+        if (currentUser == null) {
+            return latest;
+        }
+        for (Feedback f : memory.loadFeedback(currentUser.id())) {   // oldest first, so the last one wins
+            latest.put(f.trackId(), f.verdict());
+        }
+        return latest;
     }
 
     /**

@@ -35,7 +35,8 @@ public final class PlaylistView implements TabView {
 
     /** An opened playlist with everything the view shows about it, read on the worker. */
     private record Opened(Playlist playlist, List<String> notices, ValidationResult validation, int targetMinutes,
-                          String validationNote, String change) { }
+                          String validationNote, String change,
+                          java.util.Map<String, com.musicmind.domain.Verdict> verdicts) { }
 
     private static final double TRACK_AREA_HEIGHT = 300;
     private static final double LIST_WIDTH = 260;
@@ -281,7 +282,7 @@ public final class PlaylistView implements TabView {
         } catch (RuntimeException e) {
             all.add(ctx.format().failure("ActionCheck", e));
         }
-        return new Opened(playlist, all, validation, target, note, change);
+        return new Opened(playlist, all, validation, target, note, change, ctx.controller().feedbackFor());
     }
 
     private void show(Opened opened) {
@@ -307,14 +308,14 @@ public final class PlaylistView implements TabView {
             tracks.getChildren().add(UiParts.muted(format.w("NoTracks")));
         }
         for (Track track : playlist.tracks()) {
-            tracks.getChildren().add(row(track));
+            tracks.getChildren().add(row(track, opened.verdicts()));
         }
         notices.getChildren().setAll(opened.notices().stream().map(UiParts::muted).toList());
         String shownId = openId;
         why.getChildren().setAll(WhyExpander.lazy(ctx, "ActionExplain", () -> ctx.controller().explain(shownId)));
     }
 
-    private Node row(Track track) {
-        return TrackRow.of(ctx, feedbackStatus, track, TrackRow.Options.feedbackOnly());
+    private Node row(Track track, java.util.Map<String, com.musicmind.domain.Verdict> verdicts) {
+        return TrackRow.of(ctx, feedbackStatus, track, TrackRow.Options.feedbackOnly(), verdicts.get(track.id()));
     }
 }

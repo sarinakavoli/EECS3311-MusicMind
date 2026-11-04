@@ -49,10 +49,13 @@ final class TrackRow {
         }
     }
 
+    private static final String ON_CLASS = "mm-on-class";
+
     private TrackRow() {
     }
 
-    static Node of(GuiContext ctx, StatusLine status, Track track, Options options) {
+    /** @param chosen the verdict already given to this song (shown highlighted), or null */
+    static Node of(GuiContext ctx, StatusLine status, Track track, Options options, Verdict chosen) {
         ViewFormat format = ctx.format();
         Label title = new Label(track.title() + (track.isExplicit() ? "  [" + format.w("ExplicitTag") + "]" : ""));
         title.getStyleClass().add("mm-track-title");
@@ -77,8 +80,12 @@ final class TrackRow {
         row.setAlignment(Pos.CENTER_LEFT);
 
         if (options.feedback()) {
-            Button like = icon(format.w("LikeIcon"), format.w("LikeTip"));
-            Button notForMe = icon(format.w("NotForMeIcon"), format.w("NotForMeTip"));
+            Button like = icon(format.w("IconLabel", format.w("LikeIcon"), format.w("LikeCaption")), format.w("LikeTip"), "mm-icon-on");
+            Button notForMe = icon(format.w("IconLabel", format.w("NotForMeIcon"), format.w("NotForMeCaption")),
+                    format.w("NotForMeTip"), "mm-icon-off-on");
+            if (chosen != null) {
+                choose(chosen == Verdict.ACCEPT ? like : notForMe, chosen == Verdict.ACCEPT ? notForMe : like);
+            }
             like.setOnAction(e -> send(ctx, status, track, Verdict.ACCEPT, like, notForMe));
             notForMe.setOnAction(e -> send(ctx, status, track, Verdict.REJECT, like, notForMe));
             row.getChildren().addAll(like, notForMe);
@@ -97,12 +104,16 @@ final class TrackRow {
         if (styleClass != null) {
             button.getStyleClass().add(styleClass);
         }
+        button.setMinWidth(Region.USE_PREF_SIZE);
         button.setOnAction(e -> handler.accept(track));
         row.getChildren().add(button);
     }
 
-    private static Button icon(String glyph, String tip) {
-        Button button = new Button(glyph);
+    private static Button icon(String label, String tip, String onClass) {
+        Button button = new Button(label);
+        button.getProperties().put(ON_CLASS, onClass);
+        button.setAccessibleText(tip);
+        button.setMinWidth(Region.USE_PREF_SIZE);
         button.getStyleClass().add("mm-icon-button");
         button.setTooltip(new Tooltip(tip));
         return button;
@@ -122,11 +133,12 @@ final class TrackRow {
         }, like, notForMe);
     }
 
-    /** Highlights the chosen icon and clears the other. */
+    /** Highlights the chosen icon (green for like, amber for not for me) and clears the other. */
     private static void choose(Button on, Button off) {
-        off.getStyleClass().remove("mm-icon-on");
-        if (!on.getStyleClass().contains("mm-icon-on")) {
-            on.getStyleClass().add("mm-icon-on");
+        off.getStyleClass().removeAll("mm-icon-on", "mm-icon-off-on");
+        String onClass = (String) on.getProperties().get(ON_CLASS);
+        if (!on.getStyleClass().contains(onClass)) {
+            on.getStyleClass().add(onClass);
         }
     }
 }
