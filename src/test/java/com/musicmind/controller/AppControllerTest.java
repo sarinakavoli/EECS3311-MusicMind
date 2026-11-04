@@ -120,6 +120,63 @@ class AppControllerTest extends PostgresTestBase {
         assertThrows(IllegalArgumentException.class, () -> c.analyzeTaste(c.currentUser(), "nope"));
     }
 
+    /** Plays 5 days ago (two of "a"), 1 day ago ("b"), and 20 days ago ("old", outside the week); newest first. */
+    private class Plays extends Music {
+        final java.time.Instant now = java.time.Instant.now();
+        final List<com.musicmind.domain.Play> plays;
+        Plays(List<com.musicmind.domain.Play> plays) { this.plays = plays; }
+        @Override public List<com.musicmind.domain.Play> getRecentPlays() { return plays; }
+        @Override public List<Artist> withGenres(List<Artist> artists) {
+            return artists.stream().map(a -> new Artist(a.id(), a.name(), List.of("genre-" + a.id()))).toList();
+        }
+    }
+
+    private static com.musicmind.domain.Play play(String id, String artist, java.time.Instant at) {
+        return new com.musicmind.domain.Play(
+                new Track(id, "spotify:track:" + id, "Title " + id, 1000, false, List.of(artist), List.of("Name " + artist)), at);
+    }
+
+    @Test
+    void pastWeekCountsPlaysFromTheLastSevenDaysOnly() {
+        java.time.Instant now = java.time.Instant.now();
+        Music music = new Plays(List.of(
+                play("t1", "b", now.minus(java.time.Duration.ofDays(1))),
+                play("t2", "a", now.minus(java.time.Duration.ofDays(3))),
+                play("t2", "a", now.minus(java.time.Duration.ofDays(5))),
+                play("t3", "old", now.minus(java.time.Duration.ofDays(20)))));
+        AppController c = controller(music);
+
+        ListeningProfile p = c.analyzeTaste(c.login(), "week");
+
+        assertEquals("week", p.range());
+        assertEquals(List.of("a", "b"), p.topArtists().stream().map(Artist::id).toList(), "most played first");
+        assertEquals(List.of("t2", "t1"), p.topTracks().stream().map(Track::id).toList());
+        assertEquals("Name a", p.topArtists().get(0).name());
+        assertTrue(p.genreHistogram().containsKey("genre-a"), "genres come through the genre path");
+        assertFalse(p.genreHistogram().containsKey("genre-old"));
+        assertTrue(p.notices().stream().anyMatch(n -> n.contains("last 3 plays") && n.contains("50 most recent")),
+                p.notices().toString());
+        assertEquals("week", c.lastProfile(c.currentUser()).orElseThrow().range(), "derived data only is stored, with the range");
+    }
+
+    @Test
+    void pastWeekWithNoRecentPlaysSaysSoPlainly() {
+        java.time.Instant now = java.time.Instant.now();
+        AppController c = controller(new Plays(List.of(play("t3", "old", now.minus(java.time.Duration.ofDays(20))))));
+
+        ListeningProfile p = c.analyzeTaste(c.login(), "week");
+
+        assertTrue(p.isEmpty());
+        assertTrue(p.notices().stream().anyMatch(n -> n.contains("No plays in the last 7 days")), p.notices().toString());
+    }
+
+    @Test
+    void yourTasteOffersPastWeekButTrendsKeepsSpotifysThreeRanges() {
+        AppController c = controller(new Music());
+        assertEquals(List.of("week", "short", "medium", "long"), c.timeRanges());
+        assertEquals(List.of("short", "medium", "long"), c.trendRanges());
+    }
+
     @Test
     void withoutSpotifyEveryFeatureSaysSoInsteadOfFailingObscurely() {
         AppController c = new AppController(null, memory(new Music()), null, config);

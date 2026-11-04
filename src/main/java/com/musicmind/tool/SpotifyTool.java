@@ -39,6 +39,8 @@ public class SpotifyTool implements Tool {
                 }),
                 new SpotifyTool("getSavedTracks", a -> music.getSavedTracks()),
                 new SpotifyTool("getRecentlyPlayed", a -> music.getRecentlyPlayed()),
+                new SpotifyTool("getRecentPlays", a -> music.getRecentPlays()),
+                new SpotifyTool("withGenres", a -> music.withGenres(artists(a))),
                 new SpotifyTool("search", a -> music.search(required(a, "query"), limit(a, defaultLimit))),
                 new SpotifyTool("searchArtists", a -> music.searchArtists(required(a, "query"), limit(a, defaultLimit))),
                 new SpotifyTool("getArtistAlbums", a -> music.getArtistAlbums(required(a, "artistId"))),
@@ -58,6 +60,15 @@ public class SpotifyTool implements Tool {
         } catch (IllegalArgumentException e) {
             return ToolResult.failure(name + ": " + e.getMessage());
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<com.musicmind.domain.Artist> artists(Map<String, Object> args) {
+        Object v = args.get("artists");
+        if (!(v instanceof List<?>)) {
+            throw new IllegalArgumentException("missing required argument 'artists'");
+        }
+        return (List<com.musicmind.domain.Artist>) v;
     }
 
     private static String optional(Map<String, Object> args, String key) {

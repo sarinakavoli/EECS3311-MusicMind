@@ -89,7 +89,7 @@ public final class ViewFormat {
     /** A Spotify time range in plain words ({@code short} to Past month); any other value stays as it is. */
     public String rangeLabel(String range) {
         return switch (range == null ? "" : range) {
-            case "short", "medium", "long" -> w("Range." + range);
+            case "week", "short", "medium", "long" -> w("Range." + range);
             default -> range;
         };
     }

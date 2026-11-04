@@ -44,6 +44,7 @@ import com.musicmind.domain.FeasibilityReport;
 import com.musicmind.domain.Feedback;
 import com.musicmind.domain.Relaxation;
 import com.musicmind.domain.ListeningProfile;
+import com.musicmind.domain.Play;
 import com.musicmind.domain.Playlist;
 import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.PlaylistSummary;
@@ -113,6 +114,9 @@ public class MusicAgentFacade {
 
     private static final String TOP_ITEMS = "getTopItems";
     private static final String SAVED_TRACKS = "getSavedTracks";
+    private static final String RECENT_PLAYS = "getRecentPlays";
+    private static final String WITH_GENRES = "withGenres";
+    private static final String WEEK = "week";
     private static final Gson GSON = new Gson();
     private static final String ARTIST_ID = "(spotify:artist:)?[A-Za-z0-9]{22}";
 
@@ -208,6 +212,9 @@ public class MusicAgentFacade {
     public ListeningProfile analyzeTaste(User user, String range) {
         Objects.requireNonNull(user, "user");
         String r = normalizeRange(range);
+        if (WEEK.equals(r)) {
+            return analyzePastWeek();
+        }
 
         Fetch<Artist> artists = fetch(TOP_ITEMS, Map.of("type", "artists", "range", r), "readFailedTopArtists");
         Fetch<Track> topTracks = fetch(TOP_ITEMS, Map.of("type", "tracks", "range", r), "readFailedTopTracks");
@@ -235,6 +242,92 @@ public class MusicAgentFacade {
         session.setDerivedData(derivedJson(profile, r));
         memory.saveSession(session);
         return profile;
+    }
+
+    /**
+     * The past week: Spotify has no top items for a week, so it is counted from the recent plays inside the last
+     * {@code profile.weekDays} days (Spotify keeps only the 50 most recent). Artists and tracks are ranked by
+     * play count, genres come from the genre source, and only derived data is stored, as for any range.
+     */
+    private ListeningProfile analyzePastWeek() {
+        Fetch<Play> recent = fetch(RECENT_PLAYS, Map.of(), "readFailedRecent");
+        Fetch<Track> saved = fetch(SAVED_TRACKS, Map.of(), "readFailedSavedTracks");
+        List<String> errors = Fetch.errors(recent, saved);
+        if (errors.size() == 2) {
+            throw new MusicServiceException(config.wording("profileAllReadsFailed"), Fetch.firstCause(recent, saved));
+        }
+        List<String> notices = new ArrayList<>(errors);
+        boolean savedCapped = TrackList.isTruncated(saved.items());
+        if (savedCapped) {
+            notices.add(savedTracksCappedNotice());
+        }
+        int days = config.profileWeekDays();
+        Instant since = Instant.now().minus(java.time.Duration.ofDays(days));
+        List<Play> week = recent.items().stream().filter(p -> p.playedAt() != null && !p.playedAt().isBefore(since)).toList();
+
+        int limit = config.profileWeekTopLimit();
+        List<Track> topTracks = rankedByPlays(week, false).stream().limit(limit).map(e -> e.track).toList();
+        List<Artist> topArtists = rankedByPlays(week, true).stream().limit(limit)
+                .map(e -> new Artist(e.artistId, e.artistName, List.of())).toList();
+        if (!topArtists.isEmpty()) {
+            Map<String, Object> args = new LinkedHashMap<>();
+            args.put("artists", topArtists);
+            Fetch<Artist> withGenres = fetch(WITH_GENRES, args, "readFailedWeekGenres");
+            if (withGenres.error() != null) {
+                notices.add(withGenres.error());
+            } else {
+                topArtists = withGenres.items();
+            }
+        }
+        List<String> info = new ArrayList<>();
+        info.add(week.isEmpty()
+                ? String.format(config.wording("weekNoPlays"), days, config.spotifyRecentlyPlayedLimit())
+                : String.format(config.wording("weekBuiltFrom"), week.size(), config.spotifyRecentlyPlayedLimit()));
+        ListeningProfile built = profileBuilder.build(new TopItems(topArtists, topTracks), saved.items(), notices, info);
+        ListeningProfile profile = withSummary(built);
+        profile.setRange(WEEK);
+        profile.setSavedCapped(savedCapped);
+
+        AgentSession session = new AgentSession(UUID.randomUUID().toString(), Instant.now(), null);
+        session.setStatus("done");
+        session.setRequest(new AgentRequest("view taste profile (" + WEEK + ")", RequestKind.ANALYZE_TASTE));
+        session.setDerivedData(derivedJson(profile, WEEK));
+        memory.saveSession(session);
+        return profile;
+    }
+
+    /** A track or an artist with how often it was played; entries keep the order of first (newest) play on ties. */
+    private static final class Counted {
+        final String artistId;
+        final String artistName;
+        final Track track;
+        int plays;
+
+        Counted(String artistId, String artistName, Track track) {
+            this.artistId = artistId;
+            this.artistName = artistName;
+            this.track = track;
+        }
+    }
+
+    private static List<Counted> rankedByPlays(List<Play> plays, boolean byArtist) {
+        Map<String, Counted> counts = new LinkedHashMap<>();
+        for (Play p : plays) {
+            Track t = p.track();
+            if (!byArtist) {
+                counts.computeIfAbsent(t.id(), id -> new Counted(null, null, t)).plays++;
+                continue;
+            }
+            for (int i = 0; i < t.artistIds().size(); i++) {
+                String id = t.artistIds().get(i);
+                if (id == null) {
+                    continue;
+                }
+                String name = i < t.artistNames().size() ? t.artistNames().get(i) : "";
+                counts.computeIfAbsent(id, k -> new Counted(id, name, null)).plays++;
+            }
+        }
+        return counts.values().stream().sorted((a, b) -> Integer.compare(b.plays, a.plays)).toList();
     }
 
     /** The user's most recent stored profile, rebuilt from its derived data (ids only, no names). */
@@ -1218,9 +1311,9 @@ public class MusicAgentFacade {
         if (r.endsWith("_term")) {
             r = r.substring(0, r.length() - "_term".length());
         }
-        if (!config.profileRanges().contains(r)) {
+        if (!config.profileTasteRanges().contains(r)) {
             throw new IllegalArgumentException("Unknown time range '" + range + "'. Use one of: "
-                    + String.join(", ", config.profileRanges()) + ".");
+                    + String.join(", ", config.profileTasteRanges()) + ".");
         }
         return r;
     }

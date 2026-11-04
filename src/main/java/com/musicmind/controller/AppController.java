@@ -231,8 +231,13 @@ public class AppController {
         return config.genreAttribution();
     }
 
-    /** The time ranges the views offer, most recent first. */
+    /** The time ranges Your Taste offers, most recent first (the past week, then Spotify's three). */
     public List<String> timeRanges() {
+        return config.profileTasteRanges();
+    }
+
+    /** The ranges Trends compares: Spotify's three only, since a week of plays is too thin to compare. */
+    public List<String> trendRanges() {
         return config.profileRanges();
     }
 

@@ -149,6 +149,7 @@ class ViewFormatTest {
         assertEquals("Past month", format.rangeLabel("short"));
         assertEquals("Past 6 months", format.rangeLabel("medium"));
         assertEquals("Past year", format.rangeLabel("long"));
+        assertEquals("Past week", format.rangeLabel("week"));
     }
 
     @Test

@@ -240,6 +240,9 @@ Status added Nov 4 after the frontend redesign and its read-only live check (`do
 33. **Open and Delete buttons on unselected playlist rows look faint.**
     - **Status (Nov 4):** **Done:** rendered; Open was readable, Delete (muted grey outline) was dim. Delete now has a lighter border and text; it still turns amber on hover.
 
+34. **"Past week" on Your Taste (asked for twice).** Spotify's top items have only Past month, 6 months and year.
+    - **Status (Nov 4):** **Done:** Your Taste offers Past week, built from the last 7 days of the 50 most recent plays (top artists and songs by play count, genres from MusicBrainz) with a notice "Built from your last N plays (Spotify only keeps your 50 most recent)", or a plain "No plays in the last 7 days". Trends keeps Spotify's three periods, because a 50-play sample would not compare fairly. Tested with a fake music service; not tried against the real account.
+
 ## Backend status (Nov 2)
 
 Plan: `docs/superpowers/plans/2026-11-02-backend-test-fixes.md`. Forced run on c6d947f: 842

@@ -358,6 +358,19 @@ class SpotifyAdapterTest {
         assertEquals("t7", tracks.get(0).id());
     }
 
+    @Test
+    void getRecentPlaysCarriesWhenEachTrackWasPlayed() {
+        api.respond(r -> Reply.ok("{\"items\":[{\"track\":" + trackJson(7) + ",\"played_at\":\"2026-11-03T10:15:30.123Z\"},"
+                + "{\"track\":" + trackJson(8) + ",\"played_at\":\"not a time\"}]}"));
+
+        List<com.musicmind.domain.Play> plays = adapter.getRecentPlays();
+
+        assertEquals("/v1/me/player/recently-played", api.requests.get(0).path());
+        assertEquals("t7", plays.get(0).track().id());
+        assertEquals(java.time.Instant.parse("2026-11-03T10:15:30.123Z"), plays.get(0).playedAt());
+        assertEquals(1, plays.size(), "a play with no readable time cannot be placed in the week and is skipped");
+    }
+
     // ---- catalogue ----
 
     @Test

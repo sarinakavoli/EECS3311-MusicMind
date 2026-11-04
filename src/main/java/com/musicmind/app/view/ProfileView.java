@@ -46,7 +46,7 @@ public final class ProfileView implements TabView {
     public ProfileView(GuiContext ctx) {
         this.ctx = ctx;
         this.format = ctx.format();
-        range.setItems(FXCollections.observableArrayList(ctx.config().profileRanges()));
+        range.setItems(FXCollections.observableArrayList(ctx.controller().timeRanges()));
         range.setConverter(new javafx.util.StringConverter<>() {
             @Override
             public String toString(String raw) {

@@ -581,6 +581,21 @@ public final class Config {
         return Arrays.stream(text("profile.ranges").split(",")).map(String::trim).toList();
     }
 
+    /** The ranges Your Taste offers: the past week (built from recent plays) then Spotify's three. */
+    public List<String> profileTasteRanges() {
+        return Arrays.stream(text("profile.tasteRanges").split(",")).map(String::trim).toList();
+    }
+
+    /** Days in the past-week range. */
+    public int profileWeekDays() {
+        return integer("profile.weekDays");
+    }
+
+    /** Most artists and tracks the past-week profile keeps. */
+    public int profileWeekTopLimit() {
+        return integer("profile.weekTopLimit");
+    }
+
     public String profileDefaultRange() {
         return text("profile.defaultRange");
     }

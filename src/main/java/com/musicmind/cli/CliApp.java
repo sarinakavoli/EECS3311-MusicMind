@@ -951,7 +951,7 @@ public class CliApp {
         AppController c = controller();
         out.println();
         out.println(w("TrendsHeading"));
-        for (String range : c.timeRanges()) {
+        for (String range : c.trendRanges()) {
             List<Artist> artists = report.artistsByRange().getOrDefault(range, List.of());
             String names = artists.stream().map(Artist::name).limit(ARTISTS_SHOWN).collect(Collectors.joining(", "));
             String genres = report.genresByRange().getOrDefault(range, Map.of()).entrySet().stream()
