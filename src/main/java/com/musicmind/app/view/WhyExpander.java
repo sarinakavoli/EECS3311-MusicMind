@@ -41,7 +41,14 @@ final class WhyExpander {
     static TitledPane lazy(GuiContext ctx, String action, Supplier<String> loader) {
         StatusLine status = new StatusLine();
         Label body = UiParts.wrapped("");
-        TitledPane pane = new TitledPane(ctx.format().w("WhyThese"), new VBox(UiParts.GAP, status, body));
+        body.getStyleClass().add("mm-why-text");
+        ScrollPane scroll = new ScrollPane(body);
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setPrefViewportHeight(MAX_HEIGHT);
+        scroll.setMaxHeight(MAX_HEIGHT);
+        scroll.getStyleClass().add("mm-why-scroll");
+        TitledPane pane = new TitledPane(ctx.format().w("WhyThese"), new VBox(UiParts.GAP, status, scroll));
         pane.setExpanded(false);
         AtomicBoolean requested = new AtomicBoolean(false);
         pane.expandedProperty().addListener((observable, was, expanded) -> {

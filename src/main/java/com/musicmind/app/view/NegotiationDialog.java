@@ -15,6 +15,8 @@ import java.util.Optional;
 /** F11: states what cannot be met and offers the ways to adjust the request; cancelling picks none. */
 final class NegotiationDialog {
 
+    private static final double WIDTH = 460;
+
     private NegotiationDialog() {
     }
 
@@ -28,14 +30,16 @@ final class NegotiationDialog {
         Alert alert = new Alert(Alert.AlertType.NONE);
         alert.setTitle(format.w("ConflictTitle"));
         alert.setHeaderText(format.w("ConflictTitle"));
-        VBox body = new VBox(8);
+        VBox body = new VBox(UiParts.GAP);
+        body.setPrefWidth(WIDTH);
         for (String conflict : report.conflicts()) {
-            Label line = new Label(conflict);
-            line.setWrapText(true);
+            Label line = UiParts.wrapped(conflict);
+            line.setMaxWidth(WIDTH);
             body.getChildren().add(line);
         }
-        body.getChildren().add(new Label(format.w("ConflictChoose")));
+        body.getChildren().add(UiParts.muted(format.w("ConflictChoose")));
         alert.getDialogPane().setContent(body);
+        UiParts.dark(alert.getDialogPane());
 
         List<ButtonType> optionButtons = new ArrayList<>();
         for (String option : options) {

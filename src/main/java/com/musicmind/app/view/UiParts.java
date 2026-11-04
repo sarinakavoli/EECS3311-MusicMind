@@ -64,4 +64,14 @@ final class UiParts {
         label.getStyleClass().add("mm-badge");
         return label;
     }
+
+    private static final String STYLESHEET = "/com/musicmind/app/musicmind.css";
+
+    /** Gives a dialog the dark look even when it has no owner window to inherit the stylesheet from. */
+    static void dark(javafx.scene.control.DialogPane pane) {
+        java.net.URL sheet = UiParts.class.getResource(STYLESHEET);
+        if (sheet != null && !pane.getStylesheets().contains(sheet.toExternalForm())) {
+            pane.getStylesheets().add(sheet.toExternalForm());
+        }
+    }
 }

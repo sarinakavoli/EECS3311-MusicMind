@@ -153,6 +153,7 @@ public final class HistoryView implements TabView {
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION, message + "\n\n" + format.w("RecreatePrompt"),
                 ButtonType.YES, ButtonType.NO);
         alert.setHeaderText(format.w("RecreateTitle"));
+        UiParts.dark(alert.getDialogPane());
         return alert.showAndWait().filter(ButtonType.YES::equals).isPresent();
     }
 

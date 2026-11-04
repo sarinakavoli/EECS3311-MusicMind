@@ -11,7 +11,11 @@ import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.OverrunStyle;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
@@ -21,6 +25,7 @@ import javafx.scene.control.TextField;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 import java.util.ArrayList;
@@ -39,7 +44,9 @@ public final class PlaylistView implements TabView {
                           java.util.Map<String, com.musicmind.domain.Verdict> verdicts) { }
 
     private static final double TRACK_AREA_HEIGHT = 300;
-    private static final double LIST_WIDTH = 260;
+    private static final double LIST_WIDTH = 330;
+    /** Room the list cell keeps around its row: its own padding and the scroll bar. */
+    private static final double ROW_INSET = 28;
 
     private final GuiContext ctx;
     private final ViewFormat format;
@@ -72,15 +79,22 @@ public final class PlaylistView implements TabView {
         refresh.setOnAction(e -> loadList(null));
         ctx.onDataChanged(this::reloadAfterChange);
         create = new Button(format.w("CreatePlaylist"));
+        create.getStyleClass().add("mm-primary");
         create.setOnAction(e -> new CreatePlaylistDialog(ctx, created -> {
             announceChange();
             loadList(created.spotifyId());
-        }).show());
+        }).show(create.getScene() == null ? null : create.getScene().getWindow()));
         playlists.setCellFactory(list -> new ListCell<>() {
             @Override
             protected void updateItem(PlaylistSummary item, boolean empty) {
                 super.updateItem(item, empty);
-                setText(empty || item == null ? null : format.w("PlaylistLine", item.name(), item.trackCount()));
+                setText(null);
+                setPrefWidth(0);   // the row fits the list; a long name is cut with an ellipsis, never scrolled
+                Node row = empty || item == null ? null : playlistRow(item);
+                if (row instanceof HBox box) {
+                    box.prefWidthProperty().bind(widthProperty().subtract(ROW_INSET));
+                }
+                setGraphic(row);
             }
         });
         playlists.setPlaceholder(new Label(ctx.config().wording("cliNoPlaylists")));
@@ -121,7 +135,7 @@ public final class PlaylistView implements TabView {
         chooser.managedProperty().bind(chooser.visibleProperty());
         detail.managedProperty().bind(detail.visibleProperty());
         SplitPane split = new SplitPane(left, rightScroll);
-        split.setDividerPositions(0.3);
+        split.setDividerPositions(0.38);
         VBox.setVgrow(split, Priority.ALWAYS);
         VBox page = UiParts.page(format.w("Menu.playlists"), format.w("Desc.playlists"), format.w("Example.playlists"), split);
         page.setFillWidth(true);
@@ -316,6 +330,72 @@ public final class PlaylistView implements TabView {
     }
 
     private Node row(Track track, java.util.Map<String, com.musicmind.domain.Verdict> verdicts) {
-        return TrackRow.of(ctx, feedbackStatus, track, TrackRow.Options.feedbackOnly(), verdicts.get(track.id()));
+        return TrackRow.of(ctx, feedbackStatus, track, TrackRow.Options.feedbackOnly().withBlock(this::block),
+                verdicts.get(track.id()));
+    }
+
+    /** Blocks one song for future playlists, then checks the open playlist again so its badges show the block. */
+    private void block(Track track) {
+        String shownId = openId;
+        ctx.run(feedbackStatus, "ActionBlock", format.w("Blocking"), () -> {
+            ctx.controller().blockTrack(track.id());
+            return track.title();
+        }, title -> {
+            ctx.dataChanged();
+            open(shownId);
+            feedbackStatus.info(format.w("BlockedSong", title));
+        });
+    }
+
+    /** One playlist in the list: its name and size, with Open and Delete. */
+    private Node playlistRow(PlaylistSummary item) {
+        Label name = new Label(item.name());
+        name.getStyleClass().add("mm-track-title");
+        name.setTextOverrun(OverrunStyle.ELLIPSIS);
+        name.setMaxWidth(Double.MAX_VALUE);
+        Label count = new Label(format.w("PlaylistCount", item.trackCount()));
+        count.getStyleClass().addAll("mm-muted", "mm-track-artists");
+        VBox text = new VBox(2, name, count);
+        text.setMinWidth(0);
+        HBox.setHgrow(text, Priority.ALWAYS);
+        Button open = new Button(format.w("OpenPlaylist"));
+        open.setMinWidth(Region.USE_PREF_SIZE);
+        open.setOnAction(e -> open(item.id()));
+        Button delete = new Button(format.w("DeletePlaylist"));
+        delete.getStyleClass().add("mm-danger");
+        delete.setMinWidth(Region.USE_PREF_SIZE);
+        delete.setOnAction(e -> confirmDelete(item));
+        HBox row = new HBox(UiParts.GAP, text, open, delete);
+        row.setAlignment(Pos.CENTER_LEFT);
+        return row;
+    }
+
+    private void confirmDelete(PlaylistSummary item) {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        ButtonType yes = new ButtonType(format.w("DeleteYes"), ButtonBar.ButtonData.OK_DONE);
+        ButtonType no = new ButtonType(format.w("DeleteNo"), ButtonBar.ButtonData.CANCEL_CLOSE);
+        alert.getButtonTypes().setAll(yes, no);
+        alert.setTitle(format.w("DeleteTitle"));
+        alert.setHeaderText(format.w("DeleteTitle"));
+        alert.setContentText(format.w("DeleteConfirm", item.name()));
+        UiParts.dark(alert.getDialogPane());
+        if (root.getScene() != null) {
+            alert.initOwner(root.getScene().getWindow());
+        }
+        if (alert.showAndWait().orElse(no) != yes) {
+            return;
+        }
+        ctx.run(listStatus, "ActionDelete", format.w("Deleting"), () -> {
+            ctx.controller().deletePlaylist(item.id());
+            return item.name();
+        }, name -> {
+            if (item.id().equals(openId)) {
+                openId = null;
+                detail.setVisible(false);
+            }
+            announceChange();
+            loadList(null, false);
+            listStatus.info(format.w("Deleted", name));
+        }, refresh, create);
     }
 }

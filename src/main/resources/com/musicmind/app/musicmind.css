@@ -497,3 +497,31 @@
 .mm-track-artists {
     -fx-font-size: 12px;
 }
+
+/* ---- Playlists and the Create dialog ------------------------------------ */
+
+.mm-length-field,
+.text-field.mm-length-field {
+    -fx-pref-width: 70;
+    -fx-max-width: 70;
+}
+
+.mm-dialog-content {
+    -fx-pref-width: 540;
+    -fx-spacing: 8;
+}
+
+/* Delete in a playlist row: quiet until pointed at, then amber like a warning. */
+.button.mm-danger {
+    -fx-background-color: transparent;
+    -fx-border-color: #2e2e2e;
+    -fx-border-radius: 999;
+    -fx-background-radius: 999;
+    -fx-text-fill: #b3b3b3;
+}
+
+.button.mm-danger:hover {
+    -fx-border-color: #e8a33d;
+    -fx-text-fill: #e8a33d;
+    -fx-background-color: transparent;
+}
