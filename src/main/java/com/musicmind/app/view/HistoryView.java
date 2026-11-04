@@ -4,27 +4,31 @@ import com.musicmind.agent.command.PlaylistMissingException;
 import com.musicmind.domain.AgentSession;
 import com.musicmind.domain.Playlist;
 import com.musicmind.domain.SnapshotInfo;
+import com.musicmind.domain.Track;
 import com.musicmind.domain.User;
-import javafx.collections.FXCollections;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
-import javafx.scene.control.ListCell;
-import javafx.scene.control.ListView;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.Dialog;
+import javafx.scene.control.OverrunStyle;
 import javafx.scene.control.ScrollPane;
-import javafx.scene.control.TableColumn;
-import javafx.scene.control.TableView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-/** F12: past sessions (opening one shows its plan and result) and saved playlist versions with a "Restore" action. */
+/**
+ * F12: what MusicMind did, newest first (quick looks hidden unless asked for), and the saved versions of each
+ * playlist, grouped under its name. A version opens a preview of its songs before it is restored.
+ */
 public final class HistoryView implements TabView {
 
     private record Loaded(List<AgentSession> sessions, List<SnapshotInfo> snapshots, String warning) { }
@@ -32,17 +36,21 @@ public final class HistoryView implements TabView {
     /** What a restore did; {@code missing} is set when the Spotify playlist was deleted and can be recreated. */
     private record Outcome(String message, String missing) { }
 
-    private static final double TABLE_HEIGHT = 220;
-    private static final double LIST_HEIGHT = 160;
+    private static final int PAGE_SIZE = 25;
 
     private final GuiContext ctx;
     private final ViewFormat format;
     private final Button refresh;
     private final StatusLine status = new StatusLine();
-    private final TableView<ViewFormat.HistoryRow> sessions = new TableView<>();
-    private final VBox sessionDetail = new VBox(2);
-    private final ListView<SnapshotInfo> versions = new ListView<>();
+    private final CheckBox showRoutine = new CheckBox();
+    private final VBox timeline = new VBox(2);
+    private final Button more;
+    private final VBox versions = new VBox(UiParts.GAP);
     private final Node root;
+    private List<AgentSession> loadedSessions = List.of();
+    private int shown = PAGE_SIZE;
+    /** True from the moment a restore is chosen until it ends, so a second one cannot queue behind it. */
+    private final AtomicBoolean restoring = new AtomicBoolean();
 
     public HistoryView(GuiContext ctx) {
         this.ctx = ctx;
@@ -54,37 +62,23 @@ public final class HistoryView implements TabView {
                 load(ctx.userProperty().get());
             }
         });
-
-        sessions.getColumns().add(column(format.w("ColWhen"), ViewFormat.HistoryRow::when));
-        sessions.getColumns().add(column(format.w("ColStatus"), ViewFormat.HistoryRow::status));
-        sessions.getColumns().add(column(format.w("ColRequest"), ViewFormat.HistoryRow::request));
-        sessions.getColumns().add(column(format.w("ColPlaylist"), ViewFormat.HistoryRow::playlistId));
-        sessions.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        sessions.setPrefHeight(TABLE_HEIGHT);
-        sessions.setPlaceholder(new Label(ctx.config().wording("cliNone")));
-        sessions.getSelectionModel().selectedItemProperty().addListener((o, was, now) -> {
-            if (now != null) {
-                openSession(now.sessionId());
-            }
+        showRoutine.setText(format.w("ShowRoutine"));
+        showRoutine.setOnAction(e -> {
+            shown = PAGE_SIZE;
+            fillTimeline();
         });
-        sessionDetail.getChildren().add(UiParts.muted(format.w("SelectSession")));
+        more = new Button(format.w("ShowMore"));
+        more.setOnAction(e -> {
+            shown += PAGE_SIZE;
+            fillTimeline();
+        });
 
-        versions.setPrefHeight(LIST_HEIGHT);
-        versions.setPlaceholder(new Label(ctx.config().wording("cliNone")));
-        versions.setCellFactory(list -> new VersionCell());
-
-        VBox page = UiParts.page(format.w("Menu.history"), format.w("Desc.history"), "", new HBox(UiParts.GAP, refresh), status, UiParts.heading(format.w("HistoryTitle")), sessions,
-                sessionDetail, UiParts.heading(format.w("SavedVersions")), versions);
+        VBox page = UiParts.page(format.w("Menu.history"), format.w("Desc.history"), "", new HBox(UiParts.GAP, refresh, showRoutine), status,
+                UiParts.heading(format.w("HistoryTitle")), timeline, more,
+                UiParts.heading(format.w("SavedVersions")), UiParts.muted(format.w("SavedVersionsHint")), versions);
         ScrollPane scroll = new ScrollPane(page);
         scroll.setFitToWidth(true);
         root = new LoginGate(ctx, scroll, false);
-    }
-
-    private static TableColumn<ViewFormat.HistoryRow, String> column(String title,
-            java.util.function.Function<ViewFormat.HistoryRow, String> value) {
-        TableColumn<ViewFormat.HistoryRow, String> column = new TableColumn<>(title);
-        column.setCellValueFactory(cell -> new javafx.beans.property.SimpleStringProperty(value.apply(cell.getValue())));
-        return column;
     }
 
     @Override
@@ -113,29 +107,171 @@ public final class HistoryView implements TabView {
             List<SnapshotInfo> snapshots = ctx.controller().getSnapshots(user);
             return new Loaded(past, snapshots, ctx.controller().memory().warning());
         }, loaded -> {
-            sessions.setItems(FXCollections.observableArrayList(format.historyRows(loaded.sessions())));
-            versions.setItems(FXCollections.observableArrayList(loaded.snapshots()));
+            loadedSessions = loaded.sessions();
+            fillTimeline();
+            fillVersions(loaded.snapshots());
             if (loaded.warning() != null) {
                 status.info(format.w("HistoryIncomplete"));
             }
         }, refresh);
     }
 
-    private void openSession(String id) {
+    // ---- activity timeline ----
+
+    private void fillTimeline() {
+        List<AgentSession> visible = loadedSessions.stream().filter(s -> showRoutine.isSelected() || !format.isRoutine(s)).toList();
+        List<Node> rows = new ArrayList<>();
+        for (AgentSession session : visible.subList(0, Math.min(shown, visible.size()))) {
+            rows.add(timelineEntry(session));
+        }
+        if (rows.isEmpty()) {
+            boolean hidden = !showRoutine.isSelected() && !loadedSessions.isEmpty();
+            rows.add(UiParts.muted(format.w(hidden ? "HideRoutineHint" : "NoActivity")));
+        }
+        timeline.getChildren().setAll(rows);
+        more.setVisible(visible.size() > shown);
+        more.setManaged(more.isVisible());
+    }
+
+    /** One activity line; clicking it opens or closes the session's request, status, plan and result. */
+    private Node timelineEntry(AgentSession session) {
+        Label when = new Label(session.startedAt() == null ? "" : format.timestamp(session.startedAt()));
+        when.getStyleClass().addAll("mm-muted", "mm-when");
+        Label kind = new Label(format.kindLabel(session));
+        kind.getStyleClass().add("mm-badge");
+        Label text = new Label(format.timelineText(session));
+        text.setTextOverrun(OverrunStyle.ELLIPSIS);
+        text.setMaxWidth(Double.MAX_VALUE);
+        text.setMinWidth(0);
+        HBox.setHgrow(text, Priority.ALWAYS);
+        HBox line = new HBox(UiParts.GAP, when, kind, text);
+        if (session.status() != null && !"done".equals(session.status())) {
+            Label state = new Label(session.status());
+            state.getStyleClass().addAll("mm-badge", "mm-badge-warn");
+            line.getChildren().add(state);
+        }
+        line.getStyleClass().add("mm-row");
+        line.setAlignment(Pos.CENTER_LEFT);
+        VBox detail = new VBox(2);
+        detail.getStyleClass().add("mm-timeline-detail");
+        detail.setVisible(false);
+        detail.setManaged(false);
+        line.setOnMouseClicked(e -> toggleDetail(session.id(), detail));
+        return new VBox(line, detail);
+    }
+
+    private void toggleDetail(String id, VBox detail) {
+        if (detail.isVisible()) {
+            detail.setVisible(false);
+            detail.setManaged(false);
+            return;
+        }
         ctx.run(status, "ActionSession", format.w("Working"), () -> ctx.controller().getSession(id), session -> {
-            sessionDetail.getChildren().setAll(format.sessionLines(session).stream().map(UiParts::wrapped).toList());
+            detail.getChildren().setAll(format.sessionLines(session).stream().map(UiParts::wrapped).toList());
+            detail.setVisible(true);
+            detail.setManaged(true);
         });
+    }
+
+    // ---- saved versions ----
+
+    private void fillVersions(List<SnapshotInfo> snapshots) {
+        List<Node> groups = new ArrayList<>();
+        for (ViewFormat.VersionGroup group : format.versionGroups(snapshots)) {
+            Label name = new Label(group.name());
+            name.getStyleClass().add("mm-group-name");
+            name.setTextOverrun(OverrunStyle.ELLIPSIS);
+            VBox card = new VBox(2, name);
+            card.getStyleClass().add("mm-card");
+            for (ViewFormat.VersionLine line : group.versions()) {
+                card.getChildren().add(versionRow(line));
+            }
+            groups.add(card);
+        }
+        if (groups.isEmpty()) {
+            groups.add(UiParts.muted(format.w("NoVersions")));
+        }
+        versions.getChildren().setAll(groups);
+    }
+
+    private Node versionRow(ViewFormat.VersionLine line) {
+        Label when = new Label(line.when());
+        when.getStyleClass().add("mm-when");
+        Label change = UiParts.muted(line.change());
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        Button restore = new Button(format.w("Restore"));
+        restore.setOnAction(e -> preview(line.info(), restore));
+        HBox row = new HBox(UiParts.GAP, when, change, spacer, restore);
+        row.getStyleClass().add("mm-row");
+        row.setAlignment(Pos.CENTER_LEFT);
+        return row;
+    }
+
+    /** Reads the version's songs, shows them, and restores only when the user confirms in the preview. */
+    private void preview(SnapshotInfo version, Button button) {
+        if (!restoring.compareAndSet(false, true)) {
+            return;
+        }
+        ctx.run(status, "ActionPreview", format.w("Working"), () -> {
+            try {
+                return ctx.controller().previewSnapshot(version.id());
+            } catch (RuntimeException e) {
+                restoring.set(false);
+                throw e;
+            }
+        }, songs -> {
+            if (confirmPreview(version, songs)) {
+                restore(version, button);
+            } else {
+                restoring.set(false);
+            }
+        }, button);
+    }
+
+    private boolean confirmPreview(SnapshotInfo version, List<Track> songs) {
+        VBox list = new VBox();
+        for (Track song : songs) {
+            Track shownSong = song.title() == null || song.title().isBlank()
+                    ? new Track(song.id(), song.uri(), format.w("PreviewNoTitle"), song.durationMs(), false, song.artistIds(), song.artistNames())
+                    : song;
+            list.getChildren().add(TrackRow.of(ctx, status, shownSong, TrackRow.Options.plain(), null));
+        }
+        if (songs.isEmpty()) {
+            list.getChildren().add(UiParts.muted(format.w("PreviewEmpty")));
+        }
+        ScrollPane scroll = new ScrollPane(list);
+        scroll.setFitToWidth(true);
+        scroll.getStyleClass().add("mm-preview-scroll");
+        Label changeNote = UiParts.muted(format.w("PreviewHint"));
+        VBox content = new VBox(UiParts.GAP, changeNote, scroll);
+        content.getStyleClass().add("mm-dialog-content");
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle(format.w("Restore"));
+        dialog.setHeaderText(format.previewTitle(version));
+        dialog.getDialogPane().setContent(content);
+        ButtonType yes = new ButtonType(format.w("PreviewRestore"), javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
+        ButtonType no = new ButtonType(format.w("PreviewCancel"), javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().setAll(yes, no);
+        UiParts.dark(dialog.getDialogPane());
+        return dialog.showAndWait().filter(yes::equals).isPresent();
     }
 
     private void restore(SnapshotInfo version, Button button) {
         ctx.run(status, "ActionRestore", format.w("Restoring"), () -> {
+            boolean handOver = false;
             try {
                 Playlist restored = ctx.controller().restore(version.id());
                 return new Outcome(ctx.controller().lastRestoreChanged()
                         ? format.w("Restored", restored.name(), restored.tracks().size())
                         : format.w("RestoredUnchanged", restored.name()), null);
             } catch (PlaylistMissingException e) {
+                handOver = true;
                 return new Outcome(null, e.getMessage());
+            } finally {
+                if (!handOver) {
+                    restoring.set(false);
+                }
             }
         }, outcome -> {
             if (outcome.missing() == null) {
@@ -144,6 +280,7 @@ public final class HistoryView implements TabView {
             } else if (confirmRecreate(outcome.missing())) {
                 recreate(version, button);
             } else {
+                restoring.set(false);
                 status.info(outcome.missing());
             }
         }, button);
@@ -158,42 +295,17 @@ public final class HistoryView implements TabView {
     }
 
     private void recreate(SnapshotInfo version, Button button) {
+        restoring.set(true);
         ctx.run(status, "ActionRecreate", format.w("Restoring"), () -> {
-            Playlist created = ctx.controller().recreateFromSnapshot(version.id());
-            return format.w("Recreated", created.name(), created.tracks().size());
+            try {
+                Playlist created = ctx.controller().recreateFromSnapshot(version.id());
+                return format.w("Recreated", created.name(), created.tracks().size());
+            } finally {
+                restoring.set(false);
+            }
         }, message -> {
             status.info(message);
             ctx.dataChanged();
         }, button);
-    }
-
-    /** A saved version with its Restore button. */
-    private final class VersionCell extends ListCell<SnapshotInfo> {
-        private final Label text = new Label();
-        private final Button restore = new Button(format.w("Restore"));
-        private final HBox row;
-
-        VersionCell() {
-            Region spacer = new Region();
-            HBox.setHgrow(spacer, Priority.ALWAYS);
-            row = new HBox(UiParts.GAP, text, spacer, restore);
-            row.setAlignment(Pos.CENTER_LEFT);
-            restore.setOnAction(e -> {
-                if (getItem() != null) {
-                    restore(getItem(), restore);
-                }
-            });
-        }
-
-        @Override
-        protected void updateItem(SnapshotInfo item, boolean empty) {
-            super.updateItem(item, empty);
-            if (empty || item == null) {
-                setGraphic(null);
-                return;
-            }
-            text.setText(format.snapshotLine(item));
-            setGraphic(row);
-        }
     }
 }

@@ -538,4 +538,58 @@ class ViewFormatTest {
     void blankSongSearch_hasAMessage() {
         assertFalse(format.w("SongBlank").isBlank());
     }
+
+    @Test
+    void versionChange_counts() {
+        assertEquals("27 \u2192 22 songs", format.versionChange(27, 22));
+    }
+
+    @Test
+    void versionChange_same() {
+        assertEquals("27 songs (no change)", format.versionChange(27, 27));
+    }
+
+    @Test
+    void isRoutine_profileViewTrue_createFalse() {
+        AgentSession profile = new AgentSession("a", Instant.parse("2026-11-01T14:05:00Z"), new IdleState());
+        profile.setRequest(new AgentRequest("view taste profile (medium)", RequestKind.ANALYZE_TASTE));
+        AgentSession create = new AgentSession("b", Instant.parse("2026-11-01T14:05:00Z"), new IdleState());
+        create.setRequest(new AgentRequest("calm", RequestKind.CREATE_PLAYLIST));
+        AgentSession bare = new AgentSession("c", Instant.parse("2026-11-01T14:05:00Z"), new IdleState());
+
+        assertTrue(format.isRoutine(profile));
+        assertFalse(format.isRoutine(create));
+        assertFalse(format.isRoutine(bare));
+    }
+
+    @Test
+    void versionsAreGroupedByPlaylistWithTheChangeFromTheVersionBefore() {
+        Instant t = Instant.parse("2026-11-01T14:05:00Z");
+        List<SnapshotInfo> list = List.of(
+                new SnapshotInfo(5, "a", "Mix A", 22, t.plusSeconds(300)),
+                new SnapshotInfo(4, "b", "Mix B", 10, t.plusSeconds(200)),
+                new SnapshotInfo(3, "a", "Mix A", 27, t.plusSeconds(100)),
+                new SnapshotInfo(2, "a", "Mix A", 27, t));
+
+        List<ViewFormat.VersionGroup> groups = format.versionGroups(list);
+
+        assertEquals(2, groups.size());
+        assertEquals("Mix A", groups.get(0).name());
+        assertEquals(List.of("27 \u2192 22 songs", "27 songs (no change)", "27 songs"),
+                groups.get(0).versions().stream().map(ViewFormat.VersionLine::change).toList());
+        assertEquals("Mix B", groups.get(1).name());
+        assertEquals("10 songs", groups.get(1).versions().get(0).change());
+    }
+
+    @Test
+    void aProfileViewReadsAsItsRangeNotItsRawRequest() {
+        AgentSession profile = new AgentSession("a", Instant.parse("2026-11-01T14:05:00Z"), new IdleState());
+        profile.setRequest(new AgentRequest("view taste profile (medium)", RequestKind.ANALYZE_TASTE));
+        AgentSession create = new AgentSession("b", Instant.parse("2026-11-01T14:05:00Z"), new IdleState());
+        create.setRequest(new AgentRequest("calm study mix", RequestKind.CREATE_PLAYLIST));
+
+        assertEquals("Past 6 months", format.timelineText(profile));
+        assertEquals("calm study mix", format.timelineText(create));
+        assertEquals("Taste profile", format.kindLabel(profile));
+    }
 }

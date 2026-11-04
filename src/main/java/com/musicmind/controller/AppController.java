@@ -564,6 +564,13 @@ public class AppController {
         return facade.restore(snapshotId);
     }
 
+    /** The songs of a saved version, titled from Spotify where it can be read, for a preview; changes nothing. */
+    public List<Track> previewSnapshot(int snapshotId) {
+        requireSpotify();
+        signInIfNeeded();
+        return facade.previewSnapshot(snapshotId);
+    }
+
     /** Whether the last {@link #restore} changed the playlist; false when it already matched the saved version. */
     public boolean lastRestoreChanged() {
         return facade.lastRestoreChanged();

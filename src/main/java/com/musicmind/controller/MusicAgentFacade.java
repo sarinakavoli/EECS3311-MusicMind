@@ -1153,6 +1153,30 @@ public class MusicAgentFacade {
         return new Playlist(command.playlistId(), snapshot.name(), snapshot.tracks());
     }
 
+    /**
+     * The songs of a saved version with their titles and artists read back from Spotify, for a preview before a
+     * restore. A song that cannot be read keeps only its id (the first failure ends the lookups); nothing is changed.
+     *
+     * @throws PlaylistChangeException if the snapshot is unknown or unavailable
+     */
+    public synchronized List<Track> previewSnapshot(int snapshotId) {
+        List<Track> saved = loadSnapshot(snapshotId).tracks();
+        List<Track> shown = new ArrayList<>();
+        boolean reading = true;
+        for (Track track : saved) {
+            Track full = null;
+            if (reading) {
+                try {
+                    full = create.music().getTrack(track.id());
+                } catch (MusicServiceException e) {
+                    reading = false;
+                }
+            }
+            shown.add(full == null ? track : full);
+        }
+        return shown;
+    }
+
     /** Whether the last {@link #restore} changed the playlist; false when it already matched the saved version. */
     public boolean lastRestoreChanged() {
         return lastRestoreChanged;
