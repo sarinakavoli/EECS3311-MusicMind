@@ -89,6 +89,15 @@ public final class ViewFormat {
         };
     }
 
+    /** "Updated <time> . <range>" for a profile; the range is left out when blank, and nothing when there is no time. */
+    public String generatedLine(java.time.Instant generatedAt, String range) {
+        if (generatedAt == null) {
+            return "";
+        }
+        String when = timestamp(generatedAt);
+        return range == null || range.isBlank() ? w("ProfileUpdated", when) : w("ProfileUpdatedRange", when, rangeLabel(range));
+    }
+
     /** A track length as {@code m:ss}. */
     public String duration(int durationMs) {
         int seconds = Math.round(durationMs / 1000f);
@@ -172,7 +181,7 @@ public final class ViewFormat {
             List<String> genres = report.genresByRange().getOrDefault(range, Map.of()).keySet().stream()
                     .limit(genresShown).toList();
             String coverage = artists.isEmpty() ? ""
-                    : String.format(Locale.ROOT, config.wording("trendCoverageLine"),
+                    : w("TrendCoverage",
                             report.artistsWithGenres(range), report.artistCount(range));
             columns.add(new TrendColumn(rangeLabel(range), artistNames(artists, artistsShown), genres, coverage));
         }
@@ -187,7 +196,9 @@ public final class ViewFormat {
             changeLines(lines, step.addedGenres(), step.droppedGenres(), names(report, step.addedArtistIds()),
                     names(report, step.droppedArtistIds()));
         }
-        lines.add(cli("TrendOverall"));
+        List<RangeChange> steps = report.steps();
+        lines.add(steps.isEmpty() ? w("TrendOverall")
+                : w("TrendStep", rangeLabel(steps.get(0).from()), rangeLabel(steps.get(steps.size() - 1).to())));
         changeLines(lines, report.addedGenres(), report.droppedGenres(), names(report, report.addedArtistIds()),
                 names(report, report.droppedArtistIds()));
         return lines;
@@ -195,14 +206,14 @@ public final class ViewFormat {
 
     private void changeLines(List<String> lines, List<String> genresAdded, List<String> genresDropped,
                              List<String> artistsAdded, List<String> artistsDropped) {
-        lines.add("  " + cli("GenresAdded") + ": " + listOrNone(genresAdded));
-        lines.add("  " + cli("GenresDropped") + ": " + listOrNone(genresDropped));
-        lines.add("  " + cli("ArtistsAdded") + ": " + listOrNone(artistsAdded));
-        lines.add("  " + cli("ArtistsDropped") + ": " + listOrNone(artistsDropped));
+        lines.add("  " + w("GenresAdded") + ": " + listOrNone(genresAdded));
+        lines.add("  " + w("GenresDropped") + ": " + listOrNone(genresDropped));
+        lines.add("  " + w("ArtistsAdded") + ": " + listOrNone(artistsAdded));
+        lines.add("  " + w("ArtistsDropped") + ": " + listOrNone(artistsDropped));
     }
 
     private String listOrNone(List<String> items) {
-        return items.isEmpty() ? cli("None") : String.join(", ", items);
+        return items.isEmpty() ? w("NothingChanged") : String.join(", ", items);
     }
 
     private static List<String> names(TrendReport report, List<String> ids) {

@@ -129,8 +129,10 @@ public final class ProfileView implements TabView {
     private void show(Shown shown) {
         ListeningProfile profile = shown.profile();
         status.info(shown.stored() ? format.w("ProfileStored") : "");
-        generated.setText(profile.generatedAt() == null ? ""
-                : format.w("ProfileGenerated", format.timestamp(profile.generatedAt()), format.rangeLabel(profile.range() == null ? "" : profile.range())));
+        generated.setText(format.generatedLine(profile.generatedAt(), profile.range()));
+        if (shown.stored() && profile.range() != null && range.getItems().contains(profile.range())) {
+            range.setValue(profile.range());
+        }
         List<String> notices = new java.util.ArrayList<>(profile.notices());
         if (shown.memoryWarning() != null) {
             notices.add(ctx.config().wording("cliNotSaved").formatted(shown.memoryWarning()));

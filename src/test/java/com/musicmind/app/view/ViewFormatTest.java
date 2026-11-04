@@ -177,7 +177,7 @@ class ViewFormatTest {
         assertEquals("Past month", columns.get(0).range());
         assertEquals(List.of("A"), columns.get(0).artists());
         assertEquals(List.of("rock", "indie"), columns.get(0).genres());
-        assertEquals("genre data: 1 of 2 artists", columns.get(0).coverage());
+        assertEquals("Genres known for 1 of 2 artists", columns.get(0).coverage());
         assertTrue(columns.get(1).artists().isEmpty());
         assertEquals("", columns.get(1).coverage());
         assertEquals(List.of("C"), columns.get(2).artists());
@@ -193,9 +193,31 @@ class ViewFormatTest {
         List<String> lines = format.trendStepLines(report);
 
         assertEquals("From Past year to Past 6 months:", lines.get(0));
-        assertTrue(lines.contains("  Genres added: pop"));
-        assertTrue(lines.contains("  Genres dropped: (none)"));
-        assertTrue(lines.contains("  Artists added: Nine"));
+        assertTrue(lines.contains("  New genres: pop"));
+        assertTrue(lines.contains("  Genres you listen to less: Nothing changed"));
+        assertTrue(lines.contains("  New artists: Nine"));
+        assertTrue(lines.contains("  Artists you listen to less: Nothing changed"));
+        assertEquals("From Past year to Past 6 months:", lines.get(lines.size() - 5));
+        assertTrue(lines.stream().noneMatch(l -> l.contains("Overall") || l.contains("(none)") || l.contains("added")));
+    }
+
+    @Test
+    void trendOverallLineSpansTheFirstAndLastRange() {
+        RangeChange a = new RangeChange("long", "medium", List.of(), List.of(), List.of(), List.of());
+        RangeChange b = new RangeChange("medium", "short", List.of(), List.of(), List.of(), List.of());
+        TrendReport report = new TrendReport(Map.of(), Map.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                "n", List.of(a, b));
+        List<String> lines = format.trendStepLines(report);
+        assertEquals("From Past year to Past month:", lines.get(lines.size() - 5));
+    }
+
+    @Test
+    void generatedLineLeavesOutABlankRange() {
+        Instant when = Instant.parse("2026-11-01T14:05:00Z");
+        assertEquals("Updated 2026-11-01 14:05 \u00b7 Past month", format.generatedLine(when, "short"));
+        assertEquals("Updated 2026-11-01 14:05", format.generatedLine(when, ""));
+        assertEquals("Updated 2026-11-01 14:05", format.generatedLine(when, null));
+        assertEquals("", format.generatedLine(null, "short"));
     }
 
     @Test
