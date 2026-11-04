@@ -716,4 +716,35 @@ class ViewFormatTest {
         assertEquals("", format.statusFlag(done));
         assertEquals("failed", format.statusFlag(failed));
     }
+
+    // ---- playlist song counts (Spotify's list total lags after a playlist is created or changed) ----
+
+    private static com.musicmind.domain.PlaylistSummary listed(String id, int total) {
+        return new com.musicmind.domain.PlaylistSummary(id, "Name " + id, total);
+    }
+
+    @Test
+    void mergeTrackCounts_ownReadWinsForAPlaylistWeCreatedOrOpened() {
+        List<com.musicmind.domain.PlaylistSummary> merged = format.mergeTrackCounts(
+                List.of(listed("new", 0), listed("other", 12)), Map.of("new", 7));
+
+        assertEquals(7, merged.get(0).trackCount(), "Slow Dance had 7 songs, not 0");
+        assertEquals("Name new", merged.get(0).name());
+        assertEquals(12, merged.get(1).trackCount(), "an unopened playlist keeps Spotify's total");
+    }
+
+    @Test
+    void mergeTrackCounts_noKnownCountsLeavesTheListAlone() {
+        List<com.musicmind.domain.PlaylistSummary> list = List.of(listed("a", 3));
+        assertEquals(list, format.mergeTrackCounts(list, Map.of()));
+    }
+
+    @Test
+    void countsStillAhead_dropsACountOnceSpotifyHasCaughtUpOrTheListNoLongerHasIt() {
+        Map<String, Integer> known = Map.of("lagging", 7, "caught", 21, "gone", 4);
+        Map<String, Integer> left = format.countsStillAhead(
+                List.of(listed("lagging", 0), listed("caught", 21)), known);
+
+        assertEquals(Map.of("lagging", 7), left);
+    }
 }

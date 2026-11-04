@@ -103,6 +103,30 @@ public final class ViewFormat {
         return range == null || range.isBlank() ? w("ProfileUpdated", when) : w("ProfileUpdatedRange", when, rangeLabel(range));
     }
 
+    /**
+     * The playlist list with MusicMind's own song counts in place of Spotify's total for the playlists we
+     * created or opened: the total (items.total) lags just after a change and showed "0 songs" for a new playlist.
+     */
+    public List<com.musicmind.domain.PlaylistSummary> mergeTrackCounts(List<com.musicmind.domain.PlaylistSummary> listed,
+                                                                       Map<String, Integer> known) {
+        return listed.stream()
+                .map(p -> known.containsKey(p.id())
+                        ? new com.musicmind.domain.PlaylistSummary(p.id(), p.name(), known.get(p.id())) : p)
+                .toList();
+    }
+
+    /** The own counts still worth keeping: not once Spotify's total equals them, nor for a playlist no longer listed. */
+    public Map<String, Integer> countsStillAhead(List<com.musicmind.domain.PlaylistSummary> listed, Map<String, Integer> known) {
+        Map<String, Integer> left = new java.util.LinkedHashMap<>();
+        for (com.musicmind.domain.PlaylistSummary p : listed) {
+            Integer own = known.get(p.id());
+            if (own != null && own != p.trackCount()) {
+                left.put(p.id(), own);
+            }
+        }
+        return left;
+    }
+
     /** A track length as {@code m:ss}. */
     public String duration(int durationMs) {
         int seconds = Math.round(durationMs / 1000f);

@@ -68,6 +68,8 @@ public final class PlaylistView implements TabView {
     private String openId;
     private boolean quietSelection;
     private boolean changedHere;
+    /** Song counts from our own reads (created or opened), by playlist id; Spotify's list total lags behind them. */
+    private java.util.Map<String, Integer> knownCounts = new java.util.HashMap<>();
 
     public PlaylistView(GuiContext ctx) {
         this.ctx = ctx;
@@ -78,6 +80,7 @@ public final class PlaylistView implements TabView {
         create = new Button(format.w("CreatePlaylist"));
         create.getStyleClass().add("mm-primary");
         create.setOnAction(e -> new CreatePlaylistDialog(ctx, created -> {
+            knownCounts.put(created.spotifyId(), created.tracks().size());
             announceChange();
             loadList(created.spotifyId());
         }).show(create.getScene() == null ? null : create.getScene().getWindow()));
@@ -172,9 +175,11 @@ public final class PlaylistView implements TabView {
         ctx.run(listStatus, "ActionListPlaylists", format.w("Working"), () -> ctx.controller().getPlaylists(), list -> {
             quietSelection = !openIt;
             try {
-                playlists.setItems(FXCollections.observableArrayList(list));
+                knownCounts = new java.util.HashMap<>(format.countsStillAhead(list, knownCounts));
+                List<PlaylistSummary> shown = format.mergeTrackCounts(list, knownCounts);
+                playlists.setItems(FXCollections.observableArrayList(shown));
                 if (selectId != null) {
-                    list.stream().filter(p -> p.id().equals(selectId)).findFirst()
+                    shown.stream().filter(p -> p.id().equals(selectId)).findFirst()
                             .ifPresent(p -> playlists.getSelectionModel().select(p));
                 }
             } finally {
@@ -299,6 +304,7 @@ public final class PlaylistView implements TabView {
     private void show(Opened opened) {
         Playlist playlist = opened.playlist();
         openId = playlist.spotifyId();
+        showOwnCount(openId, playlist.tracks().size());
         detail.setVisible(true);
         title.setText(format.playlistTitle(playlist));
         status.info(opened.change() == null ? "" : opened.change());
@@ -324,6 +330,26 @@ public final class PlaylistView implements TabView {
         notices.getChildren().setAll(opened.notices().stream().map(UiParts::muted).toList());
         String shownId = openId;
         why.getChildren().setAll(WhyExpander.lazy(ctx, "ActionExplain", () -> ctx.controller().explain(shownId)));
+    }
+
+    /** The row of a playlist we just read shows that read's count, not Spotify's lagging total. */
+    private void showOwnCount(String id, int count) {
+        knownCounts.put(id, count);
+        List<PlaylistSummary> current = playlists.getItems();
+        if (current.stream().noneMatch(p -> p.id().equals(id) && p.trackCount() != count)) {
+            return;
+        }
+        PlaylistSummary selected = playlists.getSelectionModel().getSelectedItem();
+        quietSelection = true;
+        try {
+            playlists.setItems(FXCollections.observableArrayList(format.mergeTrackCounts(current, knownCounts)));
+            if (selected != null) {
+                playlists.getItems().stream().filter(p -> p.id().equals(selected.id())).findFirst()
+                        .ifPresent(p -> playlists.getSelectionModel().select(p));
+            }
+        } finally {
+            quietSelection = false;
+        }
     }
 
     private Node row(Track track, java.util.Map<String, com.musicmind.domain.Verdict> verdicts) {
