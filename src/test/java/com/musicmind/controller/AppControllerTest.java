@@ -202,6 +202,27 @@ class AppControllerTest extends PostgresTestBase {
     }
 
     @Test
+    void artistHints_oneLinePerArtist_withoutExtraSpotifyReads() {
+        List<String> topReads = new ArrayList<>();
+        Music music = new Music() {
+            @Override public List<Album> getArtistAlbums(String id) { return List.of(new Album("al1", "First Light", "2020")); }
+            @Override public List<Artist> getTopArtists(String range) {
+                topReads.add(range);
+                return super.getTopArtists(range);
+            }
+        };
+        AppController c = controller(music);
+        c.analyzeTaste(c.login());
+        int readsBefore = topReads.size();
+
+        Map<String, String> hints = c.artistHints(List.of("indie0", "not-in-profile"));
+
+        assertEquals(config.wording("artistHintListening") + " \u00b7 First Light", hints.get("indie0"));
+        assertEquals("First Light", hints.get("not-in-profile"));
+        assertEquals(readsBefore, topReads.size(), "hints are display-only: no new listening reads");
+    }
+
+    @Test
     void artistHint_isEmptyWhenTheReadFails() {
         Music music = new Music() {
             @Override public List<Album> getArtistAlbums(String id) { throw new RuntimeException("down"); }

@@ -81,6 +81,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -535,12 +536,22 @@ public class MusicAgentFacade {
         return lastArtistNotices;
     }
 
+    /** The ids of the artists in the last saved profile; empty when there is none or it cannot be read. Read once per search. */
+    public Set<String> listeningArtistIds(User user) {
+        try {
+            return user == null ? Set.of() : lastProfile(user)
+                    .map(p -> p.topArtists().stream().map(Artist::id).collect(Collectors.toSet())).orElse(Set.of());
+        } catch (RuntimeException e) {
+            return Set.of(); // no saved profile: no prefix
+        }
+    }
+
     /**
      * A short line that tells same-named artists apart: one album title by the artist, led by "In your listening"
-     * when the artist is in the last saved profile. For display only (never stored or sent to the model); blank when
-     * nothing can be read.
+     * when the artist is among {@code listeningIds} (see {@link #listeningArtistIds}). For display only (never stored
+     * or sent to the model); blank when nothing can be read.
      */
-    public String artistHint(String artistId, User user) {
+    public String artistHint(String artistId, Set<String> listeningIds) {
         String album = "";
         try {
             album = create.music().getArtistAlbums(artistId).stream().map(Album::name)
@@ -548,16 +559,10 @@ public class MusicAgentFacade {
         } catch (RuntimeException e) {
             // an unreadable album list just means no title
         }
-        boolean listened = false;
-        try {
-            listened = user != null && lastProfile(user).map(p -> p.topArtists().stream().anyMatch(t -> artistId.equals(t.id()))).orElse(false);
-        } catch (RuntimeException e) {
-            // no saved profile: no prefix
-        }
-        String prefix = config.wording("artistHintListening");
-        if (!listened) {
+        if (!listeningIds.contains(artistId)) {
             return album;
         }
+        String prefix = config.wording("artistHintListening");
         return album.isEmpty() ? prefix : prefix + " \u00b7 " + album;
     }
 

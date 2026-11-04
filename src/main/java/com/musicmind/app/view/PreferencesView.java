@@ -301,9 +301,8 @@ public final class PreferencesView implements TabView {
         ctx.run(status, "ActionFindArtists", format.w("Searching"),
                 () -> {
                     List<Artist> found = ctx.controller().findArtists(typed);
-                    Map<String, String> hints = new HashMap<>();
-                    found.stream().limit(ctx.config().searchArtistLimit())
-                            .forEach(a -> hints.put(a.id(), ctx.controller().artistHint(a.id())));
+                    Map<String, String> hints = ctx.controller().artistHints(found.stream()
+                            .limit(ctx.config().searchArtistLimit()).map(Artist::id).toList());
                     return new Matches(typed, found, hints);
                 }, matches -> {
                     artistMatches.setText(format.artistMatchesLine(matches.typed(), matches.artists().size()));

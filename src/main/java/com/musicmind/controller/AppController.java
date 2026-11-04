@@ -638,8 +638,18 @@ public class AppController {
 
     /** A short display-only line (an album title, and whether the artist is in the user's listening) to tell same-named artists apart; blank if none can be read. */
     public String artistHint(String artistId) {
+        return artistHints(List.of(artistId)).get(artistId);
+    }
+
+    /** {@link #artistHint} for several artists at once: the saved profile is read once, not once per artist. */
+    public Map<String, String> artistHints(List<String> artistIds) {
         requireSpotify();
-        return facade.artistHint(artistId, currentUser());
+        Set<String> listening = facade.listeningArtistIds(currentUser());
+        Map<String, String> hints = new LinkedHashMap<>();
+        for (String id : artistIds) {
+            hints.put(id, facade.artistHint(id, listening));
+        }
+        return hints;
     }
 
     /** Tracks for what the user typed, the same ranked list as {@link #searchMusic}. */
