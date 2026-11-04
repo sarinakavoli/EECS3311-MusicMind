@@ -103,7 +103,7 @@ class ViewFormatTest {
     void aPassingPlaylistGetsOneGoodBadge() {
         List<ViewFormat.Badge> badges = format.badges(ValidationResult.ok(), List.of(track("a", 3, false)), 0);
         assertEquals(1, badges.size());
-        assertEquals("Meets every constraint", badges.get(0).text());
+        assertEquals("Meets your rules", badges.get(0).text());
         assertFalse(badges.get(0).warning());
     }
 
@@ -399,19 +399,49 @@ class ViewFormatTest {
         assertEquals("Could not search: " + friendly, format.failure("ActionSearch", new IllegalArgumentException(friendly)));
     }
 
+    private static void refused(Runnable call) {
+        IllegalArgumentException e = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, call::run);
+        assertFalse(e.getMessage() == null || e.getMessage().isBlank());
+    }
+
     @Test
-    void lengthTextIsAWholeNumberOfMinutesWithinTheLimit() {
-        int max = config.parserMaxTargetMinutes();
-        assertEquals(java.util.OptionalInt.of(45), format.parseMinutes("45"));
-        assertEquals(java.util.OptionalInt.of(45), format.parseMinutes(" 45 "));
-        assertEquals(java.util.OptionalInt.of(0), format.parseMinutes(""));
-        assertEquals(java.util.OptionalInt.of(0), format.parseMinutes(null));
-        assertEquals(java.util.OptionalInt.of(max), format.parseMinutes(String.valueOf(max)));
-        assertTrue(format.parseMinutes(String.valueOf(max + 1)).isEmpty());
-        assertTrue(format.parseMinutes("-5").isEmpty());
-        assertTrue(format.parseMinutes("abc").isEmpty());
-        assertTrue(format.parseMinutes("4.5").isEmpty());
-        assertTrue(format.parseMinutes("99999999999999999999").isEmpty());
+    void parseHoursMinutes_blankIsFromGoal() {
+        assertEquals(0, format.parseHoursMinutes("", ""));
+        assertEquals(0, format.parseHoursMinutes(null, null));
+        assertEquals(0, format.parseHoursMinutes("0", "0"));
+        assertEquals(0, format.parseHoursMinutes(" ", "0"));
+    }
+
+    @Test
+    void parseHoursMinutes_oneHourThirty_is90() {
+        assertEquals(90, format.parseHoursMinutes("1", "30"));
+        assertEquals(60, format.parseHoursMinutes(" 1 ", ""));
+        assertEquals(45, format.parseHoursMinutes("", "45"));
+    }
+
+    @Test
+    void parseHoursMinutes_minutesOver59_refused() {
+        refused(() -> format.parseHoursMinutes("1", "75"));
+        refused(() -> format.parseHoursMinutes("", "60"));
+    }
+
+    @Test
+    void parseHoursMinutes_letters_refused() {
+        refused(() -> format.parseHoursMinutes("a", "10"));
+        refused(() -> format.parseHoursMinutes("1", "x"));
+        refused(() -> format.parseHoursMinutes("-1", "10"));
+        refused(() -> format.parseHoursMinutes("1", "-5"));
+        refused(() -> format.parseHoursMinutes("1.5", ""));
+        refused(() -> format.parseHoursMinutes("99999999999999999999", ""));
+    }
+
+    @Test
+    void parseHoursMinutes_outOfRange_refused() {
+        int maxHours = config.parserMaxTargetMinutes() / 60;
+        assertEquals(config.parserMaxTargetMinutes(), format.parseHoursMinutes(String.valueOf(maxHours),
+                String.valueOf(config.parserMaxTargetMinutes() % 60)));
+        refused(() -> format.parseHoursMinutes(String.valueOf(maxHours + 1), "0"));
+        refused(() -> format.parseHoursMinutes("1000", "0"));
     }
 
     @Test

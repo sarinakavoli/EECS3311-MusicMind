@@ -331,19 +331,39 @@ public final class ViewFormat {
     }
 
     /**
-     * The target length typed by the user: blank means 0 (take it from the goal); otherwise a whole number
-     * from 0 to the configured maximum. Empty when the text is anything else.
+     * The target length typed as hours and minutes: both blank (or 0) mean 0, take it from the goal. Otherwise
+     * whole numbers, minutes 0 to 59, and a total within the planner's shortest and longest playlist.
+     *
+     * @throws IllegalArgumentException with a message for the user when the text cannot be used
      */
-    public java.util.OptionalInt parseMinutes(String text) {
+    public int parseHoursMinutes(String hours, String minutes) {
+        long h = wholeNumber(hours);
+        long m = wholeNumber(minutes);
+        if (m > 59) {
+            throw new IllegalArgumentException(w("MinutesOver59"));
+        }
+        long total = h * 60 + m;
+        if (total == 0) {
+            return 0;
+        }
+        int min = config.parserMinTargetMinutes();
+        int max = config.parserMaxTargetMinutes();
+        if (total < min || total > max) {
+            throw new IllegalArgumentException(w("LengthRange", min, max));
+        }
+        return (int) total;
+    }
+
+    /** Blank is 0; digits only otherwise (and few enough to fit), else a user-facing refusal. */
+    private long wholeNumber(String text) {
         String typed = text == null ? "" : text.strip();
         if (typed.isEmpty()) {
-            return java.util.OptionalInt.of(0);
+            return 0;
         }
-        if (!typed.chars().allMatch(c -> c >= '0' && c <= '9') || typed.length() > String.valueOf(Integer.MAX_VALUE).length()) {
-            return java.util.OptionalInt.empty();
+        if (!typed.chars().allMatch(c -> c >= '0' && c <= '9') || typed.length() > 6) {
+            throw new IllegalArgumentException(w("LengthNotNumber"));
         }
-        long value = Long.parseLong(typed);
-        return value <= config.parserMaxTargetMinutes() ? java.util.OptionalInt.of((int) value) : java.util.OptionalInt.empty();
+        return Long.parseLong(typed);
     }
 
     /** A moment as a readable date and time in the formatter's time zone. */
