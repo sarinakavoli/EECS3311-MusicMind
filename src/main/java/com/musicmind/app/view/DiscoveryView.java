@@ -39,6 +39,8 @@ public final class DiscoveryView implements TabView {
     private final Slider novelty = new Slider(0, 1, 0);
     /** The saved familiar share, or the configured default until one is read. */
     private final DoubleProperty savedFamiliar = new SimpleDoubleProperty();
+    /** True once the user has pressed or dragged the slider. */
+    private boolean sliderTouched;
     private final Label mixLabel = new Label();
     private final VBox sliderBox = new VBox();
     private final Button discover;
@@ -56,6 +58,8 @@ public final class DiscoveryView implements TabView {
         novelty.setValue(1 - defaultShare);
         usePreference.setText(format.w("NoveltyFromPreference"));
         usePreference.setSelected(true);
+        novelty.pressedProperty().addListener((o, was, now) -> sliderTouched |= now);
+        novelty.valueChangingProperty().addListener((o, was, now) -> sliderTouched |= now);
         mixLabel.getStyleClass().add("mm-mix-label");
         mixLabel.textProperty().bind(Bindings.createStringBinding(
                 () -> format.mixLabel(usePreference.isSelected() ? savedFamiliar.get() : 1 - novelty.getValue()),
@@ -107,10 +111,27 @@ public final class DiscoveryView implements TabView {
     @Override
     public void onLogin(User user) {
         status.info("");
+        loadSavedMix();
+    }
+
+    @Override
+    public void onShown() {
+        if (ctx.userProperty().get() != null) {
+            loadSavedMix();
+        }
+    }
+
+    /**
+     * Reads the saved mix off the UI thread. Nothing saved means the configured default (so a second user
+     * never sees the first one's value). The slider is moved only while "usual mix" is ticked or it has not
+     * been touched, so a drag made before the read returns is kept.
+     */
+    private void loadSavedMix() {
         ctx.run(status, "ActionLoadMix", format.w("Working"), () -> ctx.controller().savedFamiliarBias(), saved -> {
-            if (saved.isPresent()) {
-                savedFamiliar.set(saved.getAsDouble());
-                novelty.setValue(1 - saved.getAsDouble());
+            double share = saved.orElse(ctx.config().discoverDefaultFamiliarRatio());
+            savedFamiliar.set(share);
+            if (usePreference.isSelected() || !sliderTouched) {
+                novelty.setValue(1 - share);
             }
         });
     }

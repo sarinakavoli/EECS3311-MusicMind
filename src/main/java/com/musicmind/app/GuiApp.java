@@ -101,6 +101,7 @@ public class GuiApp extends Application {
                 buttons.forEach(b -> b.getStyleClass().remove(MENU_ITEM_SELECTED));
                 item.getStyleClass().add(MENU_ITEM_SELECTED);
                 content.setContent(view.node());
+                view.onShown();
             });
             buttons.add(item);
             menu.getChildren().add(item);

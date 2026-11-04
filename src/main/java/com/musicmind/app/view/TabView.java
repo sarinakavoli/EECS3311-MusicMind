@@ -22,4 +22,8 @@ public interface TabView {
 
     /** Called on the JavaFX thread after a successful login. */
     void onLogin(User user);
+
+    /** Called on the JavaFX thread each time the screen is opened from the menu. */
+    default void onShown() {
+    }
 }
