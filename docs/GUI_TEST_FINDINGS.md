@@ -216,6 +216,30 @@ Status added Nov 4 after the frontend redesign and its read-only live check (`do
     - **To do:** decide whether the goal review should also run on search results.
    - **Status (Nov 4):** **Not done:** the goal review does not run on Find Songs results. Live Nov 4, "mellow alternative for studying" still gave a plain keyword result, and the page says so ("plain keyword search: your request could not be interpreted"). Left open; it needs a backend decision.
 
+26. **An added song stays in "Songs found" (Find Songs).** Sarina: "when I add a music to the playlist it should disappear from" the results.
+    - **Status (Nov 4):** **Done:** after "+ Add" the song leaves "Songs found", and songs already waiting are left out of new results (`ViewFormat.withoutWaiting`, tested). Remove on the waiting list brings it back into the current results. Seen in a rendered check with sample data.
+
+27. **No way to play a chosen song (Discover).** Sarina: "add an option for playing the chosen songs".
+    - **Status (Nov 4):** **Done, as an open-in-Spotify button:** the app cannot play audio itself (Development Mode gives no previews, and in-app playback is out of scope). Song rows on Discover, Find Songs and playlist tracks have a small "\u25B6 Spotify" button that opens `https://open.spotify.com/track/<id>` through JavaFX `HostServices` (`GuiContext.openInSpotify`). No Spotify call, nothing stored, nothing sent to OpenAI. The tooltip says it opens Spotify.
+
+28. **The delete confirmation does not match the design (Playlists).** It showed the system alert with a blue "?" and a grey title bar.
+    - **Status (Nov 4):** **Done:** one in-app dialog (`ConfirmDialog`): dark MusicMind surface, white title, message, a quiet "Keep it" button and a red "Delete". It replaces every Alert and the restore preview, the recreate prompt and the F11 conflict dialog (options stacked, Cancel last). No stock graphic or system title bar; Escape keeps things as they are.
+
+29. **The Create dialog runs off the screen and cannot be resized (Playlists).** Sarina: "I can not click or see the green button and I can not make it full screen".
+    - **Status (Nov 4):** **Done:** the dialog is resizable, its preferred height is capped to 90% of the screen (`UiParts.fitHeight`, tested), the form and result scroll, and the buttons stay pinned at the bottom. Progress and errors show above the buttons, outside the scroll. After a create the form gives way to a short summary (name, count, notices, "Why these songs?" collapsed) and "Open playlist" replaces Create; it closes the dialog and the new playlist is already selected and open on Playlists. Checked at a short window (430 px) and at about 1440x900: both buttons stay visible.
+
+30. **History cannot be sorted or filtered.** Sarina: "can also have the option to sort by date, ...".
+    - **Status (Nov 4):** **Done:** a Sort control (Newest first / Oldest first) and a Type filter (All, Created, Changed, Restored, Taste profile) on the activity timeline (`ViewFormat.activity`, tested). Taste profile views stay hidden under All unless "Show routine views" is ticked; choosing the Taste profile type shows them. "Deleted" is not offered: a deletion is not recorded as an activity today (only its saved version appears under Saved playlist versions), so that filter would always be empty. Left for a backend decision.
+
+31. **"Why these songs?" shows an internal class name (Discover).** It said "Chosen with the BalancedStrategy strategy."
+    - **Status (Nov 4):** **Done:** strategy names are mapped to plain words ("Chosen using a balance of artists you know and new ones."); an unknown name gets a generic phrase, never the class name (`ViewFormat.strategyWords`, tested). The other lines (constraints) were already plain sentences.
+
+32. **The mix line renders squashed ("60%new artists").**
+    - **Status (Nov 4):** **Done:** the bold 14 px face drew the space after "%" too tight, and 13 to 15 px still crowd it; the mix line is now 16 px regular and renders every space (compared in a rendered test sheet).
+
+33. **Open and Delete buttons on unselected playlist rows look faint.**
+    - **Status (Nov 4):** **Done:** rendered; Open was readable, Delete (muted grey outline) was dim. Delete now has a lighter border and text; it still turns amber on hover.
+
 ## Backend status (Nov 2)
 
 Plan: `docs/superpowers/plans/2026-11-02-backend-test-fixes.md`. Forced run on c6d947f: 842
