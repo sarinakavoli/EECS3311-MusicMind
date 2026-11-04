@@ -81,9 +81,12 @@
     -fx-pref-width: 190;
 }
 
-.mm-menu-item {
+.button.mm-menu-item {
     -fx-background-color: transparent;
+    -fx-background-insets: 0;
     -fx-background-radius: 6;
+    -fx-border-color: transparent;
+    -fx-border-radius: 6;
     -fx-text-fill: #b3b3b3;
     -fx-font-size: 14px;
     -fx-padding: 9 12 9 12;
@@ -92,12 +95,13 @@
     -fx-max-width: infinity;
 }
 
-.mm-menu-item:hover {
+.button.mm-menu-item:hover {
+    -fx-background-color: #181818;
     -fx-text-fill: #ffffff;
 }
 
-.mm-menu-item-selected,
-.mm-menu-item-selected:hover {
+.button.mm-menu-item-selected,
+.button.mm-menu-item-selected:hover {
     -fx-background-color: #2a2a2a;
     -fx-text-fill: #ffffff;
     -fx-font-weight: bold;
@@ -286,6 +290,11 @@
     -fx-background-radius: 999;
     -fx-border-color: #2e2e2e;
     -fx-border-radius: 999;
+}
+
+.combo-box .list-cell,
+.combo-box .arrow-button {
+    -fx-background-color: transparent;
 }
 
 .combo-box-popup .list-view,

@@ -109,12 +109,12 @@ public final class DiscoveryView implements TabView {
 
     private VBox card(Recommendation rec) {
         Label title = new Label(rec.track().title() + "  (" + format.duration(rec.track().durationMs()) + ")");
-        title.setStyle("-fx-font-weight: bold;");
+        title.getStyleClass().add("mm-heading");
         Label detail = UiParts.muted(format.recommendationDetail(rec));
         VBox card = new VBox(4, title, detail,
                 new FeedbackBar(ctx, feedbackStatus, rec.track().id(), rec.track().title()),
                 WhyExpander.of(format, rec.reason()));
-        card.setStyle("-fx-border-color: #dddddd; -fx-border-radius: 4; -fx-padding: 8;");
+        card.getStyleClass().add("mm-card");
         return card;
     }
 }
