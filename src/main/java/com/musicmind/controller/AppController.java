@@ -672,18 +672,51 @@ public class AppController {
     }
 
     /**
-     * Saves the blocked ids with {@code id} added. If the stored preferences cannot be read the database is down
-     * and {@link #getPreferences()} returns the safe defaults; saving on top of those would wipe the blocks that are
-     * stored, so nothing is saved.
+     * Removes the artist from the blocked artists, keeping the others; removing the last one clears the rule.
+     *
+     * @throws IllegalArgumentException if the id is not shaped like a Spotify artist id (or {@code spotify:artist:} URI)
+     * @throws IllegalStateException    if the stored blocks cannot be read, so nothing is saved
      */
+    public void unblockArtist(String artistId) {
+        String id = artistId == null ? "" : artistId.strip();
+        if (!config.prefsArtistIdPattern().matcher(id).matches()) {
+            throw new IllegalArgumentException(config.wording("prefsBadArtistId"));
+        }
+        changeBlocks(PreferenceSettings.BLOCKED_ARTISTS, ARTIST_URI_PREFIX, id, false);
+    }
+
+    /**
+     * Removes the track from the blocked tracks, keeping the others; removing the last one clears the rule.
+     *
+     * @throws IllegalArgumentException if the id is not shaped like a Spotify track id
+     * @throws IllegalStateException    if the stored blocks cannot be read, so nothing is saved
+     */
+    public void unblockTrack(String trackId) {
+        changeBlocks(PreferenceSettings.BLOCKED_TRACKS, TRACK_URI_PREFIX, requireTrackId(trackId), false);
+    }
+
     private void addBlock(String key, String uriPrefix, String id) {
+        changeBlocks(key, uriPrefix, id, true);
+    }
+
+    /**
+     * Saves the blocked ids with {@code id} added or removed. If the stored preferences cannot be read the database is
+     * down and {@link #getPreferences()} returns the safe defaults; saving on top of those would wipe the blocks that
+     * are stored, so nothing is saved.
+     */
+    private void changeBlocks(String key, String uriPrefix, String id, boolean add) {
         List<UserPreference> stored = getPreferences();
         if (stored.stream().anyMatch(p -> UserPreference.DEFAULTS_KEY.equals(p.key()))) {
             throw new IllegalStateException(config.wording("prefsUnavailable"));
         }
         PreferenceSettings settings = PreferenceSettings.from(stored);
         Set<String> all = new TreeSet<>(PreferenceSettings.BLOCKED_ARTISTS.equals(key) ? settings.blockedArtists() : settings.blockedTracks());
-        all.add(id.startsWith(uriPrefix) ? id.substring(uriPrefix.length()) : id);
+        String bare = id.startsWith(uriPrefix) ? id.substring(uriPrefix.length()) : id;
+        if (add) {
+            all.add(bare);
+        } else {
+            all.remove(bare);
+        }
         setPreference(PreferenceSettings.parse(key, String.join(",", all), config));
     }
 

@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeSet;
 
 /**
@@ -354,7 +353,7 @@ public final class PreferencesView implements TabView {
     }
 
     private void removeArtist(BlockedArtist artist) {
-        runBlock("ActionRemoveBlock", () -> removeFromList(PreferenceSettings.BLOCKED_ARTISTS, artist.id()),
+        runBlock("ActionRemoveBlock", () -> ctx.controller().unblockArtist(artist.id()),
                 format.w("RemovedBlock", artist.name()), () -> { });
     }
 
@@ -388,20 +387,8 @@ public final class PreferencesView implements TabView {
 
     private void removeSong(String id) {
         String title = format.blockedSongName(knownTitles.get(id));
-        runBlock("ActionRemoveBlock", () -> removeFromList(PreferenceSettings.BLOCKED_TRACKS, id),
+        runBlock("ActionRemoveBlock", () -> ctx.controller().unblockTrack(id),
                 format.w("RemovedBlock", title), () -> { });
-    }
-
-    /** Saves the stored list without {@code id}; an empty list is stored as no rule. Refuses when the rules cannot be read. */
-    private void removeFromList(String key, String id) {
-        List<UserPreference> stored = ctx.controller().getPreferences();
-        if (stored.stream().anyMatch(p -> UserPreference.DEFAULTS_KEY.equals(p.key()))) {
-            throw new IllegalStateException(ctx.config().wording("prefsUnavailable"));
-        }
-        PreferenceSettings settings = PreferenceSettings.from(stored);
-        Set<String> rest = new TreeSet<>(PreferenceSettings.BLOCKED_ARTISTS.equals(key) ? settings.blockedArtists() : settings.blockedTracks());
-        rest.remove(id);
-        ctx.controller().setPreference(ctx.controller().parsePreference(key, String.join(",", rest)));
     }
 
     /** Runs a block or unblock on the worker, shows a plain message when it is refused, then re-reads the rules. */

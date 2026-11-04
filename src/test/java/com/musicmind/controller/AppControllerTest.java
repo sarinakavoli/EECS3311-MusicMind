@@ -309,6 +309,81 @@ class AppControllerTest extends PostgresTestBase {
     }
 
     @Test
+    void unblockTrack_removesOnlyThatId() {
+        AppController c = controller(new Music());
+        String first = "1234567890123456789012";
+        String second = "abcdefghijABCDEFGHIJ12";
+        c.blockTrack(first);
+        c.blockTrack(second);
+        c.unblockTrack("spotify:track:" + first);
+        assertEquals(Set.of(second), PreferenceSettings.from(c.getPreferences()).blockedTracks());
+    }
+
+    @Test
+    void unblockTrack_lastIdClearsTheRule() {
+        AppController c = controller(new Music());
+        String only = "1234567890123456789012";
+        c.blockTrack(only);
+        c.unblockTrack(only);
+        assertTrue(c.getPreferences().stream().noneMatch(p -> PreferenceSettings.BLOCKED_TRACKS.equals(p.key())));
+        assertTrue(PreferenceSettings.from(c.getPreferences()).blockedTracks().isEmpty());
+    }
+
+    @Test
+    void unblockArtist_removesOnlyThatId() {
+        AppController c = controller(new Music());
+        c.blockArtist(ARTIST_ONE);
+        c.blockArtist(ARTIST_TWO);
+        c.unblockArtist("spotify:artist:" + ARTIST_ONE);
+        assertEquals(Set.of(ARTIST_TWO), PreferenceSettings.from(c.getPreferences()).blockedArtists());
+        c.unblockArtist(ARTIST_TWO);
+        assertTrue(c.getPreferences().stream().noneMatch(p -> PreferenceSettings.BLOCKED_ARTISTS.equals(p.key())));
+    }
+
+    @Test
+    void unblock_badIdIsRefused() {
+        AppController c = controller(new Music());
+        assertThrows(IllegalArgumentException.class, () -> c.unblockArtist("nope"));
+        assertThrows(IllegalArgumentException.class, () -> c.unblockTrack("nope"));
+    }
+
+    @Test
+    void unblock_preferencesUnreadable_savesNothing() {
+        Music music = new Music();
+        AppController working = controller(music);
+        String kept = "1234567890123456789012";
+        working.blockTrack(kept);
+        working.blockArtist(ARTIST_ONE);
+        List<String> changed = new ArrayList<>();
+        PreferenceRepository unreadable = new PreferenceRepository(db, music::currentUserId) {
+            @Override public List<UserPreference> findByUser(String userId) {
+                throw new PersistenceException("down", new SQLException("down"));
+            }
+            @Override public void save(UserPreference pref) {
+                changed.add(pref.key());
+                super.save(pref);
+            }
+            @Override public void delete(String key) {
+                changed.add(key);
+                super.delete(key);
+            }
+        };
+        AppController c = new AppController(music, new MemoryManager(db, unreadable,
+                new FeedbackRepository(db, music::currentUserId), new SessionRepository(db, music::currentUserId),
+                new PlaylistHistoryRepository(db, music::currentUserId), new CandidateRepository(db, music::currentUserId)),
+                null, config);
+
+        IllegalStateException track = assertThrows(IllegalStateException.class, () -> c.unblockTrack(kept));
+        IllegalStateException artist = assertThrows(IllegalStateException.class, () -> c.unblockArtist(ARTIST_ONE));
+
+        assertEquals(config.wording("prefsUnavailable"), track.getMessage());
+        assertEquals(config.wording("prefsUnavailable"), artist.getMessage());
+        assertTrue(changed.isEmpty(), changed.toString());
+        assertEquals(Set.of(kept), PreferenceSettings.from(working.getPreferences()).blockedTracks());
+        assertEquals(Set.of(ARTIST_ONE), PreferenceSettings.from(working.getPreferences()).blockedArtists());
+    }
+
+    @Test
     void blockTrack_rejectsBadId() {
         AppController c = controller(new Music());
         assertThrows(IllegalArgumentException.class, () -> c.blockTrack("nope"));
