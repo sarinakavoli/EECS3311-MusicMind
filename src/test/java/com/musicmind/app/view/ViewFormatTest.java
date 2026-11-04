@@ -272,8 +272,127 @@ class ViewFormatTest {
     void aDecisionTraceIsExplainedAsStrategyAndConstraints() {
         DecisionTrace trace = new DecisionTrace("Balanced", Map.of("a", "why"), List.of("no duplicate tracks", "explicit tracks excluded"));
 
-        assertEquals(List.of("Chosen with the Balanced strategy.", "- no duplicate tracks", "- explicit tracks excluded"),
-                format.traceLines(trace));
+        assertEquals(List.of("Chosen using a balance of artists you know and new ones.", "- no duplicate tracks",
+                "- explicit tracks excluded"), format.traceLines(trace));
+    }
+
+    @Test
+    void strategyNamesAreShownInPlainWords() {
+        assertEquals("a balance of artists you know and new ones", format.strategyWords("BalancedStrategy"));
+        assertEquals("a balance of artists you know and new ones", format.strategyWords("Balanced"));
+        assertEquals("mostly new artists you have not heard yet", format.strategyWords("DiscoveryStrategy"));
+        assertEquals("mostly artists you already listen to", format.strategyWords("FamiliarStrategy"));
+        for (String name : new String[]{"BalancedStrategy", "DiscoveryStrategy", "FamiliarStrategy", "SomethingElseStrategy", null, ""}) {
+            String words = format.strategyWords(name);
+            assertFalse(words.isBlank());
+            assertFalse(words.contains("Strategy"), words);
+            assertFalse(format.traceLines(new DecisionTrace(name, Map.of(), List.of())).get(0).contains("Strategy"));
+        }
+    }
+
+    @Test
+    void unknownStrategyGetsGenericWordsNotItsClassName() {
+        assertEquals("a method picked for your request", format.strategyWords("SomethingElseStrategy"));
+        assertEquals("a method picked for your request", format.strategyWords(null));
+    }
+
+    private static AgentSession session(String id, String when, String text, RequestKind kind) {
+        AgentSession s = new AgentSession(id, when == null ? null : Instant.parse(when), new IdleState());
+        s.setRequest(new AgentRequest(text, kind));
+        return s;
+    }
+
+    private List<AgentSession> activitySample() {
+        return List.of(
+                session("create", "2026-11-01T10:00:00Z", "calm", RequestKind.CREATE_PLAYLIST),
+                session("modify", "2026-11-02T10:00:00Z", "remove slow songs", RequestKind.MODIFY_PLAYLIST),
+                session("restore", "2026-11-03T10:00:00Z", "restore a saved version", RequestKind.MODIFY_PLAYLIST),
+                session("recreate", "2026-11-04T10:00:00Z", "recreate a deleted playlist from a saved version", RequestKind.CREATE_PLAYLIST),
+                session("taste", "2026-11-05T10:00:00Z", "view taste profile (medium)", RequestKind.ANALYZE_TASTE),
+                session("discover", "2026-11-06T10:00:00Z", "discover", RequestKind.DISCOVER));
+    }
+
+    private static List<String> ids(List<AgentSession> list) {
+        return list.stream().map(AgentSession::id).toList();
+    }
+
+    @Test
+    void activityTypeOfASession() {
+        List<AgentSession> s = activitySample();
+        assertEquals(ViewFormat.ActivityType.CREATED, format.activityType(s.get(0)));
+        assertEquals(ViewFormat.ActivityType.CHANGED, format.activityType(s.get(1)));
+        assertEquals(ViewFormat.ActivityType.RESTORED, format.activityType(s.get(2)));
+        assertEquals(ViewFormat.ActivityType.RESTORED, format.activityType(s.get(3)));
+        assertEquals(ViewFormat.ActivityType.TASTE, format.activityType(s.get(4)));
+        assertEquals(ViewFormat.ActivityType.OTHER, format.activityType(s.get(5)));
+    }
+
+    @Test
+    void activityIsNewestFirstByDefaultAndOldestFirstOnRequest() {
+        List<AgentSession> s = activitySample();
+        assertEquals(List.of("discover", "recreate", "restore", "modify", "create"),
+                ids(format.activity(s, ViewFormat.ActivityType.ALL, true, false)));
+        assertEquals(List.of("create", "modify", "restore", "recreate", "discover"),
+                ids(format.activity(s, ViewFormat.ActivityType.ALL, false, false)));
+    }
+
+    @Test
+    void activityTypeFilters() {
+        List<AgentSession> s = activitySample();
+        assertEquals(List.of("create"), ids(format.activity(s, ViewFormat.ActivityType.CREATED, true, false)));
+        assertEquals(List.of("modify"), ids(format.activity(s, ViewFormat.ActivityType.CHANGED, true, false)));
+        assertEquals(List.of("recreate", "restore"), ids(format.activity(s, ViewFormat.ActivityType.RESTORED, true, false)));
+    }
+
+    @Test
+    void tasteViewsAreHiddenUnlessAskedForByTypeOrByTheRoutineSwitch() {
+        List<AgentSession> s = activitySample();
+        assertFalse(ids(format.activity(s, ViewFormat.ActivityType.ALL, true, false)).contains("taste"));
+        assertTrue(ids(format.activity(s, ViewFormat.ActivityType.ALL, true, true)).contains("taste"));
+        assertEquals(List.of("taste"), ids(format.activity(s, ViewFormat.ActivityType.TASTE, true, false)));
+    }
+
+    @Test
+    void sessionsWithoutADateGoLastNewestFirstAndFirstOldestFirst() {
+        List<AgentSession> s = List.of(session("none", null, "x", RequestKind.DISCOVER),
+                session("a", "2026-11-01T10:00:00Z", "y", RequestKind.DISCOVER));
+        assertEquals(List.of("a", "none"), ids(format.activity(s, ViewFormat.ActivityType.ALL, true, false)));
+        assertEquals(List.of("none", "a"), ids(format.activity(s, ViewFormat.ActivityType.ALL, false, false)));
+    }
+
+    @Test
+    void activityTypeAndSortLabelsAreWorded() {
+        assertEquals("All", format.activityTypeLabel(ViewFormat.ActivityType.ALL));
+        assertEquals("Created", format.activityTypeLabel(ViewFormat.ActivityType.CREATED));
+        assertEquals("Changed", format.activityTypeLabel(ViewFormat.ActivityType.CHANGED));
+        assertEquals("Restored", format.activityTypeLabel(ViewFormat.ActivityType.RESTORED));
+        assertEquals("Taste profile", format.activityTypeLabel(ViewFormat.ActivityType.TASTE));
+        assertEquals("Newest first", format.w("SortNewest"));
+        assertEquals("Oldest first", format.w("SortOldest"));
+    }
+
+    @Test
+    void foundSongsAlreadyWaitingAreLeftOutOfTheResults() {
+        List<Track> found = List.of(track("a", 3, false), track("b", 3, false), track("c", 3, false));
+        List<Track> waiting = List.of(track("b", 3, false));
+        assertEquals(List.of("a", "c"), format.withoutWaiting(found, waiting).stream().map(Track::id).toList());
+        assertEquals(found, format.withoutWaiting(found, List.of()));
+    }
+
+    @Test
+    void spotifyLinkOpensTheTrackPageOrIsAbsent() {
+        assertEquals("https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC",
+                format.spotifyTrackUrl(new Track("4uLU6hMCjMI75M1A2tKUQC", "spotify:track:4uLU6hMCjMI75M1A2tKUQC", "T", 1000, false, List.of())));
+        assertEquals(null, format.spotifyTrackUrl(new Track("", "", "T", 1000, false, List.of())));
+        assertEquals(null, format.spotifyTrackUrl(new Track("a/../b", "", "T", 1000, false, List.of())));
+        assertEquals(null, format.spotifyTrackUrl(null));
+    }
+
+    @Test
+    void dialogHeightIsCappedToTheScreen() {
+        assertEquals(700, UiParts.fitHeight(700, 900), 0.01);
+        assertEquals(810, UiParts.fitHeight(1000, 900), 0.01);   // 90% of the screen
+        assertEquals(360, UiParts.fitHeight(700, 400), 0.01);
     }
 
     @Test

@@ -74,4 +74,11 @@ final class UiParts {
             pane.getStylesheets().add(sheet.toExternalForm());
         }
     }
+
+    private static final double SCREEN_SHARE = 0.9;
+
+    /** A dialog's height: the preferred one, but never more than 90% of the screen. */
+    static double fitHeight(double preferred, double screenHeight) {
+        return Math.min(preferred, screenHeight * SCREEN_SHARE);
+    }
 }

@@ -304,7 +304,7 @@ public final class ViewFormat {
             return List.of();
         }
         List<String> lines = new ArrayList<>();
-        lines.add(w("Strategy", trace.strategyName()));
+        lines.add(w("Strategy", strategyWords(trace.strategyName())));
         trace.constraintsSatisfied().forEach(c -> lines.add(w("ConstraintLine", c)));
         return lines;
     }
@@ -480,5 +480,69 @@ public final class ViewFormat {
     /** The line under the previewed songs: how many more the version holds. */
     public String previewMoreLine(int more) {
         return w("PreviewMore", more);
+    }
+
+    /** The kinds of activity the History timeline can be narrowed to; OTHER (Discover, search) shows only under ALL. */
+    public enum ActivityType { ALL, CREATED, CHANGED, RESTORED, TASTE, OTHER }
+
+    /** The strategy class name in plain words ("BalancedStrategy" becomes a sentence part); never the class name itself. */
+    public String strategyWords(String name) {
+        String key = name == null ? "" : name.strip().replaceAll("Strategy$", "").toLowerCase(java.util.Locale.ROOT);
+        if (key.isEmpty()) {
+            return w("StrategyOther");
+        }
+        try {
+            return config.wording("guiStrategy." + key);
+        } catch (IllegalStateException unknown) {
+            return w("StrategyOther");
+        }
+    }
+
+    /** What kind of activity a session was; a restore or recreate counts as RESTORED, not as a change or creation. */
+    public ActivityType activityType(AgentSession session) {
+        if (session.request() == null) {
+            return ActivityType.OTHER;
+        }
+        String text = session.request().rawText() == null ? "" : session.request().rawText();
+        boolean restore = text.equals(config.wording("restoreRecordText")) || text.equals(config.wording("recreateRecordText"));
+        return switch (session.request().kind()) {
+            case ANALYZE_TASTE -> ActivityType.TASTE;
+            case CREATE_PLAYLIST, MODIFY_PLAYLIST -> restore ? ActivityType.RESTORED
+                    : session.request().kind() == RequestKind.CREATE_PLAYLIST ? ActivityType.CREATED : ActivityType.CHANGED;
+            default -> ActivityType.OTHER;
+        };
+    }
+
+    /**
+     * The timeline: only {@code type} (ALL shows everything), sorted by date, newest first or oldest first (a session
+     * without a date counts as the oldest). Taste profile views stay hidden unless asked for, either by choosing
+     * that type or by {@code showRoutine}.
+     */
+    public List<AgentSession> activity(List<AgentSession> sessions, ActivityType type, boolean newestFirst, boolean showRoutine) {
+        java.util.Comparator<AgentSession> byDate = java.util.Comparator.comparing(AgentSession::startedAt,
+                java.util.Comparator.nullsFirst(java.util.Comparator.naturalOrder()));
+        return sessions.stream()
+                .filter(s -> type == ActivityType.ALL ? showRoutine || !isRoutine(s) : activityType(s) == type)
+                .sorted(newestFirst ? byDate.reversed() : byDate)
+                .toList();
+    }
+
+    public String activityTypeLabel(ActivityType type) {
+        return w("ActivityType." + type.name());
+    }
+
+    /** The found songs that are not already on the waiting list (so an added song leaves the results). */
+    public List<Track> withoutWaiting(List<Track> found, List<Track> waiting) {
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        waiting.forEach(t -> ids.add(t.id()));
+        return found.stream().filter(t -> !ids.contains(t.id())).toList();
+    }
+
+    /** The song's Spotify web page, or null when the id is missing or not a plain Spotify id. */
+    public String spotifyTrackUrl(Track track) {
+        if (track == null || track.id() == null || !track.id().matches("[A-Za-z0-9]{1,40}")) {
+            return null;
+        }
+        return w("SpotifyTrackUrl", track.id());
     }
 }
