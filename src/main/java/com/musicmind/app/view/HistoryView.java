@@ -73,7 +73,7 @@ public final class HistoryView implements TabView {
         versions.setPlaceholder(new Label(ctx.config().wording("cliNone")));
         versions.setCellFactory(list -> new VersionCell());
 
-        VBox page = UiParts.page(new HBox(UiParts.GAP, refresh), status, UiParts.heading(format.w("HistoryTitle")), sessions,
+        VBox page = UiParts.page(format.w("Menu.history"), format.w("Desc.history"), "", new HBox(UiParts.GAP, refresh), status, UiParts.heading(format.w("HistoryTitle")), sessions,
                 sessionDetail, UiParts.heading(format.w("SavedVersions")), versions);
         ScrollPane scroll = new ScrollPane(page);
         scroll.setFitToWidth(true);
@@ -89,7 +89,12 @@ public final class HistoryView implements TabView {
 
     @Override
     public String title() {
-        return format.w("TabHistory");
+        return format.w("Menu.history");
+    }
+
+    @Override
+    public String description() {
+        return format.w("Desc.history");
     }
 
     @Override

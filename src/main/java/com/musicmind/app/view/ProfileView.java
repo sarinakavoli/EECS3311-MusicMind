@@ -61,7 +61,7 @@ public final class ProfileView implements TabView {
         HBox lists = new HBox(UiParts.PAD, listColumn(format.w("TopArtists"), artists),
                 listColumn(format.w("TopTracks"), tracks));
 
-        VBox content = UiParts.page(controls, status, generated, notice, UiParts.heading(format.w("TopGenres")), genres, lists,
+        VBox content = UiParts.page(format.w("Menu.profile"), format.w("Desc.profile"), "", controls, status, generated, notice, UiParts.heading(format.w("TopGenres")), genres, lists,
                 UiParts.heading(format.w("Summary")), summary);
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
@@ -77,7 +77,12 @@ public final class ProfileView implements TabView {
 
     @Override
     public String title() {
-        return format.w("TabProfile");
+        return format.w("Menu.profile");
+    }
+
+    @Override
+    public String description() {
+        return format.w("Desc.profile");
     }
 
     @Override

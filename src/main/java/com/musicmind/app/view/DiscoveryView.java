@@ -52,13 +52,23 @@ public final class DiscoveryView implements TabView {
         ScrollPane scroll = new ScrollPane(new VBox(UiParts.GAP, listNotes, list));
         scroll.setFitToWidth(true);
         scroll.setPrefHeight(480);
-        VBox page = UiParts.page(controls, status, feedbackStatus, scroll);
+        VBox page = UiParts.page(format.w("Menu.discover"), format.w("Desc.discover"), format.w("Example.discover"), controls, status, feedbackStatus, scroll);
         root = new LoginGate(ctx, page, false);
     }
 
     @Override
     public String title() {
-        return format.w("TabDiscover");
+        return format.w("Menu.discover");
+    }
+
+    @Override
+    public String description() {
+        return format.w("Desc.discover");
+    }
+
+    @Override
+    public String example() {
+        return format.w("Example.discover");
     }
 
     @Override

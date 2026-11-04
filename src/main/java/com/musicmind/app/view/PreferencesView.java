@@ -57,7 +57,7 @@ public final class PreferencesView implements TabView {
             grid.add(save, 2, row);
             row++;
         }
-        VBox page = UiParts.page(UiParts.wrapped(format.w("PrefsIntro")), grid, status, notices);
+        VBox page = UiParts.page(format.w("Menu.preferences"), format.w("Desc.preferences"), format.w("Example.preferences"), UiParts.wrapped(format.w("PrefsIntro")), grid, status, notices);
         root = new LoginGate(ctx, page, true);
         if (!ctx.spotifyConfigured()) {
             load();
@@ -66,7 +66,17 @@ public final class PreferencesView implements TabView {
 
     @Override
     public String title() {
-        return format.w("TabPreferences");
+        return format.w("Menu.preferences");
+    }
+
+    @Override
+    public String description() {
+        return format.w("Desc.preferences");
+    }
+
+    @Override
+    public String example() {
+        return format.w("Example.preferences");
     }
 
     @Override

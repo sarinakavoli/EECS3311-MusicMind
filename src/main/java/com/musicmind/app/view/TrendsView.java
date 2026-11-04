@@ -34,7 +34,7 @@ public final class TrendsView implements TabView {
         compare.setOnAction(e -> run());
         HBox controls = new HBox(UiParts.GAP, compare);
         controls.setAlignment(Pos.CENTER_LEFT);
-        VBox content = UiParts.page(controls, status, columns, notices, UiParts.heading(format.w("TrendsOverTime")), changes,
+        VBox content = UiParts.page(format.w("Menu.trends"), format.w("Desc.trends"), "", controls, status, columns, notices, UiParts.heading(format.w("TrendsOverTime")), changes,
                 narrative);
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
@@ -44,7 +44,12 @@ public final class TrendsView implements TabView {
 
     @Override
     public String title() {
-        return format.w("TabTrends");
+        return format.w("Menu.trends");
+    }
+
+    @Override
+    public String description() {
+        return format.w("Desc.trends");
     }
 
     @Override

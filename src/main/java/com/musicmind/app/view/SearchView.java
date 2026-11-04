@@ -74,13 +74,23 @@ public final class SearchView implements TabView {
                 onLogin(ctx.userProperty().get());
             }
         });
-        VBox page = UiParts.page(bar, status, new HBox(UiParts.PAD, left, right), artists, notices);
+        VBox page = UiParts.page(format.w("Menu.search"), format.w("Desc.search"), format.w("Example.search"), bar, status, new HBox(UiParts.PAD, left, right), artists, notices);
         root = new LoginGate(ctx, page, false);
     }
 
     @Override
     public String title() {
-        return format.w("TabSearch");
+        return format.w("Menu.search");
+    }
+
+    @Override
+    public String description() {
+        return format.w("Desc.search");
+    }
+
+    @Override
+    public String example() {
+        return format.w("Example.search");
     }
 
     @Override

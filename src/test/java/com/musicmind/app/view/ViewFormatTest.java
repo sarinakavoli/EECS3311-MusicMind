@@ -44,6 +44,18 @@ class ViewFormatTest {
     }
 
     @Test
+    void everyScreenHasMenuNameAndDescription() {
+        Map<String, String> names = Map.of("profile", "Your Taste", "trends", "Trends", "search", "Find Songs",
+                "discover", "Discover", "playlists", "Playlists", "preferences", "Your Rules", "history", "History");
+        for (Map.Entry<String, String> screen : names.entrySet()) {
+            assertEquals(screen.getValue(), format.w("Menu." + screen.getKey()));
+            assertFalse(format.w("Desc." + screen.getKey()).isBlank(), screen.getKey());
+        }
+        assertEquals("Start listening to something new. Artists and songs you haven't heard yet, picked from your taste.",
+                format.w("Desc.discover"));
+    }
+
+    @Test
     void durationShowsMinutesAndPaddedSeconds() {
         assertEquals("3:05", format.duration(185_000));
         assertEquals("0:09", format.duration(9_000));

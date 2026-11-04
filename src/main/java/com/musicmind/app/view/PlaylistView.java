@@ -122,12 +122,25 @@ public final class PlaylistView implements TabView {
         detail.managedProperty().bind(detail.visibleProperty());
         SplitPane split = new SplitPane(left, rightScroll);
         split.setDividerPositions(0.3);
-        root = new LoginGate(ctx, split, false);
+        VBox.setVgrow(split, Priority.ALWAYS);
+        VBox page = UiParts.page(format.w("Menu.playlists"), format.w("Desc.playlists"), format.w("Example.playlists"), split);
+        page.setFillWidth(true);
+        root = new LoginGate(ctx, page, false);
     }
 
     @Override
     public String title() {
-        return format.w("TabPlaylists");
+        return format.w("Menu.playlists");
+    }
+
+    @Override
+    public String description() {
+        return format.w("Desc.playlists");
+    }
+
+    @Override
+    public String example() {
+        return format.w("Example.playlists");
     }
 
     @Override

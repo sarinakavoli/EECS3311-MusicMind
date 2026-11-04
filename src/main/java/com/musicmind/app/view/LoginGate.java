@@ -16,7 +16,7 @@ final class LoginGate extends StackPane {
     LoginGate(GuiContext ctx, Node content, boolean worksWithoutSpotify) {
         Label prompt = new Label();
         prompt.setWrapText(true);
-        prompt.setStyle("-fx-font-size: 15px; -fx-text-fill: #555555;");
+        prompt.getStyleClass().add("mm-gate-prompt");
         StackPane.setAlignment(prompt, Pos.CENTER);
         boolean configured = ctx.spotifyConfigured();
         prompt.setText(configured ? ctx.format().w("LoginFirst") : ctx.format().w("NotConfiguredGate"));

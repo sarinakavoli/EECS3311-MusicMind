@@ -3,11 +3,19 @@ package com.musicmind.app.view;
 import com.musicmind.domain.User;
 import javafx.scene.Node;
 
-/** A tab of the main window. */
+/** A screen of the main window, chosen from the left menu. */
 public interface TabView {
 
-    /** The tab's title. */
+    /** The screen's title, used for the menu button and the page title. */
     String title();
+
+    /** One plain sentence under the page title saying what the screen does. */
+    String description();
+
+    /** A "Try: ..." line for screens that take input; empty when the screen has none. */
+    default String example() {
+        return "";
+    }
 
     /** The tab's content, already wrapped so that it is unusable until the user can use it. */
     Node node();
