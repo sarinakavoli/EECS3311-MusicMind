@@ -289,9 +289,9 @@ class ViewFormatTest {
     }
 
     @Test
-    void thumbsWordingSurvivesTheFileEncoding() {
-        assertTrue(config.wording("guiAccept").startsWith("\uD83D\uDC4D"));
-        assertTrue(config.wording("guiReject").startsWith("\uD83D\uDC4E"));
+    void iconWordingSurvivesTheFileEncoding() {
+        assertTrue(config.wording("guiLikeIcon").startsWith("\u2665"));
+        assertTrue(config.wording("guiNotForMeIcon").startsWith("\u2298"));
     }
 
     @Test
@@ -361,5 +361,25 @@ class ViewFormatTest {
     @Test
     void aCancelledNegotiationWithoutAMessageUsesTheStandardWording() {
         assertEquals(config.wording("negotiationCancelled"), format.failure("ActionCreate", new NegotiationCancelledException(null)));
+    }
+
+    private static Track named(String title, String... artists) {
+        return new Track("x", "spotify:track:x", title, 1000, false, List.of(), List.of(artists));
+    }
+
+    @Test
+    void artists_joinsNames() {
+        assertEquals("Ado, Yoasobi", format.artists(named("Song", "Ado", "Yoasobi")));
+    }
+
+    @Test
+    void artists_noNames_isEmpty() {
+        assertEquals("", format.artists(track("1", 3, false)));
+    }
+
+    @Test
+    void trackTitleLine_noArtists_hasNoSeparator() {
+        assertEquals("T1", format.trackTitleLine(track("1", 3, false)));
+        assertEquals("Song - Ado", format.trackTitleLine(named("Song", "Ado")));
     }
 }

@@ -453,3 +453,13 @@
     -fx-background-color: #3a2f00;
     -fx-text-fill: #ffd866;
 }
+
+/* ---- Song row (TrackRow) ------------------------------------------------ */
+.mm-track-title {
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 14px;
+}
+
+.mm-track-artists {
+    -fx-font-size: 12px;
+}

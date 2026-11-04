@@ -86,6 +86,17 @@ public final class ViewFormat {
         return String.format(Locale.ROOT, "%d:%02d", seconds / 60, seconds % 60);
     }
 
+    /** The artist names of a track joined by ", "; empty when the track has none. */
+    public String artists(Track track) {
+        return track.artistNames().stream().filter(n -> n != null && !n.isBlank()).collect(java.util.stream.Collectors.joining(", "));
+    }
+
+    /** The title, then " - " and the artists when there are any. */
+    public String trackTitleLine(Track track) {
+        String artists = artists(track);
+        return artists.isEmpty() ? track.title() : w("TrackTitleLine", track.title(), artists);
+    }
+
     /** Milliseconds as whole minutes, rounded to the nearest. */
     public long minutes(long durationMs) {
         return Math.round(durationMs / 60_000.0);

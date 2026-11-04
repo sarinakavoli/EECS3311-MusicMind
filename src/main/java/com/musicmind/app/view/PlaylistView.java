@@ -21,7 +21,6 @@ import javafx.scene.control.TextField;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 import java.util.ArrayList;
@@ -315,13 +314,7 @@ public final class PlaylistView implements TabView {
         why.getChildren().setAll(WhyExpander.lazy(ctx, "ActionExplain", () -> ctx.controller().explain(shownId)));
     }
 
-    private HBox row(Track track) {
-        Label name = new Label(track.title() + (track.isExplicit() ? "  [" + format.w("ExplicitTag") + "]" : ""));
-        Label length = UiParts.muted(format.duration(track.durationMs()));
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox row = new HBox(UiParts.GAP, name, spacer, length, new FeedbackBar(ctx, feedbackStatus, track.id(), track.title()));
-        row.setAlignment(Pos.CENTER_LEFT);
-        return row;
+    private Node row(Track track) {
+        return TrackRow.of(ctx, feedbackStatus, track, TrackRow.Options.feedbackOnly());
     }
 }

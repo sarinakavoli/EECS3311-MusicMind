@@ -108,11 +108,8 @@ public final class DiscoveryView implements TabView {
     }
 
     private VBox card(Recommendation rec) {
-        Label title = new Label(rec.track().title() + "  (" + format.duration(rec.track().durationMs()) + ")");
-        title.getStyleClass().add("mm-heading");
         Label detail = UiParts.muted(format.recommendationDetail(rec));
-        VBox card = new VBox(4, title, detail,
-                new FeedbackBar(ctx, feedbackStatus, rec.track().id(), rec.track().title()),
+        VBox card = new VBox(4, TrackRow.of(ctx, feedbackStatus, rec.track(), TrackRow.Options.feedbackOnly()), detail,
                 WhyExpander.of(format, rec.reason()));
         card.getStyleClass().add("mm-card");
         return card;
