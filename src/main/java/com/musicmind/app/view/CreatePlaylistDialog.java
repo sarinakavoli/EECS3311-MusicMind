@@ -55,7 +55,7 @@ public final class CreatePlaylistDialog {
     private final CheckBox allowExplicit = new CheckBox();
     private final CheckBox mixFromGoal = new CheckBox();
     /** The share of new artists, as the Discover slider shows it; the familiar share sent is 1 minus this. */
-    private final Slider novelty = new Slider(0, 1, 1 - 0.5);
+    private final Slider novelty = new Slider(0, 1, 0);
     private final Label mixLabel = new Label();
     private final VBox mixBox = new VBox(UiParts.GAP);
     private final CheckBox useWaiting = new CheckBox();
