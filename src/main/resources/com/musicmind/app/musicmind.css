@@ -580,3 +580,7 @@
     -fx-pref-width: 520;
     -fx-pref-height: 360;
 }
+
+.mm-clickable {
+    -fx-cursor: hand;
+}

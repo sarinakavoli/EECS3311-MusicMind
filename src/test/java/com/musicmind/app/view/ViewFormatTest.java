@@ -221,30 +221,6 @@ class ViewFormatTest {
     }
 
     @Test
-    void historyRowsShowTheRequestAndTheResult() {
-        AgentSession session = new AgentSession("s-1", Instant.parse("2026-11-01T14:05:00Z"), new IdleState());
-        session.setStatus("done");
-        session.setRequest(new AgentRequest("calm study mix", RequestKind.CREATE_PLAYLIST));
-        session.setPlaylistId("pl9");
-
-        ViewFormat.HistoryRow row = format.historyRows(List.of(session)).get(0);
-
-        assertEquals("s-1", row.sessionId());
-        assertEquals("2026-11-01 14:05", row.when());
-        assertEquals("done", row.status());
-        assertEquals("Create playlist: calm study mix", row.request());
-        assertEquals("pl9", row.playlistId());
-    }
-
-    @Test
-    void aSessionWithNoRequestOrPlaylistStillFormats() {
-        AgentSession session = new AgentSession("s-2", Instant.parse("2026-11-01T14:05:00Z"), new IdleState());
-        ViewFormat.HistoryRow row = format.historyRows(List.of(session)).get(0);
-        assertEquals("", row.request());
-        assertEquals("", row.playlistId());
-    }
-
-    @Test
     void sessionLinesListThePlanStepsAndTheResult() {
         AgentSession session = new AgentSession("s-3", Instant.parse("2026-11-01T14:05:00Z"), new IdleState());
         session.setStatus("done");
@@ -354,12 +330,6 @@ class ViewFormatTest {
     void iconWordingSurvivesTheFileEncoding() {
         assertTrue(config.wording("guiLikeIcon").startsWith("\u2665"));
         assertTrue(config.wording("guiNotForMeIcon").startsWith("\u2298"));
-    }
-
-    @Test
-    void aSavedVersionIsDescribedByNameSizeAndTime() {
-        SnapshotInfo info = new SnapshotInfo(4, "pl9", "Mix", 12, Instant.parse("2026-11-01T14:05:00Z"));
-        assertEquals("Mix (12 tracks), saved 2026-11-01 14:05", format.snapshotLine(info));
     }
 
     @Test
@@ -591,5 +561,15 @@ class ViewFormatTest {
         assertEquals("Past 6 months", format.timelineText(profile));
         assertEquals("calm study mix", format.timelineText(create));
         assertEquals("Taste profile", format.kindLabel(profile));
+    }
+
+    @Test
+    void statusFlagIsBlankForADoneRun() {
+        AgentSession done = new AgentSession("a", Instant.parse("2026-11-01T14:05:00Z"), new IdleState());
+        done.setStatus("done");
+        AgentSession failed = new AgentSession("b", Instant.parse("2026-11-01T14:05:00Z"), new IdleState());
+        failed.setStatus("failed");
+        assertEquals("", format.statusFlag(done));
+        assertEquals("failed", format.statusFlag(failed));
     }
 }

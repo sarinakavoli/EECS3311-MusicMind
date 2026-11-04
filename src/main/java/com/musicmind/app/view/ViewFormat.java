@@ -11,6 +11,7 @@ import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.Playlist;
 import com.musicmind.domain.SnapshotInfo;
 import com.musicmind.domain.RangeChange;
+import com.musicmind.domain.RequestKind;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.ValidationResult;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalInt;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -46,14 +48,11 @@ public final class ViewFormat {
     /** One time range of the Trends view. */
     public record TrendColumn(String range, List<String> artists, List<String> genres, String coverage) { }
 
-    /** One line of the History list. */
     /** One saved version on a timeline line: when it was saved and how the song count moved from the version before. */
     public record VersionLine(SnapshotInfo info, String when, String change) { }
 
     /** The saved versions of one playlist, newest first. */
     public record VersionGroup(String playlistId, String name, List<VersionLine> versions) { }
-
-    public record HistoryRow(String sessionId, String when, String status, String request, String playlistId) { }
 
     /** A message with a web address, an HTTP status or a JSON body in it is not fit to show. */
     private static final Pattern PROFILE_RANGE = Pattern.compile("\\((short|medium|long)\\)");
@@ -233,18 +232,6 @@ public final class ViewFormat {
         return ids.stream().map(id -> byId.getOrDefault(id, id)).toList();
     }
 
-    /** The rows of the History list, in the order given. */
-    public List<HistoryRow> historyRows(List<AgentSession> sessions) {
-        List<HistoryRow> rows = new ArrayList<>();
-        for (AgentSession s : sessions) {
-            String request = s.request() == null ? ""
-                    : config.wording("guiKind." + s.request().kind().name()) + ": " + s.request().rawText();
-            rows.add(new HistoryRow(s.id(), s.startedAt() == null ? "" : timeFormat.format(s.startedAt()),
-                    s.status() == null ? "" : s.status(), request, s.playlistId() == null ? "" : s.playlistId()));
-        }
-        return rows;
-    }
-
     /** One past session opened: its request, status, plan and result. */
     public List<String> sessionLines(AgentSession s) {
         List<String> lines = new ArrayList<>();
@@ -415,11 +402,6 @@ public final class ViewFormat {
         return timeFormat.format(instant);
     }
 
-    /** A saved playlist version as one line of the restore list. */
-    public String snapshotLine(SnapshotInfo info) {
-        return w("VersionLine", info.name(), info.trackCount(), info.createdAt() == null ? "" : timeFormat.format(info.createdAt()));
-    }
-
     /** "27 \u2192 22 songs", or "27 songs (no change)" when the count did not change. */
     public String versionChange(int fromCount, int toCount) {
         return fromCount == toCount ? w("VersionSame", toCount) : w("VersionChange", fromCount, toCount);
@@ -427,7 +409,7 @@ public final class ViewFormat {
 
     /** True for the quick looks (taste profile, trends), which the timeline hides by default. */
     public boolean isRoutine(AgentSession session) {
-        return session.request() != null && session.request().kind() == com.musicmind.domain.RequestKind.ANALYZE_TASTE;
+        return session.request() != null && session.request().kind() == RequestKind.ANALYZE_TASTE;
     }
 
     /**
@@ -461,7 +443,7 @@ public final class ViewFormat {
         }
         String raw = session.request().rawText() == null ? "" : session.request().rawText();
         if (isRoutine(session)) {
-            java.util.regex.Matcher m = PROFILE_RANGE.matcher(raw);
+            Matcher m = PROFILE_RANGE.matcher(raw);
             if (m.find()) {
                 return w("TimelineProfile", rangeLabel(m.group(1)));
             }
@@ -477,5 +459,16 @@ public final class ViewFormat {
     /** The preview heading for a saved version: its name and when it was saved. */
     public String previewTitle(SnapshotInfo info) {
         return w("PreviewTitle", info.name(), info.createdAt() == null ? "" : timeFormat.format(info.createdAt()));
+    }
+
+    /** The status to flag on a timeline line: blank when the run finished normally. */
+    public String statusFlag(AgentSession session) {
+        String status = session.status();
+        return status == null || "done".equals(status) ? "" : status;
+    }
+
+    /** The line under the previewed songs: how many more the version holds. */
+    public String previewMoreLine(int more) {
+        return w("PreviewMore", more);
     }
 }

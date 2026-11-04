@@ -4,12 +4,14 @@ import com.musicmind.agent.command.PlaylistMissingException;
 import com.musicmind.domain.AgentSession;
 import com.musicmind.domain.Playlist;
 import com.musicmind.domain.SnapshotInfo;
+import com.musicmind.domain.SnapshotPreview;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.User;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBar.ButtonData;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.CheckBox;
@@ -144,19 +146,26 @@ public final class HistoryView implements TabView {
         text.setMaxWidth(Double.MAX_VALUE);
         text.setMinWidth(0);
         HBox.setHgrow(text, Priority.ALWAYS);
+        Label arrow = new Label(format.w("OpenArrow"));
+        arrow.getStyleClass().add("mm-muted");
         HBox line = new HBox(UiParts.GAP, when, kind, text);
-        if (session.status() != null && !"done".equals(session.status())) {
-            Label state = new Label(session.status());
+        String flag = format.statusFlag(session);
+        if (!flag.isEmpty()) {
+            Label state = new Label(flag);
             state.getStyleClass().addAll("mm-badge", "mm-badge-warn");
             line.getChildren().add(state);
         }
-        line.getStyleClass().add("mm-row");
+        line.getChildren().add(arrow);
+        line.getStyleClass().addAll("mm-row", "mm-clickable");
         line.setAlignment(Pos.CENTER_LEFT);
         VBox detail = new VBox(2);
         detail.getStyleClass().add("mm-timeline-detail");
         detail.setVisible(false);
         detail.setManaged(false);
-        line.setOnMouseClicked(e -> toggleDetail(session.id(), detail));
+        line.setOnMouseClicked(e -> {
+            toggleDetail(session.id(), detail);
+            arrow.setText(format.w(detail.isVisible() ? "OpenArrow" : "CloseArrow"));
+        });
         return new VBox(line, detail);
     }
 
@@ -229,29 +238,35 @@ public final class HistoryView implements TabView {
         }, button);
     }
 
-    private boolean confirmPreview(SnapshotInfo version, List<Track> songs) {
+    private boolean confirmPreview(SnapshotInfo version, SnapshotPreview preview) {
         VBox list = new VBox();
-        for (Track song : songs) {
+        for (Track song : preview.songs()) {
             Track shownSong = song.title() == null || song.title().isBlank()
                     ? new Track(song.id(), song.uri(), format.w("PreviewNoTitle"), song.durationMs(), false, song.artistIds(), song.artistNames())
                     : song;
             list.getChildren().add(TrackRow.of(ctx, status, shownSong, TrackRow.Options.plain(), null));
         }
-        if (songs.isEmpty()) {
+        if (preview.songs().isEmpty()) {
             list.getChildren().add(UiParts.muted(format.w("PreviewEmpty")));
+        }
+        if (preview.moreCount() > 0) {
+            list.getChildren().add(UiParts.muted(format.previewMoreLine(preview.moreCount())));
         }
         ScrollPane scroll = new ScrollPane(list);
         scroll.setFitToWidth(true);
         scroll.getStyleClass().add("mm-preview-scroll");
         Label changeNote = UiParts.muted(format.w("PreviewHint"));
         VBox content = new VBox(UiParts.GAP, changeNote, scroll);
+        if (preview.stoppedEarly()) {
+            content.getChildren().add(1, UiParts.muted(format.w("PreviewStopped")));
+        }
         content.getStyleClass().add("mm-dialog-content");
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.setTitle(format.w("Restore"));
         dialog.setHeaderText(format.previewTitle(version));
         dialog.getDialogPane().setContent(content);
-        ButtonType yes = new ButtonType(format.w("PreviewRestore"), javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
-        ButtonType no = new ButtonType(format.w("PreviewCancel"), javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
+        ButtonType yes = new ButtonType(format.w("PreviewRestore"), ButtonData.OK_DONE);
+        ButtonType no = new ButtonType(format.w("PreviewCancel"), ButtonData.CANCEL_CLOSE);
         dialog.getDialogPane().getButtonTypes().setAll(yes, no);
         UiParts.dark(dialog.getDialogPane());
         return dialog.showAndWait().filter(yes::equals).isPresent();

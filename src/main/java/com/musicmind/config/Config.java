@@ -327,6 +327,11 @@ public final class Config {
         return text("parser.defaultPlaylistName");
     }
 
+    /** How many songs of a saved version get their title looked up for the restore preview. */
+    public int historyPreviewTitleLimit() {
+        return integer("history.previewTitleLimit");
+    }
+
     // ---- Playlist commands (F5, F6) ----
 
     /** Undoable steps kept in memory per run; older ones fall off the end. */

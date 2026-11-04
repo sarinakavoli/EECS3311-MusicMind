@@ -51,6 +51,7 @@ import com.musicmind.domain.Recommendation;
 import com.musicmind.domain.RequestKind;
 import com.musicmind.domain.SearchQuery;
 import com.musicmind.domain.TopItems;
+import com.musicmind.domain.SnapshotPreview;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.Album;
@@ -63,6 +64,7 @@ import com.musicmind.memory.MemoryManager;
 import com.musicmind.memory.PersistenceException;
 import com.musicmind.music.AuthExpiredException;
 import com.musicmind.music.MusicService;
+import com.musicmind.music.RateLimitException;
 import com.musicmind.music.MusicServiceException;
 import com.musicmind.music.TrackList;
 import com.musicmind.tool.ToolManager;
@@ -1155,26 +1157,35 @@ public class MusicAgentFacade {
 
     /**
      * The songs of a saved version with their titles and artists read back from Spotify, for a preview before a
-     * restore. A song that cannot be read keeps only its id (the first failure ends the lookups); nothing is changed.
+     * restore. At most {@code history.previewTitleLimit} songs are looked up, one at a time (no batch endpoint), and
+     * the rest are only counted. A song Spotify does not know is left untitled and the lookups go on; a login
+     * problem, a rate limit or a server error stops them. Only reading the saved version holds the facade lock;
+     * nothing is written anywhere.
      *
      * @throws PlaylistChangeException if the snapshot is unknown or unavailable
      */
-    public synchronized List<Track> previewSnapshot(int snapshotId) {
-        List<Track> saved = loadSnapshot(snapshotId).tracks();
+    public SnapshotPreview previewSnapshot(int snapshotId) {
+        List<Track> saved;
+        synchronized (this) {
+            saved = loadSnapshot(snapshotId).tracks();
+        }
+        int limit = Math.min(saved.size(), config.historyPreviewTitleLimit());
         List<Track> shown = new ArrayList<>();
-        boolean reading = true;
-        for (Track track : saved) {
+        boolean stopped = false;
+        for (Track track : saved.subList(0, limit)) {
             Track full = null;
-            if (reading) {
+            if (!stopped) {
                 try {
                     full = create.music().getTrack(track.id());
+                } catch (AuthExpiredException | RateLimitException e) {
+                    stopped = true;
                 } catch (MusicServiceException e) {
-                    reading = false;
+                    stopped = e.statusCode() >= 500;
                 }
             }
             shown.add(full == null ? track : full);
         }
-        return shown;
+        return new SnapshotPreview(shown, saved.size() - limit, stopped);
     }
 
     /** Whether the last {@link #restore} changed the playlist; false when it already matched the saved version. */

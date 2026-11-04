@@ -29,6 +29,7 @@ import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.PlaylistSummary;
 import com.musicmind.domain.Recommendation;
 import com.musicmind.domain.SnapshotInfo;
+import com.musicmind.domain.SnapshotPreview;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.User;
@@ -565,7 +566,7 @@ public class AppController {
     }
 
     /** The songs of a saved version, titled from Spotify where it can be read, for a preview; changes nothing. */
-    public List<Track> previewSnapshot(int snapshotId) {
+    public SnapshotPreview previewSnapshot(int snapshotId) {
         requireSpotify();
         signInIfNeeded();
         return facade.previewSnapshot(snapshotId);
