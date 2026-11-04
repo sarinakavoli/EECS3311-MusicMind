@@ -494,10 +494,42 @@ class AppControllerTest extends PostgresTestBase {
     }
 
     @Test
-    void feedbackFor_beforeLogin_isEmpty() {
+    void feedbackFor_beforeLogin_isEmptyWhenNothingWasRecorded() {
         AppController c = controller(new Music());
         assertTrue(c.feedbackFor().isEmpty());
         assertNull(c.currentUser(), "reading feedback must not sign in");
+    }
+
+    @Test
+    void feedbackFor_beforeLogin_showsWhatWasRecorded() {
+        AppController c = controller(new Music());
+        c.recordFeedback("4uLU6hMCjMI75M1A2tKUQC", Verdict.ACCEPT);
+
+        assertEquals(Map.of("4uLU6hMCjMI75M1A2tKUQC", Verdict.ACCEPT), c.feedbackFor());
+        assertNull(c.currentUser(), "reading feedback must not sign in");
+    }
+
+    @Test
+    void feedbackFor_withoutSpotify_usesTheLocalUser() {
+        MemoryManager local = new MemoryManager(db,
+                new PreferenceRepository(db, () -> "local"), new FeedbackRepository(db, () -> "local"),
+                new SessionRepository(db, () -> "local"), new PlaylistHistoryRepository(db, () -> "local"),
+                new CandidateRepository(db, () -> "local"));
+        AppController c = new AppController(null, local, null, config);
+        c.recordFeedback("4uLU6hMCjMI75M1A2tKUQC", Verdict.REJECT);
+
+        assertEquals(Map.of("4uLU6hMCjMI75M1A2tKUQC", Verdict.REJECT), c.feedbackFor());
+    }
+
+    @Test
+    void feedbackFor_whenSigningInWouldOpenTheBrowser_isEmptyAndDoesNotAsk() {
+        Music music = new Music() {
+            @Override public String currentUserId() { throw new IllegalStateException("must not be asked"); }
+        };
+        AppController c = new AppController(music, memory(music), null, config, null, () -> true);
+
+        assertTrue(c.feedbackFor().isEmpty());
+        assertNull(c.currentUser());
     }
 
     @Test

@@ -756,16 +756,39 @@ public class AppController {
         memory.saveFeedback(new Feedback(id, verdict, Instant.now()));
     }
 
-    /** Track id to the user's latest verdict, so screens can show what was chosen; empty before login or with the database down. */
+    /**
+     * Track id to the user's latest verdict, so screens can show what was chosen; empty with the database down. Reads
+     * under the id {@link #recordFeedback} stores under (the local user without Spotify), so a stored verdict always
+     * shows, and never signs in: while that would open the browser, nothing is read.
+     */
     public Map<String, Verdict> feedbackFor() {
         Map<String, Verdict> latest = new LinkedHashMap<>();
-        if (currentUser == null) {
+        String id = feedbackUserId();
+        if (id == null) {
             return latest;
         }
-        for (Feedback f : memory.loadFeedback(currentUser.id())) {   // oldest first, so the last one wins
+        for (Feedback f : memory.loadFeedback(id)) {   // oldest first, so the last one wins
             latest.put(f.trackId(), f.verdict());
         }
         return latest;
+    }
+
+    /** The id feedback is stored under, found without opening the browser; null when it cannot be known yet. */
+    private String feedbackUserId() {
+        if (currentUser != null) {
+            return currentUser.id();
+        }
+        if (music == null) {
+            return LOCAL_USER;
+        }
+        if (willOpenBrowser()) {
+            return null;
+        }
+        try {
+            return music.currentUserId();   // the id the repositories stamp on recordFeedback
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     /**
