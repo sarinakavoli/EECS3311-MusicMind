@@ -1,22 +1,38 @@
 package com.musicmind.app.view;
 
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TitledPane;
 import javafx.scene.layout.VBox;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
-/** The "Why these?" expander (F10): collapsed until opened, then shows the reasons. */
+/** The "Why these?" / "Why this song?" expander (F10): collapsed until opened, then shows the reasons. */
 final class WhyExpander {
+
+    /** Tall enough for a few sentences; longer text scrolls. */
+    private static final double MAX_HEIGHT = 90;
 
     private WhyExpander() {
     }
 
-    /** An expander whose text is already known (a recommendation's reason). */
+    /** An expander whose text is already known (a recommendation's reason), titled "Why these?". */
     static TitledPane of(ViewFormat format, String text) {
+        return of(format, "WhyThese", text);
+    }
+
+    /** The same, with the title taken from {@code text.gui<titleKey>} ("WhyThisSong" for one song). */
+    static TitledPane of(ViewFormat format, String titleKey, String text) {
         Label body = UiParts.wrapped(text == null || text.isBlank() ? format.w("WhyUnavailable") : text);
-        TitledPane pane = new TitledPane(format.w("WhyThese"), body);
+        body.getStyleClass().add("mm-why-text");
+        ScrollPane scroll = new ScrollPane(body);
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setPrefViewportHeight(MAX_HEIGHT);
+        scroll.setMaxHeight(MAX_HEIGHT);
+        scroll.getStyleClass().add("mm-why-scroll");
+        TitledPane pane = new TitledPane(format.w(titleKey), scroll);
         pane.setExpanded(false);
         return pane;
     }

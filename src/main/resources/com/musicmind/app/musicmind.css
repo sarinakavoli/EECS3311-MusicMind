@@ -418,6 +418,32 @@
     -fx-padding: 0 1 0 1;
 }
 
+.mm-mix-label {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #ffffff;
+}
+
+.mm-slider-box {
+    -fx-spacing: 2;
+    -fx-max-width: 420;
+}
+
+.mm-why-scroll,
+.mm-why-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.mm-why-scroll {
+    -fx-padding: 0;
+    -fx-background-insets: 0;
+}
+
+.mm-why-text {
+    -fx-text-fill: #b3b3b3;
+    -fx-padding: 2 4 2 4;
+}
+
 .titled-pane > .title {
     -fx-background-color: #181818;
 }

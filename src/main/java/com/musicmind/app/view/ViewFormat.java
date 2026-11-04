@@ -9,7 +9,6 @@ import com.musicmind.domain.Artist;
 import com.musicmind.domain.DecisionTrace;
 import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.Playlist;
-import com.musicmind.domain.Recommendation;
 import com.musicmind.domain.SnapshotInfo;
 import com.musicmind.domain.RangeChange;
 import com.musicmind.domain.Track;
@@ -306,9 +305,24 @@ public final class ViewFormat {
         return lines;
     }
 
-    /** The score and familiar share of one recommendation. */
-    public String recommendationDetail(Recommendation recommendation) {
-        return w("RecommendationDetail", recommendation.score(), recommendation.familiarity() * 100);
+    /**
+     * "Mix: 60% new artists, 40% artists you know" for a familiar share (0.4 means 40% known). The share is
+     * clamped to 0..1 and the two numbers always add up to 100; an unreadable share counts as the default.
+     */
+    public String mixLabel(double familiarShare) {
+        double share = Double.isNaN(familiarShare) ? config.discoverDefaultFamiliarRatio() : familiarShare;
+        long known = Math.round(Math.max(0, Math.min(1, share)) * 100);
+        return w("MixLabel", 100 - known, known);
+    }
+
+    /** The mix label for the saved familiar share, or for the default share when none is saved. */
+    public String mixLabel(java.util.OptionalDouble saved) {
+        return mixLabel(saved.orElse(config.discoverDefaultFamiliarRatio()));
+    }
+
+    /** "Artist you know" for a familiarity of 1 or more, otherwise "New artist for you". */
+    public String familiarityLabel(double familiarity) {
+        return w(familiarity >= 1.0 ? "FamiliarKnown" : "FamiliarNew");
     }
 
     /** A playlist's name with its track count and length. */

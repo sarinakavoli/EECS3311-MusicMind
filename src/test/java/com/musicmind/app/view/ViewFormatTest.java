@@ -306,9 +306,35 @@ class ViewFormatTest {
     }
 
     @Test
-    void recommendationDetailShowsTheScoreAndFamiliarShare() {
-        Recommendation rec = new Recommendation(track("a", 3, false), "by an artist new to you", 0.25, 0.8765);
-        assertEquals("score 0.88, familiar 25%", format.recommendationDetail(rec));
+    void mixLabel_roundsAndSums100() {
+        assertEquals("Mix: 60% new artists, 40% artists you know", format.mixLabel(0.4));
+        assertEquals("Mix: 67% new artists, 33% artists you know", format.mixLabel(0.333));
+        assertEquals("Mix: 29% new artists, 71% artists you know", format.mixLabel(0.706));
+    }
+
+    @Test
+    void mixLabel_extremes() {
+        assertEquals("Mix: 0% new artists, 100% artists you know", format.mixLabel(1.0));
+        assertEquals("Mix: 100% new artists, 0% artists you know", format.mixLabel(0.0));
+        assertEquals("Mix: 100% new artists, 0% artists you know", format.mixLabel(-3));
+        assertEquals("Mix: 0% new artists, 100% artists you know", format.mixLabel(7));
+    }
+
+    @Test
+    void mixLabel_defaultWhenNoSavedValue() {
+        double fallback = config.discoverDefaultFamiliarRatio();
+        assertEquals(format.mixLabel(fallback), format.mixLabel(java.util.OptionalDouble.empty()));
+        assertEquals(format.mixLabel(0.4), format.mixLabel(java.util.OptionalDouble.of(0.4)));
+        assertEquals(format.mixLabel(fallback), format.mixLabel(Double.NaN));
+        assertFalse(format.mixLabel(java.util.OptionalDouble.empty()).contains("NaN"));
+    }
+
+    @Test
+    void familiarityLabel_knownAndNew() {
+        assertEquals("Artist you know", format.familiarityLabel(1.0));
+        assertEquals("Artist you know", format.familiarityLabel(1.5));
+        assertEquals("New artist for you", format.familiarityLabel(0.0));
+        assertEquals("New artist for you", format.familiarityLabel(0.99));
     }
 
     @Test
