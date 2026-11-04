@@ -53,6 +53,7 @@ import com.musicmind.domain.SearchQuery;
 import com.musicmind.domain.TopItems;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
+import com.musicmind.domain.Album;
 import com.musicmind.domain.User;
 import com.musicmind.domain.UserPreference;
 import com.musicmind.domain.ValidationResult;
@@ -530,6 +531,32 @@ public class MusicAgentFacade {
     /** What the last {@link #artistIds} should tell the user, such as a name several artists share. */
     public List<String> lastArtistNotices() {
         return lastArtistNotices;
+    }
+
+    /**
+     * A short line that tells same-named artists apart: one album title by the artist, led by "In your listening"
+     * when the artist is in the last saved profile. For display only (never stored or sent to the model); blank when
+     * nothing can be read.
+     */
+    public String artistHint(String artistId, User user) {
+        String album = "";
+        try {
+            album = create.music().getArtistAlbums(artistId).stream().map(Album::name)
+                    .filter(n -> n != null && !n.isBlank()).findFirst().orElse("");
+        } catch (RuntimeException e) {
+            // an unreadable album list just means no title
+        }
+        boolean listened = false;
+        try {
+            listened = user != null && lastProfile(user).map(p -> p.topArtists().stream().anyMatch(t -> artistId.equals(t.id()))).orElse(false);
+        } catch (RuntimeException e) {
+            // no saved profile: no prefix
+        }
+        String prefix = config.wording("artistHintListening");
+        if (!listened) {
+            return album;
+        }
+        return album.isEmpty() ? prefix : prefix + " \u00b7 " + album;
     }
 
     /** The name Spotify gives an artist id, read for display only; the id itself if it cannot be read. */

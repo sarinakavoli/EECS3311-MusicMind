@@ -527,4 +527,15 @@ class ViewFormatTest {
         assertFalse(format.w("Example.preferences").toLowerCase(java.util.Locale.ROOT).contains("save"));
         assertEquals(true, format.w("Example.preferences").toLowerCase(java.util.Locale.ROOT).contains("block"));
     }
+
+    @Test
+    void artistPosition_countsOnlyRepeatedNames() {
+        assertEquals("1 of 3", format.artistPosition(1, 3));
+        assertEquals("", format.artistPosition(1, 1));
+    }
+
+    @Test
+    void blankSongSearch_hasAMessage() {
+        assertFalse(format.w("SongBlank").isBlank());
+    }
 }

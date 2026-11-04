@@ -628,6 +628,12 @@ public class AppController {
         return facade.findArtists(name);
     }
 
+    /** A short display-only line (an album title, and whether the artist is in the user's listening) to tell same-named artists apart; blank if none can be read. */
+    public String artistHint(String artistId) {
+        requireSpotify();
+        return facade.artistHint(artistId, currentUser());
+    }
+
     /** Tracks for what the user typed, the same ranked list as {@link #searchMusic}. */
     public List<Track> findTracks(String text) {
         return searchMusic(text);

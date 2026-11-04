@@ -4,6 +4,7 @@ import com.musicmind.agent.PreferenceSettings;
 import com.musicmind.agent.command.PlaylistChangeException;
 import com.musicmind.agent.command.PlaylistMissingException;
 import com.musicmind.config.Config;
+import com.musicmind.domain.Album;
 import com.musicmind.domain.Artist;
 import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.Playlist;
@@ -177,6 +178,37 @@ class AppControllerTest extends PostgresTestBase {
         List<Artist> found = controller(music).findArtists("Nova");
         assertEquals(List.of("a2", "a3"), found.stream().limit(2).map(Artist::id).toList());
         assertEquals(3, found.size());
+    }
+
+    @Test
+    void artistHint_isAnAlbumTitle() {
+        Music music = new Music() {
+            @Override public List<Album> getArtistAlbums(String id) { return List.of(new Album("al1", "First Light", "2020")); }
+        };
+        AppController c = controller(music);
+        c.login();
+        assertEquals("First Light", c.artistHint("other"));
+    }
+
+    @Test
+    void artistHint_marksArtistsInYourListening() {
+        Music music = new Music() {
+            @Override public List<Album> getArtistAlbums(String id) { return List.of(new Album("al1", "First Light", "2020")); }
+        };
+        AppController c = controller(music);
+        c.analyzeTaste(c.login());
+        assertEquals(config.wording("artistHintListening") + " \u00b7 First Light", c.artistHint("indie0"));
+        assertEquals("First Light", c.artistHint("not-in-profile"));
+    }
+
+    @Test
+    void artistHint_isEmptyWhenTheReadFails() {
+        Music music = new Music() {
+            @Override public List<Album> getArtistAlbums(String id) { throw new RuntimeException("down"); }
+        };
+        AppController c = controller(music);
+        c.login();
+        assertEquals("", c.artistHint("other"));
     }
 
     @Test

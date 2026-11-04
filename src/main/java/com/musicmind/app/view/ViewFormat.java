@@ -390,6 +390,11 @@ public final class ViewFormat {
         return title == null || title.isBlank() ? w("BlockedSongUnknown") : title;
     }
 
+    /** "1 of 3" for one of several artists sharing a name; blank when the name is not shared. */
+    public String artistPosition(int position, int total) {
+        return total <= 1 ? "" : w("ArtistPosition", position, total);
+    }
+
     /** The line above the artist choices: how many artists carry the typed name. */
     public String artistMatchesLine(String typed, int count) {
         if (count <= 0) {

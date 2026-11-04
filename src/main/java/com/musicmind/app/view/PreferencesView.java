@@ -5,6 +5,7 @@ import com.musicmind.domain.Artist;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.User;
 import com.musicmind.domain.UserPreference;
+import com.musicmind.domain.Verdict;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
@@ -40,10 +41,10 @@ public final class PreferencesView implements TabView {
                           List<BlockedArtist> artists, List<String> songIds, String warning) { }
 
     /** Artists found for a typed name. */
-    private record Matches(String typed, List<Artist> artists) { }
+    private record Matches(String typed, List<Artist> artists, Map<String, String> hints) { }
 
     /** Songs found for the block search. */
-    private record Songs(List<Track> tracks, Map<String, com.musicmind.domain.Verdict> verdicts) { }
+    private record Songs(List<Track> tracks, Map<String, Verdict> verdicts) { }
 
     private final GuiContext ctx;
     private final ViewFormat format;
@@ -70,6 +71,8 @@ public final class PreferencesView implements TabView {
     /** Titles of songs seen in this session; Spotify content is not stored, so older blocks have none. */
     private final Map<String, String> knownTitles = new HashMap<>();
     private final Node root;
+    /** True while the user has changed the explicit, mix or styles controls and not saved; a reload would overwrite them. */
+    private boolean unsaved;
 
     public PreferencesView(GuiContext ctx) {
         this.ctx = ctx;
@@ -79,6 +82,9 @@ public final class PreferencesView implements TabView {
         ScrollPane scroll = new ScrollPane(page);
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        explicit.selectedToggleProperty().addListener((o, was, now) -> unsaved = true);
+        novelty.valueProperty().addListener((o, was, now) -> unsaved = true);
+        styles.textProperty().addListener((o, was, now) -> unsaved = true);
         root = new LoginGate(ctx, scroll, true);
         if (!ctx.spotifyConfigured()) {
             load();
@@ -109,7 +115,7 @@ public final class PreferencesView implements TabView {
         VBox slider = new VBox(novelty, ends);
         slider.getStyleClass().add("mm-slider-box");
         saveMix.setText(format.w("Save"));
-        saveMix.setOnAction(e -> savePref(PreferenceSettings.FAMILIAR_BIAS, String.valueOf(1 - novelty.getValue()), saveMix));
+        saveMix.setOnAction(e -> savePref(PreferenceSettings.FAMILIAR_BIAS, String.valueOf(Math.round((1 - novelty.getValue()) * 100) / 100.0), saveMix));
         return section(format.w("MixHeading"), UiParts.muted(format.w("MixRuleHint")), mixLabel, slider, saveMix);
     }
 
@@ -143,7 +149,7 @@ public final class PreferencesView implements TabView {
     }
 
     private Node stylesSection() {
-        styles.setPromptText(format.w("StylesHint"));
+        styles.setPromptText(format.w("StylesPrompt"));
         saveStyles.setText(format.w("Save"));
         saveStyles.setOnAction(e -> savePref(PreferenceSettings.PREFERRED_STYLES,
                 styles.getText() == null ? "" : styles.getText().strip(), saveStyles));
@@ -188,7 +194,7 @@ public final class PreferencesView implements TabView {
 
     @Override
     public void onShown() {
-        if (ctx.userProperty().get() != null || !ctx.spotifyConfigured()) {
+        if (!unsaved && (ctx.userProperty().get() != null || !ctx.spotifyConfigured())) {
             load();
         }
     }
@@ -227,6 +233,7 @@ public final class PreferencesView implements TabView {
         (loaded.explicitAllowed() ? allow : block).setSelected(true);
         novelty.setValue(1 - loaded.familiarShare());
         styles.setText(loaded.styles());
+        unsaved = false;
         fillBlockedArtists(loaded.artists());
         fillBlockedSongs(loaded.songIds());
         if (loaded.warning() != null) {
@@ -278,6 +285,7 @@ public final class PreferencesView implements TabView {
             if (warning != null) {
                 status.error(ctx.config().wording("cliNotSaved").formatted(warning));
             } else {
+                unsaved = false;
                 status.info(format.w(value.isBlank() ? "ClearedPref" : "SavedPref", format.w("Pref." + key)));
             }
         }, saveButton);
@@ -292,20 +300,36 @@ public final class PreferencesView implements TabView {
             return;
         }
         ctx.run(status, "ActionFindArtists", format.w("Searching"),
-                () -> new Matches(typed, ctx.controller().findArtists(typed)), matches -> {
+                () -> {
+                    List<Artist> found = ctx.controller().findArtists(typed);
+                    Map<String, String> hints = new HashMap<>();
+                    found.stream().limit(ctx.config().searchArtistLimit())
+                            .forEach(a -> hints.put(a.id(), ctx.controller().artistHint(a.id())));
+                    return new Matches(typed, found, hints);
+                }, matches -> {
                     artistMatches.setText(format.artistMatchesLine(matches.typed(), matches.artists().size()));
                     artistMatches.setManaged(true);
                     artistMatches.setVisible(true);
-                    artistChoices.getChildren().setAll(matches.artists().stream().map(this::artistChoice).toList());
+                    List<Node> rows = new ArrayList<>();
+                    Map<String, Integer> seen = new HashMap<>();
+                    for (Artist artist : matches.artists()) {
+                        String key = artist.name().toLowerCase(java.util.Locale.ROOT);
+                        long total = matches.artists().stream().filter(o -> o.name().equalsIgnoreCase(artist.name())).count();
+                        int position = seen.merge(key, 1, Integer::sum);
+                        rows.add(artistChoice(artist, format.artistPosition(position, (int) total), matches.hints().getOrDefault(artist.id(), "")));
+                    }
+                    artistChoices.getChildren().setAll(rows);
                 }, findArtist);
     }
 
-    private Node artistChoice(Artist artist) {
-        Label name = new Label(artist.name());
+    private Node artistChoice(Artist artist, String position, String hint) {
+        Label name = new Label(position.isEmpty() ? artist.name() : artist.name() + "  (" + position + ")");
         name.getStyleClass().add("mm-track-title");
         VBox text = new VBox(2, name);
-        if (artist.genres() != null && !artist.genres().isEmpty()) {
-            Label genres = new Label(String.join(", ", artist.genres()));
+        String detail = hint != null && !hint.isBlank() ? hint
+                : artist.genres() == null ? "" : String.join(", ", artist.genres());
+        if (!detail.isEmpty()) {
+            Label genres = new Label(detail);
             genres.getStyleClass().addAll("mm-muted", "mm-track-artists");
             text.getChildren().add(genres);
         }
@@ -339,6 +363,7 @@ public final class PreferencesView implements TabView {
     private void findSongs() {
         String typed = songQuery.getText() == null ? "" : songQuery.getText().strip();
         if (typed.isEmpty()) {
+            status.error(format.w("SongBlank"));
             return;
         }
         ctx.run(status, "ActionFindBlockSongs", format.w("Searching"), () -> {
