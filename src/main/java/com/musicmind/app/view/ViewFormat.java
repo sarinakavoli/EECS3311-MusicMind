@@ -81,6 +81,14 @@ public final class ViewFormat {
         return args.length == 0 ? template : String.format(Locale.ROOT, template, args);
     }
 
+    /** A Spotify time range in plain words ({@code short} to Past month); any other value stays as it is. */
+    public String rangeLabel(String range) {
+        return switch (range == null ? "" : range) {
+            case "short", "medium", "long" -> w("Range." + range);
+            default -> range;
+        };
+    }
+
     /** A track length as {@code m:ss}. */
     public String duration(int durationMs) {
         int seconds = Math.round(durationMs / 1000f);
@@ -166,7 +174,7 @@ public final class ViewFormat {
             String coverage = artists.isEmpty() ? ""
                     : String.format(Locale.ROOT, config.wording("trendCoverageLine"),
                             report.artistsWithGenres(range), report.artistCount(range));
-            columns.add(new TrendColumn(range, artistNames(artists, artistsShown), genres, coverage));
+            columns.add(new TrendColumn(rangeLabel(range), artistNames(artists, artistsShown), genres, coverage));
         }
         return columns;
     }
@@ -175,7 +183,7 @@ public final class ViewFormat {
     public List<String> trendStepLines(TrendReport report) {
         List<String> lines = new ArrayList<>();
         for (RangeChange step : report.steps()) {
-            lines.add(cli("TrendStep", step.from(), step.to()));
+            lines.add(w("TrendStep", rangeLabel(step.from()), rangeLabel(step.to())));
             changeLines(lines, step.addedGenres(), step.droppedGenres(), names(report, step.addedArtistIds()),
                     names(report, step.droppedArtistIds()));
         }

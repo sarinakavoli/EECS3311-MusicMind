@@ -145,6 +145,20 @@ class ViewFormatTest {
     }
 
     @Test
+    void rangeLabel_mapsSpotifyRanges() {
+        assertEquals("Past month", format.rangeLabel("short"));
+        assertEquals("Past 6 months", format.rangeLabel("medium"));
+        assertEquals("Past year", format.rangeLabel("long"));
+    }
+
+    @Test
+    void rangeLabel_unknownStaysRaw() {
+        assertEquals("weekly", format.rangeLabel("weekly"));
+        assertEquals("", format.rangeLabel(""));
+        assertEquals(null, format.rangeLabel(null));
+    }
+
+    @Test
     void trendColumnsFollowTheRangeOrderAndRespectTheLimits() {
         Map<String, List<Artist>> artists = new LinkedHashMap<>();
         artists.put("short", List.of(new Artist("1", "A", List.of("rock")), new Artist("2", "B", List.of())));
@@ -160,7 +174,7 @@ class ViewFormatTest {
         List<ViewFormat.TrendColumn> columns = format.trendColumns(report, List.of("short", "medium", "long"), 1, 2);
 
         assertEquals(3, columns.size());
-        assertEquals("short", columns.get(0).range());
+        assertEquals("Past month", columns.get(0).range());
         assertEquals(List.of("A"), columns.get(0).artists());
         assertEquals(List.of("rock", "indie"), columns.get(0).genres());
         assertEquals("genre data: 1 of 2 artists", columns.get(0).coverage());
@@ -178,7 +192,7 @@ class ViewFormatTest {
 
         List<String> lines = format.trendStepLines(report);
 
-        assertEquals("From long to medium:", lines.get(0));
+        assertEquals("From Past year to Past 6 months:", lines.get(0));
         assertTrue(lines.contains("  Genres added: pop"));
         assertTrue(lines.contains("  Genres dropped: (none)"));
         assertTrue(lines.contains("  Artists added: Nine"));

@@ -30,16 +30,22 @@ public final class TrendsView implements TabView {
         this.ctx = ctx;
         this.format = ctx.format();
         compare = new Button(format.w("CompareTrends"));
+        compare.getStyleClass().add("mm-primary");
         compare.setDefaultButton(true);
         compare.setOnAction(e -> run());
         HBox controls = new HBox(UiParts.GAP, compare);
         controls.setAlignment(Pos.CENTER_LEFT);
-        VBox content = UiParts.page(format.w("Menu.trends"), format.w("Desc.trends"), "", controls, status, columns, notices, UiParts.heading(format.w("TrendsOverTime")), changes,
-                narrative);
+        VBox content = UiParts.page(format.w("Menu.trends"), format.w("Desc.trends"), "", controls, status, columns, notices, changesCard(), narrative);
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
         root = new LoginGate(ctx, scroll, false);
         status.info(format.w("TrendsHint"));
+    }
+
+    private VBox changesCard() {
+        VBox card = new VBox(UiParts.GAP, UiParts.heading(format.w("TrendsOverTime")), UiParts.muted(format.w("TrendsExplain")), changes);
+        card.getStyleClass().add("mm-card");
+        return card;
     }
 
     @Override
@@ -80,6 +86,7 @@ public final class TrendsView implements TabView {
             if (!column.coverage().isEmpty()) {
                 box.getChildren().add(UiParts.muted(column.coverage()));
             }
+            box.getStyleClass().add("mm-card");
             HBox.setHgrow(box, Priority.ALWAYS);
             columns.getChildren().add(box);
         }
