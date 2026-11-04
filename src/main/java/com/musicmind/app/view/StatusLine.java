@@ -23,6 +23,9 @@ public final class StatusLine extends HBox {
         spinner.setManaged(false);
         text.setWrapText(true);
         getChildren().addAll(spinner, text);
+        // An empty line takes no room, so it leaves no gap between the controls and what follows.
+        visibleProperty().bind(text.textProperty().isNotEmpty().or(spinner.visibleProperty()));
+        managedProperty().bind(visibleProperty());
     }
 
     /** Work has started; shows the spinner and what is happening. */

@@ -98,7 +98,7 @@ public final class TrendsView implements TabView {
         }
         changesCard.setVisible(true);
         changesCard.setManaged(true);
-        changes.getChildren().setAll(format.trendStepLines(report).stream().map(Label::new).toList());
+        changes.getChildren().setAll(format.trendStepLines(report).stream().map(UiParts::wrapped).toList());
         notices.getChildren().setAll(report.gaps().stream().map(UiParts::wrapped).toList());
         narrative.setText(report.narrative() == null ? "" : report.narrative());
     }

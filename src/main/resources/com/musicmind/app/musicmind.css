@@ -287,6 +287,12 @@
     -fx-background-radius: 8;
 }
 
+.text-area .scroll-pane,
+.text-area .scroll-pane > .viewport,
+.text-area .scroll-pane > .corner {
+    -fx-background-color: transparent;
+}
+
 .text-field:focused,
 .text-area:focused {
     -fx-border-color: #1db954;
