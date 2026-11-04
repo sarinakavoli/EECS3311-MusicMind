@@ -43,7 +43,10 @@ public final class HistoryView implements TabView {
     private final Button refresh;
     private final StatusLine status = new StatusLine();
     private final CheckBox showRoutine = new CheckBox();
-    private final ComboBox<Boolean> sort = new ComboBox<>();
+    /** The timeline order. */
+    private enum SortOrder { NEWEST, OLDEST }
+
+    private final ComboBox<SortOrder> sort = new ComboBox<>();
     private final ComboBox<ViewFormat.ActivityType> type = new ComboBox<>();
     private final VBox timeline = new VBox(2);
     private final Button more;
@@ -66,17 +69,17 @@ public final class HistoryView implements TabView {
         });
         showRoutine.setText(format.w("ShowRoutine"));
         showRoutine.setOnAction(e -> refilter());
-        sort.getItems().setAll(true, false);   // true: newest first
-        sort.setValue(true);
+        sort.getItems().setAll(SortOrder.values());
+        sort.setValue(SortOrder.NEWEST);
         sort.setConverter(new StringConverter<>() {
             @Override
-            public String toString(Boolean newest) {
-                return newest == null || newest ? format.w("SortNewest") : format.w("SortOldest");
+            public String toString(SortOrder order) {
+                return order == SortOrder.OLDEST ? format.w("SortOldest") : format.w("SortNewest");
             }
 
             @Override
-            public Boolean fromString(String text) {
-                return format.w("SortNewest").equals(text);
+            public SortOrder fromString(String text) {
+                return format.w("SortOldest").equals(text) ? SortOrder.OLDEST : SortOrder.NEWEST;
             }
         });
         sort.setOnAction(e -> refilter());
@@ -159,7 +162,7 @@ public final class HistoryView implements TabView {
     // ---- activity timeline ----
 
     private void fillTimeline() {
-        List<AgentSession> visible = format.activity(loadedSessions, type.getValue(), sort.getValue(), showRoutine.isSelected());
+        List<AgentSession> visible = format.activity(loadedSessions, type.getValue(), sort.getValue() != SortOrder.OLDEST, showRoutine.isSelected());
         List<Node> rows = new ArrayList<>();
         for (AgentSession session : visible.subList(0, Math.min(shown, visible.size()))) {
             rows.add(timelineEntry(session));

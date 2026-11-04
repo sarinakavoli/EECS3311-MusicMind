@@ -190,6 +190,7 @@ public final class SearchView implements TabView {
 
     private void show(Candidates state) {
         waitingTracks = state.tracks();
+        foundVerdicts = state.verdicts();   // likes given since the search stay highlighted in the rebuilt rows
         showResults();
         fill(candidates, state.tracks(), state.verdicts(), TrackRow.Options.feedbackOnly().withPlay().withRemove(this::remove), "NoCandidates");
         waitingCount.setText(format.waitingCount(state.tracks().size()));

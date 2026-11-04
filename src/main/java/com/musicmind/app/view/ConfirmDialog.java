@@ -92,7 +92,6 @@ final class ConfirmDialog {
             switch (choice.kind()) {
                 case PRIMARY -> {
                     button.getStyleClass().add("mm-primary");
-                    button.setDefaultButton(!stacked);
                 }
                 case DANGER -> button.getStyleClass().add("mm-danger-solid");
                 default -> {

@@ -96,7 +96,7 @@ final class TrackRow {
             notForMe.setOnAction(e -> send(ctx, status, track, Verdict.REJECT, like, notForMe));
             row.getChildren().addAll(like, notForMe);
         }
-        if (options.play()) {
+        if (options.play() && format.spotifyTrackUrl(track) != null) {
             Button play = new Button(format.w("PlayButton"));
             play.getStyleClass().add("mm-play-button");
             play.setMinWidth(Region.USE_PREF_SIZE);
