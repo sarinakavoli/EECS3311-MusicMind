@@ -484,6 +484,30 @@ class ViewFormatTest {
     }
 
     @Test
+    void aProgrammingErrorNeverShowsItsMessage() {
+        String unknown = "Could not search: " + format.w("UnknownError");
+        String npe = "Cannot invoke \"com.musicmind.memory.MemoryManager.loadPreferences(String)\" because \"this.memory\" is null";
+        assertEquals(unknown, format.failure("ActionSearch", new NullPointerException(npe)));
+        assertEquals(unknown, format.failure("ActionSearch", new ClassCastException("class A cannot be cast to class B")));
+        assertEquals(unknown, format.failure("ActionSearch", new RuntimeException("plain text but not deliberate")));
+    }
+
+    @Test
+    void aDeliberateExceptionWithStackLikeTextIsStillReplaced() {
+        String unknown = "Could not search: " + format.w("UnknownError");
+        assertEquals(unknown, format.failure("ActionSearch", new IllegalStateException(
+                "Cannot invoke \"com.musicmind.memory.MemoryManager.loadPreferences(String)\" because \"this.memory\" is null")));
+        assertEquals(unknown, format.failure("ActionSearch", new IllegalArgumentException("java.lang.IllegalStateException: x")));
+        assertEquals(unknown, format.failure("ActionSearch", new IllegalStateException("failed at com.foo.Bar.run(Bar.java:12)")));
+    }
+
+    @Test
+    void aFriendlyMessageFromAnAppExceptionIsKept() {
+        assertEquals("Could not search: Pick a playlist first.",
+                format.failure("ActionSearch", new com.musicmind.agent.ClarificationNeededException("Pick a playlist first.")));
+    }
+
+    @Test
     void aFriendlyMessageIsKeptWhole() {
         String friendly = "Say what to change, for example \"remove explicit tracks\".";
         assertEquals("Could not search: " + friendly, format.failure("ActionSearch", new IllegalArgumentException(friendly)));

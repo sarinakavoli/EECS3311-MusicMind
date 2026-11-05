@@ -1,6 +1,9 @@
 package com.musicmind.app.view;
 
+import com.musicmind.agent.ClarificationNeededException;
+import com.musicmind.agent.InfeasibleRequestException;
 import com.musicmind.agent.NegotiationCancelledException;
+import com.musicmind.agent.command.PlaylistChangeException;
 import com.musicmind.agent.PlaylistValidator;
 import com.musicmind.agent.state.SessionRecord;
 import com.musicmind.config.Config;
@@ -57,7 +60,8 @@ public final class ViewFormat {
 
     /** A message with a web address, an HTTP status or a JSON body in it is not fit to show. */
     private static final Pattern PROFILE_RANGE = Pattern.compile("\\((short|medium|long)\\)");
-    private static final Pattern LOOKS_RAW = Pattern.compile("://|HTTP\\s*\\d{3}|[{}]");
+    private static final Pattern LOOKS_RAW = Pattern.compile(
+            "://|HTTP\\s*\\d{3}|[{}]|com\\.musicmind|Cannot invoke|java\\.|javafx\\.|Exception|\\sat\\s+\\S+\\(");
 
     private final Config config;
     private final DateTimeFormatter timeFormat;
@@ -291,8 +295,8 @@ public final class ViewFormat {
     /**
      * What to tell the user when an action failed, as "Could not ...: reason". {@code actionKey} names the
      * {@code text.gui} wording of the action. Spotify, model and database errors get fixed friendly wording,
-     * because their own messages carry HTTP statuses, addresses and response bodies; any other message is kept
-     * unless it looks like one of those.
+     * because their own messages carry HTTP statuses, addresses and response bodies; a message is kept only from an exception the app throws on purpose
+     * (see {@link #deliberateMessage}) and only if it does not look raw; anything else becomes the fixed wording.
      */
     public String failure(String actionKey, Throwable error) {
         if (error instanceof AuthExpiredException) {
@@ -313,9 +317,21 @@ public final class ViewFormat {
             reason = w("DatabaseFailed");
         } else {
             String message = error.getMessage();
-            reason = message == null || message.isBlank() || LOOKS_RAW.matcher(message).find() ? w("UnknownError") : message;
+            reason = !deliberateMessage(error) || message == null || message.isBlank() || LOOKS_RAW.matcher(message).find()
+                    ? w("UnknownError") : message;
         }
         return cli("Failed", w(actionKey), reason);
+    }
+
+    /**
+     * True for the exception types the app throws on purpose with wording written for the user (argument and
+     * state checks, an unclear or impossible request, a refused playlist change). Anything else, such as a
+     * NullPointerException or ClassCastException, carries a programmer's message that must never reach the screen.
+     */
+    private static boolean deliberateMessage(Throwable error) {
+        return error instanceof IllegalArgumentException || error instanceof IllegalStateException
+                || error instanceof ClarificationNeededException || error instanceof InfeasibleRequestException
+                || error instanceof PlaylistChangeException;
     }
 
     /** A creation step shown as progress. */
@@ -403,7 +419,8 @@ public final class ViewFormat {
         if (error instanceof IllegalArgumentException) {
             return w("BlockRefused");
         }
-        if (error instanceof IllegalStateException && error.getMessage() != null && !error.getMessage().isBlank()) {
+        if (error instanceof IllegalStateException && error.getMessage() != null && !error.getMessage().isBlank()
+                && !LOOKS_RAW.matcher(error.getMessage()).find()) {
             return error.getMessage();
         }
         return failure("ActionBlock", error);
