@@ -229,7 +229,7 @@
     -fx-background-color: #1ed760;
 }
 
-/* Small round icon button (like, not for me); mm-icon-on marks one that is chosen. */
+/* Small round icon button, 32x32 (like, not for me, play in Spotify); mm-icon-on marks one that is chosen. */
 .mm-icon-button,
 .button.mm-icon-button {
     -fx-background-color: transparent;
@@ -237,10 +237,14 @@
     -fx-border-color: #2e2e2e;
     -fx-border-radius: 999;
     -fx-text-fill: #b3b3b3;
-    -fx-min-height: 30;
-    -fx-pref-height: 30;
-    -fx-padding: 0 8 0 8;
-    -fx-font-size: 12px;
+    -fx-min-width: 32;
+    -fx-pref-width: 32;
+    -fx-max-width: 32;
+    -fx-min-height: 32;
+    -fx-pref-height: 32;
+    -fx-max-height: 32;
+    -fx-padding: 0;
+    -fx-font-size: 14px;
     -fx-alignment: center;
 }
 
@@ -670,22 +674,6 @@
     -fx-background-color: #ef5a5f;
 }
 
-/* Small "play in Spotify" button on a song row. */
-.button.mm-play-button {
-    -fx-background-color: transparent;
-    -fx-border-color: #2e2e2e;
-    -fx-text-fill: #1db954;
-    -fx-font-size: 12px;
-    -fx-padding: 0 8 0 8;
-    -fx-min-height: 30;
-    -fx-pref-height: 30;
-}
-
-.button.mm-play-button:hover {
-    -fx-background-color: #2a2a2a;
-    -fx-border-color: #1db954;
-}
-
 /* ---- Keyboard focus (WCAG 2.4.7) ----------------------------------------
  * Every focusable control gets a 2px ring that never moves the layout: solid buttons draw it as the
  * outer layer of their own background, outlined ones thicken the border inward (border-insets -1).
@@ -711,7 +699,6 @@
 .button.mm-icon-on:focused,
 .button.mm-icon-off-on:focused,
 .button.mm-danger:focused,
-.button.mm-play-button:focused,
 .button.mm-menu-item-selected:focused {
     -fx-background-insets: 0;
     -fx-border-color: #1db954;
@@ -730,8 +717,7 @@
 }
 
 .button.mm-icon-button:focused,
-.button.mm-danger:focused,
-.button.mm-play-button:focused {
+.button.mm-danger:focused {
     -fx-background-color: transparent;
 }
 

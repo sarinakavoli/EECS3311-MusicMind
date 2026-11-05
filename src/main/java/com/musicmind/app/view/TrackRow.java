@@ -85,29 +85,30 @@ final class TrackRow {
         row.getStyleClass().add("mm-row");
         row.setAlignment(Pos.CENTER_LEFT);
 
+        // Like, Not for me and Spotify are small icon buttons grouped tightly; the one main action stays a labelled button.
+        HBox icons = new HBox(UiParts.SPACE_XS);
+        icons.setAlignment(Pos.CENTER_LEFT);
         if (options.feedback()) {
-            Button like = icon(format.w("IconLabel", format.w("LikeIcon"), format.w("LikeCaption")), format.w("LikeTip"), "mm-icon-on");
-            Button notForMe = icon(format.w("IconLabel", format.w("NotForMeIcon"), format.w("NotForMeCaption")),
-                    format.w("NotForMeTip"), "mm-icon-off-on");
+            Button like = icon(format.w("LikeIcon"), format.w("LikeTip"), "mm-icon-on");
+            Button notForMe = icon(format.w("NotForMeIcon"), format.w("NotForMeTip"), "mm-icon-off-on");
             if (chosen != null) {
                 choose(chosen == Verdict.ACCEPT ? like : notForMe, chosen == Verdict.ACCEPT ? notForMe : like);
             }
             like.setOnAction(e -> send(ctx, status, track, Verdict.ACCEPT, like, notForMe));
             notForMe.setOnAction(e -> send(ctx, status, track, Verdict.REJECT, like, notForMe));
-            row.getChildren().addAll(like, notForMe);
+            icons.getChildren().addAll(like, notForMe);
         }
         if (options.play() && format.spotifyTrackUrl(track) != null) {
-            Button play = new Button(format.w("PlayButton"));
-            play.getStyleClass().add("mm-play-button");
-            play.setMinWidth(Region.USE_PREF_SIZE);
-            play.setTooltip(new Tooltip(format.w("PlayTip")));
-            play.setAccessibleText(format.w("PlayTip"));
+            Button play = icon(format.w("PlayIcon"), format.w("PlayTip"), null);
             play.setOnAction(e -> {
                 if (!ctx.openInSpotify(track)) {
                     status.error(format.w("PlayFailed", track.title()));
                 }
             });
-            row.getChildren().add(play);
+            icons.getChildren().add(play);
+        }
+        if (!icons.getChildren().isEmpty()) {
+            row.getChildren().add(icons);
         }
         action(row, format.w("AddButton"), "mm-primary", options.onAdd(), track);
         action(row, format.w("BlockButton"), "mm-danger", options.onBlock(), track);
@@ -130,9 +131,10 @@ final class TrackRow {
 
     private static Button icon(String label, String tip, String onClass) {
         Button button = new Button(label);
-        button.getProperties().put(ON_CLASS, onClass);
+        if (onClass != null) {
+            button.getProperties().put(ON_CLASS, onClass);
+        }
         button.setAccessibleText(tip);
-        button.setMinWidth(Region.USE_PREF_SIZE);
         button.getStyleClass().add("mm-icon-button");
         button.setTooltip(new Tooltip(tip));
         return button;
