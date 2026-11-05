@@ -66,6 +66,15 @@ class MusicAgentFacadeTest extends PostgresTestBase {
         RuntimeException searchFailure;
         final List<String> searches = new ArrayList<>();
         int searchLimit;
+        final Map<String, Track> byId = new LinkedHashMap<>();
+        final List<String> trackReads = new ArrayList<>();
+
+        @Override public Track getTrack(String trackId) {
+            trackReads.add(trackId);
+            Track t = byId.get(trackId);
+            if (t == null) throw new com.musicmind.music.MusicServiceException("not found", 404);
+            return t;
+        }
 
         @Override public List<Track> search(String query, int limit) {
             searches.add(query);
@@ -909,5 +918,23 @@ class MusicAgentFacadeTest extends PostgresTestBase {
         FakeMusic music = new FakeMusic();
         assertThrows(IllegalArgumentException.class, () -> facade(music, null).searchMusic("   "));
         assertTrue(music.searches.isEmpty());
+    }
+
+    @Test
+    void trackLine_isTitleDashArtistsReadLive() {
+        FakeMusic music = new FakeMusic();
+        music.byId.put("t1", new Track("t1", "spotify:track:t1", "Hello", 1000, false, List.of("a", "b"), List.of("Adele", "Guest")));
+        music.byId.put("t2", new Track("t2", "spotify:track:t2", "Solo", 1000, false, List.of(), List.of()));
+        MusicAgentFacade f = facade(music, null);
+
+        assertEquals("Hello \u2013 Adele, Guest", f.trackLine("t1"));
+        assertEquals("Solo", f.trackLine("t2"));
+        assertEquals(List.of("t1", "t2"), music.trackReads);
+    }
+
+    @Test
+    void trackLine_isNullWhenTheReadFails() {
+        FakeMusic music = new FakeMusic();
+        assertNull(facade(music, null).trackLine("gone"));
     }
 }

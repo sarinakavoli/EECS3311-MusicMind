@@ -688,6 +688,24 @@ public class MusicAgentFacade {
         }
     }
 
+    /**
+     * "Title \u2013 Artist, Artist" for a track id, read from Spotify for display only and never stored;
+     * null when it cannot be read, so the caller shows its own wording.
+     */
+    public String trackLine(String trackId) {
+        try {
+            Track t = create.music().getTrack(trackId);
+            if (t == null || t.title() == null || t.title().isBlank()) {
+                return null;
+            }
+            String artists = t.artistNames() == null ? "" : t.artistNames().stream()
+                    .filter(n -> n != null && !n.isBlank()).collect(Collectors.joining(", "));
+            return artists.isEmpty() ? t.title() : t.title() + " \u2013 " + artists;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
     // ---- F5 and F11 ----
 
     /** Who answers an infeasible request (F11); null means nobody, and such a request then stops with the options listed. */

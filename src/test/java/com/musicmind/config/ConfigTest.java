@@ -159,6 +159,7 @@ class ConfigTest {
         Config c = Config.of(Map.of());
         assertEquals(8, c.guiGenresShown());
         assertEquals(10, c.guiArtistsShown());
+        assertEquals(20, c.guiBlockedTitlesShown());
         assertEquals(10, c.guiTracksShown());
         assertEquals(3, c.guiTrendGenresShown());
     }

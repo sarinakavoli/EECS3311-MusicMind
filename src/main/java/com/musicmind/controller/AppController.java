@@ -624,6 +624,14 @@ public class AppController {
         return parsed;
     }
 
+    /**
+     * A blocked song as a view lists it, "Title \u2013 Artist, Artist", read from Spotify now and never stored.
+     * Null when Spotify is not set up or the read fails, so the view shows its placeholder.
+     */
+    public String trackLine(String trackId) {
+        return facade == null || trackId == null || trackId.isBlank() ? null : facade.trackLine(trackId);
+    }
+
     /** The value a view shows for a preference: blocked artists by name, which are never stored. */
     public String displayPreference(UserPreference pref) {
         if (facade == null || !pref.key().equals(PreferenceSettings.BLOCKED_ARTISTS) || pref.value().isBlank()) {

@@ -652,6 +652,11 @@ public final class Config {
         return integer("gui.genresShown");
     }
 
+    /** Blocked songs whose title is looked up on Spotify when Your Rules opens; the rest keep the placeholder. */
+    public int guiBlockedTitlesShown() {
+        return integer("gui.blockedTitlesShown");
+    }
+
     /** Artists listed per list in the Profile and Trends views. */
     public int guiArtistsShown() {
         return integer("gui.artistsShown");

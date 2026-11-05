@@ -187,6 +187,23 @@ class AppControllerTest extends PostgresTestBase {
     }
 
     @Test
+    void trackLine_readsTheBlockedSongLiveAndFallsBackToNull() {
+        Music music = new Music() {
+            @Override public Track getTrack(String id) {
+                if (id.equals("ok")) {
+                    return new Track("ok", "spotify:track:ok", "Hello", 1, false, List.of("a"), List.of("Adele"));
+                }
+                throw new com.musicmind.music.MusicServiceException("down", 503);
+            }
+        };
+        AppController c = controller(music);
+        assertEquals("Hello \u2013 Adele", c.trackLine("ok"));
+        assertNull(c.trackLine("broken"));
+        assertNull(c.trackLine(" "));
+        assertNull(new AppController(null, memory(new Music()), null, config).trackLine("ok"));
+    }
+
+    @Test
     void lastfmAttributionComesFromConfiguration() {
         assertEquals(config.lastfmAttribution(), controller(new Music()).lastfmAttribution());
     }
