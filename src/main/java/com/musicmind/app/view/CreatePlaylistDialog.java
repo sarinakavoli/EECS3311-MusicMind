@@ -48,7 +48,7 @@ public final class CreatePlaylistDialog {
     /** Room the dialog keeps for its header and the button row, below the scrolling part. */
     private static final double BUTTON_AREA = 130;
     private static final double PREFERRED_WIDTH = 600;
-    private static final double PREFERRED_HEIGHT = 640;
+    private static final double PREFERRED_HEIGHT = 680;
 
     private final GuiContext ctx;
     private final ViewFormat format;

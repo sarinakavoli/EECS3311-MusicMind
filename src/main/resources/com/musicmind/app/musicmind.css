@@ -5,6 +5,9 @@
  * Spacing scale (px): 4 / 8 / 16 / 24 / 32, the same numbers as UiParts.SPACE_XS..SPACE_XL. 4 only between a
  * label and its caption; 8 between items in a group and in a button; 16 inside a card or section; 24 between
  * the sections of a page. Every padding and spacing below is one of them (the exception is commented).
+ * Type scale (px), five sizes only: 26 page title; 20 section or card title; 16 a prominent line (the Trends
+ * summary, the mix line, a gate prompt); 14 body, buttons, rows and table heads (set on .root); 12 captions,
+ * chips, hints and muted meta.
  * Green (#1db954) means only the main action of a screen and a success or chosen state.
  * Views use only the mm-* style classes below; none sets a colour in Java.
  */
@@ -25,7 +28,7 @@
     -fx-selection-bar-text: #ffffff;
     -fx-selection-bar-non-focused: #2a2a2a;
     -fx-box-border: #2e2e2e;
-    -fx-font-size: 13px;
+    -fx-font-size: 14px;
     -fx-background-color: #121212;
 }
 
@@ -64,7 +67,7 @@
 
 .mm-footer .label {
     -fx-text-fill: #b3b3b3;
-    -fx-font-size: 11px;
+    -fx-font-size: 12px;
 }
 
 .mm-banner {
@@ -135,7 +138,7 @@
 }
 
 .mm-example {
-    -fx-font-size: 13px;
+    -fx-font-size: 12px;
     -fx-font-style: italic;
     -fx-text-fill: #b3b3b3;
 }
@@ -148,13 +151,13 @@
 }
 
 .mm-heading {
-    -fx-font-size: 16px;
+    -fx-font-size: 20px;
     -fx-font-weight: bold;
     -fx-text-fill: #ffffff;
 }
 
 .mm-subhead {
-    -fx-font-size: 13px;
+    -fx-font-size: 14px;
     -fx-font-weight: bold;
     -fx-text-fill: #ffffff;
 }
@@ -213,7 +216,7 @@
 }
 
 .mm-gate-prompt {
-    -fx-font-size: 15px;
+    -fx-font-size: 16px;
     -fx-text-fill: #b3b3b3;
     -fx-background-color: #181818;
     -fx-background-radius: 8;
@@ -570,6 +573,7 @@
     -fx-text-fill: #1db954;
     -fx-background-radius: 999;
     -fx-padding: 4 8 4 8;
+    -fx-font-size: 12px;
 }
 
 .mm-badge-warn {
@@ -579,6 +583,7 @@
 
 /* A neutral label (the kind of an activity line): grey text on #2a2a2a, 6.8:1. Green is kept for success. */
 .mm-chip {
+    -fx-font-size: 12px;
     -fx-background-color: #2a2a2a;
     -fx-text-fill: #b3b3b3;
     -fx-background-radius: 999;
@@ -653,7 +658,7 @@
 }
 
 .mm-group-name {
-    -fx-font-size: 15px;
+    -fx-font-size: 16px;
     -fx-font-weight: bold;
     -fx-text-fill: #ffffff;
 }
@@ -683,14 +688,14 @@
 }
 
 .mm-confirm-title {
-    -fx-font-size: 18px;
+    -fx-font-size: 20px;
     -fx-font-weight: bold;
     -fx-text-fill: #ffffff;
 }
 
 .mm-confirm-message {
     -fx-text-fill: #d6d6d6;
-    -fx-font-size: 13px;
+    -fx-font-size: 14px;
 }
 
 .mm-confirm-buttons {

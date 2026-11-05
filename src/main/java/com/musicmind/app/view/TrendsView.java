@@ -12,7 +12,7 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 /**
@@ -20,6 +20,10 @@ import javafx.scene.layout.VBox;
  * (oldest to newest, a tick where the item is in that range) with a Change column saying what is new or dropped.
  */
 public final class TrendsView implements TabView {
+
+    /** The name column and each period column are fixed, so the ticks sit next to the names, not across the card. */
+    private static final double NAME_WIDTH = 240;
+    private static final double PERIOD_WIDTH = 120;
 
     private final GuiContext ctx;
     private final ViewFormat format;
@@ -42,6 +46,7 @@ public final class TrendsView implements TabView {
         summary.getStyleClass().add("mm-summary");
         table.setHgap(UiParts.SPACE_M);
         table.setVgap(UiParts.SPACE_S);
+        table.setMaxWidth(Region.USE_PREF_SIZE);   // the grid is as wide as its columns and starts at the left
         tableCard = buildTableCard();
         HBox controls = new HBox(UiParts.SPACE_S, compare);
         controls.setAlignment(Pos.CENTER_LEFT);
@@ -90,6 +95,7 @@ public final class TrendsView implements TabView {
     }
 
     private void show(TrendReport report) {
+        status.info("");   // the "Press Compare..." hint has done its job
         summary.setText(report.narrative() == null ? "" : report.narrative());
         notices.getChildren().setAll(report.gaps().stream().map(UiParts::wrapped).toList());
         ViewFormat.TrendTable data = format.trendTable(report, ctx.config().profileRanges(),
@@ -105,12 +111,10 @@ public final class TrendsView implements TabView {
         table.getChildren().clear();
         table.getColumnConstraints().clear();
         int periods = data.periods().size();
-        ColumnConstraints label = new ColumnConstraints();
-        label.setHgrow(Priority.ALWAYS);
-        label.setMinWidth(120);
+        ColumnConstraints label = new ColumnConstraints(NAME_WIDTH, NAME_WIDTH, NAME_WIDTH);
         table.getColumnConstraints().add(label);
         for (int c = 0; c <= periods; c++) {   // the periods, then Change
-            ColumnConstraints col = new ColumnConstraints();
+            ColumnConstraints col = new ColumnConstraints(PERIOD_WIDTH, PERIOD_WIDTH, c < periods ? PERIOD_WIDTH : Double.MAX_VALUE);
             col.setHalignment(c < periods ? HPos.CENTER : HPos.LEFT);
             table.getColumnConstraints().add(col);
         }

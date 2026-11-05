@@ -127,6 +127,7 @@ public final class PlaylistView implements TabView {
         HBox.setHgrow(badges, Priority.ALWAYS);
         HBox rulesRow = new HBox(UiParts.SPACE_S, badges, check);
         rulesRow.setAlignment(Pos.CENTER_LEFT);
+        rulesRow.setFillHeight(false);   // the badges centre against the button instead of hugging the top
         VBox heading = new VBox(UiParts.SPACE_S, title, rulesRow, warnings);
 
         ScrollPane trackScroll = new ScrollPane(tracks);
