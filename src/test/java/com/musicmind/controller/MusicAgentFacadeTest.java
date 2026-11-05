@@ -920,21 +920,63 @@ class MusicAgentFacadeTest extends PostgresTestBase {
         assertTrue(music.searches.isEmpty());
     }
 
+    private static Track line(String id, String title, List<String> artists) {
+        return new Track(id, "spotify:track:" + id, title, 1000, false, List.of(), artists);
+    }
+
     @Test
-    void trackLine_isTitleDashArtistsReadLive() {
+    void trackLines_areTitleDashArtistsReadLiveInOrder() {
         FakeMusic music = new FakeMusic();
         music.byId.put("t1", new Track("t1", "spotify:track:t1", "Hello", 1000, false, List.of("a", "b"), List.of("Adele", "Guest")));
-        music.byId.put("t2", new Track("t2", "spotify:track:t2", "Solo", 1000, false, List.of(), List.of()));
-        MusicAgentFacade f = facade(music, null);
+        music.byId.put("t2", line("t2", "Solo", List.of()));
 
-        assertEquals("Hello \u2013 Adele, Guest", f.trackLine("t1"));
-        assertEquals("Solo", f.trackLine("t2"));
+        Map<String, String> lines = facade(music, null).trackLines(List.of("t1", "t2"));
+
+        assertEquals(List.of("t1", "t2"), new ArrayList<>(lines.keySet()));
+        assertEquals("Hello \u2013 Adele, Guest", lines.get("t1"));
+        assertEquals("Solo", lines.get("t2"));
         assertEquals(List.of("t1", "t2"), music.trackReads);
     }
 
     @Test
-    void trackLine_isNullWhenTheReadFails() {
+    void trackLines_leaveOutASongSpotifyDoesNotKnownAndKeepReading() {
         FakeMusic music = new FakeMusic();
-        assertNull(facade(music, null).trackLine("gone"));
+        music.byId.put("t1", line("t1", "One", List.of("A")));
+        music.byId.put("t3", line("t3", "Three", List.of("C")));
+
+        Map<String, String> lines = facade(music, null).trackLines(List.of("t1", "gone", "t3"));
+
+        assertEquals(List.of("t1", "t3"), new ArrayList<>(lines.keySet()));
+        assertEquals(List.of("t1", "gone", "t3"), music.trackReads);
+    }
+
+    private void assertStopsAfterSecond(RuntimeException failure) {
+        FakeMusic music = new FakeMusic() {
+            @Override public Track getTrack(String trackId) {
+                trackReads.add(trackId);
+                if (trackId.equals("t2")) throw failure;
+                return line(trackId, "Song " + trackId, List.of("A"));
+            }
+        };
+
+        Map<String, String> lines = facade(music, null).trackLines(List.of("t1", "t2", "t3"));
+
+        assertEquals(List.of("t1"), new ArrayList<>(lines.keySet()));
+        assertEquals(List.of("t1", "t2"), music.trackReads);
+    }
+
+    @Test
+    void trackLines_stopAtARateLimit() {
+        assertStopsAfterSecond(new com.musicmind.music.RateLimitException("slow down", 5));
+    }
+
+    @Test
+    void trackLines_stopWhenTheLoginHasExpired() {
+        assertStopsAfterSecond(new AuthExpiredException("log in again"));
+    }
+
+    @Test
+    void trackLines_stopAtAServerError() {
+        assertStopsAfterSecond(new MusicServiceException("down", 503));
     }
 }

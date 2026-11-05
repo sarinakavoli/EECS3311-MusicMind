@@ -244,14 +244,8 @@ public final class PreferencesView implements TabView {
                 String name = ctx.controller().displayPreference(new UserPreference(PreferenceSettings.BLOCKED_ARTISTS, id, false, 0));
                 artists.add(new BlockedArtist(id, format.blockedArtistName(id, name)));
             }
-            Map<String, String> lines = new HashMap<>();
-            for (String id : ViewFormat.firstN(new ArrayList<>(new TreeSet<>(settings.blockedTracks())),
-                    ctx.config().guiBlockedTitlesShown())) {
-                String line = ctx.controller().trackLine(id);
-                if (line != null) {
-                    lines.put(id, line);
-                }
-            }
+            Map<String, String> lines = ctx.controller().trackLines(ViewFormat.firstN(
+                    new ArrayList<>(new TreeSet<>(settings.blockedTracks())), ctx.config().guiBlockedTitlesShown()));
             double share = settings.familiarBias().orElse(ctx.config().discoverDefaultFamiliarRatio());
             return new Loaded(settings.explicitAllowed().orElse(true), share, String.join(", ", settings.preferredStyles()),
                     artists, new ArrayList<>(new TreeSet<>(settings.blockedTracks())), lines, ctx.controller().memory().warning());

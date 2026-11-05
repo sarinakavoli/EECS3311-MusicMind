@@ -187,9 +187,11 @@ class AppControllerTest extends PostgresTestBase {
     }
 
     @Test
-    void trackLine_readsTheBlockedSongLiveAndFallsBackToNull() {
+    void trackLines_readTheBlockedSongsLiveAndStopWhenSpotifyFails() {
+        List<String> asked = new java.util.ArrayList<>();
         Music music = new Music() {
             @Override public Track getTrack(String id) {
+                asked.add(id);
                 if (id.equals("ok")) {
                     return new Track("ok", "spotify:track:ok", "Hello", 1, false, List.of("a"), List.of("Adele"));
                 }
@@ -197,10 +199,10 @@ class AppControllerTest extends PostgresTestBase {
             }
         };
         AppController c = controller(music);
-        assertEquals("Hello \u2013 Adele", c.trackLine("ok"));
-        assertNull(c.trackLine("broken"));
-        assertNull(c.trackLine(" "));
-        assertNull(new AppController(null, memory(new Music()), null, config).trackLine("ok"));
+        assertEquals(Map.of("ok", "Hello \u2013 Adele"), c.trackLines(List.of("ok", " ", "broken", "after")));
+        assertEquals(List.of("ok", "broken"), asked);
+        assertTrue(c.trackLines(List.of()).isEmpty());
+        assertTrue(new AppController(null, memory(new Music()), null, config).trackLines(List.of("ok")).isEmpty());
     }
 
     @Test
