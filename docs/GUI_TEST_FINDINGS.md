@@ -260,18 +260,20 @@ Status added Nov 4 after the frontend redesign and its read-only live check (`do
 
 ## UI/UX review, Nov 5
 
-A design review of the finished GUI. Items 1-4 are fixed; 5-12 are open.
+A design review of the finished GUI. Items 1-6 are fixed; 7-12 are open.
 
 1. **Keyboard focus is invisible (WCAG 2.4.7).** `.root` turned the focus colour off and no control had a `:focused` rule.
-   - **Status (Nov 5):** **Done** (Nov 5): every focusable control (buttons, left menu, check boxes, radio buttons, slider, combo boxes, text fields, list rows) draws a 2px ring that does not move the layout: white on the green and red solid buttons, green (#1db954) elsewhere.
+   - **Status (Nov 5):** **Done** (Nov 5): every focusable control (buttons, left menu, check boxes, radio buttons, slider, combo boxes, text fields, list rows) draws a 2px ring that does not move the layout: white on the green and red solid buttons, green (#1db954) elsewhere. Follow-up (Nov 5): the drop-down of a combo box showed a green outline on its display cell even when the combo was not focused (the cell inside it is always in the focused state). `.combo-box .list-cell:focused` has a transparent border (re-checked on the current style sheet; an earlier gallery frame that showed the outline predated that rule), so an unfocused combo has the grey #767676 border like the other inputs and only the combo itself draws the green ring when it has focus (checked in an offscreen gallery, focused and unfocused).
 2. **Input and checkbox boundaries fail 3:1 (WCAG 1.4.11).** Borders of #2e2e2e on #181818 / #202020 were about 1.3:1.
    - **Status (Nov 5):** **Done** (Nov 5): input, combo box, check box, radio and slider-track borders are now #767676 (4.12:1 on the page, 3.91:1 on cards, 3.59:1 on the field fill); an unchecked box is clearly outlined.
 3. **Raw technical error text can reach the screen.** Your Rules showed "Cannot invoke ... because \"this.memory\" is null".
    - **Status (Nov 5):** **Done** (Nov 5): `ViewFormat.failure` keeps a message only from an exception the app throws on purpose (argument and state checks, unclear or impossible request, refused playlist change) and only when it holds no address, status, brace, class name, "Cannot invoke", "java." or stack text; anything else shows the fixed "something went wrong" wording. New `ViewFormatTest` cases cover the Your Rules text.
 4. **Green is overused.** Hint lines and the activity-kind chips were green like the main actions.
    - **Status (Nov 5):** **Done** (Nov 5): "Try: ..." hints are muted grey (#b3b3b3); the History kind chips are neutral grey on #2a2a2a (`mm-chip`). Green stays on primary buttons, the chosen Like state and the "meets your rules" success badge; a failing badge is amber.
-5. **Playlists layout.** Open.
-6. **Spacing scale.** Open.
+5. **Playlists layout.** The change field was at the bottom, its prompt was cut off, and Delete and Block looked like the safe buttons.
+   - **Status (Nov 5):** **Done** (Nov 5): the "Say what to change" field with **Modify** (green, the main action) and Undo now sits directly under the playlist title and badges, above the song list; the prompt is shorter (`Say what to change, e.g. "remove sad songs"`) and fits. "Check playlist" is now "Check against my rules" and sits beside the badges it refreshes. Delete (playlist rows) and Block (song rows) use `mm-danger`, a red outline button (text #ff6b6b, 5.2:1 or more on every row colour; border #e5484d, the colour of the solid danger button); Open stays the normal button and both confirm dialogs are unchanged.
+6. **Spacing scale.** Paddings were ad hoc (7, 9, 10, 14, 18, 22, 132) and gaps were 2, 4, 6, 8, 12.
+   - **Status (Nov 5):** **Done** (Nov 5): `UiParts.SPACE_XS/S/M/L/XL` = 4/8/16/24/32, mirrored in `musicmind.css`: 24 between the sections of a page, 16 inside cards and sections, 8 between items in a group and inside buttons, 4 only between a label and its caption (title over artist). Row lists use 0 because each row pads itself. The one off-scale number is the 136px left padding of the History timeline detail, kept as an indent (row padding 8 + "when" column 120 + gap 8) and commented. The empty bands above "Top genres" on Your Taste (an empty note label) and before "Clear all" on Find Songs (list height) are gone: empty notes, lists and status lines now take no space (`UiParts.collapsing`).
 7. **Song row buttons.** Open.
 8. **Create form.** Open.
 9. **Trends table.** Open.
