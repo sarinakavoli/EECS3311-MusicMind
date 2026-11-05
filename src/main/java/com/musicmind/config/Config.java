@@ -568,6 +568,11 @@ public final class Config {
         return Double.parseDouble(text("discover.weight.keywordTitlePenalty"));
     }
 
+    /** Added to the score of a song Last.fm lists under one of the goal's tags. */
+    public double discoverTagBonus() {
+        return Double.parseDouble(text("discover.weight.tagBonus"));
+    }
+
     public double discoverAcceptBoost() {
         return Double.parseDouble(text("discover.feedback.acceptBoost"));
     }

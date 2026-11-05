@@ -444,6 +444,7 @@ public class CliApp {
             out.println();
             out.println(session.explanation());
             out.println(c.spotifyAttribution());
+            out.println(c.lastfmAttribution());
             return OK;
         } catch (RuntimeException e) {
             return failure("create the playlist", e);

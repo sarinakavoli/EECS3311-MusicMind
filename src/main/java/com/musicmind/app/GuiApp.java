@@ -186,9 +186,10 @@ public class GuiApp extends Application {
         return label;
     }
 
-    /** The credit Spotify's and MusicBrainz's terms ask for. */
+    /** The credit Spotify's, MusicBrainz's and Last.fm's terms ask for. */
     private VBox footer() {
-        VBox box = new VBox(2, new Label(ctx.config().spotifyAttribution()), new Label(ctx.config().genreAttribution()));
+        VBox box = new VBox(2, new Label(ctx.config().spotifyAttribution()), new Label(ctx.config().genreAttribution()),
+                new Label(ctx.config().lastfmAttribution()));
         box.getStyleClass().add("mm-footer");
         return box;
     }

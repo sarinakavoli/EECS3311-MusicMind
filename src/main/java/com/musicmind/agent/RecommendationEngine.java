@@ -14,6 +14,7 @@ import com.musicmind.domain.Recommendation;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.Verdict;
 import com.musicmind.music.MusicServiceException;
+import com.musicmind.music.TagService;
 import com.musicmind.tool.ToolManager;
 
 import java.time.Instant;
@@ -51,7 +52,7 @@ public class RecommendationEngine {
     private static final String FAMILIAR_POOL = "familiar";
     private static final String NOVEL_POOL = "novel";
 
-    enum Source { LIBRARY, GENRE, ALBUM, KEYWORD }
+    enum Source { LIBRARY, GENRE, ALBUM, KEYWORD, TAG }
 
     record Origin(Source source, String genre) { }
 
@@ -59,6 +60,7 @@ public class RecommendationEngine {
     private final Config config;
     private final StrategySelector selector;
     private final ArtistGenreCache genreCache;
+    private final TagService tagService;
     private RecommendationStrategy strategy;
     // Per-run: whether the current run may pick tracks the user already has.
     private boolean allowLibraryTracks = true;
@@ -80,6 +82,8 @@ public class RecommendationEngine {
     // Create (goal given, library allowed): a library track is picked only when it fits the goal.
     private boolean goalDriven;
     private Set<String> goalSourceIds = Set.of();
+    // Ids of tracks Last.fm lists under the goal's tags (a subset of goalSourceIds).
+    private Set<String> tagIds = Set.of();
     private Retrieval currentRetrieval;
     private int offGoalFamiliar;
     private DecisionTrace trace;
@@ -91,6 +95,12 @@ public class RecommendationEngine {
 
     /** @param genreCache read-only cached MusicBrainz genres, used with the profile's to tell which library songs fit a goal */
     public RecommendationEngine(ToolManager tools, Config config, ArtistGenreCache genreCache) {
+        this(tools, config, genreCache, TagService.NONE);
+    }
+
+    /** @param tagService Last.fm's top songs for a tag; {@link TagService#NONE} when the goal's tags are not used */
+    public RecommendationEngine(ToolManager tools, Config config, ArtistGenreCache genreCache, TagService tagService) {
+        this.tagService = Objects.requireNonNull(tagService, "tagService");
         this.genreCache = Objects.requireNonNull(genreCache, "genreCache");
         this.tools = tools;
         this.config = config;
@@ -166,10 +176,20 @@ public class RecommendationEngine {
     public synchronized Retrieval retrieve(ListeningProfile profile, PlaylistSpec spec,
                                            boolean allowLibraryTracks, List<String> seedGenres,
                                            List<String> searchTerms) {
+        return retrieve(profile, spec, allowLibraryTracks, seedGenres, searchTerms, List.of());
+    }
+
+    /**
+     * As the five-argument form, and also asks Last.fm for the top songs of each of {@code tags} (for example
+     * "slow dance"), matches them to real Spotify tracks and adds them to the new-music pool as goal sources.
+     */
+    public synchronized Retrieval retrieve(ListeningProfile profile, PlaylistSpec spec,
+                                           boolean allowLibraryTracks, List<String> seedGenres,
+                                           List<String> searchTerms, List<String> tags) {
         Objects.requireNonNull(profile, "profile");
         Objects.requireNonNull(spec, "spec");
         Map<String, Origin> found = new HashMap<>();
-        CandidateRetriever retriever = new CandidateRetriever(tools, config);
+        CandidateRetriever retriever = new CandidateRetriever(tools, config, tagService);
         String range = profile.range() != null ? profile.range() : config.profileDefaultRange();
         List<Track> library = retriever.library(range);
         library.forEach(t -> found.put(t.id(), new Origin(Source.LIBRARY, null)));
@@ -186,6 +206,12 @@ public class RecommendationEngine {
         List<Track> albumTracks = retriever.albumTracks(artistSeeds);
         albumTracks.forEach(t -> found.putIfAbsent(t.id(), new Origin(Source.ALBUM, null)));
 
+        Map<String, Track> tagFound = new LinkedHashMap<>();
+        for (String tag : tags) {
+            retriever.byTag(tag).forEach(t -> tagFound.putIfAbsent(t.id(), t));
+        }
+        tagFound.values().forEach(t -> found.putIfAbsent(t.id(), new Origin(Source.TAG, null)));
+
         Map<String, Track> keywordFound = new LinkedHashMap<>();
         for (String term : searchTerms) {
             retriever.byKeywords(term).forEach(t -> keywordFound.putIfAbsent(t.id(), t));
@@ -195,9 +221,16 @@ public class RecommendationEngine {
         Set<String> seeds = new LinkedHashSet<>(seedGenres);
         Retrieval retrieval = new Retrieval(profile, allowLibraryTracks, seeds, retriever, library, libraryIds,
                 albumTracks, rankedGenres(profile, seeds), new HashMap<>(), found, List.copyOf(keywordFound.values()),
-                Set.of(), List.copyOf(searchTerms), Set.copyOf(keywordFound.keySet()));
+                Set.of(), List.copyOf(searchTerms), goalSources(keywordFound, tagFound),
+                List.copyOf(tagFound.values()), List.copyOf(tags));
         fetchGenres(retrieval, config.discoverInitialGenres());
         return retrieval;
+    }
+
+    private static Set<String> goalSources(Map<String, Track> keywordFound, Map<String, Track> tagFound) {
+        Set<String> ids = new HashSet<>(keywordFound.keySet());
+        ids.addAll(tagFound.keySet());
+        return Set.copyOf(ids);
     }
 
     /**
@@ -221,7 +254,11 @@ public class RecommendationEngine {
         this.seedGenres = retrieval.seedGenres;
         this.keywordWords = wordsOf(retrieval.searchTerms);
         this.goalSourceIds = retrieval.goalSourceIds;
-        this.goalDriven = allowLibraryTracks && (!retrieval.seedGenres.isEmpty() || !retrieval.searchTerms.isEmpty());
+        Set<String> tagged = new HashSet<>();
+        retrieval.tagTracks.forEach(t -> tagged.add(t.id()));
+        this.tagIds = tagged;
+        this.goalDriven = allowLibraryTracks && (!retrieval.seedGenres.isEmpty() || !retrieval.searchTerms.isEmpty()
+                || !retrieval.tags.isEmpty());
         this.currentRetrieval = retrieval;
         this.offGoalFamiliar = 0;
         List<String> notes = new ArrayList<>();
@@ -238,6 +275,7 @@ public class RecommendationEngine {
             fetchGenres(retrieval, genreLimit);
             PlaylistSpec working = withRatio(spec, ratio);
             List<Track> novel = new ArrayList<>(retrieval.albumTracks);
+            novel.addAll(retrieval.tagTracks);
             novel.addAll(retrieval.keywordTracks);
             genres.subList(0, Math.min(genreLimit, genres.size()))
                     .forEach(g -> novel.addAll(retrieval.genreTracks.get(g)));
@@ -290,6 +328,9 @@ public class RecommendationEngine {
                         result.size(), String.join(", ", seedGenres)));
             }
         }
+        if (!retrieval.tags.isEmpty() && !config.lastfmConfigured()) {
+            notes.add(config.lastfmOffNotice());
+        }
         if (!retriever.errors().isEmpty()) {
             notes.add(String.format(config.wording("discoverReadFailed"), retriever.errors().size()));
         }
@@ -327,6 +368,9 @@ public class RecommendationEngine {
         }
         if (isKeywordStockTitle(track)) {
             score -= config.discoverKeywordTitlePenalty();
+        }
+        if (tagIds.contains(track.id())) {
+            score += config.discoverTagBonus();
         }
         Verdict verdict = verdicts.get(track.id());
         if (verdict == Verdict.ACCEPT) {
@@ -423,7 +467,7 @@ public class RecommendationEngine {
             }
         }
         // Tracks that match the genres the user asked for (a mood) rank first inside each pool, then by score.
-        Comparator<Track> best = Comparator.<Track>comparingInt(t -> matchesSeed(t) ? 0 : 1)
+        Comparator<Track> best = Comparator.<Track>comparingInt(t -> matchesSeed(t) || tagIds.contains(t.id()) ? 0 : 1)
                 .thenComparing(Comparator.<Track>comparingDouble(t -> score(t, spec)).reversed());
         familiar.sort(best);
         novel.sort(best);
@@ -452,7 +496,7 @@ public class RecommendationEngine {
     }
 
     /**
-     * A familiar track (library, album or genre result by an artist the user knows) fits the goal when a goal source found it (keyword search, later Last.fm tags) or any
+     * A familiar track (library, album or genre result by an artist the user knows) fits the goal when a goal source found it (keyword search or Last.fm tag song) or any
      * genre known for its artists (the profile's, the cached MusicBrainz ones, the genre it was found under)
      * is one of the requested genres, ignoring case.
      */
@@ -511,7 +555,8 @@ public class RecommendationEngine {
             best = Math.max(best, artistAffinity.getOrDefault(artistId, 0.0));
         }
         boolean requested = origin != null
-                && ((origin.genre() != null && seedGenres.contains(origin.genre())) || origin.source() == Source.KEYWORD);
+                && ((origin.genre() != null && seedGenres.contains(origin.genre())) || origin.source() == Source.KEYWORD)
+                || tagIds.contains(track.id());
         double floor = config.discoverGoalAffinityFloor();
         return requested ? floor + (1.0 - floor) * best : best;
     }
@@ -579,6 +624,7 @@ public class RecommendationEngine {
                         ? "reasonSourceSeedGenre" : "reasonSourceGenre"), origin.genre());
                 case ALBUM -> config.wording("reasonSourceAlbum");
                 case KEYWORD -> config.wording("reasonSourceKeyword");
+                case TAG -> config.wording("reasonSourceTag");
             });
         }
         Verdict verdict = verdicts.get(track.id());

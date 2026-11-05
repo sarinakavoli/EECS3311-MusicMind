@@ -101,7 +101,7 @@ public class SearchRanker {
         return out;
     }
 
-    private static String normalise(String text) {
+    static String normalise(String text) {
         return text == null ? "" : String.join(" ", wordList(text));
     }
 

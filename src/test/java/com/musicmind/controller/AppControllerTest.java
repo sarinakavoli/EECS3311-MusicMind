@@ -187,6 +187,11 @@ class AppControllerTest extends PostgresTestBase {
     }
 
     @Test
+    void lastfmAttributionComesFromConfiguration() {
+        assertEquals(config.lastfmAttribution(), controller(new Music()).lastfmAttribution());
+    }
+
+    @Test
     void spotifyAttributionComesFromConfiguration() {
         assertEquals(config.spotifyAttribution(), controller(new Music()).spotifyAttribution());
     }

@@ -48,11 +48,13 @@ import com.musicmind.memory.repository.PlaylistHistoryRepository;
 import com.musicmind.memory.repository.PreferenceRepository;
 import com.musicmind.memory.repository.SessionRepository;
 import com.musicmind.music.GenreEnrichingMusicService;
+import com.musicmind.music.LastFmAdapter;
 import com.musicmind.music.MusicBrainzAdapter;
 import com.musicmind.music.MusicService;
 import com.musicmind.music.OAuthTokenStore;
 import com.musicmind.music.RetryingMusicService;
 import com.musicmind.music.SpotifyAdapter;
+import com.musicmind.music.TagService;
 import com.musicmind.tool.MemoryTool;
 import com.musicmind.tool.SpotifyTool;
 import com.musicmind.tool.ToolManager;
@@ -128,6 +130,16 @@ public class AppController {
      */
     public AppController(MusicService music, MemoryManager memory, LLMProvider llm, Config config,
                          Runnable reauthenticator, BooleanSupplier browserLoginNeeded, ArtistGenreCache genreCache) {
+        this(music, memory, llm, config, reauthenticator, browserLoginNeeded, genreCache, TagService.NONE);
+    }
+
+    /**
+     * @param tagService Last.fm's top songs for a tag, which Create matches to Spotify tracks; it returns nothing
+     *                   (and makes no request) when no Last.fm key is configured
+     */
+    public AppController(MusicService music, MemoryManager memory, LLMProvider llm, Config config,
+                         Runnable reauthenticator, BooleanSupplier browserLoginNeeded, ArtistGenreCache genreCache,
+                         TagService tagService) {
         this.browserLoginNeeded = browserLoginNeeded;
         this.music = music;
         this.memory = memory;
@@ -148,7 +160,7 @@ public class AppController {
             this.facade = new MusicAgentFacade(tools, memory, profileBuilder,
                     new TrendComparator(profileBuilder, config), prompts, llm, config,
                     new Planner(llm, prompts, parser, config), parser, new SearchRanker(config),
-                    new RecommendationEngine(tools, config, genreCache),
+                    new RecommendationEngine(tools, config, genreCache, tagService),
                     () -> currentUser == null ? null : currentUser.id(),
                     new MusicAgentFacade.CreateSupport(music, new PlaylistManager(config, music, memory),
                             explainer, reauthenticator, genreCache));
@@ -201,7 +213,8 @@ public class AppController {
                 new SessionRepository(db, userId),
                 new PlaylistHistoryRepository(db, userId),
                 new CandidateRepository(db, userId));
-        return new AppController(music, memory, llm, config, reauthenticator, browserLoginNeeded, genreCache);
+        return new AppController(music, memory, llm, config, reauthenticator, browserLoginNeeded, genreCache,
+                new LastFmAdapter(config));
     }
 
     public boolean isSpotifyConfigured() {
@@ -224,6 +237,11 @@ public class AppController {
     /** The line both interfaces show to credit Spotify for the data. */
     public String spotifyAttribution() {
         return config.spotifyAttribution();
+    }
+
+    /** The line both interfaces show to credit Last.fm for the song tags. */
+    public String lastfmAttribution() {
+        return config.lastfmAttribution();
     }
 
     /** The line both interfaces show to credit MusicBrainz for the genres. */

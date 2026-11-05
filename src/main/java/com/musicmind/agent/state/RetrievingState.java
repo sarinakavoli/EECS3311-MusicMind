@@ -28,7 +28,7 @@ public class RetrievingState implements SessionState {
         RunServices services = ctx.services;
         ctx.profile = services.profile().get();
         ctx.retrieval = services.engine().retrieve(ctx.profile, ctx.spec(), true, ctx.plan.seedGenres(),
-                ctx.plan.searchTerms());
+                ctx.plan.searchTerms(), ctx.plan.tags());
         if (ctx.retrieval.allReadsFailed()) {
             throw new MusicServiceException(String.format(services.config().wording("discoverAllReadsFailed"),
                     ctx.retrieval.failedReads()));

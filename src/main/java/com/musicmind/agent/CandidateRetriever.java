@@ -3,7 +3,10 @@ package com.musicmind.agent;
 import com.musicmind.config.Config;
 import com.musicmind.domain.Album;
 import com.musicmind.domain.SearchQuery;
+import com.musicmind.domain.TagTrack;
 import com.musicmind.domain.Track;
+import com.musicmind.music.MusicServiceException;
+import com.musicmind.music.TagService;
 import com.musicmind.tool.ToolManager;
 import com.musicmind.tool.ToolResult;
 
@@ -22,12 +25,20 @@ class CandidateRetriever {
 
     private final ToolManager tools;
     private final Config config;
+    private final TagService tagService;
     private final List<String> errors = new ArrayList<>();
     private int successes;
+    // Spotify lookups made for Last.fm songs in this run, against lastfm.maxTracks.
+    private int tagLookups;
 
     CandidateRetriever(ToolManager tools, Config config) {
+        this(tools, config, TagService.NONE);
+    }
+
+    CandidateRetriever(ToolManager tools, Config config, TagService tagService) {
         this.tools = tools;
         this.config = config;
+        this.tagService = tagService;
     }
 
     /** Top tracks for the range, then saved tracks, then recently played. */
@@ -49,6 +60,55 @@ class CandidateRetriever {
     /** Tracks Spotify's search returns for a phrase such as "gym workout", searched as typed. */
     List<Track> byKeywords(String phrase) {
         return searchTracks(new SearchQuery(phrase, null, Map.of(), 1.0).toSpotifyQuery());
+    }
+
+    /**
+     * The real Spotify tracks for the songs Last.fm lists under a tag. Each Last.fm song is looked up with one
+     * Spotify search (limit 1, {@code track:"title" artist:"artist"}) and kept only when the normalised title
+     * and one artist name both match; anything else is dropped, never replaced by a loose match. At most
+     * {@code lastfm.maxTracks} lookups are made per run, across all tags. A failed Last.fm call or Spotify
+     * search is recorded in {@link #errors()} and the rest carries on.
+     */
+    List<Track> byTag(String tag) {
+        Map<String, Track> byId = new LinkedHashMap<>();
+        int room = config.lastfmMaxTracks() - tagLookups;
+        if (room <= 0) {
+            return List.of();
+        }
+        List<TagTrack> listed;
+        try {
+            listed = tagService.topTracks(tag, room);
+        } catch (MusicServiceException e) {
+            errors.add(e.getMessage());
+            return List.of();
+        }
+        for (TagTrack wanted : listed) {
+            if (tagLookups >= config.lastfmMaxTracks()) {
+                break;
+            }
+            tagLookups++;
+            String query = "track:\"" + wanted.title().replace("\"", " ") + "\" artist:\""
+                    + wanted.artist().replace("\"", " ") + "\"";
+            List<Track> hits = read("search", Map.of("query", query, "limit", 1));
+            for (Track hit : hits) {
+                if (matches(wanted, hit)) {
+                    byId.putIfAbsent(hit.id(), hit);
+                    break;
+                }
+            }
+        }
+        return new ArrayList<>(byId.values());
+    }
+
+    private static boolean matches(TagTrack wanted, Track hit) {
+        String title = SearchRanker.normalise(wanted.title());
+        String artist = SearchRanker.normalise(wanted.artist());
+        if (title.isEmpty() || artist.isEmpty() || hit.title() == null) {
+            return false;
+        }
+        boolean titleOk = SearchRanker.normalise(hit.title()).equals(title)
+                || SearchRanker.normalise(hit.title().replaceAll("\\([^)]*\\)|\\[[^]]*]| - .*$", "")).equals(title);
+        return titleOk && hit.artistNames().stream().anyMatch(n -> SearchRanker.normalise(n).equals(artist));
     }
 
     /** One search, {@code discover.searchLimit} tracks, de-duplicated by id. */

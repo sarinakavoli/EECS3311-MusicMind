@@ -15,6 +15,7 @@ import com.musicmind.domain.Playlist;
 import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.Relaxation;
 import com.musicmind.domain.RequestKind;
+import com.musicmind.domain.TagTrack;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.UserPreference;
 import com.musicmind.llm.LLMException;
@@ -31,6 +32,7 @@ import com.musicmind.memory.repository.SessionRepository;
 import com.musicmind.music.AuthExpiredException;
 import com.musicmind.music.MusicServiceException;
 import com.musicmind.music.StubMusicService;
+import com.musicmind.music.TagService;
 import org.junit.jupiter.api.Test;
 
 import java.sql.SQLException;
@@ -977,5 +979,83 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
         assertFalse(prompts.isEmpty());
         prompts.forEach(p -> assertFalse(idsIn(p).contains(inPool), p));
         assertTrue(playlist.tracks().stream().anyMatch(t -> t.id().equals(inPool)));
+    }
+
+    // ---- Last.fm tag songs ----
+
+    private static final String PLAN_WITH_TAGS = PLAN_60.replace("\"mood\":\"\"", "\"mood\":\"\",\"tags\":[\"slow dance\"]");
+
+    private static LLMProvider taggingPlan() {
+        MockLLMProvider mock = new MockLLMProvider();
+        return prompt -> PromptBuilder.kindOf(prompt).orElseThrow() == PromptBuilder.Kind.PLAN
+                ? PLAN_WITH_TAGS : mock.complete(prompt);
+    }
+
+    /** Spotify that knows two real tracks for the Last.fm songs and the default stock otherwise. */
+    private static Music musicWithTagSongs() {
+        Music music = new Music() {
+            @Override public List<Track> search(String query, int limit) {
+                if (query.startsWith("track:")) {
+                    searches.add(query);
+                    return query.contains("Tag One")
+                            ? List.of(new Track("tagged1", "spotify:track:tagged1", "Tag One", 240_000, false,
+                                    List.of("sing1"), List.of("Singer One")))
+                            : List.of();
+                }
+                return super.search(query, limit);
+            }
+        };
+        music.novelTracks = 30; // library songs need a goal source to count, so new songs fill the length
+        return music;
+    }
+
+    private static final Config WITH_KEY = Config.of(Map.of("LASTFM_API_KEY", "test-key"));
+
+    private AppController taggingController(Music music, TagService tags) {
+        return new AppController(music, memory(), taggingPlan(), WITH_KEY, null, () -> false,
+                com.musicmind.agent.ArtistGenreCache.NONE, tags);
+    }
+
+    @Test
+    void create_lastfmSongsJoinThePlaylist() {
+        Music music = musicWithTagSongs();
+        AppController c = taggingController(music, (tag, limit) -> List.of(new TagTrack("Tag One", "Singer One"),
+                new TagTrack("Missing", "Nobody")));
+
+        Playlist playlist = c.createPlaylist(request("music for a slow dance"));
+
+        assertEquals(15, playlist.tracks().size());
+        assertTrue(playlist.tracks().stream().anyMatch(t -> t.id().equals("tagged1")),
+                playlist.tracks().stream().map(Track::id).toList().toString());
+        assertTrue(music.searches.stream().anyMatch(q -> q.equals("track:\"Tag One\" artist:\"Singer One\"")));
+        assertTrue(c.lastSession().notices().stream().noneMatch(n -> n.contains("Last.fm")), c.lastSession().notices().toString());
+    }
+
+    @Test
+    void create_lastfmDown_stillCreatesWithNotice() {
+        Music music = musicWithTagSongs();
+        AppController c = taggingController(music, (tag, limit) -> {
+            throw new MusicServiceException("Last.fm returned HTTP 500.");
+        });
+
+        Playlist playlist = c.createPlaylist(request("music for a slow dance"));
+
+        assertEquals("pl1", playlist.spotifyId());
+        assertEquals(15, playlist.tracks().size());
+        assertEquals("done", c.lastSession().status());
+        assertTrue(c.lastSession().notices().stream().anyMatch(n -> n.contains("1 Spotify reads failed")),
+                c.lastSession().notices().toString());
+    }
+
+    @Test
+    void create_noLastfmKey_oneOffNotice() {
+        AppController c = new AppController(musicWithTagSongs(), memory(), taggingPlan(), config, null, () -> false,
+                com.musicmind.agent.ArtistGenreCache.NONE, TagService.NONE);
+
+        Playlist playlist = c.createPlaylist(request("music for a slow dance"));
+
+        assertEquals(15, playlist.tracks().size());
+        assertEquals(1, c.lastSession().notices().stream().filter(n -> n.equals(config.lastfmOffNotice())).count(),
+                c.lastSession().notices().toString());
     }
 }

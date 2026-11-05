@@ -7,6 +7,9 @@ import java.util.List;
 /** Looks up the top songs for a tag (a mood, genre or activity word). */
 public interface TagService {
 
+    /** A service that knows no tags. */
+    TagService NONE = (tag, limit) -> List.of();
+
     /**
      * @return up to {@code limit} songs for the tag; empty when the service is not configured
      * @throws MusicServiceException on an HTTP error or an unreadable reply

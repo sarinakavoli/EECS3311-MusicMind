@@ -144,6 +144,12 @@ class ConfigTest {
     }
 
     @Test
+    void footerShowsLastfmCredit() {
+        assertEquals("Song tags from Last.fm", Config.of(Map.of()).lastfmAttribution());
+        assertTrue(Config.of(Map.of()).lastfmOffNotice().contains("LASTFM_API_KEY"));
+    }
+
+    @Test
     void genreAttributionCreditsMusicBrainz() {
         assertTrue(Config.of(Map.of()).genreAttribution().contains("MusicBrainz"));
     }

@@ -12,10 +12,12 @@ import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.Recommendation;
 import com.musicmind.domain.SearchQuery;
+import com.musicmind.domain.TagTrack;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.Verdict;
 import com.musicmind.music.MusicServiceException;
 import com.musicmind.music.StubMusicService;
+import com.musicmind.music.TagService;
 import com.musicmind.tool.SpotifyTool;
 import com.musicmind.tool.ToolManager;
 import org.junit.jupiter.api.Test;
@@ -1141,5 +1143,106 @@ class RecommendationEngineTest {
         assertTrue(ids(recs).stream().noneMatch(id -> id.startsWith("pa")), ids(recs).toString());
         assertEquals(2, ids(recs).stream().filter(id -> id.startsWith("sa")).count(), ids(recs).toString());
         assertEquals(10, recs.size());
+    }
+
+    // ---- Last.fm tag songs ----
+
+    private final Config withKey = Config.of(Map.of("LASTFM_API_KEY", "test-key"));
+
+    private static Track named(String id, String title, String artistId, String artistName) {
+        return new Track(id, "spotify:track:" + id, title, 1000, false, List.of(artistId), List.of(artistName));
+    }
+
+    private static String tagQuery(String title, String artist) {
+        return "track:\"" + title + "\" artist:\"" + artist + "\"";
+    }
+
+    /** Spotify with a soul genre of strangers, a library, and exact answers for four Last.fm songs. */
+    private static FakeMusic tagMusic() {
+        FakeMusic m = slowDanceMusic(6, 0);
+        m.byGenre.put(tagQuery("Tag One", "Singer One"), List.of(named("tg1", "Tag One", "singer1", "Singer One")));
+        m.byGenre.put(tagQuery("Tag Two", "Singer Two"), List.of(named("tg2", "Tag Two", "singer2", "Singer Two")));
+        m.byGenre.put(tagQuery("Tag Blocked", "Singer Blocked"), List.of(named("tg3", "Tag Blocked", "blockedA", "Singer Blocked")));
+        m.byGenre.put(tagQuery("Tag Muted", "Singer Muted"), List.of(named("tg4", "Tag Muted", "singer4", "Singer Muted")));
+        return m;
+    }
+
+    private static final TagService FOUR = (tag, limit) -> List.of(new TagTrack("Tag One", "Singer One"),
+            new TagTrack("Tag Two", "Singer Two"), new TagTrack("Tag Blocked", "Singer Blocked"),
+            new TagTrack("Tag Muted", "Singer Muted"));
+
+    @Test
+    void create_tagTracksRankFirstAndRespectBlocks() {
+        FakeMusic m = tagMusic();
+        RecommendationEngine e = new RecommendationEngine(toolsFor(m), withKey, ArtistGenreCache.NONE, FOUR);
+        PlaylistSpec spec = new PlaylistSpec(40, true, 0.4, List.of("blockedA"), List.of("tg4"), "x");
+
+        List<Recommendation> recs = e.recommend(e.retrieve(goalProfile(), spec, true, SLOW_DANCE, List.of(),
+                List.of("slow dance")), spec, List.of());
+
+        List<String> ids = ids(recs);
+        assertEquals(10, ids.size(), ids.toString());
+        assertEquals(java.util.Set.of("tg1", "tg2"), new java.util.HashSet<>(ids.subList(0, 2)), ids.toString());
+        assertFalse(ids.contains("tg3"), "a blocked artist's Last.fm song is dropped");
+        assertFalse(ids.contains("tg4"), "a blocked song is dropped");
+        assertTrue(e.lastNotices().stream().noneMatch(n -> n.contains("Last.fm")), e.lastNotices().toString());
+        assertTrue(recs.get(0).reason().toLowerCase().contains("last.fm"), recs.get(0).reason());
+    }
+
+    @Test
+    void create_tagTrackThatIsAlsoInTheLibrary_countsAsGoalFit() {
+        FakeMusic m = tagMusic();
+        m.top = new ArrayList<>(m.top);
+        m.top.add(named("p9", "Pop Hit", "popA", "PopA")); // popA is not a soul/r&b/ballad artist
+        m.byGenre.put(tagQuery("Pop Hit", "PopA"), List.of(named("p9", "Pop Hit", "popA", "PopA")));
+        TagService lastFm = (tag, limit) -> List.of(new TagTrack("Pop Hit", "PopA"));
+        RecommendationEngine e = new RecommendationEngine(toolsFor(m), withKey, ArtistGenreCache.NONE, lastFm);
+
+        List<Recommendation> recs = e.recommend(e.retrieve(goalProfile(), spec(0.4), true, SLOW_DANCE, List.of(),
+                List.of("slow dance")), spec(0.4), List.of());
+
+        assertTrue(ids(recs).contains("p9"), ids(recs).toString());
+        assertEquals("p9", ids(recs).get(0));
+    }
+
+    @Test
+    void create_lastfmDown_stillCreatesWithNotice() {
+        FakeMusic m = tagMusic();
+        TagService down = (tag, limit) -> { throw new MusicServiceException("Last.fm returned HTTP 500."); };
+        RecommendationEngine e = new RecommendationEngine(toolsFor(m), withKey, ArtistGenreCache.NONE, down);
+
+        List<Recommendation> recs = e.recommend(e.retrieve(goalProfile(), spec(0.4), true, SLOW_DANCE, List.of(),
+                List.of("slow dance")), spec(0.4), List.of());
+
+        assertEquals(10, recs.size(), "genre songs still fill the length");
+        assertEquals(1, e.lastNotices().stream().filter(n -> n.contains("1 Spotify reads failed")).count(),
+                e.lastNotices().toString());
+    }
+
+    @Test
+    void create_noLastfmKey_oneOffNoticeAndNoLastfmCall() {
+        FakeMusic m = tagMusic();
+        int[] calls = {0};
+        TagService counting = (tag, limit) -> { calls[0]++; return List.of(); };
+        RecommendationEngine e = new RecommendationEngine(toolsFor(m), config, ArtistGenreCache.NONE, counting);
+
+        List<Recommendation> recs = e.recommend(e.retrieve(goalProfile(), spec(0.4), true, SLOW_DANCE, List.of(),
+                List.of("slow dance", "romantic")), spec(0.4), List.of());
+
+        assertEquals(10, recs.size());
+        assertEquals(1, e.lastNotices().stream().filter(n -> n.equals(config.lastfmOffNotice())).count(),
+                e.lastNotices().toString());
+    }
+
+    @Test
+    void create_noTags_noLastfmNoticeAndNoCall() {
+        int[] calls = {0};
+        TagService counting = (tag, limit) -> { calls[0]++; return List.of(); };
+        RecommendationEngine e = new RecommendationEngine(toolsFor(tagMusic()), config, ArtistGenreCache.NONE, counting);
+
+        e.recommend(e.retrieve(goalProfile(), spec(0.4), true, SLOW_DANCE, List.of(), List.of()), spec(0.4), List.of());
+
+        assertEquals(0, calls[0]);
+        assertTrue(e.lastNotices().stream().noneMatch(n -> n.contains("Last.fm")), e.lastNotices().toString());
     }
 }
