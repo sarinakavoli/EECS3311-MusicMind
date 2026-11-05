@@ -247,6 +247,13 @@ Status added Nov 4 after the frontend redesign and its read-only live check (`do
 35. **A new playlist shows "0 songs" in the Playlists list ("Slow Dance 0 songs" with 7 tracks, "yoga 0 songs" with 21).** Spotify's playlist total lags just after creation.
     - **Status (Nov 4):** **Done:** the row of a playlist just created or opened shows the count from MusicMind's own read; it is kept on refresh only while Spotify's total is below it (`ViewFormat.mergeTrackCounts` and `countsStillLagging`, tested). Other rows keep Spotify's total. Not retried against the real account.
 
+### Owner's test, Nov 5
+
+36. **Create dialog: the Name field repeats its label.** The heading says "Name (optional)" and the empty box says "Name (optional)" again. The box should have no placeholder, or a hint such as "e.g. Sunday run".
+37. **Your Rules: blocked songs show "a song you blocked" instead of the title and artist.** Only the song id is stored (no Spotify content kept), so the list has no name to show, and the owner cannot tell which one to remove. Read the title and artist from Spotify when the screen opens, for display only and never stored, as blocked artists already are ("Ebi").
+38. **Your Rules: Save buttons are always shown.** Show Save only when the text differs from what is saved, and hide it again after saving (Preferred styles and the other Save on the screen).
+39. **History: "Saved playlist versions" is unclear.** The owner asked what it means, and "7 songs (no change)" is unclear too. Reword the heading and description in plain words (a copy of the playlist kept before each change, to go back to), and explain "no change".
+
 ## Backend status (Nov 2)
 
 Plan: `docs/superpowers/plans/2026-11-02-backend-test-fixes.md`. Forced run on c6d947f: 842

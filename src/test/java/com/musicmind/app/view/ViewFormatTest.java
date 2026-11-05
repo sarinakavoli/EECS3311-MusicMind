@@ -660,7 +660,7 @@ class ViewFormatTest {
 
     @Test
     void versionChange_same() {
-        assertEquals("27 songs (no change)", format.versionChange(27, 27));
+        assertEquals("27 songs (same songs as the version before)", format.versionChange(27, 27));
     }
 
     @Test
@@ -689,7 +689,7 @@ class ViewFormatTest {
 
         assertEquals(2, groups.size());
         assertEquals("Mix A", groups.get(0).name());
-        assertEquals(List.of("27 \u2192 22 songs", "27 songs (no change)", "27 songs"),
+        assertEquals(List.of("27 \u2192 22 songs", "27 songs (same songs as the version before)", "27 songs"),
                 groups.get(0).versions().stream().map(ViewFormat.VersionLine::change).toList());
         assertEquals("Mix B", groups.get(1).name());
         assertEquals("10 songs", groups.get(1).versions().get(0).change());

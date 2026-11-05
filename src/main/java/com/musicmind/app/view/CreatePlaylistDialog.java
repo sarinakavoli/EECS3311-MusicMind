@@ -117,7 +117,7 @@ public final class CreatePlaylistDialog {
         useWaiting.setSelected(true);
         waitingBox.setVisible(false);
         waitingBox.setManaged(false);
-        name.setPromptText(format.w("PlaylistName"));
+        name.setPromptText(format.w("PlaylistNameHint"));
 
         form = new VBox(UiParts.GAP, UiParts.muted(format.w("Goal")), goal,
                 UiParts.muted(format.w("Length")), length, UiParts.muted(format.w("LengthHint")), allowExplicit,
