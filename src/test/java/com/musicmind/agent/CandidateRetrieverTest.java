@@ -201,4 +201,17 @@ class CandidateRetrieverTest {
         assertEquals(List.of("g1"), retriever.byTag("x").stream().map(Track::id).toList());
         assertEquals(1, retriever.errors().size());
     }
+
+    @Test
+    void byTag_afterOneLastFmFailureNoFurtherTagIsTried() {
+        int[] calls = {0};
+        TagService down = (tag, limit) -> { calls[0]++; throw new com.musicmind.music.MusicServiceException("Last.fm returned HTTP 500."); };
+        CandidateRetriever retriever = new CandidateRetriever(tools(new TagMusic()), config, down);
+
+        assertTrue(retriever.byTag("slow dance").isEmpty());
+        assertTrue(retriever.byTag("romantic").isEmpty());
+
+        assertEquals(1, calls[0]);
+        assertEquals(1, retriever.errors().size());
+    }
 }

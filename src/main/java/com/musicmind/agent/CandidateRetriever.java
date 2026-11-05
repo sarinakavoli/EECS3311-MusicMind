@@ -30,6 +30,8 @@ class CandidateRetriever {
     private int successes;
     // Spotify lookups made for Last.fm songs in this run, against lastfm.maxTracks.
     private int tagLookups;
+    // Set by the first failed Last.fm call: no further tag is tried this run, so a down Last.fm costs one timeout.
+    private boolean tagServiceFailed;
 
     CandidateRetriever(ToolManager tools, Config config) {
         this(tools, config, TagService.NONE);
@@ -72,13 +74,14 @@ class CandidateRetriever {
     List<Track> byTag(String tag) {
         Map<String, Track> byId = new LinkedHashMap<>();
         int room = config.lastfmMaxTracks() - tagLookups;
-        if (room <= 0) {
+        if (room <= 0 || tagServiceFailed) {
             return List.of();
         }
         List<TagTrack> listed;
         try {
             listed = tagService.topTracks(tag, room);
         } catch (MusicServiceException e) {
+            tagServiceFailed = true;
             errors.add(e.getMessage());
             return List.of();
         }
