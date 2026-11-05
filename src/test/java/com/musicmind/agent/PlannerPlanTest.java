@@ -209,6 +209,19 @@ class PlannerPlanTest {
     }
 
     @Test
+    void plan_aStringTagsValueIsOneTag_andAnyOtherNonArrayIsIgnored() {
+        AgentPlan text = planner(p -> PLAN.replace("\"mood\":\"chill\"", "\"mood\":\"\",\"tags\":\"slow dance\"")).plan(request("x", null));
+        AgentPlan number = planner(p -> PLAN.replace("\"mood\":\"chill\"", "\"mood\":\"\",\"tags\":5")).plan(request("x", null));
+        AgentPlan plain = planner(p -> PLAN).plan(request("x", null));
+
+        assertEquals(List.of("slow dance"), text.tags());
+        assertTrue(number.tags().isEmpty());
+        assertEquals(plain.spec().targetMinutes(), text.spec().targetMinutes());
+        assertEquals(plain.spec().familiarRatio(), number.spec().familiarRatio());
+        assertEquals(plain.spec().name(), number.spec().name());
+    }
+
+    @Test
     void aRegeneratedPlanKeepsItsTags() {
         AgentPlan plan = planner(p -> PLAN.replace("\"mood\":\"chill\"", "\"mood\":\"\",\"tags\":[\"study\"]")).plan(request("x", null));
         Relaxation chosen = new Relaxation(Relaxation.Kind.ALLOW_EXPLICIT, 1, "x");

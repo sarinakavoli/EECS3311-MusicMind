@@ -130,7 +130,17 @@ public class ResponseParser {
     private List<String> tags(JsonObject o) {
         Set<String> seen = new LinkedHashSet<>();
         List<String> out = new ArrayList<>();
-        for (String tag : strings(o, "tags")) {
+        // Lenient on purpose: a lone string is one tag, any other non-array is ignored, so a sloppy reply keeps the plan.
+        JsonElement raw = o.get("tags");
+        List<String> listed;
+        if (raw != null && raw.isJsonPrimitive() && raw.getAsJsonPrimitive().isString()) {
+            listed = raw.getAsString().isBlank() ? List.of() : List.of(raw.getAsString().trim());
+        } else if (raw != null && !raw.isJsonArray()) {
+            listed = List.of();
+        } else {
+            listed = strings(o, "tags");
+        }
+        for (String tag : listed) {
             if (seen.add(tag.toLowerCase(Locale.ROOT)) && out.size() < config.lastfmMaxTags()) {
                 out.add(tag);
             }
