@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -57,6 +58,7 @@ public class RecommendationEngine {
     private final ToolManager tools;
     private final Config config;
     private final StrategySelector selector;
+    private final ArtistGenreCache genreCache;
     private RecommendationStrategy strategy;
     // Per-run: whether the current run may pick tracks the user already has.
     private boolean allowLibraryTracks = true;
@@ -75,10 +77,21 @@ public class RecommendationEngine {
     private Map<String, Double> genreAffinity = Map.of();
     private Map<String, Double> artistAffinity = Map.of();
     private Map<String, Verdict> verdicts = Map.of();
+    // Create (goal given, library allowed): a library track is picked only when it fits the goal.
+    private boolean goalDriven;
+    private Set<String> goalSourceIds = Set.of();
+    private java.util.function.BiFunction<Track, ArtistGenreCache, List<String>> libraryGenres;
+    private int libraryOffGoal;
     private DecisionTrace trace;
     private List<String> notices = List.of();
 
     public RecommendationEngine(ToolManager tools, Config config) {
+        this(tools, config, ArtistGenreCache.NONE);
+    }
+
+    /** @param genreCache read-only cached MusicBrainz genres, used with the profile's to tell which library songs fit a goal */
+    public RecommendationEngine(ToolManager tools, Config config, ArtistGenreCache genreCache) {
+        this.genreCache = Objects.requireNonNull(genreCache, "genreCache");
         this.tools = tools;
         this.config = config;
         this.selector = new StrategySelector(config);
@@ -182,7 +195,7 @@ public class RecommendationEngine {
         Set<String> seeds = new LinkedHashSet<>(seedGenres);
         Retrieval retrieval = new Retrieval(profile, allowLibraryTracks, seeds, retriever, library, libraryIds,
                 albumTracks, rankedGenres(profile, seeds), new HashMap<>(), found, List.copyOf(keywordFound.values()),
-                Set.of(), List.copyOf(searchTerms));
+                Set.of(), List.copyOf(searchTerms), Set.copyOf(keywordFound.keySet()));
         fetchGenres(retrieval, config.discoverInitialGenres());
         return retrieval;
     }
@@ -207,6 +220,10 @@ public class RecommendationEngine {
         this.origins = retrieval.origins;
         this.seedGenres = retrieval.seedGenres;
         this.keywordWords = wordsOf(retrieval.searchTerms);
+        this.goalSourceIds = retrieval.goalSourceIds;
+        this.goalDriven = allowLibraryTracks && (!retrieval.seedGenres.isEmpty() || !retrieval.searchTerms.isEmpty());
+        this.libraryGenres = retrieval::knownGenres;
+        this.libraryOffGoal = 0;
         List<String> notes = new ArrayList<>();
 
         CandidateRetriever retriever = retrieval.retriever;
@@ -261,6 +278,13 @@ public class RecommendationEngine {
             if (selection.novelSelected() < wantedNew) {
                 notes.add(String.format(config.wording("createFewNewArtists"), selection.novelSelected(), wantedNew));
             }
+            if (goalDriven && libraryOffGoal > 0) {
+                int familiarPicked = result.size() - selection.novelSelected();
+                if (familiarPicked < wantedFamiliar(result.size(), spec)) {
+                    notes.add(String.format(config.wording("familiarShortForGoal"), familiarPicked,
+                            wantedFamiliar(result.size(), spec)));
+                }
+            }
             if (!seedGenres.isEmpty() && selection.seedMatched() < result.size()) {
                 notes.add(String.format(config.wording("createFewGenreMatches"), selection.seedMatched(),
                         result.size(), String.join(", ", seedGenres)));
@@ -272,6 +296,10 @@ public class RecommendationEngine {
         this.trace = buildTrace(result, spec, selection);
         this.notices = List.copyOf(notes);
         return result;
+    }
+
+    private static int wantedFamiliar(int size, PlaylistSpec spec) {
+        return (int) Math.round(size * spec.familiarRatio());
     }
 
     /** Reads the tracks of the first {@code limit} genres that have not been read yet. */
@@ -371,6 +399,19 @@ public class RecommendationEngine {
         if (!allowLibraryTracks) {
             all.removeIf(t -> libraryIds.contains(t.id()));
         }
+        libraryOffGoal = 0;
+        if (goalDriven) {
+            Map<String, Optional<List<String>>> memo = new HashMap<>();
+            ArtistGenreCache cache = id -> memo.computeIfAbsent(id, genreCache::cached);
+            Set<String> offGoal = new HashSet<>();
+            for (Track t : all) {
+                if (isLibraryTrack(t, libraryIds) && !fitsGoal(t, cache)) {
+                    offGoal.add(t.id());
+                }
+            }
+            libraryOffGoal = offGoal.size();
+            all.removeIf(t -> offGoal.contains(t.id()));
+        }
         for (Track t : all) {
             if (!seen.add(t.id())) {
                 continue;
@@ -410,6 +451,25 @@ public class RecommendationEngine {
         }
         recs.sort(Comparator.comparingDouble(Recommendation::score).reversed());
         return new Selection(recs, novelSelected, blocked, explicit, seedMatched);
+    }
+
+    private boolean isLibraryTrack(Track track, Set<String> libraryIds) {
+        Origin origin = origins.get(track.id());
+        return libraryIds.contains(track.id()) || (origin != null && origin.source() == Source.LIBRARY);
+    }
+
+    /**
+     * A library track fits the goal when a goal source found it (keyword search, later Last.fm tags) or any
+     * genre known for its artists (the profile's, the cached MusicBrainz ones, the genre it was found under)
+     * is one of the requested genres, ignoring case.
+     */
+    private boolean fitsGoal(Track track, ArtistGenreCache cache) {
+        if (goalSourceIds.contains(track.id())) {
+            return true;
+        }
+        Set<String> wanted = new HashSet<>();
+        seedGenres.forEach(g -> wanted.add(g.toLowerCase(Locale.ROOT)));
+        return libraryGenres.apply(track, cache).stream().anyMatch(g -> wanted.contains(g.toLowerCase(Locale.ROOT)));
     }
 
     /**

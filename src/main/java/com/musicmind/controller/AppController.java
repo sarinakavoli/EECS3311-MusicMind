@@ -148,7 +148,7 @@ public class AppController {
             this.facade = new MusicAgentFacade(tools, memory, profileBuilder,
                     new TrendComparator(profileBuilder, config), prompts, llm, config,
                     new Planner(llm, prompts, parser, config), parser, new SearchRanker(config),
-                    new RecommendationEngine(tools, config),
+                    new RecommendationEngine(tools, config, genreCache),
                     () -> currentUser == null ? null : currentUser.id(),
                     new MusicAgentFacade.CreateSupport(music, new PlaylistManager(config, music, memory),
                             explainer, reauthenticator, genreCache));

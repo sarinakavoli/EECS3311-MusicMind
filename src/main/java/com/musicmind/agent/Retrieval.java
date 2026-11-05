@@ -35,6 +35,11 @@ public final class Retrieval {
     final Set<String> removedIds;
     /** The phrases searched for the goal's activity; a result titled with one of their words is usually stock music. */
     final List<String> searchTerms;
+    /**
+     * Ids of tracks a goal source vouched for (the goal's keyword search; Last.fm tags later). A library track
+     * in this set fits the goal whatever its artist's genres are.
+     */
+    final Set<String> goalSourceIds;
 
     Retrieval(ListeningProfile profile, boolean allowLibraryTracks, Set<String> seedGenres,
               CandidateRetriever retriever, List<Track> library, Set<String> libraryIds,
@@ -49,6 +54,15 @@ public final class Retrieval {
               List<Track> albumTracks, List<String> genres, Map<String, List<Track>> genreTracks,
               Map<String, RecommendationEngine.Origin> origins, List<Track> keywordTracks, Set<String> removedIds,
               List<String> searchTerms) {
+        this(profile, allowLibraryTracks, seedGenres, retriever, library, libraryIds, albumTracks, genres,
+                genreTracks, origins, keywordTracks, removedIds, searchTerms, Set.of());
+    }
+
+    Retrieval(ListeningProfile profile, boolean allowLibraryTracks, Set<String> seedGenres,
+              CandidateRetriever retriever, List<Track> library, Set<String> libraryIds,
+              List<Track> albumTracks, List<String> genres, Map<String, List<Track>> genreTracks,
+              Map<String, RecommendationEngine.Origin> origins, List<Track> keywordTracks, Set<String> removedIds,
+              List<String> searchTerms, Set<String> goalSourceIds) {
         this.profile = profile;
         this.allowLibraryTracks = allowLibraryTracks;
         this.seedGenres = seedGenres;
@@ -62,6 +76,7 @@ public final class Retrieval {
         this.keywordTracks = keywordTracks;
         this.removedIds = removedIds;
         this.searchTerms = searchTerms;
+        this.goalSourceIds = goalSourceIds;
     }
 
     /**
@@ -76,7 +91,7 @@ public final class Retrieval {
         genreTracks.forEach((genre, tracks) -> byGenre.put(genre, keeping(tracks, removed)));
         return new Retrieval(profile, allowLibraryTracks, seedGenres, retriever, keeping(library, removed), libraryIds,
                 keeping(albumTracks, removed), genres, byGenre, origins, keeping(keywordTracks, removed), Set.copyOf(removed),
-                searchTerms);
+                searchTerms, goalSourceIds);
     }
 
     /**

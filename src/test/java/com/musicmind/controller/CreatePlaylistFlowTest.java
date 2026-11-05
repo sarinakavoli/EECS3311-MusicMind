@@ -68,6 +68,7 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
         int libraryTracks = 12;
         int novelTracks = 12;
         int minutes = 4;
+        List<String> artistGenres = List.of("rock");
         final List<Track> extraLibrary = new ArrayList<>();
         RuntimeException failOnSearch;
         RuntimeException failOnAdd;
@@ -77,7 +78,7 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
         }
         @Override public String currentUserId() { return "sp-user"; }
         @Override public List<Artist> getTopArtists(String r) {
-            return IntStream.range(0, 3).mapToObj(i -> new Artist("a" + i, "N", List.of("rock"))).toList();
+            return IntStream.range(0, 3).mapToObj(i -> new Artist("a" + i, "N", artistGenres)).toList();
         }
         @Override public List<Track> getTopItems(String type, String r) {
             List<Track> top = new ArrayList<>(IntStream.range(0, libraryTracks).mapToObj(i -> track("t", i, "a" + i % 3)).toList());
@@ -94,7 +95,12 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
                 failOnSearch = null;
                 throw e;
             }
-            return IntStream.range(0, novelTracks).mapToObj(i -> track("n", i, "x" + i)).toList();
+            List<Track> found = new ArrayList<>(IntStream.range(0, novelTracks).mapToObj(i -> track("n", i, "x" + i)).toList());
+            if (query.contains("workout")) {
+                // The goal's keyword search also finds the user's own songs, which makes them fit the goal.
+                found.addAll(IntStream.range(0, libraryTracks).mapToObj(i -> track("t", i, "a" + i % 3)).toList());
+            }
+            return found;
         }
         @Override public Playlist createPlaylist(String userId, String name) {
             calls.add("create " + name);
@@ -461,6 +467,7 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
     void aValidationRetryShowsOnlyTheLatestSelectionsGenreNotice() {
         Music music = new Music();
         music.minutes = 5; // the first, 15-track selection is too long and is reselected with 12
+        music.artistGenres = List.of("rock", "jazz"); // the library fits the goal, though its leading genre is rock
         AppController c = controller(music, new MockLLMProvider());
         c.setPreference(c.parsePreference("preferredStyles", "jazz"));
 
@@ -725,6 +732,7 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
     @Test
     void aMoodSearchesItsGenresFirstAndTheReasonsSaySo() {
         Music music = new Music();
+        music.novelTracks = 30; // the rock library songs do not fit "chill", so new songs fill the playlist
         AppController c = controller(music, prompt -> prompt.startsWith("MUSICMIND_TASK: PLAN")
                 ? PLAN_60.replace("\"mood\":\"\"", "\"mood\":\"chill\"") : new MockLLMProvider().complete(prompt));
         c.setPreference(new UserPreference("preferredStyles", "jazz", false, 0.5));
@@ -739,6 +747,21 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
         assertTrue(c.lastSession().trace().requestedGenres().contains("chill"), c.lastSession().trace().requestedGenres().toString());
         AgentSession stored = memory().findSessionByPlaylist("pl1");
         assertTrue(stored.trace().requestedGenres().contains("chill"), "the requested genres are stored with the trace");
+    }
+
+    @Test
+    void aLibrarySongOutsideTheGoalsGenresIsNotPickedAndTheNoticeSaysSo() {
+        Music music = new Music();
+        music.novelTracks = 30;
+        AppController c = controller(music, prompt -> prompt.startsWith("MUSICMIND_TASK: PLAN")
+                ? PLAN_60.replace("\"mood\":\"\"", "\"mood\":\"chill\"") : new MockLLMProvider().complete(prompt));
+
+        Playlist playlist = c.createPlaylist(request("something chill"));
+
+        assertEquals(15, playlist.tracks().size());
+        assertTrue(playlist.tracks().stream().noneMatch(t -> t.id().startsWith("t")), "rock songs do not fit chill");
+        assertTrue(c.lastSession().notices().stream().anyMatch(n -> n.contains("artists you know")),
+                c.lastSession().notices().toString());
     }
 
     @Test

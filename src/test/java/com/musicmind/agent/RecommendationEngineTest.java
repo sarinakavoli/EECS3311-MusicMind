@@ -733,8 +733,10 @@ class RecommendationEngineTest {
         List<Recommendation> recs = e.recommend(profile(), spec(0.7), List.of(), true, List.of("lo-fi"));
 
         List<String> fresh = recs.stream().filter(r -> r.familiarity() < 1.0).map(r -> r.track().id()).toList();
-        assertEquals(3, fresh.size());
-        assertTrue(fresh.stream().allMatch(id -> id.startsWith("l")), fresh.toString());
+        // The rock library songs do not fit "lo-fi", so only the known artists' album tracks stay familiar (5)
+        // and the other 5 are new: the 4 lo-fi tracks first, then one more.
+        assertEquals(5, fresh.size());
+        assertTrue(fresh.containsAll(List.of("l0", "l1", "l2", "l3")), fresh.toString());
     }
 
     @Test
@@ -1027,5 +1029,99 @@ class RecommendationEngineTest {
                 new Feedback("good", Verdict.ACCEPT, Instant.EPOCH), new Feedback("bad", Verdict.REJECT, Instant.EPOCH)),
                 false, List.of("folk"));
         assertTrue(e.score(track("good", "stranger-good"), spec(0.0)) > e.score(track("bad", "stranger-bad"), spec(0.0)));
+    }
+
+    // ---- Create: library songs count as familiar only when they fit the goal ----
+
+    private static ListeningProfile goalProfile() {
+        return new ListeningProfile(new LinkedHashMap<>(Map.of("pop", 0.5, "soul", 0.4)),
+                List.of(new Artist("popA", "PopA", List.of("pop", "dance pop")),
+                        new Artist("soulA", "SoulA", List.of("soul", "quiet storm"))),
+                List.of(track("p0", "popA")), List.of(), null, Instant.EPOCH);
+    }
+
+    private static FakeMusic slowDanceMusic(int popLibrary, int soulLibrary) {
+        FakeMusic m = new FakeMusic();
+        List<Track> top = new ArrayList<>();
+        for (int i = 0; i < popLibrary; i++) top.add(track("p" + i, "popA"));
+        for (int i = 0; i < soulLibrary; i++) top.add(track("s" + i, "soulA"));
+        m.top = top;
+        m.byGenre.put("soul", unknownTracks("n", 20));
+        return m;
+    }
+
+    private static final List<String> SLOW_DANCE = List.of("soul", "r&b", "ballad");
+
+    @Test
+    void create_libraryTrackOutsideGoalGenres_notPicked() {
+        RecommendationEngine e = engine(slowDanceMusic(6, 0));
+
+        List<Recommendation> recs = e.recommend(goalProfile(), spec(0.4), List.of(), true, SLOW_DANCE);
+
+        assertEquals(10, recs.size(), "new goal tracks fill the length");
+        assertTrue(ids(recs).stream().noneMatch(id -> id.startsWith("p")), ids(recs).toString());
+    }
+
+    @Test
+    void create_goalFitLibraryTrack_picked() {
+        RecommendationEngine e = engine(slowDanceMusic(6, 4));
+
+        List<Recommendation> recs = e.recommend(goalProfile(), spec(0.4), List.of(), true, SLOW_DANCE);
+
+        assertEquals(10, recs.size());
+        assertEquals(4, ids(recs).stream().filter(id -> id.startsWith("s")).count(), ids(recs).toString());
+        assertTrue(ids(recs).stream().noneMatch(id -> id.startsWith("p")), ids(recs).toString());
+        assertTrue(e.lastNotices().stream().noneMatch(n -> n.contains("fit your goal")), e.lastNotices().toString());
+    }
+
+    @Test
+    void create_tooFewFitLibraryTracks_fillsWithNewAndNotices() {
+        RecommendationEngine e = engine(slowDanceMusic(6, 2));
+
+        List<Recommendation> recs = e.recommend(goalProfile(), spec(0.4), List.of(), true, SLOW_DANCE);
+
+        assertEquals(10, recs.size());
+        assertEquals(2, ids(recs).stream().filter(id -> id.startsWith("s")).count(), ids(recs).toString());
+        assertEquals(8, ids(recs).stream().filter(id -> id.startsWith("n")).count());
+        assertTrue(e.lastNotices().stream().anyMatch(n -> n.contains("2 of 4") && n.contains("fit your goal")),
+                e.lastNotices().toString());
+    }
+
+    @Test
+    void create_libraryTrackFoundByGoalKeywordSearch_isFit() {
+        FakeMusic m = slowDanceMusic(6, 0);
+        String q = new com.musicmind.domain.SearchQuery("slow dance", null, Map.of(), 1.0).toSpotifyQuery();
+        m.byGenre.put(q, List.of(track("p1", "popA")));
+        RecommendationEngine e = engine(m);
+
+        List<Recommendation> recs = e.recommend(e.retrieve(goalProfile(), spec(0.4), true, SLOW_DANCE,
+                List.of("slow dance")), spec(0.4), List.of());
+
+        assertTrue(ids(recs).contains("p1"), ids(recs).toString());
+        assertEquals(1, ids(recs).stream().filter(id -> id.startsWith("p")).count(), ids(recs).toString());
+    }
+
+    @Test
+    void create_cachedMusicBrainzGenresMakeAnUnknownArtistsLibraryTrackFit() {
+        FakeMusic m = slowDanceMusic(0, 0);
+        m.top = List.of(track("c0", "cachedA"), track("c1", "cachedA"), track("c2", "cachedA"), track("c3", "cachedA"));
+        RecommendationEngine e = new RecommendationEngine(toolsFor(m), config,
+                id -> id.equals("cachedA") ? java.util.Optional.of(List.of("Soul")) : java.util.Optional.empty());
+
+        List<Recommendation> recs = e.recommend(goalProfile(), spec(0.4), List.of(), true, SLOW_DANCE);
+
+        assertEquals(4, ids(recs).stream().filter(id -> id.startsWith("c")).count(), ids(recs).toString());
+    }
+
+    @Test
+    void discover_unchanged_libraryRules() {
+        // No seed genres and no search terms: the library's genres are not checked against any goal.
+        RecommendationEngine e = engine(slowDanceMusic(6, 0));
+        e.setStrategy(new FamiliarStrategy());
+
+        List<Recommendation> recs = e.recommend(goalProfile(), spec(1.0), List.of(), true, List.of());
+
+        assertEquals(6, ids(recs).stream().filter(id -> id.startsWith("p")).count(), ids(recs).toString());
+        assertTrue(e.lastNotices().stream().noneMatch(n -> n.contains("fit your goal")));
     }
 }
