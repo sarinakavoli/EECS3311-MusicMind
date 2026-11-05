@@ -21,6 +21,7 @@ public final class Config {
     private static final String TUNABLES_RESOURCE = "/musicmind.properties";
     private static final String PLACEHOLDER_MODEL = "your_model_name_here";
     private static final String PLACEHOLDER_LLM_KEY = "your_llm_api_key_here";
+    private static final String PLACEHOLDER_LASTFM_KEY = "your_lastfm_api_key_here";
     private static final String PLACEHOLDER_CLIENT_ID = "your_client_id_here";
     private static final String LEGACY_MODEL_PREFIX = "gemini-";
 
@@ -254,6 +255,44 @@ public final class Config {
     /** How long, in seconds, lookups pause after too many failures in a row. */
     public int musicBrainzCooldownSeconds() {
         return integer("musicbrainz.cooldownSeconds");
+    }
+
+    // ---- Last.fm (song tags) ----
+    public String lastfmApiKey() {
+        return get("LASTFM_API_KEY");
+    }
+
+    public boolean lastfmConfigured() {
+        return isReal(lastfmApiKey(), PLACEHOLDER_LASTFM_KEY);
+    }
+
+    public String lastfmApiBaseUrl() {
+        return text("lastfm.apiBaseUrl");
+    }
+
+    public int lastfmMaxTracks() {
+        return integer("lastfm.maxTracks");
+    }
+
+    public int lastfmMaxTags() {
+        return integer("lastfm.maxTags");
+    }
+
+    public int lastfmTimeoutSeconds() {
+        return integer("lastfm.timeoutSeconds");
+    }
+
+    /** Same pattern as MusicBrainz: an identifying agent string. */
+    public String lastfmUserAgent() {
+        return musicBrainzUserAgent();
+    }
+
+    public String lastfmAttribution() {
+        return text("text.lastfmAttribution");
+    }
+
+    public String lastfmOffNotice() {
+        return text("text.lastfmOff");
     }
 
     /** Credits MusicBrainz as the genre source; shown wherever genres are shown. */
