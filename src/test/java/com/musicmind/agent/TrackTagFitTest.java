@@ -34,29 +34,18 @@ class TrackTagFitTest {
     }
 
     @Test
-    void aRequestedSeedGenreInTheSongTagsMakesItFit() {
-        TrackTagFit soul = new TrackTagFit(tagged(List.of("soul", "female vocalists"), new ArrayList<>()), config,
-                List.of("slow dance"), List.of("soul"), m -> { });
-        TrackTagFit rock = new TrackTagFit(tagged(List.of("rock"), new ArrayList<>()), config,
-                List.of("slow dance"), List.of("soul"), m -> { });
+    void aGenreTagAloneDoesNotMakeASongFit() {
+        TrackTagFit fit = new TrackTagFit(tagged(List.of("soul", "r&b", "pop"), new ArrayList<>()), config,
+                List.of("slow dance"), m -> { });
 
-        assertEquals(Optional.of(true), soul.fits(song("S")));
-        assertEquals(Optional.of(false), rock.fits(song("S")));
-    }
-
-    @Test
-    void rAndBSeedGenreMatchesLastFmsRnbTag() {
-        TrackTagFit fit = new TrackTagFit(tagged(List.of("rnb"), new ArrayList<>()), config,
-                List.of("slow dance"), List.of("r&b"), m -> { });
-
-        assertEquals(Optional.of(true), fit.fits(song("S")));
+        assertEquals(Optional.of(false), fit.fits(song("S")));
     }
 
     @Test
     void afterTheTimeBudgetNoFurtherSongIsLookedUp() {
         List<String> asked = new ArrayList<>();
         AtomicLong now = new AtomicLong();
-        TrackTagFit fit = new TrackTagFit(tagged(List.of("rock"), asked), config, List.of("slow dance"), List.of(),
+        TrackTagFit fit = new TrackTagFit(tagged(List.of("rock"), asked), config, List.of("slow dance"),
                 m -> { }, now::get);
 
         assertTrue(fit.fits(song("One")).isPresent());

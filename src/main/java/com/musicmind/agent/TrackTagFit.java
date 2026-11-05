@@ -40,23 +40,21 @@ final class TrackTagFit {
     private int lookups;
     private boolean failed;
 
-    TrackTagFit(TagService service, Config config, List<String> planTags, List<String> seedGenres,
-                Consumer<String> failures) {
-        this(service, config, planTags, seedGenres, failures, System::nanoTime);
+    TrackTagFit(TagService service, Config config, List<String> planTags, Consumer<String> failures) {
+        this(service, config, planTags, failures, System::nanoTime);
     }
 
-    TrackTagFit(TagService service, Config config, List<String> planTags, List<String> seedGenres,
-                Consumer<String> failures, LongSupplier nanos) {
+    TrackTagFit(TagService service, Config config, List<String> planTags, Consumer<String> failures,
+                LongSupplier nanos) {
         this.nanos = nanos;
         this.budgetNanos = config.lastfmTrackTagBudgetSeconds() * 1_000_000_000L;
         this.service = service;
         this.maxLookups = config.lastfmMaxTrackTagLookups();
         this.failures = failures;
         Set<String> wanted = new HashSet<>();
-        // The genres the user asked for count as goal words too, so a song tagged "soul" is not vetoed for a "soul" request.
-        List<String> goalWords = new java.util.ArrayList<>(planTags);
-        goalWords.addAll(seedGenres);
-        for (String tag : goalWords) {
+        // Only the plan's tags (and their synonyms): a genre tag such as "soul" says too little about one song, and
+        // counting it would let a pop hit by an artist also tagged soul back into a "slow dance" playlist.
+        for (String tag : planTags) {
             wanted.add(squash(tag));
             config.lastfmSynonyms(tag).forEach(s -> wanted.add(squash(s)));
         }

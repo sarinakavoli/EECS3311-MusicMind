@@ -234,7 +234,7 @@ public class RecommendationEngine {
                 Set.of(), List.copyOf(searchTerms), goalSources(keywordFound, tagFound),
                 List.copyOf(tagFound.values()), List.copyOf(tags));
         if (config.lastfmConfigured() && !tags.isEmpty()) {
-            retrieval.trackTagFit = new TrackTagFit(tagService, config, tags, List.copyOf(seeds), retriever.errors()::add);
+            retrieval.trackTagFit = new TrackTagFit(tagService, config, tags, retriever.errors()::add);
         }
         fetchGenres(retrieval, config.discoverInitialGenres());
         return retrieval;

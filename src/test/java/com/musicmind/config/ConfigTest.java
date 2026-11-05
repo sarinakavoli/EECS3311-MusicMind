@@ -169,6 +169,5 @@ class ConfigTest {
         assertFalse(c.lastfmSynonyms("late night running").contains("cardio"));
         assertTrue(c.lastfmSynonyms("running").contains("cardio"));
         assertTrue(c.lastfmSynonyms("slow dance").contains("romantic"));
-        assertTrue(c.lastfmSynonyms("R&B").contains("rnb"));
     }
 }

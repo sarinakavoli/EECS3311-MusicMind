@@ -1348,7 +1348,7 @@ class RecommendationEngineTest {
     @Test
     void create_aPartialTagOrAGenreAloneIsNotAMatch() {
         SongTags lastFm = new SongTags();
-        lastFm.byTitle.put("Slow Song", List.of("slow", "dancehall", "pop", "80s", "rock"));
+        lastFm.byTitle.put("Slow Song", List.of("slow", "dancehall", "soul", "r&b", "ballad"));
         RecommendationEngine e = new RecommendationEngine(toolsFor(libraryOf(
                 named("sl", "Slow Song", "soulA", "SoulA"))), withKey, ArtistGenreCache.NONE, lastFm);
 
