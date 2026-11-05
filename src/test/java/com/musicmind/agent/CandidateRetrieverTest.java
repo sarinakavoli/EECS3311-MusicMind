@@ -176,6 +176,29 @@ class CandidateRetrieverTest {
     }
 
     @Test
+    void byTag_shareLetsEveryTagContribute() {
+        TagMusic music = new TagMusic();
+        for (String tag : List.of("a", "b")) {
+            for (int i = 1; i <= 20; i++) {
+                music.answers.put("track:\"" + tag + i + "\" artist:\"A\"", List.of(named(tag + i, tag + i, "A")));
+            }
+        }
+        TagService lastFm = (tag, limit) -> {
+            List<TagTrack> all = new ArrayList<>();
+            for (int i = 1; i <= 20; i++) all.add(new TagTrack(tag + i, "A"));
+            return all.subList(0, Math.min(limit, all.size()));
+        };
+        CandidateRetriever retriever = new CandidateRetriever(tools(music), config, lastFm);
+
+        List<Track> first = retriever.byTag("a", 10);
+        List<Track> second = retriever.byTag("b", 10);
+
+        assertEquals(10, first.size());
+        assertEquals(10, second.size());
+        assertEquals(20, music.searches.size());
+    }
+
+    @Test
     void byTag_lastfmFailure_recordedAndEmpty() {
         TagService down = (tag, limit) -> { throw new MusicServiceException("Last.fm returned HTTP 500."); };
         CandidateRetriever retriever = new CandidateRetriever(tools(new Music()), config, down);

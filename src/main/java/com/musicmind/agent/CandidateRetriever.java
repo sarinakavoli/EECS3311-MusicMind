@@ -72,8 +72,16 @@ class CandidateRetriever {
      * search is recorded in {@link #errors()} and the rest carries on.
      */
     List<Track> byTag(String tag) {
+        return byTag(tag, config.lastfmMaxTracks());
+    }
+
+    /**
+     * As {@link #byTag(String)}, but this tag may use at most {@code share} lookups, so the run's tags split the
+     * {@code lastfm.maxTracks} budget instead of the first one taking it all.
+     */
+    List<Track> byTag(String tag, int share) {
         Map<String, Track> byId = new LinkedHashMap<>();
-        int room = config.lastfmMaxTracks() - tagLookups;
+        int room = Math.min(share, config.lastfmMaxTracks() - tagLookups);
         if (room <= 0 || tagServiceFailed) {
             return List.of();
         }
@@ -85,10 +93,12 @@ class CandidateRetriever {
             errors.add(e.getMessage());
             return List.of();
         }
+        int used = 0;
         for (TagTrack wanted : listed) {
-            if (tagLookups >= config.lastfmMaxTracks()) {
+            if (used >= room || tagLookups >= config.lastfmMaxTracks()) {
                 break;
             }
+            used++;
             tagLookups++;
             String query = "track:\"" + wanted.title().replace("\"", " ") + "\" artist:\""
                     + wanted.artist().replace("\"", " ") + "\"";

@@ -207,8 +207,9 @@ public class RecommendationEngine {
         albumTracks.forEach(t -> found.putIfAbsent(t.id(), new Origin(Source.ALBUM, null)));
 
         Map<String, Track> tagFound = new LinkedHashMap<>();
+        int share = tags.isEmpty() ? 0 : (config.lastfmMaxTracks() + tags.size() - 1) / tags.size();
         for (String tag : tags) {
-            retriever.byTag(tag).forEach(t -> tagFound.putIfAbsent(t.id(), t));
+            retriever.byTag(tag, share).forEach(t -> tagFound.putIfAbsent(t.id(), t));
         }
         tagFound.values().forEach(t -> found.putIfAbsent(t.id(), new Origin(Source.TAG, null)));
 
