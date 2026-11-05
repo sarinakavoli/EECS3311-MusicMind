@@ -10,8 +10,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TrackTagFitTest {
 
@@ -48,5 +50,21 @@ class TrackTagFitTest {
                 List.of("slow dance"), List.of("r&b"), m -> { });
 
         assertEquals(Optional.of(true), fit.fits(song("S")));
+    }
+
+    @Test
+    void afterTheTimeBudgetNoFurtherSongIsLookedUp() {
+        List<String> asked = new ArrayList<>();
+        AtomicLong now = new AtomicLong();
+        TrackTagFit fit = new TrackTagFit(tagged(List.of("rock"), asked), config, List.of("slow dance"), List.of(),
+                m -> { }, now::get);
+
+        assertTrue(fit.fits(song("One")).isPresent());
+        now.addAndGet(5_000_000_000L);
+        assertTrue(fit.fits(song("Two")).isPresent());
+        now.addAndGet(config.lastfmTrackTagBudgetSeconds() * 1_000_000_000L);
+        assertEquals(Optional.empty(), fit.fits(song("Three")));
+        assertEquals(List.of("One", "Two"), asked);
+        assertTrue(fit.fits(song("One")).isPresent(), "an answer already known is still given");
     }
 }

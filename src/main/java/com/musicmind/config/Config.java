@@ -305,6 +305,11 @@ public final class Config {
         return List.copyOf(out);
     }
 
+    /** Total seconds, from the first lookup, that one Create run may spend on song-tag lookups. */
+    public int lastfmTrackTagBudgetSeconds() {
+        return integer("lastfm.trackTagBudgetSeconds");
+    }
+
     /** Most Last.fm song lookups (track.gettoptags) per Create run. */
     public int lastfmMaxTrackTagLookups() {
         return integer("lastfm.maxTrackTagLookups");

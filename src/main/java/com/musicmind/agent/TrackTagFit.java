@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 
 /**
  * Decides from Last.fm's tags for one song (artist + title) whether a familiar track fits a Create goal.
@@ -23,7 +24,7 @@ import java.util.function.Consumer;
  * ({@code lastfm.synonyms.<word>}). A tag that merely contains a plan word ("slow" for "slow dance") does not
  * count. At most {@code lastfm.maxTrackTagLookups} songs are looked up per retrieval and each only once;
  * the answers live in memory for the run, are never stored and never sent to the LLM. After one failed lookup
- * no more are made. In every case where the answer is unknown (cap reached, failure, Last.fm does not know the
+ * no more are made, and none is made once {@code lastfm.trackTagBudgetSeconds} have passed since the first. In every case where the answer is unknown (cap reached, failure, Last.fm does not know the
  * song) {@link #fits} is empty and the caller falls back to the artist-genre rule.
  */
 final class TrackTagFit {
@@ -33,11 +34,21 @@ final class TrackTagFit {
     private final Set<String> goalTags;
     private final Consumer<String> failures;
     private final Map<String, Optional<Boolean>> answers = new HashMap<>();
+    private final LongSupplier nanos;
+    private final long budgetNanos;
+    private long startedAt;
     private int lookups;
     private boolean failed;
 
     TrackTagFit(TagService service, Config config, List<String> planTags, List<String> seedGenres,
                 Consumer<String> failures) {
+        this(service, config, planTags, seedGenres, failures, System::nanoTime);
+    }
+
+    TrackTagFit(TagService service, Config config, List<String> planTags, List<String> seedGenres,
+                Consumer<String> failures, LongSupplier nanos) {
+        this.nanos = nanos;
+        this.budgetNanos = config.lastfmTrackTagBudgetSeconds() * 1_000_000_000L;
         this.service = service;
         this.maxLookups = config.lastfmMaxTrackTagLookups();
         this.failures = failures;
@@ -66,6 +77,12 @@ final class TrackTagFit {
         }
         if (failed || lookups >= maxLookups) {
             return Optional.empty();
+        }
+        long now = nanos.getAsLong();
+        if (lookups == 0) {
+            startedAt = now;
+        } else if (now - startedAt > budgetNanos) {
+            return Optional.empty(); // out of time: unknown songs use the genre rule, nothing more is asked
         }
         lookups++;
         Optional<Boolean> answer;
