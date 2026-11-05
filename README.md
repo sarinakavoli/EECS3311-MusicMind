@@ -17,7 +17,7 @@ interface (JavaFX) and a command-line interface (CLI) that share one application
 | Stage | Deliverable | Status |
 |-------|-------------|--------|
 | Stage 1 | Design report (`docs/`) | Done |
-| Stage 2 | Implementation | All 12 features implemented; report written (`docs/report/stage2-report.pdf`); GUI redesign and demonstration videos still to do |
+| Stage 2 | Implementation | All 12 features implemented; GUI redesign merged (PR #4); report written (`docs/report/stage2-report.pdf`); new screenshots and demonstration videos still to do |
 | Stage 3 | Verification and testing | Not started |
 
 This is one repository used across all three stages.
@@ -265,8 +265,8 @@ docs/report/build-report.sh
 The script expects Chrome at `/Applications/Google Chrome.app` (macOS). On another system, set `CHROME` to
 the browser executable, for example `CHROME=/usr/bin/google-chrome docs/report/build-report.sh`.
 
-**Refresh before submission:** the merge status of pull requests #4 and #5, the Period 3 commit count,
-the demonstration video links, the AI token and money costs, and the GUI redesign status. Search the
+**Refresh before submission:** the Period 3 commit count, the demonstration video links, the AI token
+and money costs, and the retaken GUI screenshots. Search the
 HTML for `REFRESH BEFORE SUBMISSION` to find each spot, edit it, and rebuild.
 
 ## External services and compliance

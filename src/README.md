@@ -10,7 +10,7 @@ src/
 │  │  ├─ config/       Config (settings from .env, the environment and musicmind.properties)
 │  │  ├─ music/        MusicService (Adapter) with SpotifyAdapter, OAuthTokenStore (PKCE),
 │  │  │                RetryingMusicService and GenreEnrichingMusicService (Decorators),
-│  │  │                MusicBrainzAdapter (genres)
+│  │  │                MusicBrainzAdapter (genres), TagService and LastFmAdapter (optional song tags)
 │  │  ├─ llm/          LLMProvider and OpenAiProvider
 │  │  ├─ tool/         Tool, ToolManager, SpotifyTool, MemoryTool, ToolResult
 │  │  ├─ memory/       MemoryManager, Database, repositories (Repository pattern)
@@ -21,9 +21,9 @@ src/
 │  │  ├─ agent/command/   Command pattern (PlaylistCommand, PlaylistManager)
 │  │  ├─ agent/state/     State pattern (SessionState and its eight states)
 │  │  ├─ controller/   AppController and MusicAgentFacade (Facade)
-│  │  ├─ app/          GuiApp and app/view/* (the JavaFX tabs and dialogs)
+│  │  ├─ app/          GuiApp and app/view/* (the JavaFX screens, left-hand menu and dialogs)
 │  │  └─ cli/          CliApp
-│  └─ resources/       musicmind.properties (tunables and wording), mood-genres.json
+│  └─ resources/       musicmind.properties (tunables and wording), mood-genres.json, app/musicmind.css (the GUI theme)
 └─ test/java/com/musicmind/   JUnit 5 tests, one folder per package
 ```
 

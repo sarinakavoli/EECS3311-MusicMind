@@ -14,28 +14,32 @@ How to read it:
   listed under it), or *Added* (not in Stage 1).
 - **Live** says what `docs/DAILY_TEST_NOTES.md` records as run against the real accounts. Anything
   not named there was only tested with stand-in Spotify and LLM servers and an embedded
-  PostgreSQL. The automated suite is 846 tests in 51 test classes; a forced clean build on Nov 3
-  passed all of them, using no keys and no database server.
-- The GUI is described as it is today: seven plain JavaFX tabs, a Create dialog and a conflict
-  dialog. A visual redesign is planned (`docs/GUI_TEST_FINDINGS.md`) and is not done.
+  PostgreSQL. The automated suite is 995 tests in 54 test classes; `./gradlew test` on the merged
+  branch (Nov 5) passed all of them, using no keys and no database server.
+- The GUI is the dark redesign merged on Nov 4 (pull request #4): a left-hand menu of seven screens
+  (Your Taste, Trends, Find Songs, Discover, Playlists, Your Rules, History), one shared song row
+  (`TrackRow`), a Create dialog, a confirm dialog (`ConfirmDialog`) and the conflict dialog. The
+  menu names replace the Stage 1 tab names for F1, F3 and F7/F8; the F-numbers are unchanged. It
+  was checked live read-only on Nov 4; its write actions were not pressed by a person yet, and
+  screenshots will be retaken after the owner's test (`docs/GUI_TEST_FINDINGS.md`).
 
 ## 1. Summary
 
 | ID | Feature | Type in code | Status | CLI | GUI |
 |---|---|---|---|---|---|
-| F1 | Music Taste Profile | Hybrid | Modified | `profile [--refresh] [--range ...]` | Profile tab |
-| F2 | Taste-Change Analysis | Hybrid | Modified | `trends` | Trends tab |
-| F3 | Natural-Language Music Search | Hybrid | Modified | `search`, `candidates ...` | Search tab |
-| F4 | Personalized Discovery | Deterministic | Modified | `discover [--novelty]` | Discover tab |
-| F5 | AI Playlist Planning and Generation | Hybrid | Modified | `create "<goal>" [flags]` | Create playlist dialog |
-| F6 | Natural-Language Playlist Modification | Hybrid | Modified | `playlists`, `show`, `modify`, `undo` | Playlists tab |
-| F7 | Playlist Constraint Validation | Deterministic | Modified | `validate <playlistId>` | Badges on the Playlists tab |
-| F8 | Preference Memory | Deterministic | Modified | `prefs list/get/set` | Preferences tab |
-| F9 | Recommendation Feedback | Deterministic | Implemented | `feedback <trackId> accept\|reject` | Accept / Reject buttons |
+| F1 | Music Taste Profile | Hybrid | Modified | `profile [--refresh] [--range week\|short\|medium\|long]` | Your Taste screen (Past week, month, 6 months, year) |
+| F2 | Taste-Change Analysis | Hybrid | Modified | `trends` | Trends screen |
+| F3 | Natural-Language Music Search | Hybrid | Modified | `search`, `candidates ...` | Find Songs screen ("+ Add") |
+| F4 | Personalized Discovery | Deterministic | Modified | `discover [--novelty]` | Discover screen |
+| F5 | AI Playlist Planning and Generation | Hybrid | Modified | `create "<goal>" [flags]` | Create playlist dialog (Playlists screen) |
+| F6 | Natural-Language Playlist Modification | Hybrid | Modified | `playlists`, `show`, `modify`, `undo` | Playlists screen |
+| F7 | Playlist Constraint Validation | Deterministic | Modified | `validate <playlistId>` | Badges on the Playlists screen |
+| F8 | Preference Memory | Deterministic | Modified | `prefs list/get/set` | Your Rules screen |
+| F9 | Recommendation Feedback | Deterministic | Implemented | `feedback <trackId> accept\|reject` | Like / not-for-me icons on every song row |
 | F10 | Grounded Recommendation Explanation | AI with checked fallback | Modified | `explain <playlistId>` | "Why these?" expanders |
 | F11 | Infeasible-Constraint Negotiation | Hybrid | Implemented | prompt during `create` and `modify` | Conflict dialog |
-| F12 | Agent History and Snapshot/Restore | Deterministic | Modified | `history`, `restore <snapshotId>` | History tab |
-| New | Delete a playlist | Deterministic | Added | `delete <playlistId>` | none yet |
+| F12 | Agent History and Snapshot/Restore | Deterministic | Modified | `history`, `restore <snapshotId>` | History screen |
+| New | Delete a playlist | Deterministic | Added | `delete <playlistId>` | Delete on a playlist row, with a confirm dialog |
 
 All of this runs through `controller/AppController` and `controller/MusicAgentFacade`. The CLI
 (`cli/CliApp`) and the views (`app/view/*`) contain no business logic.
@@ -56,8 +60,15 @@ All of this runs through `controller/AppController` and `controller/MusicAgentFa
   "[computed from your listening data, not AI-written]".
 - **Differences:** genres come from MusicBrainz, not Spotify (R18); the profile is stored through
   `saveSession` as ids and counts (R4); `profile` shows the stored profile and `--refresh`
-  rebuilds (R5); `--range short|medium|long` was added; a library larger than
+  rebuilds (R5); `--range week|short|medium|long` was added; a library larger than
   `spotify.maxSavedTracks` marks the profile as partial; genre coverage is reported.
+  **Past week (Nov 4):** Spotify has no top items for a week, so `MusicAgentFacade.analyzePastWeek`
+  reads `MusicService.getRecentPlays()` (at most the 50 most recent plays), keeps the last
+  `profile.weekDays` (7) days, ranks tracks and artists by play count and fills genres through
+  `MusicService.withGenres` (the same MusicBrainz lookup and cache). The screen says "Built from your
+  last N plays (Spotify only keeps your 50 most recent)". Only derived ids and genres are stored,
+  never the play times. `AppController.timeRanges()` lists week, short, medium, long;
+  `trendRanges()` keeps Trends to Spotify's three, because a 50-play sample would not compare fairly.
 - **Error cases handled:** little history gives a partial profile with a notice; an expired token
   asks for login again (`AuthExpiredException`); HTTP 429 is retried with backoff.
 - **Tests:** `agent/ProfileBuilderTest`, `controller/MusicAgentFacadeTest`
@@ -66,11 +77,14 @@ All of this runs through `controller/AppController` and `controller/MusicAgentFa
   `music/GenreEnrichingMusicServiceTest`, `music/MusicBrainzAdapterTest`,
   `music/RetryingMusicServiceTest`, `music/SpotifyAdapterTest`, `memory/repository/SessionRepositoryTest`,
   `cli/CliAppTest`, `app/view/ViewFormatTest`.
-- **GUI:** `app/view/ProfileView`: a time-range choice, genre bars, top artists and tracks, a coverage
+- **GUI:** `app/view/ProfileView` (the Your Taste screen): a time-range choice (Past week, Past month,
+  Past 6 months, Past year), genre bars, top artists and tracks as shared song rows, a coverage
   notice, the summary, and a "Refresh profile" button.
 - **Live:** `profile --refresh`, `profile` and `profile --range long` ran against the real account on
   Oct 31; genres appeared for 13 of 20 top artists. The GUI Profile refresh was run read-only
-  through a throwaway script on Nov 2.
+  through a throwaway script on Nov 2, and the redesigned Your Taste screen read-only on Nov 4.
+  The Past week range is tested with a fake music service (`MusicAgentFacade` and `AppController`
+  tests, `ViewFormatTest`); it was not tried against the real account.
 
 ### F2 Taste-Change Analysis (UC03, SD03)
 
@@ -169,8 +183,8 @@ All of this runs through `controller/AppController` and `controller/MusicAgentFa
   `AppController.lastSession()`, `setNegotiationHandler`, `setProgressListener` expose the session,
   the F11 choice and the step names (R9).
 - **Deterministic or AI:** hybrid. The LLM parses the goal, suggests activity search phrases, words
-  the F11 options, writes the explanation and may **remove** retrieved tracks that do not suit the
-  goal. It never names or adds a track; selection, order and length are computed.
+  the F11 options, plans a few short tags, writes the explanation and may **remove** retrieved tracks
+  that do not suit the goal. It never names or adds a track; selection, order and length are computed.
 - **Differences:**
   - **Constraint 2 of the implementation plan ("the LLM never selects tracks and never receives bulk
     catalogue data") is restated.** Since Nov 2, `GoalFitReviewer` asks the LLM which of up to
@@ -188,6 +202,23 @@ All of this runs through `controller/AppController` and `controller/MusicAgentFa
   - New tracks also come from the goal's activity words (`CandidateRetriever.byKeywords`); a "familiar"
     track is one by an artist the user knows; scores differ by taste (`discover.goalAffinityFloor`);
     stored candidates are optional (`--no-candidates`).
+  - **Familiar songs must fit the goal (Nov 4).** When a run has seed genres or search terms,
+    `RecommendationEngine.fitsGoal` keeps a familiar-pool track (library, album track or genre result
+    by an artist the user knows) only if one of the first `create.fitLeadingGenres` (3) genres of its
+    artists is a seed genre, or its id came from a goal source (keyword search or Last.fm tag song),
+    or, with Last.fm configured, one of the song's own top tags (`TagService.trackTags`,
+    `TrackTagFit`) equals a plan tag or a `lastfm.synonyms.<key>` entry. Too few fits are filled with
+    new goal songs and a notice. Discover (F4) is unchanged.
+  - **Last.fm tag songs (Nov 4-5, optional).** The plan carries up to `lastfm.maxTags` short tags
+    (`AgentPlan.tags`). `TagService` (implemented by `music/LastFmAdapter`, an Adapter) gives the top
+    songs for a tag; `CandidateRetriever.byTag` looks each up on Spotify and keeps it only when the title
+    and an artist name both match. Tag songs join the new-music pool with a score bonus. Limits:
+    `lastfm.maxTracks` songs per run shared across tags, `lastfm.maxTrackTagLookups` (30) song-tag
+    lookups, `lastfm.trackTagBudgetSeconds` (15), a session-only match cache. Without
+    `LASTFM_API_KEY` nothing is requested and Create adds a notice. Last.fm gets song titles with
+    artist names only to read tags; nothing is stored and nothing goes to OpenAI. Credited in the
+    GUI footer and after a CLI Create. A review suggestion to let a song's genre tags count for a
+    requested genre was rejected, because it would let Billie Jean back into "slow dance".
   - The token is renewed once per run and the phase repeats; a failed run rolls the new playlist back.
 - **Error cases handled:** API outage or 429 (bounded retry), too few eligible tracks (shortfall
   notice, F11), expired token (renew and resume), contradictory constraints (F11), unclear goal
@@ -198,13 +229,21 @@ All of this runs through `controller/AppController` and `controller/MusicAgentFa
   `agent/PlannerPlanTest`, `agent/PlannerTest`, `agent/ConstraintCheckerTest`,
   `agent/RecommendationEngineTest`, `agent/GoalFitReviewerTest`, `agent/PromptBuilderTest` (a reflective check that no `build*` prompt holds a title or artist name), `agent/MoodGenreMapTest`,
   `agent/command/PlaylistManagerTest`, `agent/command/PlaylistCommandsTest`, `cli/CliAppTest`.
-- **GUI:** `app/view/CreatePlaylistDialog` (goal, length in minutes, explicit toggle, familiar
-  slider, name; progress shows the state names). The dialog has no candidate choice yet.
+- **GUI:** `app/view/CreatePlaylistDialog` (goal, hours and minutes, explicit toggle, familiar
+  slider hidden while the AI chooses the mix, name, and a choice to start with the songs waiting from
+  Find Songs; progress shows the state names; the result is a short summary with "Why these songs?").
 - **Live:** `create` ran live on Nov 1 (Stage 1's own example gave 27 tracks, 8 by new artists,
   30%), including a run that used a candidate. Sarina ran Create in the GUI on Nov 2 ("workout", 6
   tracks); it finished, but the songs did not suit the goal. The fixes for that (goal review, activity
   searches, scoring) were written afterwards and **no playlist has been created since**, so goal
   fit is unproven.
+  On Nov 4 the owner's further Create runs showed library songs that did not fit ("slow dance" got
+  a pop song, "music for studying" got 12 Nirvana songs); the goal-fit rules and Last.fm tags above
+  were added in response and are covered by `agent/RecommendationEngineTest`
+  (`create_*`), `agent/CandidateRetrieverTest` (`byTag_*`), `agent/TrackTagFitTest`,
+  `agent/PlannerPlanTest`, `music/LastFmAdapterTest`, `controller/CreatePlaylistFlowTest`
+  and `config/ConfigTest`. A live Create without a Last.fm key used the goal-fit rule only;
+  the song-tag rules have **not** been judged live with a key.
 
 ### F6 Natural-Language Playlist Modification (UC07, SD02)
 
@@ -270,8 +309,10 @@ All of this runs through `controller/AppController` and `controller/MusicAgentFa
   `memory/MemoryManagerTest`, `controller/AppControllerDiscoverTest`
   (`preferencesRoundTripAndAreValidated`, `withTheDatabaseDownEverythingStillRunsWithSafeDefaultsAndAWarning`),
   `controller/AppControllerTest` (`blockArtist_*`, `findArtists_*`), `tool/MemoryToolTest`, `cli/CliAppTest`.
-- **GUI:** `app/view/PreferencesView`: one typed row per preference with a Save button.
-  There is no chooser for artists or songs yet (`docs/GUI_TEST_FINDINGS.md`, items 20 to 22).
+- **GUI:** `app/view/PreferencesView` (the Your Rules screen): an Allow / Block choice for explicit
+  songs, the mix slider, and Find / choose / Block pickers for artists and songs, each section with
+  its own Save (`docs/GUI_TEST_FINDINGS.md`, items 20 to 22, done Nov 4). The Save buttons were not
+  pressed live.
 - **Live:** `prefs set blockedArtists "<name>"` was run live on Nov 1 (it stored the id, listed the
   name, made `validate` fail, and refused an unknown name). The other keys are not recorded as run
   live in `docs/DAILY_TEST_NOTES.md`.
@@ -288,7 +329,8 @@ All of this runs through `controller/AppController` and `controller/MusicAgentFa
   (`feedbackIsStoredOncePerTrackAndChangesLaterRecommendations`,
   `feedbackRejectsAnIdThatIsNotATrackIdAndSavesNothing`), `agent/RecommendationEngineTest`,
   `cli/CliAppTest`.
-- **GUI:** `app/view/FeedbackBar` on Discover and playlist rows (Accept, Reject).
+- **GUI:** like and not-for-me icons on every `app/view/TrackRow` (the chosen one stays highlighted;
+  the older `FeedbackBar` was removed in the redesign).
 - **Live:** `feedback` with a bad id was run on the real script (status 2, nothing saved). A
   successful verdict is not recorded as run live, and the GUI buttons were not tested by a person.
 
@@ -366,7 +408,8 @@ All of this runs through `controller/AppController` and `controller/MusicAgentFa
 - **Tests:** `controller/AppControllerTest` (`delete_notOwner_refused`,
   `delete_snapshotCannotBeSaved_playlistIsKept`, `delete_canBeRecreatedFromSnapshot`),
   `agent/command/PlaylistCommandsTest`, `agent/command/PlaylistManagerTest`, `cli/CliAppTest`.
-- **GUI:** none yet.
+- **GUI:** a Delete button on each playlist row (`app/view/PlaylistView`) with an in-app confirm
+  dialog (`ConfirmDialog`) that names the playlist (Nov 4). Not run live: it would change the real account.
 - **Live:** not run live.
 
 ## 3. Stage 1 names and signatures
@@ -396,7 +439,7 @@ in Stage 1. Repository and Decorator are used as well and are not counted.
 
 | Pattern | Problem it solves | Participants | Matches Stage 1? |
 |---|---|---|---|
-| Adapter | The core must not depend on the Spotify, MusicBrainz or OpenAI wire formats. | `MusicService` / `SpotifyAdapter` (HTTP, PKCE through `OAuthTokenStore`); `GenreService` / `MusicBrainzAdapter`; `LLMProvider` / `OpenAiProvider` | Yes. The MusicBrainz adapter is new (R18). |
+| Adapter | The core must not depend on the Spotify, MusicBrainz or OpenAI wire formats. | `MusicService` / `SpotifyAdapter` (HTTP, PKCE through `OAuthTokenStore`); `GenreService` / `MusicBrainzAdapter`; `TagService` / `LastFmAdapter`; `LLMProvider` / `OpenAiProvider` | Yes. The MusicBrainz adapter (R18) and the Last.fm adapter (optional song tags for F5) are new. |
 | Strategy | F4 and F5 need different mixes of familiar and new music, chosen at run time. | `RecommendationStrategy`, `AbstractRecommendationStrategy`, `FamiliarStrategy`, `DiscoveryStrategy`, `BalancedStrategy`; context `RecommendationEngine.setStrategy`; chosen by `StrategySelector` | Yes. `bindProfile` added (R7). |
 | Command | F6 and F12 need reversible, composable playlist changes. | `PlaylistCommand` (`execute`, `undo`), `CreatePlaylistCommand`, `AddItemsCommand`, `RemoveTrackCommand`, `ReplaceTrackCommand`, `ReorderCommand`, plus `BatchCommand`, `RestoreSnapshotCommand`, `DeletePlaylistCommand`; invoker `PlaylistManager` with its `history` Deque | Yes. Three commands added; undo also works from snapshots across runs (R10). |
 | State | A create run moves through ordered phases with a different action and failure handling in each. | `SessionState` (`handle`, `name`), `IdleState`, `PlanningState`, `RetrievingState`, `SelectingState`, `ValidatingState`, `ExecutingState`, `DoneState`, `FailedState`; context `AgentSession` (`setState`, `getState`, `run`) | Yes. Shared run data lives in `RunContext` and `RunServices`. |
@@ -420,11 +463,14 @@ in Stage 1. Repository and Decorator are used as well and are not counted.
 | 10 | Delete a playlist | Not in Stage 1; needed in user testing | section 5 of the plan |
 | 11 | PostgreSQL tables created on start; tests use embedded PostgreSQL | Build must run with no server | section 1 of the plan |
 | 12 | Gradle 9.1, JavaFX 21.0.13, run scripts (R15) | Portability and a macOS 26 crash | section 1 of the plan |
+| 13 | GUI redesign: dark theme, left-hand menu, plain names (Your Taste, Find Songs, Your Rules), shared song row, confirm dialog, Delete in the GUI | The owner's test of Nov 2 found the GUI hard to understand | section 7 of the plan |
+| 14 | F1 Past week range from recent plays; left out of Trends | Asked for twice; Spotify has no weekly top items | section 3 of the plan |
+| 15 | F5: familiar songs must fit the goal (leading genres, the song's own Last.fm tags); Last.fm tag songs matched to Spotify (optional key) | Live Create runs gave songs that did not fit | section 4 of the plan |
 | 13 | Settings and wording in `musicmind.properties` | Stage 2 rejects hard-coded demonstration content | section 1 of the plan |
 | 14 | Search ranks typed words first; weights 0.9 / 0.1 | Live results put stock-music titles first | sections 3 and 6 of the plan |
 
-The GUI is unchanged in scope from Stage 1 but still plain; see section 7 of the plan for what it
-shows today.
+The GUI is unchanged in scope from Stage 1 and is now the dark redesign of Nov 4 (row 13); see
+section 7 of the plan.
 
 ## 6. Classes beyond Stage 1 (R20)
 
@@ -448,7 +494,8 @@ Each is small and exists so that a Stage 1 class keeps one job. Full entries are
 - **Controller:** `PlaylistTargets` (a playlist's target length over time).
 - **Domain values:** `TopItems`, `TrendReport`, `RangeChange`, `SearchQuery`, `FeasibilityReport`,
   `Relaxation`, `DecisionTrace`, `PlaylistSummary`, `SnapshotInfo`.
-- **Music:** `GenreEnrichingMusicService`, `GenreService`, `MusicBrainzAdapter`, `TrackList` (a
+- **Music:** `GenreEnrichingMusicService`, `GenreService`, `MusicBrainzAdapter`, `TagService`,
+  `LastFmAdapter`, `TrackList` (a
   list that knows it was cut short), `MusicServiceException`, `AuthExpiredException`,
   `RateLimitException`.
 - **Memory and tools:** `Database`, `PersistenceException`, `CandidateRepository`,
@@ -456,18 +503,22 @@ Each is small and exists so that a Stage 1 class keeps one job. Full entries are
 - **Settings:** `config/Config`.
 - **GUI:** `GuiContext` (one background worker, login, the F11 handler), `ControlLock`,
   `ViewFormat` (plain text and numbers, testable without JavaFX), `CreatePlaylistDialog`,
-  `NegotiationDialog`, `FeedbackBar`, `WhyExpander`, `LoginGate`, `StatusLine`, `TabView`,
-  `UiParts`, and the views `TrendsView`, `SearchView`, `PreferencesView`, `HistoryView`.
+  `NegotiationDialog`, `ConfirmDialog`, `TrackRow` (the shared song row), `WhyExpander`, `LoginGate`,
+  `StatusLine`, `TabView`, `UiParts`, and the views `TrendsView`, `SearchView`, `PreferencesView`, `HistoryView`.
 
 ## 7. Not verified, or known to be weak
 
-- Goal fit of created playlists after the Nov 2 fixes (no playlist created since).
+- Goal fit of created playlists with the Nov 4-5 rules (leading genres, Last.fm song tags): not
+  judged live with a Last.fm key yet.
 - F11 against a real conflict, `delete`, recreate from a deleted playlist, and the GUI's Undo,
-  Restore, Accept, Reject, Save and candidate buttons pressed by a person.
+  Restore (confirming), like / not-for-me, Save and candidate buttons pressed by a person; the
+  Delete button; the Past week range on the real account.
 - Searches by description, and genre data for artists MusicBrainz does not know.
-- The updated UML diagrams are in `docs/diagrams/` (`.uxf` sources, PNGs in `docs/diagrams/png/`, the Stage 1 PNGs in `docs/diagrams/png/stage1/`; the README there lists what changed). `stage2-report` is not written yet.
-- The GUI items in `docs/GUI_TEST_FINDINGS.md`: no delete or block chooser on screen, no artist
-  names in track rows, no candidate choice in Create, plain styling.
+- The updated UML diagrams are in `docs/diagrams/` (`.uxf` sources, PNGs in `docs/diagrams/png/`, the Stage 1 PNGs in `docs/diagrams/png/stage1/`; the README there lists what changed). The Stage 2 report is `docs/report/stage2-report.pdf` (source `stage2-report.html`).
+- The GUI items in `docs/GUI_TEST_FINDINGS.md` are done except the goal review on Find Songs
+  results (searches by description). Screenshots of the redesign will be retaken after the owner's
+  test; the UML in `docs/diagrams/` does not show `TagService`, `LastFmAdapter`, `TrackTagFit`,
+  `TrackRow` or `ConfirmDialog`.
 - **Open policy question (F6 edit prompt).** The edit prompt sends the model each track's id, explicit
   flag and length in minutes (Spotify metadata, not titles or names), because Stage 1 F6 needs
   them for edits such as "15 minutes shorter" or "remove explicit". Whether this counts as Spotify
