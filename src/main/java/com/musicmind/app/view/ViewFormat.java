@@ -13,6 +13,7 @@ import com.musicmind.domain.DecisionTrace;
 import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.Playlist;
 import com.musicmind.domain.PlaylistSummary;
+import com.musicmind.domain.Recommendation;
 import com.musicmind.domain.SnapshotInfo;
 import com.musicmind.domain.RequestKind;
 import com.musicmind.domain.Track;
@@ -461,6 +462,33 @@ public final class ViewFormat {
     /** The artist's name for the blocked list; a missing name, or the id itself, becomes plain words. */
     public String blockedArtistName(String id, String name) {
         return name == null || name.isBlank() || name.strip().equals(id) ? w("BlockedArtistUnknown") : name.strip();
+    }
+
+    /** The non-blank parts on one line, separated by " · " (a result line: "Showing songs for the words as typed · Artists found: ..."). */
+    public static String joinDetails(String... parts) {
+        return java.util.Arrays.stream(parts).filter(p -> p != null && !p.isBlank()).map(String::strip)
+                .collect(Collectors.joining(" \u00b7 "));
+    }
+
+    /** The sentence without its closing full stop, for a part of a one-line result ("Showing songs for the words as typed."). */
+    public static String withoutFullStop(String sentence) {
+        return sentence != null && sentence.strip().endsWith(".") ? sentence.strip().substring(0, sentence.strip().length() - 1) : sentence;
+    }
+
+    /**
+     * The text of the one "Why these songs?" expander of a recommendation list: how the run chose (the trace
+     * lines, when there are some), then one line per song with the reason it was picked.
+     */
+    public String whyTheseSongs(List<String> traceLines, List<Recommendation> recommendations) {
+        List<String> lines = new ArrayList<>(traceLines);
+        if (!lines.isEmpty() && !recommendations.isEmpty()) {
+            lines.add("");
+        }
+        for (Recommendation rec : recommendations) {
+            String reason = rec.reason() == null || rec.reason().isBlank() ? w("WhyUnavailable") : rec.reason().strip();
+            lines.add(w("ReasonLine", rec.track().title(), reason));
+        }
+        return String.join("\n", lines);
     }
 
     /** The first {@code cap} ids, the ones whose titles are looked up; the rest keep the placeholder. */

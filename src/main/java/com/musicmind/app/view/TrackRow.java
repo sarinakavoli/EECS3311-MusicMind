@@ -62,13 +62,18 @@ final class TrackRow {
 
     /** @param chosen the verdict already given to this song (shown highlighted), or null */
     static Node of(GuiContext ctx, StatusLine status, Track track, Options options, Verdict chosen) {
+        return of(ctx, status, track, options, chosen, null);
+    }
+
+    /** @param note a short muted remark added to the artist line (Discover: "New artist for you"), or null */
+    static Node of(GuiContext ctx, StatusLine status, Track track, Options options, Verdict chosen, String note) {
         ViewFormat format = ctx.format();
         Label title = new Label(track.title() + (track.isExplicit() ? "  [" + format.w("ExplicitTag") + "]" : ""));
         title.getStyleClass().add("mm-track-title");
         title.setTextOverrun(OverrunStyle.ELLIPSIS);
         title.setMaxWidth(Double.MAX_VALUE);
         VBox text = new VBox(UiParts.SPACE_XS, title);
-        String artists = format.artists(track);
+        String artists = ViewFormat.joinDetails(format.artists(track), note);
         if (!artists.isEmpty()) {
             Label line = new Label(artists);
             line.getStyleClass().addAll("mm-muted", "mm-track-artists");

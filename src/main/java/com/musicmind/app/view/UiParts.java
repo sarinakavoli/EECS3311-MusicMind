@@ -60,18 +60,6 @@ public final class UiParts {
         return box;
     }
 
-    /** A group of collapsing labels that itself takes no room while all of them are empty. */
-    static VBox noteGroup(Label... labels) {
-        VBox box = group(labels);
-        javafx.beans.binding.BooleanBinding any = javafx.beans.binding.Bindings.createBooleanBinding(() -> false);
-        for (Label label : labels) {
-            any = any.or(label.visibleProperty());
-        }
-        box.visibleProperty().bind(any);
-        box.managedProperty().bind(box.visibleProperty());
-        return box;
-    }
-
     static Label muted(String text) {
         Label label = wrapped(text);
         label.getStyleClass().add("mm-muted");
@@ -96,6 +84,14 @@ public final class UiParts {
      * then the children. The look comes from the {@code mm-page*} style classes.
      */
     static VBox page(String title, String description, String example, Node... children) {
+        return page(title, description, example == null || example.isBlank() ? null : example(example), children);
+    }
+
+    /**
+     * The same with the example as a label the screen can hide: the "Try: ..." line only helps while the screen has
+     * no content yet (see {@link #show}).
+     */
+    static VBox page(String title, String description, Label example, Node... children) {
         VBox box = new VBox(SPACE_L);
         box.getStyleClass().add("mm-page");
         Label titleLabel = new Label(title);
@@ -104,12 +100,23 @@ public final class UiParts {
         if (description != null && !description.isBlank()) {
             header.getChildren().add(styled(description, "mm-page-desc"));
         }
-        if (example != null && !example.isBlank()) {
-            header.getChildren().add(styled(example, "mm-example"));
+        if (example != null) {
+            header.getChildren().add(example);
         }
         box.getChildren().add(header);
         box.getChildren().addAll(children);
         return box;
+    }
+
+    /** A "Try: ..." line for {@link #page(String, String, Label, Node...)}. */
+    static Label example(String text) {
+        return styled(text, "mm-example");
+    }
+
+    /** Shows or hides a node, and the room it takes. */
+    static void show(Node node, boolean visible) {
+        node.setVisible(visible);
+        node.setManaged(visible);
     }
 
     private static Label styled(String text, String styleClass) {

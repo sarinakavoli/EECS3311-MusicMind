@@ -40,8 +40,10 @@ public final class SearchView implements TabView {
     private final StatusLine status = new StatusLine();
     private final VBox results = new VBox();   // rows carry their own padding
     private final VBox candidates = new VBox();
-    private final Label artists = UiParts.collapsing(UiParts.wrapped(""));
-    private final Label notices = UiParts.collapsing(UiParts.muted(""));
+    /** What the last search was about ("Showing songs for the words as typed · Artists found: ..."), under the status line. */
+    private final Label summary = UiParts.collapsing(UiParts.muted(""));
+    /** The "Try: ..." line; it helps only until the first search has left results on the screen. */
+    private final Label example;
     private final Label waitingCount = UiParts.muted("");
     private final Button clear;
     private final Node root;
@@ -78,7 +80,8 @@ public final class SearchView implements TabView {
                 onLogin(ctx.userProperty().get());
             }
         });
-        VBox page = UiParts.page(format.w("Menu.search"), format.w("Desc.search"), format.w("Example.search"), UiParts.group(bar, status), left, right, UiParts.noteGroup(artists, notices));
+        example = UiParts.example(format.w("Example.search"));
+        VBox page = UiParts.page(format.w("Menu.search"), format.w("Desc.search"), example, UiParts.group(bar, status, summary), left, right);
         root = new LoginGate(ctx, page, false);
     }
 
@@ -136,10 +139,10 @@ public final class SearchView implements TabView {
             foundVerdicts = found.verdicts();
             waitingTracks = found.waiting();
             showResults();
-            artists.setText(found.artists().isEmpty() ? ""
+            summary.setText(ViewFormat.joinDetails(ViewFormat.withoutFullStop(found.label()), ViewFormat.withoutFullStop(found.notice()), found.artists().isEmpty() ? ""
                     : ctx.config().wording("cliArtistsFound") + " "
-                    + String.join(", ", format.artistNames(found.artists(), ctx.config().guiArtistsShown())));
-            notices.setText(joinLines(found.label(), found.notice()));
+                    + String.join(", ", format.artistNames(found.artists(), ctx.config().guiArtistsShown()))));
+            UiParts.show(example, false);
         }, search);
     }
 
@@ -206,9 +209,5 @@ public final class SearchView implements TabView {
         }
         box.getChildren().setAll(tracks.stream()
                 .map(t -> TrackRow.of(ctx, status, t, options, verdicts.get(t.id()))).toList());
-    }
-
-    private static String joinLines(String... lines) {
-        return String.join("\n", java.util.Arrays.stream(lines).filter(l -> l != null && !l.isBlank()).toList());
     }
 }

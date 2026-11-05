@@ -8,11 +8,13 @@ import javafx.scene.layout.VBox;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
-/** The "Why these?" / "Why this song?" expander (F10): collapsed until opened, then shows the reasons. */
+/** The "Why these?" / "Why these songs?" expander (F10): collapsed until opened, then shows the reasons. */
 final class WhyExpander {
 
     /** Tall enough for a few sentences; longer text scrolls. */
     private static final double MAX_HEIGHT = 90;
+    /** The one expander of a whole list (a reason per song) is taller. */
+    static final double LIST_HEIGHT = 200;
 
     private WhyExpander() {
     }
@@ -22,15 +24,20 @@ final class WhyExpander {
         return of(format, "WhyThese", text);
     }
 
-    /** The same, with the title taken from {@code text.gui<titleKey>} ("WhyThisSong" for one song). */
+    /** The same, with the title taken from {@code text.gui<titleKey>} ("WhyTheseSongs" for a list of songs). */
     static TitledPane of(ViewFormat format, String titleKey, String text) {
+        return of(format, titleKey, text, MAX_HEIGHT);
+    }
+
+    /** The same, showing up to {@code maxHeight} pixels of text before it scrolls. */
+    static TitledPane of(ViewFormat format, String titleKey, String text, double maxHeight) {
         Label body = UiParts.wrapped(text == null || text.isBlank() ? format.w("WhyUnavailable") : text);
         body.getStyleClass().add("mm-why-text");
         ScrollPane scroll = new ScrollPane(body);
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        scroll.setPrefViewportHeight(MAX_HEIGHT);
-        scroll.setMaxHeight(MAX_HEIGHT);
+        scroll.setPrefViewportHeight(maxHeight);
+        scroll.setMaxHeight(maxHeight);
         scroll.getStyleClass().add("mm-why-scroll");
         TitledPane pane = new TitledPane(format.w(titleKey), scroll);
         pane.setExpanded(false);

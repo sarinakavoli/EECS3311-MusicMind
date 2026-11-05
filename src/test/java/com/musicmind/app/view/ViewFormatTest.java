@@ -853,4 +853,27 @@ class ViewFormatTest {
 
         assertEquals(Map.of("below", 7), left);
     }
+
+    @Test
+    void joinDetails_putsTheNonBlankPartsOnOneLine() {
+        assertEquals("Showing songs for the words as typed \u00b7 Artists found: Harry Styles",
+                ViewFormat.joinDetails(ViewFormat.withoutFullStop("Showing songs for the words as typed."), null, " ", "Artists found: Harry Styles"));
+        assertEquals("", ViewFormat.joinDetails(null, ""));
+        assertEquals("Dr.", ViewFormat.joinDetails("Dr."));
+        assertEquals("a", ViewFormat.withoutFullStop("a."));
+        assertEquals("a", ViewFormat.withoutFullStop("a"));
+        assertEquals(null, ViewFormat.withoutFullStop(null));
+        assertEquals("Only one", ViewFormat.joinDetails("Only one"));
+    }
+
+    @Test
+    void whyTheseSongs_listsTheTraceThenOneReasonPerSong() {
+        Track a = new Track("a", "u", "Alpha", 1000, false, List.of(), List.of("X"));
+        Track b = new Track("b", "u", "Beta", 1000, false, List.of(), List.of("Y"));
+        String text = format.whyTheseSongs(List.of("Strategy: balanced"),
+                List.of(new Recommendation(a, "New artist, from your top songs.", 0, 1), new Recommendation(b, " ", 1, 1)));
+
+        assertEquals("Strategy: balanced\n\nAlpha: New artist, from your top songs.\nBeta: " + format.w("WhyUnavailable"), text);
+        assertEquals("Alpha: r", format.whyTheseSongs(List.of(), List.of(new Recommendation(a, "r", 0, 1))));
+    }
 }
