@@ -414,7 +414,32 @@ public final class ViewFormat {
         return name == null || name.isBlank() || name.strip().equals(id) ? w("BlockedArtistUnknown") : name.strip();
     }
 
-    /** The song's title for the blocked list, or plain words when the title is not known. */
+    /** The first {@code cap} ids, the ones whose titles are looked up; the rest keep the placeholder. */
+    public static <T> List<T> firstN(List<T> ids, int cap) {
+        return ids.stream().limit(Math.max(0, cap)).toList();
+    }
+
+    /** A comma list as saving keeps it: trimmed, lower case, no blanks, no repeats, in the order typed. */
+    public static List<String> normalisedList(String text) {
+        if (text == null) {
+            return List.of();
+        }
+        return java.util.Arrays.stream(text.split(","))
+                .map(item -> item.strip().toLowerCase(java.util.Locale.ROOT))
+                .filter(item -> !item.isEmpty()).distinct().toList();
+    }
+
+    /** True when the typed comma list differs from the saved one (order, case, spaces and blank items do not count). */
+    public static boolean isChanged(String saved, String typed) {
+        return !new java.util.HashSet<>(normalisedList(saved)).equals(new java.util.HashSet<>(normalisedList(typed)));
+    }
+
+    /** True when the share the slider shows differs from the saved one at the two decimals that saving keeps. */
+    public static boolean shareChanged(double saved, double current) {
+        return Math.round(saved * 100) != Math.round(current * 100);
+    }
+
+    /** The song's line for the blocked list (live \"Title - Artist\" or a saved title), or plain words when unknown. */
     public String blockedSongName(String title) {
         return title == null || title.isBlank() ? w("BlockedSongUnknown") : title;
     }

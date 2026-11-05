@@ -37,7 +37,8 @@ public final class PreferencesView implements TabView {
 
     /** The stored rules, read on the worker: what each control shows and the warning if the database is down. */
     private record Loaded(boolean explicitAllowed, double familiarShare, String styles,
-                          List<BlockedArtist> artists, List<String> songIds, String warning) { }
+                          List<BlockedArtist> artists, List<String> songIds, Map<String, String> songLines,
+                          String warning) { }
 
     /** Artists found for a typed name. */
     private record Matches(String typed, List<Artist> artists, Map<String, String> hints) { }
@@ -69,6 +70,13 @@ public final class PreferencesView implements TabView {
     private final VBox blockedSongs = new VBox(2);
     /** Titles of songs seen in this session; Spotify content is not stored, so older blocks have none. */
     private final Map<String, String> knownTitles = new HashMap<>();
+    /** "Title - Artist" lines read live from Spotify when the screen opened; held in memory only, never stored. */
+    private final Map<String, String> songLines = new HashMap<>();
+    /** What is saved (or loaded) for each Save button; a button shows only while its control differs. */
+    private boolean savedAllowExplicit = true;
+    /** The saved familiar share (1 minus what the slider shows). */
+    private double savedShare;
+    private String savedStyles = "";
     private final Node root;
     /** True while the user has changed the explicit, mix or styles controls and not saved; a reload would overwrite them. */
     private boolean unsaved;
@@ -81,13 +89,32 @@ public final class PreferencesView implements TabView {
         ScrollPane scroll = new ScrollPane(page);
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        explicit.selectedToggleProperty().addListener((o, was, now) -> unsaved = true);
-        novelty.valueProperty().addListener((o, was, now) -> unsaved = true);
-        styles.textProperty().addListener((o, was, now) -> unsaved = true);
+        explicit.selectedToggleProperty().addListener((o, was, now) -> changed());
+        novelty.valueProperty().addListener((o, was, now) -> changed());
+        styles.textProperty().addListener((o, was, now) -> changed());
+        savedShare = 1 - novelty.getValue();
+        refreshSaveButtons();
         root = new LoginGate(ctx, scroll, true);
         if (!ctx.spotifyConfigured()) {
             load();
         }
+    }
+
+    private void changed() {
+        unsaved = true;
+        refreshSaveButtons();
+    }
+
+    /** Shows each Save only while its control differs from what is saved; hidden ones take no space. */
+    private void refreshSaveButtons() {
+        showIf(saveExplicit, allow.isSelected() != savedAllowExplicit);
+        showIf(saveMix, ViewFormat.shareChanged(savedShare, 1 - novelty.getValue()));
+        showIf(saveStyles, ViewFormat.isChanged(savedStyles, styles.getText()));
+    }
+
+    private static void showIf(Button button, boolean visible) {
+        button.setVisible(visible);
+        button.setManaged(visible);
     }
 
     private Node explicitSection() {
@@ -217,9 +244,17 @@ public final class PreferencesView implements TabView {
                 String name = ctx.controller().displayPreference(new UserPreference(PreferenceSettings.BLOCKED_ARTISTS, id, false, 0));
                 artists.add(new BlockedArtist(id, format.blockedArtistName(id, name)));
             }
+            Map<String, String> lines = new HashMap<>();
+            for (String id : ViewFormat.firstN(new ArrayList<>(new TreeSet<>(settings.blockedTracks())),
+                    ctx.config().guiBlockedTitlesShown())) {
+                String line = ctx.controller().trackLine(id);
+                if (line != null) {
+                    lines.put(id, line);
+                }
+            }
             double share = settings.familiarBias().orElse(ctx.config().discoverDefaultFamiliarRatio());
             return new Loaded(settings.explicitAllowed().orElse(true), share, String.join(", ", settings.preferredStyles()),
-                    artists, new ArrayList<>(new TreeSet<>(settings.blockedTracks())), ctx.controller().memory().warning());
+                    artists, new ArrayList<>(new TreeSet<>(settings.blockedTracks())), lines, ctx.controller().memory().warning());
         }, loaded -> {
             show(loaded);
             if (doneMessage != null && loaded.warning() == null) {
@@ -229,10 +264,16 @@ public final class PreferencesView implements TabView {
     }
 
     private void show(Loaded loaded) {
+        savedAllowExplicit = loaded.explicitAllowed();
+        savedShare = loaded.familiarShare();
+        savedStyles = loaded.styles();
         (loaded.explicitAllowed() ? allow : block).setSelected(true);
         novelty.setValue(1 - loaded.familiarShare());
         styles.setText(loaded.styles());
         unsaved = false;
+        refreshSaveButtons();
+        songLines.clear();
+        songLines.putAll(loaded.songLines());
         fillBlockedArtists(loaded.artists());
         fillBlockedSongs(loaded.songIds());
         if (loaded.warning() != null) {
@@ -255,7 +296,13 @@ public final class PreferencesView implements TabView {
             return;
         }
         blockedSongs.getChildren().setAll(ids.stream()
-                .map(id -> blockedRow(format.blockedSongName(knownTitles.get(id)), () -> removeSong(id))).toList());
+                .map(id -> blockedRow(format.blockedSongName(songName(id)), () -> removeSong(id))).toList());
+    }
+
+    /** The best name known for a blocked song: this session's title, else the live line, else null. */
+    private String songName(String id) {
+        String title = knownTitles.get(id);
+        return title != null ? title : songLines.get(id);
     }
 
     private Node blockedRow(String name, Runnable remove) {
@@ -285,6 +332,13 @@ public final class PreferencesView implements TabView {
                 status.error(ctx.config().wording("cliNotSaved").formatted(warning));
             } else {
                 unsaved = false;
+                switch (key) {
+                    case PreferenceSettings.EXPLICIT_POLICY -> savedAllowExplicit = value.equals("allow");
+                    case PreferenceSettings.FAMILIAR_BIAS -> savedShare = Double.parseDouble(value);
+                    case PreferenceSettings.PREFERRED_STYLES -> savedStyles = value;
+                    default -> { }
+                }
+                refreshSaveButtons();
                 status.info(format.w(value.isBlank() ? "ClearedPref" : "SavedPref", format.w("Pref." + key)));
             }
         }, saveButton);
@@ -385,7 +439,7 @@ public final class PreferencesView implements TabView {
     }
 
     private void removeSong(String id) {
-        String title = format.blockedSongName(knownTitles.get(id));
+        String title = format.blockedSongName(songName(id));
         runBlock("ActionRemoveBlock", () -> ctx.controller().unblockTrack(id),
                 format.w("RemovedBlock", title), () -> { });
     }

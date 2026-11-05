@@ -629,6 +629,39 @@ class ViewFormatTest {
     }
 
     @Test
+    void firstN_capsTheLookupsAndKeepsOrder() {
+        assertEquals(List.of("a", "b"), ViewFormat.firstN(List.of("a", "b", "c"), 2));
+        assertEquals(List.of("a"), ViewFormat.firstN(List.of("a"), 20));
+        assertEquals(List.of(), ViewFormat.firstN(List.of("a"), 0));
+        assertEquals(List.of(), ViewFormat.firstN(List.of("a"), -1));
+    }
+
+    @Test
+    void isChanged_ignoresSpacesCaseOrderBlanksAndRepeats() {
+        assertFalse(ViewFormat.isChanged("indie, jazz", "indie, jazz"));
+        assertFalse(ViewFormat.isChanged("indie, jazz", "  Jazz ,indie,, "));
+        assertFalse(ViewFormat.isChanged("", "  "));
+        assertFalse(ViewFormat.isChanged(null, ""));
+        assertFalse(ViewFormat.isChanged("jazz", "jazz, jazz"));
+        assertTrue(ViewFormat.isChanged("indie, jazz", "indie"));
+        assertTrue(ViewFormat.isChanged("", "pop"));
+        assertTrue(ViewFormat.isChanged("pop", ""));
+    }
+
+    @Test
+    void normalisedList_trimsLowercasesAndDropsBlanks() {
+        assertEquals(List.of("indie", "jazz"), ViewFormat.normalisedList(" Indie , jazz,,"));
+        assertEquals(List.of(), ViewFormat.normalisedList(null));
+    }
+
+    @Test
+    void shareChanged_comparesAtTheTwoDecimalsSaved() {
+        assertFalse(ViewFormat.shareChanged(0.7, 0.7));
+        assertFalse(ViewFormat.shareChanged(0.7, 0.7004));
+        assertTrue(ViewFormat.shareChanged(0.7, 0.75));
+    }
+
+    @Test
     void artistMatchesLine_saysHowManyAndToChoose() {
         assertEquals(format.w("ArtistMatchesMany", 3, "Ebi"), format.artistMatchesLine("Ebi", 3));
         assertEquals(format.w("ArtistMatchesOne", "Ebi"), format.artistMatchesLine("Ebi", 1));
