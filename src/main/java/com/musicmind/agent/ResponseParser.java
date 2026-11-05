@@ -86,7 +86,21 @@ public class ResponseParser {
     }
 
     /** What a plan reply says beyond the constraints: how sure the model is, whether it stated a familiar share, the mood. */
-    public record PlanExtras(double confidence, boolean familiarStated, String mood) { }
+    public record PlanExtras(double confidence, boolean familiarStated, String mood, List<String> searchTerms,
+                            List<String> tags) {
+        public PlanExtras {
+            searchTerms = searchTerms == null ? List.of() : List.copyOf(searchTerms);
+            tags = tags == null ? List.of() : List.copyOf(tags);
+        }
+
+        public PlanExtras(double confidence, boolean familiarStated, String mood, List<String> searchTerms) {
+            this(confidence, familiarStated, mood, searchTerms, List.of());
+        }
+
+        public PlanExtras(double confidence, boolean familiarStated, String mood) {
+            this(confidence, familiarStated, mood, List.of(), List.of());
+        }
+    }
 
     /**
      * The confidence (the configured default when the reply gives none), whether the request stated a
@@ -97,7 +111,55 @@ public class ResponseParser {
         double confidence = o.has("confidence") && !o.get("confidence").isJsonNull()
                 ? clamp01(number(o, "confidence")) : config.planDefaultConfidence();
         boolean stated = o.has("familiarRatio") && !o.get("familiarRatio").isJsonNull();
-        return new PlanExtras(confidence, stated, text(o, "mood"));
+        return new PlanExtras(confidence, stated, text(o, "mood"), searchTerms(o), tags(o));
+    }
+
+    /** The search phrases of a plan reply: trimmed, without repeats (case ignored), at most the configured number. */
+    private List<String> searchTerms(JsonObject o) {
+        Set<String> seen = new LinkedHashSet<>();
+        List<String> out = new ArrayList<>();
+        for (String term : strings(o, "searchTerms")) {
+            if (seen.add(term.toLowerCase(Locale.ROOT)) && out.size() < config.goalMaxSearchTerms()) {
+                out.add(term);
+            }
+        }
+        return out;
+    }
+
+    /** The Last.fm tags of a plan reply: trimmed, without repeats (case ignored), at most {@code lastfm.maxTags}. */
+    private List<String> tags(JsonObject o) {
+        Set<String> seen = new LinkedHashSet<>();
+        List<String> out = new ArrayList<>();
+        // Lenient on purpose: a lone string is one tag, any other non-array is ignored, so a sloppy reply keeps the plan.
+        JsonElement raw = o.get("tags");
+        List<String> listed;
+        if (raw != null && raw.isJsonPrimitive() && raw.getAsJsonPrimitive().isString()) {
+            listed = raw.getAsString().isBlank() ? List.of() : List.of(raw.getAsString().trim());
+        } else if (raw != null && !raw.isJsonArray()) {
+            listed = List.of();
+        } else {
+            listed = strings(o, "tags");
+        }
+        for (String tag : listed) {
+            if (seen.add(tag.toLowerCase(Locale.ROOT)) && out.size() < config.lastfmMaxTags()) {
+                out.add(tag);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * The track ids a goal-fit review reply asks to remove ({@code {"remove": [ids]}}); the caller checks
+     * them against the tracks it sent.
+     *
+     * @throws ParseException if the reply is not that JSON object
+     */
+    public List<String> parseRemovedIds(String json) {
+        JsonObject o = object(json);
+        if (!o.has("remove")) {
+            throw new ParseException("review reply has no 'remove' list");
+        }
+        return strings(o, "remove");
     }
 
     public SearchQuery parseSearchQuery(String json) {

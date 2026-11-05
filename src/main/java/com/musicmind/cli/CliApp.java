@@ -59,7 +59,7 @@ public class CliApp {
 
     /** The commands in the order help lists them. */
     static final List<String> COMMANDS = List.of("login", "help", "exit", "profile", "trends", "search", "candidates", "discover",
-            "create", "playlists", "show", "modify", "undo", "validate", "prefs", "feedback", "explain", "history", "restore");
+            "create", "playlists", "show", "modify", "undo", "validate", "prefs", "feedback", "explain", "history", "restore", "delete");
 
     /** How many genres and artists the text output lists. */
     private static final int GENRES_SHOWN = 8;
@@ -125,6 +125,7 @@ public class CliApp {
             case "explain" -> { return runExplain(rest); }
             case "history" -> { return runHistory(rest); }
             case "restore" -> { return runRestore(rest); }
+            case "delete" -> { return runDelete(rest); }
             default -> {
                 err.println(String.format(config.wording("cliUnknownCommand"), args[0]));
                 printHelp();
@@ -388,18 +389,20 @@ public class CliApp {
     }
 
     /**
-     * F5 and F11 — {@code create "<goal>" [--minutes 90] [--no-explicit] [--familiar 0.7] [--name "..."]}.
+     * F5 and F11 — {@code create "<goal>" [--minutes 90] [--no-explicit] [--familiar 0.7] [--name "..."] [--no-candidates]}.
      * A request that cannot be met as stated is put to the user as a numbered prompt.
      */
     private int runCreate(String[] rest) {
         String goal = null;
         int minutes = 0;
         boolean noExplicit = false;
+        boolean useCandidates = true;
         double familiar = Double.NaN;
         String name = null;
         for (int i = 0; i < rest.length; i++) {
             try {
                 switch (rest[i]) {
+                    case "--no-candidates" -> useCandidates = false;
                     case "--minutes" -> minutes = Integer.parseInt(valueOf(rest, ++i, "--minutes"));
                     case "--no-explicit" -> noExplicit = true;
                     case "--familiar" -> familiar = Double.parseDouble(valueOf(rest, ++i, "--familiar"));
@@ -429,7 +432,7 @@ public class CliApp {
         c.setProgressListener(state -> out.println(w("Progress", state)));
         c.setNegotiationHandler(this::askToRelax);
         try {
-            Playlist playlist = c.createPlaylist(new AgentRequest(goal, RequestKind.CREATE_PLAYLIST, flags));
+            Playlist playlist = c.createPlaylist(new AgentRequest(goal, RequestKind.CREATE_PLAYLIST, flags, useCandidates));
             AgentSession session = c.lastSession();
             out.println();
             out.println(w("Created", playlist.name(), playlist.spotifyId(), playlist.tracks().size()));
@@ -441,6 +444,7 @@ public class CliApp {
             out.println();
             out.println(session.explanation());
             out.println(c.spotifyAttribution());
+            out.println(c.lastfmAttribution());
             return OK;
         } catch (RuntimeException e) {
             return failure("create the playlist", e);
@@ -786,6 +790,37 @@ public class CliApp {
         }
     }
 
+    /** {@code delete <playlistId>}: asks for the playlist's name to be typed, and deletes only if it matches. */
+    private int runDelete(String[] rest) {
+        if (rest.length != 1) {
+            return usage("delete", null);
+        }
+        if (signIn() == null) {
+            return FAILED;
+        }
+        AppController c = controller();
+        try {
+            String id = rest[0];
+            PlaylistSummary own = c.getPlaylists().stream().filter(p -> p.id().equals(id)).findFirst().orElse(null);
+            if (own == null) {
+                err.println(String.format(config.wording("deleteNotOwner"), id));
+                return FAILED;
+            }
+            out.print(w("DeletePrompt", own.name(), own.id()) + " ");
+            out.flush();
+            String typed = readLine();
+            if (typed == null || !typed.strip().equals(own.name().strip())) {
+                out.println(w("DeleteCancelled"));
+                return FAILED;
+            }
+            int snapshotId = c.deletePlaylist(id);
+            out.println(w("Deleted", own.name(), own.id(), snapshotId, snapshotId));
+            return OK;
+        } catch (RuntimeException e) {
+            return failure("delete the playlist", e);
+        }
+    }
+
     private boolean confirm(String prompt) {
         out.print(prompt);
         out.flush();
@@ -917,7 +952,7 @@ public class CliApp {
         AppController c = controller();
         out.println();
         out.println(w("TrendsHeading"));
-        for (String range : c.timeRanges()) {
+        for (String range : c.trendRanges()) {
             List<Artist> artists = report.artistsByRange().getOrDefault(range, List.of());
             String names = artists.stream().map(Artist::name).limit(ARTISTS_SHOWN).collect(Collectors.joining(", "));
             String genres = report.genresByRange().getOrDefault(range, Map.of()).entrySet().stream()

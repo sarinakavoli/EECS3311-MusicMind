@@ -7,11 +7,15 @@ import com.musicmind.domain.DecisionTrace;
 import com.musicmind.domain.FeasibilityReport;
 import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.PlaylistSpec;
+import com.musicmind.domain.RangeChange;
 import com.musicmind.domain.RequestKind;
+import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +58,13 @@ class PromptBuilderTest {
         String p = builder.buildExplainPrompt(trace);
         assertTrue(p.contains("Balanced") && p.contains("t1") && p.contains("matches pop") && p.contains("no explicit"));
         assertTrue(p.contains("[id]"));
+    }
+
+    @Test
+    void explainPrompt_forbidsClaimingCandidatesFitTheGoal() {
+        String p = builder.buildExplainPrompt(new DecisionTrace("Balanced", Map.of("t1", "you added it from search"), List.of()));
+        assertTrue(p.contains("added by the user"), p);
+        assertTrue(p.contains("fits a mood") && p.contains("reason says so"), p);
     }
 
     @Test
@@ -159,9 +170,9 @@ class PromptBuilderTest {
     }
 
     private static PlaylistContext editContext(String... ids) {
-        List<com.musicmind.domain.Track> tracks = new java.util.ArrayList<>();
+        List<Track> tracks = new ArrayList<>();
         for (int i = 0; i < ids.length; i++) {
-            tracks.add(new com.musicmind.domain.Track(ids[i], "spotify:track:" + ids[i], "Title " + ids[i], 180_000,
+            tracks.add(new Track(ids[i], "spotify:track:" + ids[i], "Title " + ids[i], 180_000,
                     i == 1, List.of()));
         }
         return new PlaylistContext("pl", tracks, null);
@@ -169,24 +180,88 @@ class PromptBuilderTest {
 
     @Test
     void anEditPromptForAPlaylistLongerThanTheCapIsRefusedAndOneAtTheCapIsBuilt() {
-        int cap = Config.of(java.util.Map.of()).editMaxPromptTracks();
+        int cap = Config.of(Map.of()).editMaxPromptTracks();
         String[] ids = new String[cap + 1];
         for (int i = 0; i < ids.length; i++) {
             ids[i] = "t" + i;
         }
         assertThrows(IllegalArgumentException.class, () -> builder.buildEditPrompt("x", editContext(ids)));
-        String[] atCap = java.util.Arrays.copyOf(ids, cap);
+        String[] atCap = Arrays.copyOf(ids, cap);
         assertTrue(builder.buildEditPrompt("x", editContext(atCap)).contains(cap + ": t" + (cap - 1)));
     }
 
     @Test
     void theTrendPromptGivesEachStepBetweenRanges() {
         TrendReport r = new TrendReport(Map.of(), Map.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null,
-                List.of(new com.musicmind.domain.RangeChange("long", "medium", List.of("folk"), List.of("jazz"), List.of("a"), List.of())));
+                List.of(new RangeChange("long", "medium", List.of("folk"), List.of("jazz"), List.of("a"), List.of())));
 
         String prompt = new PromptBuilder(Config.of(Map.of())).buildTrendPrompt(r);
 
         assertTrue(prompt.contains("long to medium"), prompt);
         assertTrue(prompt.contains("folk") && prompt.contains("jazz"), prompt);
+    }
+
+    private static final String MARK_TITLE = "Zyxwv Distinct Title";
+    private static final String MARK_ARTIST = "Qwertz Distinct Artist";
+
+    private static Track marked(String id) {
+        return new Track(id, "spotify:track:" + id, MARK_TITLE + " " + id, 180_000, false, List.of("art" + id),
+                List.of(MARK_ARTIST + " " + id));
+    }
+
+    @Test
+    void goalReviewPrompt_containsNoTitlesOrArtistNames() {
+        List<Track> tracks = List.of(marked("4uLU6hMC"), marked("7abc"));
+        Map<String, List<String>> genres = Map.of("4uLU6hMC", List.of("hip hop", "rap"), "7abc", List.of("jazz"));
+
+        String prompt = builder.buildGoalReviewPrompt("a workout mix", tracks, t -> genres.get(t.id()));
+
+        assertFalse(prompt.contains(MARK_TITLE), prompt);
+        assertFalse(prompt.contains(MARK_ARTIST), prompt);
+        assertFalse(prompt.contains("Zyxwv") || prompt.contains("Qwertz"), prompt);
+        assertTrue(prompt.contains("4uLU6hMC | hip hop, rap\n"), prompt);
+        assertTrue(prompt.contains("7abc | jazz\n"), prompt);
+        assertTrue(prompt.contains("a workout mix"), prompt);
+        assertTrue(prompt.contains("only the genres") && prompt.contains("keep it when unsure"), prompt);
+        assertFalse(prompt.contains("generic or functional"), prompt);
+    }
+
+    @Test
+    void noPromptBuilderPromptContainsATrackTitleOrArtistName() throws Exception {
+        Track t = marked("t1");
+        Artist artist = new Artist("art1", MARK_ARTIST, List.of("pop"));
+        ListeningProfile profile = new ListeningProfile(Map.of("pop", 1.0), List.of(artist), List.of(t),
+                List.of("t1"), null, Instant.now(), false, List.of());
+        TrendReport trend = new TrendReport(Map.of("short", List.of(artist), "long", List.of(artist)),
+                Map.of("short", Map.of("pop", 1.0)), List.of("pop"), List.of("jazz"), List.of("art1"), List.of(),
+                List.of(), null, List.of(new RangeChange("long", "short", List.of("pop"), List.of(), List.of("art1"), List.of())));
+        PlaylistContext playlist = new PlaylistContext("pl", List.of(t, marked("t2")), null);
+        // plan and search take only the user's own words and MusicMind constraints, no Spotify object; the other
+        // builders get the objects that can carry Spotify content (tracks, artists), filled with the markers.
+        Map<String, java.util.function.Supplier<String>> calls = Map.of(
+                "buildPlanPrompt", () -> builder.buildPlanPrompt(new AgentRequest("rainy day mix", RequestKind.CREATE_PLAYLIST,
+                        new PlaylistSpec(45, false, 0.8, List.of("art1"), null))),
+                "buildGoalReviewPrompt", () -> builder.buildGoalReviewPrompt("workout", List.of(t), x -> List.of("pop")),
+                "buildExplainPrompt", () -> builder.buildExplainPrompt(
+                        new DecisionTrace("Balanced", Map.of("t1", "matches pop"), List.of("no explicit"))),
+                "buildSummaryPrompt", () -> builder.buildSummaryPrompt(profile),
+                "buildTrendPrompt", () -> builder.buildTrendPrompt(trend),
+                "buildSearchPrompt", () -> builder.buildSearchPrompt("jazz"),
+                "buildEditPrompt", () -> builder.buildEditPrompt("remove the second", playlist),
+                "buildOptionsPrompt", () -> builder.buildOptionsPrompt(
+                        new FeasibilityReport(false, List.of("too short"), List.of("allow more explicit"))));
+
+        java.util.Set<String> built = new java.util.TreeSet<>();
+        for (java.lang.reflect.Method m : PromptBuilder.class.getDeclaredMethods()) {
+            if (java.lang.reflect.Modifier.isPublic(m.getModifiers()) && m.getName().startsWith("build")) {
+                built.add(m.getName());
+            }
+        }
+        assertEquals(new java.util.TreeSet<>(calls.keySet()), built,
+                "every public build* method of PromptBuilder must be covered by this leak guard");
+        calls.forEach((name, call) -> {
+            String p = call.get();
+            assertFalse(p.contains("Zyxwv") || p.contains("Qwertz"), name + ": " + p);
+        });
     }
 }

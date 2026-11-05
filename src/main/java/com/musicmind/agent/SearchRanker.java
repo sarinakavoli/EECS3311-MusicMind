@@ -40,6 +40,71 @@ public class SearchRanker {
         return scored.stream().map(Scored::track).toList();
     }
 
+    /**
+     * Puts what the user typed first. Order: a title equal to the typed text, a title holding every typed word,
+     * a title plus artist names holding every typed word, then the results from the AI's reading. Typed results
+     * that match none of those are kept (after the rest) only when the AI's reading found nothing. Tracks with
+     * the same title, artists and duration in seconds count once; the first stays.
+     */
+    public List<Track> merge(String typed, List<Track> typedResults, List<Track> meaningResults) {
+        return merge(typed, typedResults, meaningResults, true);
+    }
+
+    /**
+     * As {@link #merge(String, List, List)}, but {@code keepUnmatchedTyped} says whether typed results that match
+     * no tier may be kept when the AI's reading found nothing. A query with a mood word in it passes false: Spotify
+     * matches the mood word to stock-music titles, so an unmatched typed result is probably one of those.
+     */
+    public List<Track> merge(String typed, List<Track> typedResults, List<Track> meaningResults,
+                             boolean keepUnmatchedTyped) {
+        String typedText = normalise(typed);
+        Set<String> typedWords = words(typed);
+        if (typedWords.isEmpty()) {
+            return dedupe(meaningResults);
+        }
+        Set<String> meaningIds = new HashSet<>();
+        meaningResults.forEach(t -> meaningIds.add(t.id()));
+        List<Track> pool = new ArrayList<>(typedResults);
+        pool.addAll(meaningResults);
+        List<Scored> scored = new ArrayList<>();
+        for (int i = 0; i < pool.size(); i++) {
+            Track t = pool.get(i);
+            int tier;
+            if (normalise(t.title()).equals(typedText)) {
+                tier = 0;
+            } else if (words(t.title()).containsAll(typedWords)) {
+                tier = 1;
+            } else if (words(t.title() + " " + String.join(" ", t.artistNames())).containsAll(typedWords)) {
+                tier = 2;
+            } else if (meaningIds.contains(t.id())) {
+                tier = 3;
+            } else if (keepUnmatchedTyped && meaningResults.isEmpty()) {
+                tier = 4;
+            } else {
+                continue;
+            }
+            scored.add(new Scored(t, tier, i));
+        }
+        scored.sort(Comparator.comparingDouble(Scored::score).thenComparingInt(Scored::index));
+        return dedupe(scored.stream().map(Scored::track).toList());
+    }
+
+    private static List<Track> dedupe(List<Track> tracks) {
+        Set<String> seen = new HashSet<>();
+        List<Track> out = new ArrayList<>();
+        for (Track t : tracks) {
+            List<String> artists = t.artistNames().stream().map(SearchRanker::normalise).sorted().toList();
+            if (seen.add(normalise(t.title()) + "|" + artists + "|" + t.durationSec())) {
+                out.add(t);
+            }
+        }
+        return out;
+    }
+
+    static String normalise(String text) {
+        return text == null ? "" : String.join(" ", wordList(text));
+    }
+
     private static double titleMatch(Set<String> words, String title) {
         if (words.isEmpty() || title == null) {
             return 0.0;
@@ -50,7 +115,11 @@ public class SearchRanker {
     }
 
     private static Set<String> words(String text) {
-        Set<String> out = new HashSet<>();
+        return new HashSet<>(wordList(text));
+    }
+
+    private static List<String> wordList(String text) {
+        List<String> out = new ArrayList<>();
         if (text != null) {
             for (String w : text.toLowerCase(Locale.ROOT).split("[^\\p{L}\\p{N}]+")) {
                 if (!w.isEmpty()) {

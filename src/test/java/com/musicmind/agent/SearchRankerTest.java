@@ -92,4 +92,53 @@ class SearchRankerTest {
     void emptyInputGivesEmptyOutput() {
         assertEquals(List.of(), ranker.rank(q("x"), List.of()));
     }
+
+    private static Track by(String id, String title, int ms, String... artists) {
+        return new Track(id, "spotify:track:" + id, title, ms, false, List.of(), List.of(artists));
+    }
+
+    private static List<String> ids(List<Track> tracks) {
+        return tracks.stream().map(Track::id).toList();
+    }
+
+    @Test
+    void merge_exactTitleFirst() {
+        List<Track> typed = List.of(by("x", "American Girls Forever", 1000), by("e", "American Girls", 2000));
+        List<Track> meaning = List.of(by("m", "Unrelated", 3000));
+        assertEquals(List.of("e", "x", "m"), ids(ranker.merge("american girls", typed, meaning)));
+    }
+
+    @Test
+    void merge_artistMatchFollowsTitleMatch() {
+        Track exact = by("1", "American Girls", 1000, "Counting Crows");
+        Track inTitle = by("2", "Girls Of American Pie", 2000, "Someone");
+        Track viaArtist = by("3", "Girls", 3000, "American Football");
+        Track other = by("4", "Other", 4000, "Nobody");
+        List<Track> merged = ranker.merge("american girls", List.of(viaArtist, inTitle, exact), List.of(other));
+        assertEquals(List.of("1", "2", "3", "4"), ids(merged));
+    }
+
+    @Test
+    void merge_ignoresCaseAndPunctuation() {
+        Track exact = by("e", "American Girls", 1000);
+        List<Track> merged = ranker.merge("AMERICAN GIRLS!", List.of(by("o", "Other", 2000), exact), List.of(by("m", "Meaning", 3000)));
+        assertEquals("e", merged.get(0).id());
+    }
+
+    @Test
+    void merge_unmatchedTypedResultsDropped_whenMeaningHasResults() {
+        List<Track> typed = List.of(by("u", "Nothing Alike", 1000), by("e", "American Girls", 2000));
+        assertEquals(List.of("e", "m"), ids(ranker.merge("american girls", typed, List.of(by("m", "Meaning", 3000)))));
+        assertEquals(List.of("e", "u"), ids(ranker.merge("american girls", List.of(by("e", "American Girls", 2000), by("u", "Nothing Alike", 1000)), List.of())),
+                "with no meaning results the unmatched typed results are kept after the matches");
+    }
+
+    @Test
+    void merge_removesDuplicates() {
+        Track a = by("a", "American Girls", 200000, "Counting Crows");
+        Track sameRelease = by("b", "american girls", 200400, "Counting Crows");
+        Track otherArtist = by("c", "American Girls", 200000, "Other Band");
+        List<Track> merged = ranker.merge("american girls", List.of(a, otherArtist), List.of(sameRelease));
+        assertEquals(List.of("a", "c"), ids(merged));
+    }
 }

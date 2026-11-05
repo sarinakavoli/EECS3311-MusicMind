@@ -2,6 +2,7 @@ package com.musicmind.music;
 
 import com.musicmind.domain.Album;
 import com.musicmind.domain.Artist;
+import com.musicmind.domain.Play;
 import com.musicmind.domain.Playlist;
 import com.musicmind.domain.PlaylistSummary;
 import com.musicmind.domain.Track;
@@ -32,6 +33,19 @@ public interface MusicService {
     List<Track> getSavedTracks();
     List<Track> getRecentlyPlayed();
 
+    /**
+     * The same recent plays with the time each was played, newest first (Spotify keeps only the 50 most
+     * recent). A service that cannot read play times returns none.
+     */
+    default List<Play> getRecentPlays() {
+        return List.of();
+    }
+
+    /** The artists with their genres filled in where the genre source knows them; the default adds nothing. */
+    default List<Artist> withGenres(List<Artist> artists) {
+        return artists;
+    }
+
     // ---- read: catalogue ----
     List<Track> search(String query, int limit);
     List<Artist> searchArtists(String query, int limit);
@@ -61,4 +75,9 @@ public interface MusicService {
 
     /** The current user's Spotify user id (needed to create playlists). */
     String currentUserId();
+
+    /** The current user's display name; never null, falls back to {@link #currentUserId()}. */
+    default String currentUserDisplayName() {
+        return currentUserId();
+    }
 }

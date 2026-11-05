@@ -4,10 +4,14 @@ import io.github.cdimascio.dotenv.Dotenv;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.function.UnaryOperator;
 
 /**
@@ -21,6 +25,7 @@ public final class Config {
     private static final String TUNABLES_RESOURCE = "/musicmind.properties";
     private static final String PLACEHOLDER_MODEL = "your_model_name_here";
     private static final String PLACEHOLDER_LLM_KEY = "your_llm_api_key_here";
+    private static final String PLACEHOLDER_LASTFM_KEY = "your_lastfm_api_key_here";
     private static final String PLACEHOLDER_CLIENT_ID = "your_client_id_here";
     private static final String LEGACY_MODEL_PREFIX = "gemini-";
 
@@ -72,7 +77,7 @@ public final class Config {
             if (in == null) {
                 throw new IllegalStateException("Missing classpath resource " + TUNABLES_RESOURCE);
             }
-            props.load(in);
+            props.load(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
         } catch (IOException e) {
             throw new IllegalStateException("Could not read " + TUNABLES_RESOURCE, e);
         }
@@ -256,6 +261,84 @@ public final class Config {
         return integer("musicbrainz.cooldownSeconds");
     }
 
+    // ---- Last.fm (song tags) ----
+    public String lastfmApiKey() {
+        return get("LASTFM_API_KEY");
+    }
+
+    public boolean lastfmConfigured() {
+        return isReal(lastfmApiKey(), PLACEHOLDER_LASTFM_KEY);
+    }
+
+    public String lastfmApiBaseUrl() {
+        return text("lastfm.apiBaseUrl");
+    }
+
+    public int lastfmMaxTracks() {
+        return integer("lastfm.maxTracks");
+    }
+
+    /** Most Last.fm song to Spotify track matches kept in memory for the session. */
+    public int lastfmMatchCacheSize() {
+        return integer("lastfm.matchCacheSize");
+    }
+
+    public int lastfmMaxTags() {
+        return integer("lastfm.maxTags");
+    }
+
+    /**
+     * Tags that count as the same goal as {@code tag}, from {@code lastfm.synonyms.<key>} where the key is the whole
+     * tag (a one-word tag is its own key), lower case, joined by "-" (for example {@code lastfm.synonyms.slow-dance}).
+     * Empty when none is listed.
+     */
+    public List<String> lastfmSynonyms(String tag) {
+        String words = tag == null ? "" : tag.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]+", " ").trim();
+        if (words.isEmpty()) {
+            return List.of();
+        }
+        // The whole tag only: "late night running" must not borrow the synonyms of "running". A one-word tag is its own key.
+        String value = tunables.getProperty("lastfm.synonyms." + words.replace(' ', '-'));
+        if (value == null) {
+            return List.of();
+        }
+        Set<String> out = new LinkedHashSet<>();
+        Arrays.stream(value.split(",")).map(String::trim).filter(v -> !v.isEmpty()).forEach(out::add);
+        return List.copyOf(out);
+    }
+
+    /** Total seconds, from the first lookup, that one Create run may spend on song-tag lookups. */
+    public int lastfmTrackTagBudgetSeconds() {
+        return integer("lastfm.trackTagBudgetSeconds");
+    }
+
+    /** Most Last.fm song lookups (track.gettoptags) per Create run. */
+    public int lastfmMaxTrackTagLookups() {
+        return integer("lastfm.maxTrackTagLookups");
+    }
+
+    /** How many of a song's top Last.fm tags are kept. */
+    public int lastfmTrackTagsKept() {
+        return integer("lastfm.trackTagsKept");
+    }
+
+    public int lastfmTimeoutSeconds() {
+        return integer("lastfm.timeoutSeconds");
+    }
+
+    /** An identifying agent string: MusicMind/version (contact). */
+    public String lastfmUserAgent() {
+        return text("lastfm.userAgent");
+    }
+
+    public String lastfmAttribution() {
+        return text("text.lastfmAttribution");
+    }
+
+    public String lastfmOffNotice() {
+        return text("text.lastfmOff");
+    }
+
     /** Credits MusicBrainz as the genre source; shown wherever genres are shown. */
     public String genreAttribution() {
         return text("text.genreAttribution");
@@ -327,6 +410,11 @@ public final class Config {
         return text("parser.defaultPlaylistName");
     }
 
+    /** How many songs of a saved version get their title looked up for the restore preview. */
+    public int historyPreviewTitleLimit() {
+        return integer("history.previewTitleLimit");
+    }
+
     // ---- Playlist commands (F5, F6) ----
 
     /** Undoable steps kept in memory per run; older ones fall off the end. */
@@ -379,6 +467,26 @@ public final class Config {
     /** Relaxations accepted in one run before the request is dropped. */
     public int planMaxNegotiationRounds() {
         return integer("plan.maxNegotiationRounds");
+    }
+
+    /** Most search phrases the plan may carry for a goal's activity. */
+    public int goalMaxSearchTerms() {
+        return integer("goal.maxSearchTerms");
+    }
+
+    /** Most retrieved tracks sent to the goal-fit review. */
+    public int goalReviewMaxTracks() {
+        return integer("goal.reviewMaxTracks");
+    }
+
+    /** Most times per run the picked tracks are checked against the goal and the rejected ones replaced. */
+    public int goalPickReviewRounds() {
+        return integer("goal.pickReviewRounds");
+    }
+
+    /** The review is ignored if it would leave a smaller share than this of the list it was given. */
+    public double goalMinKeepShare() {
+        return Double.parseDouble(text("goal.minKeepShare"));
     }
 
     // ---- Natural-language search (F3) ----
@@ -491,8 +599,32 @@ public final class Config {
         return Double.parseDouble(text("discover.weight.genre"));
     }
 
+    public double discoverGoalAffinityFloor() {
+        return Double.parseDouble(text("discover.goalAffinityFloor"));
+    }
+
     public double discoverGenreTitlePenalty() {
         return Double.parseDouble(text("discover.weight.genreTitlePenalty"));
+    }
+
+    /** Taken off a goal-search result whose title repeats a word of the search phrase (usually stock music). */
+    public double discoverKeywordTitlePenalty() {
+        return Double.parseDouble(text("discover.weight.keywordTitlePenalty"));
+    }
+
+    /** How many of an artist's leading genres count when a familiar track is checked against a Create goal. */
+    public int createFitLeadingGenres() {
+        return integer("create.fitLeadingGenres");
+    }
+
+    /** Penalty for a genre search result whose title holds the genre word, in a run that has Last.fm tag songs. */
+    public double discoverGenreTitleContainsPenalty() {
+        return Double.parseDouble(text("discover.weight.genreTitleContainsPenalty"));
+    }
+
+    /** Added to the score of a song Last.fm lists under one of the goal's tags. */
+    public double discoverTagBonus() {
+        return Double.parseDouble(text("discover.weight.tagBonus"));
     }
 
     public double discoverAcceptBoost() {
@@ -503,9 +635,36 @@ public final class Config {
         return Double.parseDouble(text("discover.feedback.rejectPenalty"));
     }
 
+    /** A Spotify artist id, or its {@code spotify:artist:} URI, as accepted when blocking an artist. */
+    public java.util.regex.Pattern prefsArtistIdPattern() {
+        return java.util.regex.Pattern.compile(text("prefs.artistIdPattern"));
+    }
+
     /** What a track id or Spotify track URI typed for feedback must look like. */
     public java.util.regex.Pattern feedbackTrackIdPattern() {
         return java.util.regex.Pattern.compile(text("feedback.trackIdPattern"));
+    }
+
+    // ---- Graphical interface ----
+
+    /** Genres the Profile view lists. */
+    public int guiGenresShown() {
+        return integer("gui.genresShown");
+    }
+
+    /** Artists listed per list in the Profile and Trends views. */
+    public int guiArtistsShown() {
+        return integer("gui.artistsShown");
+    }
+
+    /** Tracks the Profile view lists. */
+    public int guiTracksShown() {
+        return integer("gui.tracksShown");
+    }
+
+    /** Genres listed per range in the Trends view. */
+    public int guiTrendGenresShown() {
+        return integer("gui.trendGenresShown");
     }
 
     /** Wording template or phrase from {@code musicmind.properties}; keys are {@code text.*}. */
@@ -518,6 +677,21 @@ public final class Config {
     /** Time ranges from most recent to oldest, as the user types them (short, medium, long). */
     public List<String> profileRanges() {
         return Arrays.stream(text("profile.ranges").split(",")).map(String::trim).toList();
+    }
+
+    /** The ranges Your Taste offers: the past week (built from recent plays) then Spotify's three. */
+    public List<String> profileTasteRanges() {
+        return Arrays.stream(text("profile.tasteRanges").split(",")).map(String::trim).toList();
+    }
+
+    /** Days in the past-week range. */
+    public int profileWeekDays() {
+        return integer("profile.weekDays");
+    }
+
+    /** Most artists and tracks the past-week profile keeps. */
+    public int profileWeekTopLimit() {
+        return integer("profile.weekTopLimit");
     }
 
     public String profileDefaultRange() {

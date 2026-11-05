@@ -48,6 +48,8 @@ public final class RunContext {
     /** Notices the latest selection added; the next selection replaces them so a retry does not show both. */
     List<String> selectionNotices = List.of();
     int retries;
+    /** Pick reviews made so far in this run; validation can send the run back to selection, so the bound is per run. */
+    int pickReviewRounds;
     int negotiationRounds;
     Playlist playlist;
     /** The user's candidate track ids (F3), from memory. */

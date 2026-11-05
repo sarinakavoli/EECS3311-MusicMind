@@ -1,6 +1,10 @@
 package com.musicmind.controller;
 
+import com.musicmind.agent.ArtistGenreCache;
+import com.musicmind.agent.ClarificationNeededException;
 import com.musicmind.agent.ExplanationService;
+import com.musicmind.agent.InfeasibleRequestException;
+import com.musicmind.agent.NegotiationCancelledException;
 import com.musicmind.agent.NegotiationHandler;
 import com.musicmind.agent.Planner;
 import com.musicmind.agent.PreferenceSettings;
@@ -10,7 +14,9 @@ import com.musicmind.agent.RecommendationEngine;
 import com.musicmind.agent.ResponseParser;
 import com.musicmind.agent.SearchRanker;
 import com.musicmind.agent.TrendComparator;
+import com.musicmind.agent.command.PlaylistChangeException;
 import com.musicmind.agent.command.PlaylistManager;
+import com.musicmind.agent.command.PlaylistMissingException;
 import com.musicmind.config.Config;
 import com.musicmind.domain.AgentRequest;
 import com.musicmind.domain.AgentSession;
@@ -23,6 +29,7 @@ import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.PlaylistSummary;
 import com.musicmind.domain.Recommendation;
 import com.musicmind.domain.SnapshotInfo;
+import com.musicmind.domain.SnapshotPreview;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.User;
@@ -36,27 +43,36 @@ import com.musicmind.memory.MemoryManager;
 import com.musicmind.memory.PersistenceException;
 import com.musicmind.memory.repository.CandidateRepository;
 import com.musicmind.memory.repository.FeedbackRepository;
-import com.musicmind.memory.repository.PlaylistHistoryRepository;
 import com.musicmind.memory.repository.GenreRepository;
+import com.musicmind.memory.repository.PlaylistHistoryRepository;
 import com.musicmind.memory.repository.PreferenceRepository;
 import com.musicmind.memory.repository.SessionRepository;
-import com.musicmind.music.MusicService;
 import com.musicmind.music.GenreEnrichingMusicService;
+import com.musicmind.music.LastFmAdapter;
 import com.musicmind.music.MusicBrainzAdapter;
+import com.musicmind.music.MusicService;
 import com.musicmind.music.OAuthTokenStore;
 import com.musicmind.music.RetryingMusicService;
 import com.musicmind.music.SpotifyAdapter;
+import com.musicmind.music.TagService;
 import com.musicmind.tool.MemoryTool;
 import com.musicmind.tool.SpotifyTool;
 import com.musicmind.tool.ToolManager;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
-import java.util.function.Consumer;
+import java.util.OptionalDouble;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Application controller (MVC): the single wiring point shared by the GUI and
@@ -70,6 +86,7 @@ public class AppController {
     /** The user id stamped on stored data when Spotify is not configured. */
     private static final String LOCAL_USER = "local";
     private static final String TRACK_URI_PREFIX = "spotify:track:";
+    private static final String ARTIST_URI_PREFIX = "spotify:artist:";
 
     private final MusicService music; // null until Spotify is configured
     private final MemoryManager memory;
@@ -104,6 +121,25 @@ public class AppController {
      */
     public AppController(MusicService music, MemoryManager memory, LLMProvider llm, Config config,
                          Runnable reauthenticator, BooleanSupplier browserLoginNeeded) {
+        this(music, memory, llm, config, reauthenticator, browserLoginNeeded, ArtistGenreCache.NONE);
+    }
+
+    /**
+     * @param genreCache read-only view of the cached MusicBrainz artist genres, which the goal review sends in place
+     *                   of any Spotify title or name
+     */
+    public AppController(MusicService music, MemoryManager memory, LLMProvider llm, Config config,
+                         Runnable reauthenticator, BooleanSupplier browserLoginNeeded, ArtistGenreCache genreCache) {
+        this(music, memory, llm, config, reauthenticator, browserLoginNeeded, genreCache, TagService.NONE);
+    }
+
+    /**
+     * @param tagService Last.fm's top songs for a tag, which Create matches to Spotify tracks; it returns nothing
+     *                   (and makes no request) when no Last.fm key is configured
+     */
+    public AppController(MusicService music, MemoryManager memory, LLMProvider llm, Config config,
+                         Runnable reauthenticator, BooleanSupplier browserLoginNeeded, ArtistGenreCache genreCache,
+                         TagService tagService) {
         this.browserLoginNeeded = browserLoginNeeded;
         this.music = music;
         this.memory = memory;
@@ -124,10 +160,10 @@ public class AppController {
             this.facade = new MusicAgentFacade(tools, memory, profileBuilder,
                     new TrendComparator(profileBuilder, config), prompts, llm, config,
                     new Planner(llm, prompts, parser, config), parser, new SearchRanker(config),
-                    new RecommendationEngine(tools, config),
+                    new RecommendationEngine(tools, config, genreCache, tagService),
                     () -> currentUser == null ? null : currentUser.id(),
                     new MusicAgentFacade.CreateSupport(music, new PlaylistManager(config, music, memory),
-                            explainer, reauthenticator));
+                            explainer, reauthenticator, genreCache));
         }
     }
 
@@ -152,13 +188,21 @@ public class AppController {
         // GET /me, so once login() has run this costs nothing; without Spotify nothing is written under a name.
         MusicService music = null;
         Runnable reauthenticator = null;
+        GenreRepository genreRepository = new GenreRepository(db);
+        ArtistGenreCache genreCache = artistId -> {
+            try {
+                return genreRepository.find(artistId, Instant.now().minus(Duration.ofDays(config.musicBrainzCacheDays())));
+            } catch (PersistenceException e) {
+                return Optional.empty(); // no database, no cached genres
+            }
+        };
         BooleanSupplier browserLoginNeeded = () -> false;
         Supplier<String> userId = () -> LOCAL_USER;
         if (config.spotifyConfigured()) {
             // Spotify returns no artist genres to this app, so MusicBrainz supplies them (R18).
             OAuthTokenStore auth = new OAuthTokenStore(config.spotifyClientId(), config.spotifyRedirectUri());
             music = new GenreEnrichingMusicService(new RetryingMusicService(new SpotifyAdapter(auth, config), config),
-                    new MusicBrainzAdapter(config), new GenreRepository(db), config);
+                    new MusicBrainzAdapter(config), genreRepository, config);
             userId = music::currentUserId;
             reauthenticator = auth::login;
             browserLoginNeeded = auth::needsBrowserLogin;
@@ -169,7 +213,8 @@ public class AppController {
                 new SessionRepository(db, userId),
                 new PlaylistHistoryRepository(db, userId),
                 new CandidateRepository(db, userId));
-        return new AppController(music, memory, llm, config, reauthenticator, browserLoginNeeded);
+        return new AppController(music, memory, llm, config, reauthenticator, browserLoginNeeded, genreCache,
+                new LastFmAdapter(config));
     }
 
     public boolean isSpotifyConfigured() {
@@ -194,13 +239,23 @@ public class AppController {
         return config.spotifyAttribution();
     }
 
+    /** The line both interfaces show to credit Last.fm for the song tags. */
+    public String lastfmAttribution() {
+        return config.lastfmAttribution();
+    }
+
     /** The line both interfaces show to credit MusicBrainz for the genres. */
     public String genreAttribution() {
         return config.genreAttribution();
     }
 
-    /** The time ranges the views offer, most recent first. */
+    /** The time ranges Your Taste offers, most recent first (the past week, then Spotify's three). */
     public List<String> timeRanges() {
+        return config.profileTasteRanges();
+    }
+
+    /** The ranges Trends compares: Spotify's three only, since a week of plays is too thin to compare. */
+    public List<String> trendRanges() {
         return config.profileRanges();
     }
 
@@ -212,6 +267,12 @@ public class AppController {
         String id = music.currentUserId();
         currentUser = new User(id, id, id);
         return currentUser;
+    }
+
+    /** The signed-in user's Spotify display name (falls back to the id). */
+    public String currentUserName() {
+        requireSpotify();
+        return music.currentUserDisplayName();
     }
 
     /** The user from {@link #login()}, or null if nobody has logged in. */
@@ -345,9 +406,9 @@ public class AppController {
      * {@link #setNegotiationHandler}. The finished session, with its explanation, is {@link #lastSession()}.
      *
      * @throws IllegalStateException if there is no LLM key to read the request
-     * @throws com.musicmind.agent.ClarificationNeededException if the goal is unclear
-     * @throws com.musicmind.agent.InfeasibleRequestException if the request cannot be met
-     * @throws com.musicmind.agent.NegotiationCancelledException if the user declined every option
+     * @throws ClarificationNeededException if the goal is unclear
+     * @throws InfeasibleRequestException if the request cannot be met
+     * @throws NegotiationCancelledException if the user declined every option
      */
     public Playlist createPlaylist(AgentRequest request) {
         requireSpotify();
@@ -382,8 +443,8 @@ public class AppController {
      * {@link #lastModifyNotices()}.
      *
      * @throws IllegalStateException if there is no LLM key
-     * @throws com.musicmind.agent.ClarificationNeededException if the instruction is ambiguous or unclear
-     * @throws com.musicmind.agent.command.PlaylistChangeException if the playlist cannot be read or changed
+     * @throws ClarificationNeededException if the instruction is ambiguous or unclear
+     * @throws PlaylistChangeException if the playlist cannot be read or changed
      */
     public Playlist modifyPlaylist(String id, String instruction) {
         requireSpotify();
@@ -424,13 +485,27 @@ public class AppController {
      * F6 — reverts the latest change to a playlist: the last one made in this run, else the playlist's
      * latest saved version.
      *
-     * @throws com.musicmind.agent.command.PlaylistChangeException with a short message if there is nothing
+     * @throws PlaylistChangeException with a short message if there is nothing
      *         to undo or the saved history cannot be reached
      */
     public void undo(String playlistId) {
         requireSpotify();
         signInIfNeeded();
         facade.undo(playlistId);
+    }
+
+    /**
+     * Deletes one of the user's own playlists from their Spotify library. The playlist is saved first, so
+     * {@link #restore} (and {@link #recreateFromSnapshot}) can bring it back.
+     *
+     * @return the id of the saved version
+     * @throws PlaylistChangeException if the playlist is not the user's own, is too
+     *         long to save whole, or cannot be saved first (nothing is deleted then)
+     */
+    public int deletePlaylist(String playlistId) {
+        requireSpotify();
+        signInIfNeeded();
+        return facade.deletePlaylist(playlistId);
     }
 
     /**
@@ -446,6 +521,11 @@ public class AppController {
     /** Which constraints the last validation used; null before one. */
     public String lastValidationNote() {
         return facade == null ? null : facade.lastValidationNote();
+    }
+
+    /** The target length, in minutes, the last validation judged by (0: none), so a view can say how far off it is. */
+    public int lastValidationTargetMinutes() {
+        return facade == null ? 0 : facade.lastValidationTargetMinutes();
     }
 
     // ---- F10 ----
@@ -498,14 +578,21 @@ public class AppController {
     /**
      * F12 — puts a playlist back to a saved version; the current content is saved first so this can be undone.
      *
-     * @throws com.musicmind.agent.command.PlaylistMissingException if the Spotify playlist was deleted
+     * @throws PlaylistMissingException if the Spotify playlist was deleted
      *         (offer {@link #recreateFromSnapshot})
-     * @throws com.musicmind.agent.command.PlaylistChangeException if the snapshot is unknown or unavailable
+     * @throws PlaylistChangeException if the snapshot is unknown or unavailable
      */
     public Playlist restore(int snapshotId) {
         requireSpotify();
         signInIfNeeded();
         return facade.restore(snapshotId);
+    }
+
+    /** The songs of a saved version, titled from Spotify where it can be read, for a preview; changes nothing. */
+    public SnapshotPreview previewSnapshot(int snapshotId) {
+        requireSpotify();
+        signInIfNeeded();
+        return facade.previewSnapshot(snapshotId);
     }
 
     /** Whether the last {@link #restore} changed the playlist; false when it already matched the saved version. */
@@ -542,8 +629,8 @@ public class AppController {
         if (facade == null || !pref.key().equals(PreferenceSettings.BLOCKED_ARTISTS) || pref.value().isBlank()) {
             return PreferenceSettings.display(pref);
         }
-        return java.util.Arrays.stream(pref.value().split(",")).map(facade::artistName)
-                .collect(java.util.stream.Collectors.joining(", "));
+        return Arrays.stream(pref.value().split(",")).map(facade::artistName)
+                .collect(Collectors.joining(", "));
     }
 
     /**
@@ -558,6 +645,112 @@ public class AppController {
         } else {
             memory.savePreference(pref);
         }
+    }
+
+    /** The familiar share the user saved, or empty when none is saved (the safe-defaults record does not count). */
+    public OptionalDouble savedFamiliarBias() {
+        return getPreferences().stream().filter(p -> p.key().equals(PreferenceSettings.FAMILIAR_BIAS)).findFirst()
+                .map(p -> OptionalDouble.of(p.familiarBias())).orElse(OptionalDouble.empty());
+    }
+
+    /** Every artist Spotify finds for a name, those named exactly that first, so the user can choose one. */
+    public List<Artist> findArtists(String name) {
+        requireSpotify();
+        return facade.findArtists(name);
+    }
+
+    /** A short display-only line (an album title, and whether the artist is in the user's listening) to tell same-named artists apart; blank if none can be read. */
+    public String artistHint(String artistId) {
+        return artistHints(List.of(artistId)).get(artistId);
+    }
+
+    /** {@link #artistHint} for several artists at once: the saved profile is read once, not once per artist. */
+    public Map<String, String> artistHints(List<String> artistIds) {
+        requireSpotify();
+        Set<String> listening = facade.listeningArtistIds(currentUser());
+        Map<String, String> hints = new LinkedHashMap<>();
+        for (String id : artistIds) {
+            hints.put(id, facade.artistHint(id, listening));
+        }
+        return hints;
+    }
+
+    /** Tracks for what the user typed, the same ranked list as {@link #searchMusic}. */
+    public List<Track> findTracks(String text) {
+        return searchMusic(text);
+    }
+
+    /**
+     * Adds the chosen artist to the blocked artists, keeping the ones already blocked.
+     *
+     * @throws IllegalArgumentException if the id is not shaped like a Spotify artist id (or {@code spotify:artist:} URI)
+     * @throws IllegalStateException    if the stored blocks cannot be read, so nothing is saved
+     */
+    public void blockArtist(String artistId) {
+        String id = artistId == null ? "" : artistId.strip();
+        if (!config.prefsArtistIdPattern().matcher(id).matches()) {
+            throw new IllegalArgumentException(config.wording("prefsBadArtistId"));
+        }
+        addBlock(PreferenceSettings.BLOCKED_ARTISTS, ARTIST_URI_PREFIX, id);
+    }
+
+    /**
+     * Adds the chosen track to the blocked tracks, keeping the ones already blocked.
+     *
+     * @throws IllegalArgumentException if the id is not shaped like a Spotify track id
+     * @throws IllegalStateException    if the stored blocks cannot be read, so nothing is saved
+     */
+    public void blockTrack(String trackId) {
+        addBlock(PreferenceSettings.BLOCKED_TRACKS, TRACK_URI_PREFIX, requireTrackId(trackId));
+    }
+
+    /**
+     * Removes the artist from the blocked artists, keeping the others; removing the last one clears the rule.
+     *
+     * @throws IllegalArgumentException if the id is not shaped like a Spotify artist id (or {@code spotify:artist:} URI)
+     * @throws IllegalStateException    if the stored blocks cannot be read, so nothing is saved
+     */
+    public void unblockArtist(String artistId) {
+        String id = artistId == null ? "" : artistId.strip();
+        if (!config.prefsArtistIdPattern().matcher(id).matches()) {
+            throw new IllegalArgumentException(config.wording("prefsBadArtistId"));
+        }
+        changeBlocks(PreferenceSettings.BLOCKED_ARTISTS, ARTIST_URI_PREFIX, id, false);
+    }
+
+    /**
+     * Removes the track from the blocked tracks, keeping the others; removing the last one clears the rule.
+     *
+     * @throws IllegalArgumentException if the id is not shaped like a Spotify track id
+     * @throws IllegalStateException    if the stored blocks cannot be read, so nothing is saved
+     */
+    public void unblockTrack(String trackId) {
+        changeBlocks(PreferenceSettings.BLOCKED_TRACKS, TRACK_URI_PREFIX, requireTrackId(trackId), false);
+    }
+
+    private void addBlock(String key, String uriPrefix, String id) {
+        changeBlocks(key, uriPrefix, id, true);
+    }
+
+    /**
+     * Saves the blocked ids with {@code id} added or removed. If the stored preferences cannot be read the database is
+     * down and {@link #getPreferences()} returns the safe defaults; saving on top of those would wipe the blocks that
+     * are stored, so nothing is saved.
+     */
+    private void changeBlocks(String key, String uriPrefix, String id, boolean add) {
+        List<UserPreference> stored = getPreferences();
+        if (stored.stream().anyMatch(p -> UserPreference.DEFAULTS_KEY.equals(p.key()))) {
+            throw new IllegalStateException(config.wording("prefsUnavailable"));
+        }
+        PreferenceSettings settings = PreferenceSettings.from(stored);
+        Set<String> all = new TreeSet<>(PreferenceSettings.BLOCKED_ARTISTS.equals(key) ? settings.blockedArtists() : settings.blockedTracks());
+        String bare = id.startsWith(uriPrefix) ? id.substring(uriPrefix.length()) : id;
+        if (add) {
+            all.add(bare);
+        } else {
+            all.remove(bare);
+        }
+        setPreference(PreferenceSettings.parse(key, String.join(",", all), config));
     }
 
     /** What the last {@link #parsePreference} should tell the user, such as a name several artists share. */
@@ -584,6 +777,41 @@ public class AppController {
             throw new IllegalArgumentException("Choose accept or reject.");
         }
         memory.saveFeedback(new Feedback(id, verdict, Instant.now()));
+    }
+
+    /**
+     * Track id to the user's latest verdict, so screens can show what was chosen; empty with the database down. Reads
+     * under the id {@link #recordFeedback} stores under (the local user without Spotify), so a stored verdict always
+     * shows, and never signs in: while that would open the browser, nothing is read.
+     */
+    public Map<String, Verdict> feedbackFor() {
+        Map<String, Verdict> latest = new LinkedHashMap<>();
+        String id = feedbackUserId();
+        if (id == null) {
+            return latest;
+        }
+        for (Feedback f : memory.loadFeedback(id)) {   // oldest first, so the last one wins
+            latest.put(f.trackId(), f.verdict());
+        }
+        return latest;
+    }
+
+    /** The id feedback is stored under, found without opening the browser; null when it cannot be known yet. */
+    private String feedbackUserId() {
+        if (currentUser != null) {
+            return currentUser.id();
+        }
+        if (music == null) {
+            return LOCAL_USER;
+        }
+        if (willOpenBrowser()) {
+            return null;
+        }
+        try {
+            return music.currentUserId();   // the id the repositories stamp on recordFeedback
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     /**

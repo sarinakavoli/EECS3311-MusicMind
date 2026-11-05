@@ -60,6 +60,43 @@ class SpotifyAdapterTest {
     // ---- listening data ----
 
     @Test
+    void toTrack_readsArtistNames() {
+        api.respond(r -> Reply.ok("{\"id\":\"t1\",\"uri\":\"spotify:track:t1\",\"name\":\"S\",\"duration_ms\":1000,"
+                + "\"explicit\":false,\"artists\":[{\"id\":\"a1\",\"name\":\"Adele\"},{\"id\":\"a2\",\"name\":\"Greg\"}]}"));
+
+        Track t = adapter.getTrack("t1");
+
+        assertEquals(List.of("Adele", "Greg"), t.artistNames());
+        assertEquals(List.of("a1", "a2"), t.artistIds());
+    }
+
+    @Test
+    void toTrack_missingArtistNames_isEmpty() {
+        api.respond(r -> Reply.ok(trackJson(1)));
+
+        assertTrue(adapter.getTrack("t1").artistNames().isEmpty());
+    }
+
+    @Test
+    void displayName_usesDisplayName() {
+        api.respond(r -> Reply.ok("{\"id\":\"sarina\",\"display_name\":\"Sarina K\"}"));
+
+        assertEquals("Sarina K", adapter.currentUserDisplayName());
+        assertEquals("sarina", adapter.currentUserId());
+        assertEquals(1, api.requests.size());
+    }
+
+    @Test
+    void displayName_blankOrNull_fallsBackToId() throws Exception {
+        api.respond(r -> Reply.ok("{\"id\":\"sarina\",\"display_name\":\"  \"}"));
+        assertEquals("sarina", adapter.currentUserDisplayName());
+
+        api.respond(r -> Reply.ok("{\"id\":\"sarina\",\"display_name\":null}"));
+        SpotifyAdapter second = api.adapter(dir);
+        assertEquals("sarina", second.currentUserDisplayName());
+    }
+
+    @Test
     void currentUserIdCallsMeWithBearerTokenAndCachesTheAnswer() {
         api.respond(r -> Reply.ok("{\"id\":\"sarina\"}"));
 
@@ -319,6 +356,24 @@ class SpotifyAdapterTest {
         assertEquals("/v1/me/player/recently-played", api.requests.get(0).path());
         assertEquals("limit=50", api.requests.get(0).query());
         assertEquals("t7", tracks.get(0).id());
+    }
+
+    @Test
+    void getTopItemsRefusesARangeSpotifyDoesNotHave() {
+        assertThrows(IllegalArgumentException.class, () -> adapter.getTopItems("tracks", "week"));
+    }
+
+    @Test
+    void getRecentPlaysCarriesWhenEachTrackWasPlayed() {
+        api.respond(r -> Reply.ok("{\"items\":[{\"track\":" + trackJson(7) + ",\"played_at\":\"2026-11-03T10:15:30.123Z\"},"
+                + "{\"track\":" + trackJson(8) + ",\"played_at\":\"not a time\"}]}"));
+
+        List<com.musicmind.domain.Play> plays = adapter.getRecentPlays();
+
+        assertEquals("/v1/me/player/recently-played", api.requests.get(0).path());
+        assertEquals("t7", plays.get(0).track().id());
+        assertEquals(java.time.Instant.parse("2026-11-03T10:15:30.123Z"), plays.get(0).playedAt());
+        assertEquals(1, plays.size(), "a play with no readable time cannot be placed in the week and is skipped");
     }
 
     // ---- catalogue ----

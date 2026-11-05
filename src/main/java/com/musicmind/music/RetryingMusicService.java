@@ -133,6 +133,16 @@ public class RetryingMusicService implements MusicService {
     }
 
     @Override
+    public List<com.musicmind.domain.Play> getRecentPlays() {
+        return withBackoff(delegate::getRecentPlays);
+    }
+
+    @Override
+    public List<Artist> withGenres(List<Artist> artists) {
+        return delegate.withGenres(artists);
+    }
+
+    @Override
     public List<Track> search(String query, int limit) {
         return withBackoff(() -> delegate.search(query, limit));
     }
@@ -217,5 +227,10 @@ public class RetryingMusicService implements MusicService {
     @Override
     public String currentUserId() {
         return withBackoff(delegate::currentUserId);
+    }
+
+    @Override
+    public String currentUserDisplayName() {
+        return withBackoff(delegate::currentUserDisplayName);
     }
 }

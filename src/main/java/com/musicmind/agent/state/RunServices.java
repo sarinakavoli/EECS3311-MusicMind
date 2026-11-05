@@ -2,6 +2,7 @@ package com.musicmind.agent.state;
 
 import com.musicmind.agent.ConstraintChecker;
 import com.musicmind.agent.ExplanationService;
+import com.musicmind.agent.GoalFitReviewer;
 import com.musicmind.agent.Planner;
 import com.musicmind.agent.PlaylistValidator;
 import com.musicmind.agent.RecommendationEngine;
@@ -19,9 +20,11 @@ import java.util.function.Supplier;
  *
  * @param profile         the listening profile to plan from (a fresh stored one, else a rebuilt one)
  * @param reauthenticator signs the user in to Spotify again; null where that is not possible
+ * @param reviewer        removes retrieved tracks that do not suit the goal (best effort)
  */
 public record RunServices(Config config, Planner planner, ConstraintChecker checker, PlaylistValidator validator,
                           RecommendationEngine engine, PlaylistManager playlists, MusicService music,
                           MemoryManager memory, ExplanationService explainer, Supplier<String> userId,
-                          Supplier<ListeningProfile> profile, Runnable reauthenticator) {
+                          Supplier<ListeningProfile> profile, Runnable reauthenticator,
+                          GoalFitReviewer reviewer) {
 }

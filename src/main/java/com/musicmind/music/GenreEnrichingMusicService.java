@@ -47,11 +47,21 @@ public class GenreEnrichingMusicService implements MusicService {
 
     @Override
     public List<Artist> getTopArtists(String timeRange) {
+        return withGenres(delegate.getTopArtists(timeRange));
+    }
+
+    @Override
+    public List<Artist> withGenres(List<Artist> artists) {
         List<Artist> enriched = new ArrayList<>();
-        for (Artist artist : delegate.getTopArtists(timeRange)) {
+        for (Artist artist : artists) {
             enriched.add(artist.genres().isEmpty() ? withGenres(artist) : artist);
         }
         return enriched;
+    }
+
+    @Override
+    public List<com.musicmind.domain.Play> getRecentPlays() {
+        return delegate.getRecentPlays();
     }
 
     private Artist withGenres(Artist artist) {
@@ -158,5 +168,10 @@ public class GenreEnrichingMusicService implements MusicService {
     @Override
     public String currentUserId() {
         return delegate.currentUserId();
+    }
+
+    @Override
+    public String currentUserDisplayName() {
+        return delegate.currentUserDisplayName();
     }
 }

@@ -7,6 +7,7 @@ import com.musicmind.domain.FeasibilityReport;
 import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.RangeChange;
+import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 
 import java.util.List;
@@ -24,7 +25,7 @@ public class PromptBuilder {
 
     /** The task a prompt asks for; its marker is the first line of the prompt. */
     public enum Kind {
-        PLAN, EXPLAIN, SUMMARY, TREND, SEARCH, EDIT, OPTIONS;
+        PLAN, EXPLAIN, SUMMARY, TREND, SEARCH, EDIT, OPTIONS, GOAL_REVIEW;
 
         public String marker() {
             return "MUSICMIND_TASK: " + name();
@@ -77,8 +78,41 @@ public class PromptBuilder {
                 .append("\"name\": short playlist name, ")
                 .append("\"mood\": one of [").append(String.join(", ", moods.moods()))
                 .append("] or \"\" if none fits, ")
+                .append("\"searchTerms\": up to ").append(config.goalMaxSearchTerms())
+                .append(" short search phrases (two or three words) for the activity or setting the playlist is for, ")
+                .append("such as \"gym workout\" or \"study session\", or [] if the request names none; ")
+                .append("a phrase must not be a song title or an artist name, ")
+                .append("\"tags\": up to ").append(config.lastfmMaxTags())
+                .append(" short Last.fm-style music tags (one to three words, such as \"slow dance\" or \"romantic\") ")
+                .append("for the mood, genre or activity of the request, or [] if none fits; ")
+                .append("a tag must not be a song title or an artist name, ")
                 .append("\"confidence\": number from 0 to 1 for how sure you are what playlist is wanted}");
         return p.toString();
+    }
+
+    /**
+     * The goal-fit review prompt: the user's goal and, per track, only its Spotify id (an opaque identifier) and the
+     * genres MusicMind knows for it from MusicBrainz or its own data. No title, artist name or album is sent, because
+     * Spotify Content must not be ingested into an AI model (Spotify Developer Policy, section III item 14). The model
+     * may only answer with ids from the list.
+     */
+    public String buildGoalReviewPrompt(String goal, List<Track> tracks, TrackGenres genres) {
+        StringBuilder p = start(Kind.GOAL_REVIEW);
+        p.append("Decide which tracks in the list clearly do not suit the playlist goal, for example a lullaby genre for a workout. ")
+                .append("You see only the genres of each track, nothing else about it. ")
+                .append("Remove a track only when its genres clearly do not suit the goal, and keep it when unsure. ")
+                .append("Only name tracks to remove, by id; never add any track.\n")
+                .append("Goal: ").append(oneLine(goal)).append('\n')
+                .append("Tracks (id | genres):\n");
+        for (Track t : tracks) {
+            p.append(t.id()).append(" | ").append(oneLine(String.join(", ", genres.of(t)))).append('\n');
+        }
+        p.append("Reply with JSON only: {\"remove\": [ids of tracks that do not suit the goal, from the list above]}");
+        return p.toString();
+    }
+
+    private static String oneLine(String text) {
+        return text == null ? "" : text.replaceAll("[\\p{Cntrl}\\s]+", " ").strip();
     }
 
     public String buildExplainPrompt(DecisionTrace trace) {
@@ -86,7 +120,8 @@ public class PromptBuilder {
         p.append("Explain in a few friendly sentences why these tracks were chosen, using only the facts below. ")
                 .append("Refer to a track only by its id in square brackets, like [id]. ")
                 .append("Do not mention any other track, artist or id, and do not state any genre, number or quoted name ")
-                .append("that does not appear in the facts.\n")
+                .append("that does not appear in the facts. ")
+                .append(config.wording("explainCandidateRule")).append('\n')
                 .append("Strategy: ").append(trace.strategyName()).append('\n');
         trace.reasons().forEach((id, reason) -> p.append('[').append(id).append("]: ").append(reason).append('\n'));
         p.append("Constraints satisfied: ").append(String.join("; ", trace.constraintsSatisfied()));
@@ -165,9 +200,9 @@ public class PromptBuilder {
                 .append("leave the commands empty and ask one short question.\n")
                 .append("Instruction: ").append(instruction).append('\n')
                 .append("Tracks (position: id, explicit?, minutes):\n");
-        List<com.musicmind.domain.Track> tracks = playlist.tracks();
+        List<Track> tracks = playlist.tracks();
         IntStream.range(0, tracks.size()).forEach(i -> {
-            com.musicmind.domain.Track t = tracks.get(i);
+            Track t = tracks.get(i);
             p.append(i + 1).append(": ").append(t.id()).append(t.isExplicit() ? ", explicit, " : ", clean, ")
                     .append(Math.round(t.durationMs() / 6000.0) / 10.0).append(" min\n");
         });

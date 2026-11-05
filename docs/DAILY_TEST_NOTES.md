@@ -426,3 +426,82 @@ build/install/musicmind/bin/musicmind create "a calm 30 minute mix for studying"
 **Also checked live (Nov 1):** `create` with a candidate gave playlist `1tLPnOIvqQsx1pFYWPZzgq` with Billie Jean as track 1, confirmed by reading it back from Spotify, and the candidate list was empty afterwards. A blocked track made `validate` fail, and `modify` refused to add a blocked track and left the playlist unchanged. `blockedArtists` by name stored the id, listed the name, made `validate` fail, and refused an unknown name. Preferences were restored afterwards.
 
 **Not verified live:** the GUI controls for all of this, which arrive with Task 13.
+
+## Mon Nov 2: the GUI (Task 13)
+
+Start the app from the project folder. PostgreSQL must be running.
+
+```bash
+./gradlew run
+```
+
+**Expected:** a window titled MusicMind with seven tabs: Profile, Trends, Search, Discover, Playlists, Preferences, History. Opening it does not contact Spotify or open a browser. The footer credits Spotify and MusicBrainz. Each tab says to log in first.
+
+### Read-only checks
+
+These change nothing on Spotify.
+
+1. Press **Log in to Spotify**. With a saved login it shows `Logged in as` and your user id straight away.
+2. **Profile:** press **Refresh profile**. Expected: top genres with bars, top artists, top tracks, a coverage notice and a summary.
+3. **Trends:** press **Compare my listening**. Expected: three columns (short, medium, long), then `Changes between ranges`.
+4. **Search:** type `upbeat indie running` and press **Search**. Expected: tracks with an **Add to candidates** button, and any named artists above them.
+5. **Discover:** press **Find music**. Expected: recommendations with 👍 Accept, 👎 Reject and **Why these?**. The thumbs must show as thumbs, not odd characters.
+6. **Playlists:** pick a playlist. Expected: its tracks, a validation badge such as `Meets every constraint`, **Why these?**, and the Modify box.
+7. **History:** pick a session. Expected: its plan and result under the table, and saved versions below it. Do not press **Restore** for this check.
+
+### Saved in your local database only
+
+Nothing below goes to Spotify.
+
+- **Add to candidates**, **Clear all** on the Search tab.
+- 👍 Accept and 👎 Reject.
+- **Save** on the Preferences tab.
+
+Blocking an artist on Preferences affects later Discover and Create runs, so clear the field and press **Save** afterwards if you were only trying it.
+
+### Writes to Spotify
+
+**Warning: each of these changes your real Spotify library. Try them on a test playlist.**
+
+- **Create playlist...** on the Playlists tab makes a real private playlist. Try the goal `a calm 30 minute mix for studying`, length `30`. Expected: progress shows the step names, then the finished playlist opens in the tab.
+- **Modify** changes the open playlist. Try `make it 5 minutes shorter`. Expected: a change summary and an updated badge.
+- **Undo** reverses that change.
+- **Restore** on the History tab puts a playlist back to a saved version. It may also offer to recreate a deleted one.
+
+**F11 dialog check (writes only if you choose an option):** in **Create playlist...**, enter the goal `a 600 minute mix of only songs I have never heard`, length `600`, and move the familiar slider all the way to new. If MusicMind cannot fill it, a dialog states the conflict and offers options. **Cancel** creates nothing. Choosing an option creates a real playlist.
+
+**Bad length check (writes nothing):** in **Create playlist...**, try typing `abc` in the length box. Letters are refused. Type `99999` and press **Create**. Expected: a message giving the allowed range, and nothing starts.
+
+**Verified:** all tests, on a forced clean run. A live read-only run of the real app on your account, driven by a throwaway script: login from the saved token, Profile refresh, Trends, Search, Discover, opening a playlist with its badge, Preferences, History. The Create and F11 dialogs were opened to check their layout. The real Create button was also pressed in a run with no Spotify settings, so nothing could be written: it reached the background worker, showed `Spotify is not configured`, and unlocked the dialog. The F11 dialog was shown with stand-in text, not a real conflict.
+
+**Not verified live:** Create, Modify, Undo and Restore through the GUI, F11 with a real conflict, and Accept, Reject, Save and candidates through the GUI buttons. The same controller calls were tested live from the CLI on Nov 1. Mouse handling was also not tested by a person: the script pressed buttons in code.
+
+**Known limits:** track rows show titles without artist names, because `Track` carries artist ids only (the CLI is the same). Opening a playlist reads it from Spotify twice, once to show it and once to validate it, so large playlists take a moment.
+
+## Mon Nov 2 (evening): backend fixes from the GUI test
+
+**Sarina's GUI test:** Create finished for real ("workout", 6 tracks) and Modify ran on it. Song quality was poor. Her issues are in `docs/GUI_TEST_FINDINGS.md`. She did not report testing Undo or Restore in the GUI.
+
+**Fixed, test first:** exact title and artist matches rank first in search; duplicates removed; candidates optional in create (`--no-candidates`); goal search phrases; AI review of retrieved tracks and of the final picks; a penalty for stock titles; scores that differ by taste; block by choosing a song or artist; read of the saved mix; delete a playlist after saving a version (`delete <playlistId>`).
+
+**Verified:** forced run on c6d947f, 842 tests, 0 failures. Live read-only: `search "american girls"` gave exact titles in the top 3 in 5 of 5 runs.
+
+**Not verified:** no playlist was created after the fixes, so goal fit is unproven on the real account. `delete` has not been run live.
+
+**Still weak:** searches by description. "mellow alternative for studying" returned "Boss Battle" and "Alternative Rock".
+
+**To check in Create:** try workout, study and road trip goals.
+
+## Wed Nov 4: the frontend redesign and its live read-only check
+
+**Built:** the seven screens as a dark left menu (Your Taste, Trends, Find Songs, Discover, Playlists, Your Rules, History) with plain wording, shared song rows, hours and minutes in Create, pickers on Your Rules, a History timeline, and Delete on playlists. Each finding in `docs/GUI_TEST_FINDINGS.md` is marked done or not done.
+
+**Checked live, read-only, on the real account** (a throwaway JavaFX driver started the real `GuiApp` over `AppController.create()`, logged in from the saved token without opening a browser, and saved a PNG per screen outside the repository): each screen before login (description and "Log in to Spotify" message shown, nothing empty); the "database cannot be reached" banner (shown by setting the banner flag only, the database was up); after login, Your Taste (Refresh profile), Trends (Compare), Find Songs ("american girls" returned four American Girls songs with artists; "mellow alternative for studying" gave a plain keyword result and said so; a nonsense query still returned keyword hits), Discover (Find music, saved mix 60% new / 40% known), Playlists (open a playlist and a selected row), Your Rules (loaded), History (loaded, then the Restore preview for one saved version, then Cancel), the Create dialog with stand-in goal text (Create not pressed), the F11 dialog with a stand-in report (Cancel pressed), and sample rows with a very long title and artist list and a song with no artist names (the title and artists end in "...", the icons stay on the row, no stray separator).
+
+**Layout fixes found by looking:** empty status lines left a gap under the controls (Discover); the "What changed" lines on Trends were cut off at the right edge; buttons on a selected playlist row had the colour of the row; the goal box in Create had stray dark blocks at its edges. All fixed and looked at again.
+
+**Not checked:** creating, modifying, undoing, restoring (confirming), deleting, blocking, like / not for me, adding or clearing waiting songs, saving rules. These change the account or the database, so none was pressed; the "already waiting" message, the "N waiting" count and the "No songs matched" message are covered by unit tests only (the live searches all returned hits and nothing was added). The "database down" banner was shown, but the screens were not run with the database really stopped. The Create button waiting for the waiting songs was not seen live.
+
+**Build:** `./gradlew build --rerun-tasks --no-build-cache`: 888 tests, 0 failures.
+
+**Still open:** goal fit of created playlists (not tried since Nov 2); searches by description (finding 25); the Stage 2 report, updated UML and demo videos.

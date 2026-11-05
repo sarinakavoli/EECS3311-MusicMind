@@ -144,7 +144,30 @@ class ConfigTest {
     }
 
     @Test
+    void footerShowsLastfmCredit() {
+        assertEquals("Song tags from Last.fm", Config.of(Map.of()).lastfmAttribution());
+        assertTrue(Config.of(Map.of()).lastfmOffNotice().contains("LASTFM_API_KEY"));
+    }
+
+    @Test
     void genreAttributionCreditsMusicBrainz() {
         assertTrue(Config.of(Map.of()).genreAttribution().contains("MusicBrainz"));
+    }
+
+    @Test
+    void guiDisplayCountsComeFromTheBundledProperties() {
+        Config c = Config.of(Map.of());
+        assertEquals(8, c.guiGenresShown());
+        assertEquals(10, c.guiArtistsShown());
+        assertEquals(10, c.guiTracksShown());
+        assertEquals(3, c.guiTrendGenresShown());
+    }
+
+    @Test
+    void synonymsUseTheWholeTagKey_andASingleWordKeyOnlyForAOneWordTag() {
+        Config c = Config.of(Map.of());
+        assertFalse(c.lastfmSynonyms("late night running").contains("cardio"));
+        assertTrue(c.lastfmSynonyms("running").contains("cardio"));
+        assertTrue(c.lastfmSynonyms("slow dance").contains("romantic"));
     }
 }
