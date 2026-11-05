@@ -258,6 +258,27 @@ Status added Nov 4 after the frontend redesign and its read-only live check (`do
 39. **History: "Saved playlist versions" is unclear.** The owner asked what it means, and "7 songs (no change)" is unclear too. Reword the heading and description in plain words (a copy of the playlist kept before each change, to go back to), and explain "no change".
     - **Status (Nov 5):** **Done:** the heading is "Earlier versions of your playlists", the description says MusicMind keeps a copy before every change so you can go back to it, and an unchanged row reads "N songs (same songs as the version before)". Wording is in `musicmind.properties`. Not retried against the real account.
 
+## UI/UX review, Nov 5
+
+A design review of the finished GUI. Items 1-4 are fixed; 5-12 are open.
+
+1. **Keyboard focus is invisible (WCAG 2.4.7).** `.root` turned the focus colour off and no control had a `:focused` rule.
+   - **Status (Nov 5):** **Done** (Nov 5): every focusable control (buttons, left menu, check boxes, radio buttons, slider, combo boxes, text fields, list rows) draws a 2px ring that does not move the layout: white on the green and red solid buttons, green (#1db954) elsewhere.
+2. **Input and checkbox boundaries fail 3:1 (WCAG 1.4.11).** Borders of #2e2e2e on #181818 / #202020 were about 1.3:1.
+   - **Status (Nov 5):** **Done** (Nov 5): input, combo box, check box, radio and slider-track borders are now #767676 (4.12:1 on the page, 3.91:1 on cards, 3.59:1 on the field fill); an unchecked box is clearly outlined.
+3. **Raw technical error text can reach the screen.** Your Rules showed "Cannot invoke ... because \"this.memory\" is null".
+   - **Status (Nov 5):** **Done** (Nov 5): `ViewFormat.failure` keeps a message only from an exception the app throws on purpose (argument and state checks, unclear or impossible request, refused playlist change) and only when it holds no address, status, brace, class name, "Cannot invoke", "java." or stack text; anything else shows the fixed "something went wrong" wording. New `ViewFormatTest` cases cover the Your Rules text.
+4. **Green is overused.** Hint lines and the activity-kind chips were green like the main actions.
+   - **Status (Nov 5):** **Done** (Nov 5): "Try: ..." hints are muted grey (#b3b3b3); the History kind chips are neutral grey on #2a2a2a (`mm-chip`). Green stays on primary buttons, the chosen Like state and the "meets your rules" success badge; a failing badge is amber.
+5. **Playlists layout.** Open.
+6. **Spacing scale.** Open.
+7. **Song row buttons.** Open.
+8. **Create form.** Open.
+9. **Trends table.** Open.
+10. **Message placement.** Open.
+11. **Page intros.** Open.
+12. **Nested cards and type sizes.** Open.
+
 ## Backend status (Nov 2)
 
 Plan: `docs/superpowers/plans/2026-11-02-backend-test-fixes.md`. Forced run on c6d947f: 842
