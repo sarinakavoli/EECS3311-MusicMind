@@ -5,10 +5,19 @@ import javafx.scene.control.Label;
 import javafx.scene.layout.VBox;
 
 /** Small building blocks the views share, so each view is only layout and event wiring. */
-final class UiParts {
+public final class UiParts {
 
-    static final double PAD = 12;
-    static final double GAP = 8;
+    /**
+     * The spacing scale, in pixels. Every gap and padding in the views is one of these (the style sheet uses the
+     * same numbers): {@code SPACE_XS} only between a label and its caption (a title over its artist), {@code SPACE_S}
+     * between items in a group, {@code SPACE_M} inside a card or section, {@code SPACE_L} between the sections of a
+     * page, {@code SPACE_XL} around the biggest blocks.
+     */
+    public static final double SPACE_XS = 4;
+    public static final double SPACE_S = 8;
+    public static final double SPACE_M = 16;
+    public static final double SPACE_L = 24;
+    public static final double SPACE_XL = 32;
 
     private UiParts() {
     }
@@ -25,6 +34,37 @@ final class UiParts {
         return label;
     }
 
+    /** Items that belong together (a control row and the status line under it): {@code SPACE_S} apart. */
+    static VBox group(Node... children) {
+        return new VBox(SPACE_S, children);
+    }
+
+    /** Hides a label (and the page gap it would leave) while its text is empty. */
+    static Label collapsing(Label label) {
+        label.visibleProperty().bind(label.textProperty().isNotEmpty());
+        label.managedProperty().bind(label.visibleProperty());
+        return label;
+    }
+
+    /** Hides a box (and the page gap it would leave) while it holds nothing. */
+    static <T extends javafx.scene.layout.Pane> T collapsing(T box) {
+        box.visibleProperty().bind(javafx.beans.binding.Bindings.isNotEmpty(box.getChildren()));
+        box.managedProperty().bind(box.visibleProperty());
+        return box;
+    }
+
+    /** A group of collapsing labels that itself takes no room while all of them are empty. */
+    static VBox noteGroup(Label... labels) {
+        VBox box = group(labels);
+        javafx.beans.binding.BooleanBinding any = javafx.beans.binding.Bindings.createBooleanBinding(() -> false);
+        for (Label label : labels) {
+            any = any.or(label.visibleProperty());
+        }
+        box.visibleProperty().bind(any);
+        box.managedProperty().bind(box.visibleProperty());
+        return box;
+    }
+
     static Label muted(String text) {
         Label label = wrapped(text);
         label.getStyleClass().add("mm-muted");
@@ -36,17 +76,18 @@ final class UiParts {
      * then the children. The look comes from the {@code mm-page*} style classes.
      */
     static VBox page(String title, String description, String example, Node... children) {
-        VBox box = new VBox(GAP);
+        VBox box = new VBox(SPACE_L);
         box.getStyleClass().add("mm-page");
         Label titleLabel = new Label(title);
         titleLabel.getStyleClass().add("mm-page-title");
-        box.getChildren().add(titleLabel);
+        VBox header = new VBox(SPACE_XS, titleLabel);   // the title and the lines that explain it stay one block
         if (description != null && !description.isBlank()) {
-            box.getChildren().add(styled(description, "mm-page-desc"));
+            header.getChildren().add(styled(description, "mm-page-desc"));
         }
         if (example != null && !example.isBlank()) {
-            box.getChildren().add(styled(example, "mm-example"));
+            header.getChildren().add(styled(example, "mm-example"));
         }
+        box.getChildren().add(header);
         box.getChildren().addAll(children);
         return box;
     }

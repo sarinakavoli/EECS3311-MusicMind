@@ -35,11 +35,11 @@ public final class ProfileView implements TabView {
     private final ComboBox<String> range = new ComboBox<>();
     private final Button refresh;
     private final StatusLine status = new StatusLine();
-    private final Label notice = UiParts.muted("");
-    private final Label generated = UiParts.muted("");
+    private final Label notice = UiParts.collapsing(UiParts.muted(""));
+    private final Label generated = UiParts.collapsing(UiParts.muted(""));
     private final GridPane genres = new GridPane();
-    private final VBox artists = new VBox(2);
-    private final VBox tracks = new VBox(2);
+    private final VBox artists = new VBox();   // rows carry their own padding
+    private final VBox tracks = new VBox();
     private final Label summary = UiParts.wrapped("");
     private final Node root;
 
@@ -64,15 +64,15 @@ public final class ProfileView implements TabView {
         refresh.setDefaultButton(true);
         refresh.setOnAction(e -> rebuild());
 
-        HBox controls = new HBox(UiParts.GAP, new Label(format.w("Range")), range, refresh);
+        HBox controls = new HBox(UiParts.SPACE_S, new Label(format.w("Range")), range, refresh);
         controls.setAlignment(Pos.CENTER_LEFT);
-        genres.setHgap(UiParts.GAP);
-        genres.setVgap(4);
-        HBox lists = new HBox(UiParts.PAD, card(format.w("TopArtists"), artists), card(format.w("TopTracks"), tracks));
+        genres.setHgap(UiParts.SPACE_S);
+        genres.setVgap(UiParts.SPACE_S);
+        HBox lists = new HBox(UiParts.SPACE_L, card(format.w("TopArtists"), artists), card(format.w("TopTracks"), tracks));
         VBox summaryCard = card(format.w("Summary"), summary);
 
-        VBox content = UiParts.page(format.w("Menu.profile"), format.w("Desc.profile"), "", controls, status, generated,
-                notice, card(format.w("TopGenres"), genres), lists, summaryCard);
+        VBox content = UiParts.page(format.w("Menu.profile"), format.w("Desc.profile"), "", UiParts.group(controls, status, generated, notice),
+                card(format.w("TopGenres"), genres), lists, summaryCard);
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
         root = new LoginGate(ctx, scroll, false);
@@ -80,7 +80,7 @@ public final class ProfileView implements TabView {
     }
 
     private static VBox card(String title, Node body) {
-        VBox card = new VBox(UiParts.GAP, UiParts.heading(title), body);
+        VBox card = new VBox(UiParts.SPACE_S, UiParts.heading(title), body);
         card.getStyleClass().add("mm-card");
         HBox.setHgrow(card, Priority.ALWAYS);
         return card;

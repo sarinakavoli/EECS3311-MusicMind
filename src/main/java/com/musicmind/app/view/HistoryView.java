@@ -48,9 +48,9 @@ public final class HistoryView implements TabView {
 
     private final ComboBox<SortOrder> sort = new ComboBox<>();
     private final ComboBox<ViewFormat.ActivityType> type = new ComboBox<>();
-    private final VBox timeline = new VBox(2);
+    private final VBox timeline = new VBox();   // rows carry their own padding
     private final Button more;
-    private final VBox versions = new VBox(UiParts.GAP);
+    private final VBox versions = new VBox(UiParts.SPACE_S);
     private final Node root;
     private List<AgentSession> loadedSessions = List.of();
     private int shown = PAGE_SIZE;
@@ -104,16 +104,16 @@ public final class HistoryView implements TabView {
             fillTimeline();
         });
 
-        VBox page = UiParts.page(format.w("Menu.history"), format.w("Desc.history"), "", controls(), status,
-                UiParts.heading(format.w("HistoryTitle")), timeline, more,
-                UiParts.heading(format.w("SavedVersions")), UiParts.muted(format.w("SavedVersionsHint")), versions);
+        VBox page = UiParts.page(format.w("Menu.history"), format.w("Desc.history"), "", UiParts.group(controls(), status),
+                UiParts.group(UiParts.heading(format.w("HistoryTitle")), timeline, more),
+                UiParts.group(UiParts.heading(format.w("SavedVersions")), UiParts.muted(format.w("SavedVersionsHint")), versions));
         ScrollPane scroll = new ScrollPane(page);
         scroll.setFitToWidth(true);
         root = new LoginGate(ctx, scroll, false);
     }
 
     private Node controls() {
-        HBox bar = new HBox(UiParts.GAP, refresh, UiParts.muted(format.w("SortLabel")), sort,
+        HBox bar = new HBox(UiParts.SPACE_S, refresh, UiParts.muted(format.w("SortLabel")), sort,
                 UiParts.muted(format.w("TypeLabel")), type, showRoutine);
         bar.setAlignment(Pos.CENTER_LEFT);
         return bar;
@@ -191,7 +191,7 @@ public final class HistoryView implements TabView {
         HBox.setHgrow(text, Priority.ALWAYS);
         Label arrow = new Label(format.w("OpenArrow"));
         arrow.getStyleClass().add("mm-muted");
-        HBox line = new HBox(UiParts.GAP, when, kind, text);
+        HBox line = new HBox(UiParts.SPACE_S, when, kind, text);
         String flag = format.statusFlag(session);
         if (!flag.isEmpty()) {
             Label state = new Label(flag);
@@ -201,7 +201,7 @@ public final class HistoryView implements TabView {
         line.getChildren().add(arrow);
         line.getStyleClass().addAll("mm-row", "mm-clickable");
         line.setAlignment(Pos.CENTER_LEFT);
-        VBox detail = new VBox(2);
+        VBox detail = new VBox(UiParts.SPACE_XS);
         detail.getStyleClass().add("mm-timeline-detail");
         detail.setVisible(false);
         detail.setManaged(false);
@@ -233,7 +233,7 @@ public final class HistoryView implements TabView {
             Label name = new Label(group.name());
             name.getStyleClass().add("mm-group-name");
             name.setTextOverrun(OverrunStyle.ELLIPSIS);
-            VBox card = new VBox(2, name);
+            VBox card = new VBox(UiParts.SPACE_S, name);
             card.getStyleClass().add("mm-card");
             for (ViewFormat.VersionLine line : group.versions()) {
                 card.getChildren().add(versionRow(line));
@@ -254,7 +254,7 @@ public final class HistoryView implements TabView {
         HBox.setHgrow(spacer, Priority.ALWAYS);
         Button restore = new Button(format.w("Restore"));
         restore.setOnAction(e -> preview(line.info(), restore));
-        HBox row = new HBox(UiParts.GAP, when, change, spacer, restore);
+        HBox row = new HBox(UiParts.SPACE_S, when, change, spacer, restore);
         row.getStyleClass().add("mm-row");
         row.setAlignment(Pos.CENTER_LEFT);
         return row;
@@ -299,7 +299,7 @@ public final class HistoryView implements TabView {
         scroll.setFitToWidth(true);
         scroll.getStyleClass().add("mm-preview-scroll");
         Label changeNote = UiParts.muted(format.w("PreviewHint"));
-        VBox content = new VBox(UiParts.GAP, changeNote, scroll);
+        VBox content = new VBox(UiParts.SPACE_S, changeNote, scroll);
         if (preview.stoppedEarly()) {
             content.getChildren().add(1, UiParts.muted(format.w("PreviewStopped")));
         }

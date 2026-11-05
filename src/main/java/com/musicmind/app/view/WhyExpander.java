@@ -48,7 +48,7 @@ final class WhyExpander {
         scroll.setPrefViewportHeight(MAX_HEIGHT);
         scroll.setMaxHeight(MAX_HEIGHT);
         scroll.getStyleClass().add("mm-why-scroll");
-        TitledPane pane = new TitledPane(ctx.format().w("WhyThese"), new VBox(UiParts.GAP, status, scroll));
+        TitledPane pane = new TitledPane(ctx.format().w("WhyThese"), new VBox(UiParts.SPACE_S, status, scroll));
         pane.setExpanded(false);
         AtomicBoolean requested = new AtomicBoolean(false);
         pane.expandedProperty().addListener((observable, was, expanded) -> {

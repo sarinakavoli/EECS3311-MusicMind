@@ -20,11 +20,11 @@ public final class TrendsView implements TabView {
     private final ViewFormat format;
     private final Button compare;
     private final StatusLine status = new StatusLine();
-    private final HBox columns = new HBox(UiParts.PAD);
-    private final VBox changes = new VBox(2);
+    private final HBox columns = UiParts.collapsing(new HBox(UiParts.SPACE_L));
+    private final VBox changes = new VBox(UiParts.SPACE_S);
     private final VBox changesCard;
-    private final Label narrative = UiParts.wrapped("");
-    private final VBox notices = new VBox(2);
+    private final Label narrative = UiParts.collapsing(UiParts.wrapped(""));
+    private final VBox notices = UiParts.collapsing(new VBox(UiParts.SPACE_S));
     private final Node root;
 
     public TrendsView(GuiContext ctx) {
@@ -35,9 +35,9 @@ public final class TrendsView implements TabView {
         compare.setDefaultButton(true);
         compare.setOnAction(e -> run());
         changesCard = buildChangesCard();
-        HBox controls = new HBox(UiParts.GAP, compare);
+        HBox controls = new HBox(UiParts.SPACE_S, compare);
         controls.setAlignment(Pos.CENTER_LEFT);
-        VBox content = UiParts.page(format.w("Menu.trends"), format.w("Desc.trends"), "", controls, status, columns, notices, changesCard, narrative);
+        VBox content = UiParts.page(format.w("Menu.trends"), format.w("Desc.trends"), "", UiParts.group(controls, status), columns, notices, changesCard, narrative);
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
         root = new LoginGate(ctx, scroll, false);
@@ -45,7 +45,7 @@ public final class TrendsView implements TabView {
     }
 
     private VBox buildChangesCard() {
-        VBox card = new VBox(UiParts.GAP, UiParts.heading(format.w("TrendsOverTime")), UiParts.muted(format.w("TrendsExplain")), changes);
+        VBox card = new VBox(UiParts.SPACE_S, UiParts.heading(format.w("TrendsOverTime")), UiParts.muted(format.w("TrendsExplain")), changes);
         card.getStyleClass().add("mm-card");
         card.setVisible(false);
         card.setManaged(false);
@@ -85,7 +85,7 @@ public final class TrendsView implements TabView {
         List<String> ranges = ctx.config().profileRanges();
         for (ViewFormat.TrendColumn column : format.trendColumns(report, ranges, ctx.config().guiArtistsShown(),
                 ctx.config().guiTrendGenresShown())) {
-            VBox box = new VBox(4, UiParts.heading(column.range()),
+            VBox box = new VBox(UiParts.SPACE_S, UiParts.heading(column.range()),
                     UiParts.heading(format.w("Genres")),
                     list(column.genres()), UiParts.heading(format.w("Artists")),
                     list(column.artists()));
@@ -104,7 +104,7 @@ public final class TrendsView implements TabView {
     }
 
     private static VBox list(List<String> items) {
-        VBox box = new VBox(2);
+        VBox box = new VBox(UiParts.SPACE_S);
         items.forEach(item -> box.getChildren().add(new Label(item)));
         return box;
     }

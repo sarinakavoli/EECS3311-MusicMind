@@ -60,12 +60,12 @@ public final class CreatePlaylistDialog {
     /** The share of new artists, as the Discover slider shows it; the familiar share sent is 1 minus this. */
     private final Slider novelty = new Slider(0, 1, 0);
     private final Label mixLabel = new Label();
-    private final VBox mixBox = new VBox(UiParts.GAP);
+    private final VBox mixBox = new VBox(UiParts.SPACE_S);
     private final CheckBox useWaiting = new CheckBox();
-    private final VBox waitingBox = new VBox(UiParts.GAP);
+    private final VBox waitingBox = new VBox(UiParts.SPACE_S);
     private final TextField name = new TextField();
     private final StatusLine status = new StatusLine();
-    private final VBox result = new VBox(UiParts.GAP);
+    private final VBox result = new VBox(UiParts.SPACE_S);
     private final VBox form;
     private final ButtonType createButton;
     private final ButtonType openButton;
@@ -90,7 +90,7 @@ public final class CreatePlaylistDialog {
         minutes.setPromptText("0");
         hours.getStyleClass().add("mm-length-field");
         minutes.getStyleClass().add("mm-length-field");
-        HBox length = new HBox(UiParts.GAP, hours, UiParts.muted(format.w("Hours")), minutes, UiParts.muted(format.w("Minutes")));
+        HBox length = new HBox(UiParts.SPACE_S, hours, UiParts.muted(format.w("Hours")), minutes, UiParts.muted(format.w("Minutes")));
         length.setAlignment(Pos.CENTER_LEFT);
 
         allowExplicit.setText(format.w("AllowExplicit"));
@@ -119,10 +119,10 @@ public final class CreatePlaylistDialog {
         waitingBox.setManaged(false);
         name.setPromptText(format.w("PlaylistNameHint"));
 
-        form = new VBox(UiParts.GAP, UiParts.muted(format.w("Goal")), goal,
+        form = new VBox(UiParts.SPACE_S, UiParts.muted(format.w("Goal")), goal,
                 UiParts.muted(format.w("Length")), length, UiParts.muted(format.w("LengthHint")), allowExplicit,
                 mixFromGoal, mixHint, mixBox, waitingBox, UiParts.muted(format.w("PlaylistName")), name);
-        VBox content = new VBox(UiParts.GAP, form, result);
+        VBox content = new VBox(UiParts.SPACE_M, form, result);
         content.getStyleClass().add("mm-dialog-content");
         // The form and the result scroll; the buttons below stay in view and the window can be resized.
         ScrollPane scroll = new ScrollPane(content);
@@ -135,7 +135,7 @@ public final class CreatePlaylistDialog {
         dialog.setResizable(true);
         VBox.setVgrow(scroll, Priority.ALWAYS);
         // The status line sits outside the scrolling part, so progress and errors are always seen.
-        VBox pane = new VBox(UiParts.GAP, scroll, status);
+        VBox pane = new VBox(UiParts.SPACE_S, scroll, status);
         dialog.getDialogPane().setContent(pane);
         dialog.getDialogPane().getButtonTypes().addAll(createButton, new ButtonType(format.w("Close"),
                 ButtonBar.ButtonData.CANCEL_CLOSE));
@@ -173,7 +173,7 @@ public final class CreatePlaylistDialog {
                 return;
             }
             useWaiting.setText(format.w(waiting.size() == 1 ? "UseWaitingOne" : "UseWaitingMany", waiting.size()));
-            VBox songs = new VBox(2);
+            VBox songs = new VBox(UiParts.SPACE_XS);
             waiting.forEach(t -> songs.getChildren().add(UiParts.muted(format.trackTitleLine(t))));
             ScrollPane scroll = new ScrollPane(songs);
             scroll.setFitToWidth(true);

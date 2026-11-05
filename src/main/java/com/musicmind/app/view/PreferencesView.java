@@ -62,12 +62,12 @@ public final class PreferencesView implements TabView {
     private final TextField artistQuery = new TextField();
     private final Button findArtist = new Button();
     private final Label artistMatches = UiParts.muted("");
-    private final VBox artistChoices = new VBox(2);
-    private final VBox blockedArtists = new VBox(2);
+    private final VBox artistChoices = new VBox();
+    private final VBox blockedArtists = new VBox();
     private final TextField songQuery = new TextField();
     private final Button findSong = new Button();
-    private final VBox songChoices = new VBox(2);
-    private final VBox blockedSongs = new VBox(2);
+    private final VBox songChoices = new VBox();
+    private final VBox blockedSongs = new VBox();
     /** Titles of songs seen in this session; Spotify content is not stored, so older blocks have none. */
     private final Map<String, String> knownTitles = new HashMap<>();
     /** "Title - Artist" lines read live from Spotify when the screen opened; held in memory only, never stored. */
@@ -125,7 +125,7 @@ public final class PreferencesView implements TabView {
         allow.setSelected(true);
         saveExplicit.setText(format.w("Save"));
         saveExplicit.setOnAction(e -> savePref(PreferenceSettings.EXPLICIT_POLICY, allow.isSelected() ? "allow" : "block", saveExplicit));
-        return section(format.w("ExplicitHeading"), UiParts.muted(format.w("ExplicitHint")), new HBox(UiParts.GAP, allow, block), saveExplicit);
+        return section(format.w("ExplicitHeading"), UiParts.muted(format.w("ExplicitHint")), new HBox(UiParts.SPACE_S, allow, block), saveExplicit);
     }
 
     private Node mixSection() {
@@ -152,7 +152,7 @@ public final class PreferencesView implements TabView {
         findArtist.getStyleClass().add("mm-primary");
         findArtist.setOnAction(e -> findArtists());
         artistQuery.setOnAction(e -> findArtists());
-        HBox bar = new HBox(UiParts.GAP, artistQuery, findArtist);
+        HBox bar = new HBox(UiParts.SPACE_S, artistQuery, findArtist);
         bar.setAlignment(Pos.CENTER_LEFT);
         artistMatches.setManaged(false);
         artistMatches.setVisible(false);
@@ -168,7 +168,7 @@ public final class PreferencesView implements TabView {
         findSong.getStyleClass().add("mm-primary");
         findSong.setOnAction(e -> findSongs());
         songQuery.setOnAction(e -> findSongs());
-        HBox bar = new HBox(UiParts.GAP, songQuery, findSong);
+        HBox bar = new HBox(UiParts.SPACE_S, songQuery, findSong);
         bar.setAlignment(Pos.CENTER_LEFT);
         blockedSongs.getChildren().add(UiParts.muted(format.w("BlockedSongsNone")));
         return section(format.w("BlockedSongsHeading"), UiParts.muted(format.w("BlockedSongsHint")), bar, songChoices, UiParts.heading(format.w("BlockedNow")), blockedSongs);
@@ -181,13 +181,13 @@ public final class PreferencesView implements TabView {
                 styles.getText() == null ? "" : styles.getText().strip(), saveStyles));
         styles.setOnAction(e -> saveStyles.fire());
         HBox.setHgrow(styles, Priority.ALWAYS);
-        HBox bar = new HBox(UiParts.GAP, styles, saveStyles);
+        HBox bar = new HBox(UiParts.SPACE_S, styles, saveStyles);
         bar.setAlignment(Pos.CENTER_LEFT);
         return section(format.w("StylesHeading"), UiParts.muted(format.w("StylesHint")), bar);
     }
 
     private static VBox section(String heading, Node... children) {
-        VBox box = new VBox(UiParts.GAP, UiParts.heading(heading));
+        VBox box = new VBox(UiParts.SPACE_S, UiParts.heading(heading));
         box.getChildren().addAll(children);
         box.getStyleClass().add("mm-section");
         return box;
@@ -309,7 +309,7 @@ public final class PreferencesView implements TabView {
         Button button = new Button(format.w("RemoveButton"));
         button.setMinWidth(Region.USE_PREF_SIZE);
         button.setOnAction(e -> remove.run());
-        HBox row = new HBox(UiParts.GAP, label, button);
+        HBox row = new HBox(UiParts.SPACE_S, label, button);
         row.getStyleClass().add("mm-row");
         return row;
     }
@@ -371,7 +371,7 @@ public final class PreferencesView implements TabView {
     private Node artistChoice(Artist artist, String position, String hint) {
         Label name = new Label(position.isEmpty() ? artist.name() : artist.name() + "  (" + position + ")");
         name.getStyleClass().add("mm-track-title");
-        VBox text = new VBox(2, name);
+        VBox text = new VBox(UiParts.SPACE_XS, name);
         String detail = hint != null && !hint.isBlank() ? hint
                 : artist.genres() == null ? "" : String.join(", ", artist.genres());
         if (!detail.isEmpty()) {
@@ -384,7 +384,7 @@ public final class PreferencesView implements TabView {
         Button choose = new Button(format.w("BlockButton"));
         choose.setMinWidth(Region.USE_PREF_SIZE);
         choose.setOnAction(e -> blockArtist(artist));
-        HBox row = new HBox(UiParts.GAP, text, choose);
+        HBox row = new HBox(UiParts.SPACE_S, text, choose);
         row.getStyleClass().add("mm-row");
         return row;
     }

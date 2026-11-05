@@ -22,7 +22,7 @@ final class NegotiationDialog {
      * @return the chosen relaxation, or empty if the user cancelled
      */
     static Optional<Relaxation> ask(ViewFormat format, FeasibilityReport report, List<String> options) {
-        VBox body = new VBox(UiParts.GAP);
+        VBox body = new VBox(UiParts.SPACE_S);
         for (String conflict : report.conflicts()) {
             Label line = UiParts.wrapped(conflict);
             line.getStyleClass().add("mm-confirm-message");

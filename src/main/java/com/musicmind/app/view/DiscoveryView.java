@@ -46,8 +46,8 @@ public final class DiscoveryView implements TabView {
     private final Button discover;
     private final StatusLine status = new StatusLine();
     private final StatusLine feedbackStatus = new StatusLine();
-    private final VBox list = new VBox(UiParts.GAP);
-    private final VBox listNotes = new VBox(UiParts.GAP);
+    private final VBox list = new VBox(UiParts.SPACE_S);
+    private final VBox listNotes = new VBox(UiParts.SPACE_S);
     private final Node root;
 
     public DiscoveryView(GuiContext ctx) {
@@ -77,14 +77,14 @@ public final class DiscoveryView implements TabView {
         discover.setDefaultButton(true);
         discover.setOnAction(e -> run());
 
-        HBox top = new HBox(UiParts.GAP, usePreference, discover);
+        HBox top = new HBox(UiParts.SPACE_S, usePreference, discover);
         top.setAlignment(Pos.CENTER_LEFT);
-        VBox controls = new VBox(UiParts.GAP, top, mixLabel, sliderBox);
+        VBox controls = new VBox(UiParts.SPACE_S, top, mixLabel, sliderBox);
         list.getChildren().add(UiParts.muted(format.w("NoRecommendations")));
-        ScrollPane scroll = new ScrollPane(new VBox(UiParts.GAP, listNotes, list));
+        ScrollPane scroll = new ScrollPane(new VBox(UiParts.SPACE_S, listNotes, list));
         scroll.setFitToWidth(true);
         scroll.setPrefHeight(480);
-        VBox page = UiParts.page(format.w("Menu.discover"), format.w("Desc.discover"), format.w("Example.discover"), controls, status, feedbackStatus, scroll);
+        VBox page = UiParts.page(format.w("Menu.discover"), format.w("Desc.discover"), format.w("Example.discover"), UiParts.group(controls, status, feedbackStatus), scroll);
         root = new LoginGate(ctx, page, false);
     }
 
@@ -165,7 +165,7 @@ public final class DiscoveryView implements TabView {
 
     private VBox card(Recommendation rec, java.util.Map<String, com.musicmind.domain.Verdict> verdicts) {
         Label familiarity = UiParts.muted(format.familiarityLabel(rec.familiarity()));
-        VBox card = new VBox(4, TrackRow.of(ctx, feedbackStatus, rec.track(), TrackRow.Options.feedbackOnly().withPlay().withAdd(this::add),
+        VBox card = new VBox(UiParts.SPACE_S, TrackRow.of(ctx, feedbackStatus, rec.track(), TrackRow.Options.feedbackOnly().withPlay().withAdd(this::add),
                 verdicts.get(rec.track().id())), familiarity,
                 WhyExpander.of(format, "WhyThisSong", rec.reason()));
         card.getStyleClass().add("mm-card");
