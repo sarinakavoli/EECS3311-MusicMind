@@ -605,7 +605,6 @@ public final class Config {
         return Double.parseDouble(text("discover.weight.keywordTitlePenalty"));
     }
 
-    /** Added to the score of a song Last.fm lists under one of the goal's tags. */
     /** How many of an artist's leading genres count when a familiar track is checked against a Create goal. */
     public int createFitLeadingGenres() {
         return integer("create.fitLeadingGenres");
@@ -616,6 +615,7 @@ public final class Config {
         return Double.parseDouble(text("discover.weight.genreTitleContainsPenalty"));
     }
 
+    /** Added to the score of a song Last.fm lists under one of the goal's tags. */
     public double discoverTagBonus() {
         return Double.parseDouble(text("discover.weight.tagBonus"));
     }

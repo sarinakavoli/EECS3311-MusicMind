@@ -322,7 +322,8 @@ public class RecommendationEngine {
             if (goalDriven && offGoalFamiliar > 0) {
                 int familiarPicked = result.size() - selection.novelSelected();
                 if (familiarPicked < wantedFamiliar(result.size(), spec)) {
-                    notes.add(String.format(config.wording("familiarShortForGoal"), familiarPicked,
+                    notes.add(familiarPicked == 0 ? config.wording("familiarNoneForGoal")
+                            : String.format(config.wording("familiarShortForGoal"), familiarPicked,
                             wantedFamiliar(result.size(), spec)));
                 }
             }
@@ -483,7 +484,12 @@ public class RecommendationEngine {
             }
         }
         // Tracks that match the genres the user asked for (a mood) rank first inside each pool, then by score.
-        Comparator<Track> best = Comparator.<Track>comparingInt(t -> matchesSeed(t) || tagIds.contains(t.id()) ? 0 : 1)
+        // Tiers: both a Last.fm tag song and a seed-genre match; either of the two; neither.
+        Comparator<Track> best = Comparator.<Track>comparingInt(t -> {
+                    boolean tagged = tagIds.contains(t.id());
+                    boolean seeded = matchesSeed(t);
+                    return tagged && seeded ? 0 : tagged || seeded ? 1 : 2;
+                })
                 .thenComparing(Comparator.<Track>comparingDouble(t -> score(t, spec)).reversed());
         familiar.sort(best);
         novel.sort(best);
@@ -499,7 +505,7 @@ public class RecommendationEngine {
         int novelSelected = 0;
         int seedMatched = 0;
         for (Track t : picked.values()) {
-            if (matchesSeed(t)) {
+            if (matchesSeed(t) || goalSourceIds.contains(t.id())) { // tag and keyword songs are goal-vouched too
                 seedMatched++;
             }
             if (!isFamiliar(t, libraryIds)) {

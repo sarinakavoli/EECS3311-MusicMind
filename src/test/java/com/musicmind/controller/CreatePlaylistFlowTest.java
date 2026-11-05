@@ -762,7 +762,7 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
 
         assertEquals(15, playlist.tracks().size());
         assertTrue(playlist.tracks().stream().noneMatch(t -> t.id().startsWith("t")), "rock songs do not fit chill");
-        assertTrue(c.lastSession().notices().stream().anyMatch(n -> n.contains("artists you know")),
+        assertTrue(c.lastSession().notices().stream().anyMatch(n -> n.contains("None of your own songs fit this goal")),
                 c.lastSession().notices().toString());
     }
 

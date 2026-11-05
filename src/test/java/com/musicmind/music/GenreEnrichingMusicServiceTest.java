@@ -199,4 +199,15 @@ class GenreEnrichingMusicServiceTest extends PostgresTestBase {
         }
         assertEquals(MusicService.class.getMethods().length - 2, checked);
     }
+
+    @Test
+    void genreOrderFromMusicBrainzIsKeptSoTheLeadingGenresAreTheMostVoted() {
+        FakeGenres genres = new FakeGenres();
+        genres.byId.put("a1", Optional.of(List.of("zydeco", "ambient", "blues", "acoustic")));
+        MusicService s = service(new StubMusicService(), genres);
+
+        List<Artist> out = ((GenreEnrichingMusicService) s).withGenres(List.of(new Artist("a1", "A", List.of())));
+
+        assertEquals(List.of("zydeco", "ambient", "blues", "acoustic"), out.get(0).genres(), "not re-sorted alphabetically");
+    }
 }

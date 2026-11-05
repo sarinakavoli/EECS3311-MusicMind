@@ -1485,4 +1485,70 @@ class RecommendationEngineTest {
         List<String> ids = ids(recs);
         assertEquals(recs.get(ids.indexOf("t2")).score(), recs.get(ids.indexOf("t1")).score(), 1e-9);
     }
+
+    // ---- Fix round: notices and ranking tiers with Last.fm tag songs ----
+
+    private static final List<TagTrack> TEN_TAG_SONGS = IntStream.range(0, 10)
+            .mapToObj(i -> new TagTrack("Tag Song " + i, "Singer " + i)).toList();
+
+    private static FakeMusic tenTagSongsMusic() {
+        FakeMusic m = slowDanceMusic(0, 0);
+        m.top = List.of();
+        for (int i = 0; i < 10; i++) {
+            m.byGenre.put(tagQuery("Tag Song " + i, "Singer " + i),
+                    List.of(named("ts" + i, "Tag Song " + i, "singer" + i, "Singer " + i)));
+        }
+        return m;
+    }
+
+    @Test
+    void create_tagVouchedSongsCountAsMatchingTheGoal_noFewGenreMatchesNotice() {
+        TagService lastFm = (tag, limit) -> TEN_TAG_SONGS;
+        RecommendationEngine e = new RecommendationEngine(toolsFor(tenTagSongsMusic()), withKey, ArtistGenreCache.NONE, lastFm);
+
+        List<Recommendation> recs = e.recommend(e.retrieve(goalProfile(), spec(0.0), true, SLOW_DANCE, List.of(),
+                List.of("slow dance")), spec(0.0), List.of());
+
+        assertEquals(10, recs.size());
+        assertTrue(ids(recs).stream().allMatch(id -> id.startsWith("ts")), ids(recs).toString());
+        assertTrue(e.lastNotices().stream().noneMatch(n -> n.contains("match the genres you asked for")),
+                e.lastNotices().toString());
+    }
+
+    @Test
+    void create_noFamiliarSongFits_noticeSaysNoneInsteadOfOnlyZero() {
+        TagService lastFm = (tag, limit) -> TEN_TAG_SONGS;
+        RecommendationEngine e = new RecommendationEngine(toolsFor(withPopLibrary(tenTagSongsMusic())), withKey,
+                ArtistGenreCache.NONE, lastFm);
+
+        e.recommend(e.retrieve(goalProfile(), spec(0.4), true, SLOW_DANCE, List.of(), List.of("slow dance")),
+                spec(0.4), List.of());
+
+        assertTrue(e.lastNotices().contains(withKey.wording("familiarNoneForGoal")), e.lastNotices().toString());
+        assertTrue(e.lastNotices().stream().noneMatch(n -> n.contains("Only 0 of")), e.lastNotices().toString());
+    }
+
+    private static FakeMusic withPopLibrary(FakeMusic m) {
+        m.top = List.of(track("p1", "popA"), track("p2", "popA"));
+        return m;
+    }
+
+    @Test
+    void create_aSongThatIsBothTaggedAndGenreMatchedRanksInTheFirstTier() {
+        // 10 library songs by soulA (genre matches) plus a Last.fm tag song by soulA that the user rejected earlier:
+        // the tier puts the tag-and-genre song ahead of the genre-only songs although its score is lower.
+        FakeMusic m = slowDanceMusic(0, 0);
+        List<Track> lib = new ArrayList<>();
+        for (int i = 0; i < 10; i++) lib.add(track("s" + i, "soulA"));
+        m.top = lib;
+        m.byGenre.put(tagQuery("Both", "SoulA"), List.of(named("both", "Both", "soulA", "SoulA")));
+        TagService lastFm = (tag, limit) -> List.of(new TagTrack("Both", "SoulA"));
+        RecommendationEngine e = new RecommendationEngine(toolsFor(m), withKey, ArtistGenreCache.NONE, lastFm);
+        e.setStrategy(new FamiliarStrategy());
+
+        List<Recommendation> recs = e.recommend(e.retrieve(goalProfile(), spec(1.0), true, SLOW_DANCE, List.of(),
+                List.of("slow dance")), spec(1.0), List.of(new Feedback("both", Verdict.REJECT, Instant.EPOCH)));
+
+        assertTrue(ids(recs).contains("both"), ids(recs).toString());
+    }
 }
