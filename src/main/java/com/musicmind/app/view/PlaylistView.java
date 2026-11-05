@@ -56,16 +56,16 @@ public final class PlaylistView implements TabView {
     private final StatusLine listStatus = new StatusLine();
     private final StatusLine feedbackStatus = new StatusLine();
     private final Label title = UiParts.heading("");
-    private final FlowPane badges = new FlowPane(UiParts.GAP, UiParts.GAP);
-    private final VBox warnings = new VBox(2);
-    private final VBox tracks = new VBox(2);
-    private final VBox notices = new VBox(2);
+    private final FlowPane badges = new FlowPane(UiParts.SPACE_S, UiParts.SPACE_S);
+    private final VBox warnings = UiParts.collapsing(new VBox(UiParts.SPACE_S));
+    private final VBox tracks = new VBox();   // rows carry their own padding
+    private final VBox notices = UiParts.collapsing(new VBox(UiParts.SPACE_S));
     private final VBox why = new VBox();
     private final TextField instruction = new TextField();
     private final Button modify;
     private final Button undo;
     private final Button check;
-    private final VBox detail = new VBox(UiParts.GAP);
+    private final VBox detail = new VBox(UiParts.SPACE_M);
     private final Node root;
     private String openId;
     private boolean quietSelection;
@@ -111,26 +111,32 @@ public final class PlaylistView implements TabView {
         HBox.setHgrow(instruction, Priority.ALWAYS);
         instruction.setOnAction(e -> modify());
         modify = new Button(format.w("Modify"));
+        modify.getStyleClass().add("mm-primary");   // the main task of an opened playlist
         modify.setOnAction(e -> modify());
         undo = new Button(format.w("Undo"));
         undo.setOnAction(e -> undo());
         check = new Button(format.w("CheckPlaylist"));
+        check.setMinWidth(Region.USE_PREF_SIZE);
         check.setOnAction(e -> open(openId));
-        HBox modifyBox = new HBox(UiParts.GAP, instruction, modify, undo, check);
+        HBox modifyBox = new HBox(UiParts.SPACE_S, instruction, modify, undo);
         modifyBox.setAlignment(Pos.CENTER_LEFT);
+        // The badges say whether the playlist meets the rules; the button beside them checks it again.
+        HBox.setHgrow(badges, Priority.ALWAYS);
+        HBox rulesRow = new HBox(UiParts.SPACE_S, badges, check);
+        rulesRow.setAlignment(Pos.CENTER_LEFT);
+        VBox heading = new VBox(UiParts.SPACE_S, title, rulesRow, warnings);
 
         ScrollPane trackScroll = new ScrollPane(tracks);
         trackScroll.setFitToWidth(true);
         trackScroll.setPrefHeight(TRACK_AREA_HEIGHT);
-        detail.getChildren().addAll(title, badges, warnings, trackScroll, feedbackStatus, modifyBox, notices, why);
-        detail.setPadding(new Insets(UiParts.PAD));
+        detail.getChildren().addAll(heading, modifyBox, trackScroll, feedbackStatus, notices, why);
         detail.setVisible(false);
         Label chooser = UiParts.muted(format.w("SelectPlaylist"));
-        VBox left = new VBox(UiParts.GAP, new HBox(UiParts.GAP, refresh, create), playlists, listStatus);
-        left.setPadding(new Insets(UiParts.PAD));
+        VBox left = new VBox(UiParts.SPACE_S, new HBox(UiParts.SPACE_S, refresh, create), playlists, listStatus);
+        left.setPadding(new Insets(UiParts.SPACE_M));
         VBox.setVgrow(playlists, Priority.ALWAYS);
-        VBox right = new VBox(UiParts.GAP, status, chooser, detail);
-        right.setPadding(new Insets(UiParts.PAD));
+        VBox right = new VBox(UiParts.SPACE_S, status, chooser, detail);
+        right.setPadding(new Insets(UiParts.SPACE_M));
         ScrollPane rightScroll = new ScrollPane(right);
         rightScroll.setFitToWidth(true);
         chooser.visibleProperty().bind(detail.visibleProperty().not());
@@ -380,7 +386,7 @@ public final class PlaylistView implements TabView {
         name.setMaxWidth(Double.MAX_VALUE);
         Label count = new Label(format.w("PlaylistCount", item.trackCount()));
         count.getStyleClass().addAll("mm-muted", "mm-track-artists");
-        VBox text = new VBox(2, name, count);
+        VBox text = new VBox(UiParts.SPACE_XS, name, count);
         text.setMinWidth(0);
         HBox.setHgrow(text, Priority.ALWAYS);
         Button open = new Button(format.w("OpenPlaylist"));
@@ -390,7 +396,7 @@ public final class PlaylistView implements TabView {
         delete.getStyleClass().add("mm-danger");
         delete.setMinWidth(Region.USE_PREF_SIZE);
         delete.setOnAction(e -> confirmDelete(item));
-        HBox row = new HBox(UiParts.GAP, text, open, delete);
+        HBox row = new HBox(UiParts.SPACE_S, text, open, delete);
         row.setAlignment(Pos.CENTER_LEFT);
         return row;
     }

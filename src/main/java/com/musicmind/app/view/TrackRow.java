@@ -67,7 +67,7 @@ final class TrackRow {
         title.getStyleClass().add("mm-track-title");
         title.setTextOverrun(OverrunStyle.ELLIPSIS);
         title.setMaxWidth(Double.MAX_VALUE);
-        VBox text = new VBox(2, title);
+        VBox text = new VBox(UiParts.SPACE_XS, title);
         String artists = format.artists(track);
         if (!artists.isEmpty()) {
             Label line = new Label(artists);
@@ -81,7 +81,7 @@ final class TrackRow {
 
         Label length = UiParts.muted(format.duration(track.durationMs()));
         length.setMinWidth(Region.USE_PREF_SIZE);
-        HBox row = new HBox(UiParts.GAP, text, length);
+        HBox row = new HBox(UiParts.SPACE_S, text, length);
         row.getStyleClass().add("mm-row");
         row.setAlignment(Pos.CENTER_LEFT);
 
@@ -110,7 +110,7 @@ final class TrackRow {
             row.getChildren().add(play);
         }
         action(row, format.w("AddButton"), "mm-primary", options.onAdd(), track);
-        action(row, format.w("BlockButton"), null, options.onBlock(), track);
+        action(row, format.w("BlockButton"), "mm-danger", options.onBlock(), track);
         action(row, format.w("RemoveButton"), null, options.onRemove(), track);
         return row;
     }
