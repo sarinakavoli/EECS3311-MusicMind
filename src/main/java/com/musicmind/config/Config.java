@@ -4,10 +4,14 @@ import io.github.cdimascio.dotenv.Dotenv;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.function.UnaryOperator;
 
 /**
@@ -276,6 +280,29 @@ public final class Config {
 
     public int lastfmMaxTags() {
         return integer("lastfm.maxTags");
+    }
+
+    /**
+     * Tags that count as the same goal as {@code tag}, from {@code lastfm.synonyms.<key>} where the key is the whole
+     * tag or one of its words, lower case, joined by "-" (for example {@code lastfm.synonyms.slow-dance}).
+     * Empty when none is listed.
+     */
+    public List<String> lastfmSynonyms(String tag) {
+        String words = tag == null ? "" : tag.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]+", " ").trim();
+        if (words.isEmpty()) {
+            return List.of();
+        }
+        List<String> keys = new ArrayList<>();
+        keys.add(words.replace(' ', '-'));
+        keys.addAll(Arrays.asList(words.split(" ")));
+        Set<String> out = new LinkedHashSet<>();
+        for (String key : keys) {
+            String value = tunables.getProperty("lastfm.synonyms." + key);
+            if (value != null) {
+                Arrays.stream(value.split(",")).map(String::trim).filter(v -> !v.isEmpty()).forEach(out::add);
+            }
+        }
+        return List.copyOf(out);
     }
 
     /** Most Last.fm song lookups (track.gettoptags) per Create run. */

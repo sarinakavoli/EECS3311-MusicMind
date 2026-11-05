@@ -44,6 +44,8 @@ public final class Retrieval {
     final List<Track> tagTracks;
     /** The tags the plan asked for; empty when the goal has none. */
     final List<String> tags;
+    /** Last.fm's tags for the familiar songs themselves; null when the run has no tags or Last.fm is off. */
+    TrackTagFit trackTagFit;
 
     Retrieval(ListeningProfile profile, boolean allowLibraryTracks, Set<String> seedGenres,
               CandidateRetriever retriever, List<Track> library, Set<String> libraryIds,
@@ -104,9 +106,11 @@ public final class Retrieval {
         removed.addAll(trackIds);
         Map<String, List<Track>> byGenre = new LinkedHashMap<>();
         genreTracks.forEach((genre, tracks) -> byGenre.put(genre, keeping(tracks, removed)));
-        return new Retrieval(profile, allowLibraryTracks, seedGenres, retriever, keeping(library, removed), libraryIds,
+        Retrieval copy = new Retrieval(profile, allowLibraryTracks, seedGenres, retriever, keeping(library, removed), libraryIds,
                 keeping(albumTracks, removed), genres, byGenre, origins, keeping(keywordTracks, removed), Set.copyOf(removed),
                 searchTerms, goalSourceIds, keeping(tagTracks, removed), tags);
+        copy.trackTagFit = trackTagFit; // the same lookups and answers
+        return copy;
     }
 
     /**

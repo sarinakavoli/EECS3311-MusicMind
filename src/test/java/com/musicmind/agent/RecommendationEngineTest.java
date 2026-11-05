@@ -1291,4 +1291,150 @@ class RecommendationEngineTest {
         assertEquals(0, calls[0]);
         assertTrue(e.lastNotices().stream().noneMatch(n -> n.contains("Last.fm")), e.lastNotices().toString());
     }
+
+    // ---- Last.fm tags of the familiar songs themselves ----
+
+    /** Last.fm that lists no tag songs and answers track tags from a title -> tags table. */
+    private static class SongTags implements TagService {
+        final Map<String, List<String>> byTitle = new LinkedHashMap<>();
+        final List<String> asked = new ArrayList<>();
+        RuntimeException failure;
+
+        @Override public List<TagTrack> topTracks(String tag, int limit) { return List.of(); }
+        @Override public List<String> trackTags(String artist, String title) {
+            asked.add(artist + "|" + title);
+            if (failure != null) throw failure;
+            return byTitle.getOrDefault(title, List.of());
+        }
+    }
+
+    private static FakeMusic libraryOf(Track... tracks) {
+        FakeMusic m = slowDanceMusic(0, 0);
+        m.top = List.of(tracks);
+        return m;
+    }
+
+    private List<Recommendation> slowDance(RecommendationEngine e) {
+        return e.recommend(e.retrieve(goalProfile(), spec(0.4), true, SLOW_DANCE, List.of(), List.of("slow dance")),
+                spec(0.4), List.of());
+    }
+
+    @Test
+    void create_songTagsLackingTheGoalTags_excludeATrackWhoseArtistGenreFits() {
+        SongTags lastFm = new SongTags();
+        lastFm.byTitle.put("Billie Like", List.of("pop", "80s", "dance", "michael jackson"));
+        lastFm.byTitle.put("Ballad Like", List.of("Slow Dance", "romantic", "soul"));
+        RecommendationEngine e = new RecommendationEngine(toolsFor(libraryOf(
+                named("bj", "Billie Like", "soulA", "SoulA"), named("bal", "Ballad Like", "soulA", "SoulA"))),
+                withKey, ArtistGenreCache.NONE, lastFm);
+
+        List<String> picked = ids(slowDance(e));
+
+        assertFalse(picked.contains("bj"), picked.toString());
+        assertTrue(picked.contains("bal"), picked.toString());
+        assertEquals(10, picked.size(), "new songs fill the length");
+    }
+
+    @Test
+    void create_songTagsMakeATrackFitEvenWhenItsArtistGenresDoNot() {
+        SongTags lastFm = new SongTags();
+        lastFm.byTitle.put("Pop Ballad", List.of("romantic", "pop"));
+        RecommendationEngine e = new RecommendationEngine(toolsFor(libraryOf(
+                named("pb", "Pop Ballad", "popA", "PopA"))), withKey, ArtistGenreCache.NONE, lastFm);
+
+        assertTrue(ids(slowDance(e)).contains("pb"));
+    }
+
+    @Test
+    void create_aPartialTagOrAGenreAloneIsNotAMatch() {
+        SongTags lastFm = new SongTags();
+        lastFm.byTitle.put("Slow Song", List.of("slow", "dancehall", "soul", "r&b", "ballad"));
+        RecommendationEngine e = new RecommendationEngine(toolsFor(libraryOf(
+                named("sl", "Slow Song", "soulA", "SoulA"))), withKey, ArtistGenreCache.NONE, lastFm);
+
+        assertFalse(ids(slowDance(e)).contains("sl"));
+    }
+
+    @Test
+    void create_songTagLookupsAreCappedAndTheRestFallBackToTheArtistGenreRule() {
+        SongTags lastFm = new SongTags();
+        Config capped = withKey.withTunables(Map.of("lastfm.maxTrackTagLookups", "2"));
+        Track[] lib = new Track[5];
+        for (int i = 0; i < lib.length; i++) {
+            lib[i] = named("c" + i, "Song " + i, "soulA", "SoulA");
+            lastFm.byTitle.put("Song " + i, List.of("pop")); // would exclude, if looked up
+        }
+        RecommendationEngine e = new RecommendationEngine(toolsFor(libraryOf(lib)), capped, ArtistGenreCache.NONE, lastFm);
+
+        List<String> picked = ids(slowDance(e));
+
+        assertEquals(2, lastFm.asked.size(), lastFm.asked.toString());
+        assertEquals(3, picked.stream().filter(id -> id.startsWith("c")).count(), picked.toString());
+    }
+
+    @Test
+    void create_aLookupIsMadeOncePerSongForTheWholeRetrieval() {
+        SongTags lastFm = new SongTags();
+        lastFm.byTitle.put("Ballad Like", List.of("romantic"));
+        RecommendationEngine e = new RecommendationEngine(toolsFor(libraryOf(
+                named("bal", "Ballad Like", "soulA", "SoulA"))), withKey, ArtistGenreCache.NONE, lastFm);
+        Retrieval r = e.retrieve(goalProfile(), spec(0.4), true, SLOW_DANCE, List.of(), List.of("slow dance"));
+
+        e.recommend(r, spec(0.4), List.of());
+        e.recommend(r.without(java.util.Set.of("zzz")), spec(0.4), List.of());
+        e.recommend(r, spec(0.4), List.of());
+
+        assertEquals(1, lastFm.asked.size(), lastFm.asked.toString());
+    }
+
+    @Test
+    void create_songTagFailure_fallsBackToArtistGenresStopsAskingAndSaysSo() {
+        SongTags lastFm = new SongTags();
+        lastFm.failure = new MusicServiceException("Last.fm returned HTTP 500.");
+        RecommendationEngine e = new RecommendationEngine(toolsFor(libraryOf(
+                named("a", "A", "soulA", "SoulA"), named("b", "B", "soulA", "SoulA"), named("p", "P", "popA", "PopA"))),
+                withKey, ArtistGenreCache.NONE, lastFm);
+
+        List<String> picked = ids(slowDance(e));
+
+        assertEquals(1, lastFm.asked.size(), "after one failure no more requests this run");
+        assertTrue(picked.containsAll(List.of("a", "b")), picked.toString());
+        assertFalse(picked.contains("p"), picked.toString());
+        assertEquals(1, e.lastNotices().stream().filter(n -> n.contains("1 Spotify reads failed")).count(),
+                e.lastNotices().toString());
+    }
+
+    @Test
+    void create_unknownSongOnLastfm_fallsBackToArtistGenres() {
+        SongTags lastFm = new SongTags(); // knows no tags for any song: empty reply
+        RecommendationEngine e = new RecommendationEngine(toolsFor(libraryOf(
+                named("a", "A", "soulA", "SoulA"), named("p", "P", "popA", "PopA"))), withKey, ArtistGenreCache.NONE, lastFm);
+
+        List<String> picked = ids(slowDance(e));
+
+        assertTrue(picked.contains("a"), picked.toString());
+        assertFalse(picked.contains("p"), picked.toString());
+        assertTrue(e.lastNotices().stream().noneMatch(n -> n.contains("Spotify reads failed")), e.lastNotices().toString());
+    }
+
+    @Test
+    void create_noKeyOrNoTags_noSongLookups() {
+        SongTags lastFm = new SongTags();
+        FakeMusic m = libraryOf(named("a", "A", "soulA", "SoulA"));
+        RecommendationEngine noKey = new RecommendationEngine(toolsFor(m), config, ArtistGenreCache.NONE, lastFm);
+        noKey.recommend(noKey.retrieve(goalProfile(), spec(0.4), true, SLOW_DANCE, List.of(), List.of("slow dance")),
+                spec(0.4), List.of());
+        RecommendationEngine noTags = new RecommendationEngine(toolsFor(m), withKey, ArtistGenreCache.NONE, lastFm);
+        noTags.recommend(noTags.retrieve(goalProfile(), spec(0.4), true, SLOW_DANCE, List.of(), List.of()),
+                spec(0.4), List.of());
+
+        assertTrue(lastFm.asked.isEmpty(), lastFm.asked.toString());
+    }
+
+    @Test
+    void create_songTagTitlesAreNeverSentToOpenAiOrStored() {
+        // The lookup lives in the engine, which has no LLM and no repository; the only sink for a title is Last.fm.
+        assertTrue(java.util.Arrays.stream(RecommendationEngine.class.getDeclaredFields())
+                .noneMatch(f -> f.getType().getSimpleName().contains("LLM") || f.getType().getSimpleName().contains("Repository")));
+    }
 }

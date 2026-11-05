@@ -223,6 +223,9 @@ public class RecommendationEngine {
                 albumTracks, rankedGenres(profile, seeds), new HashMap<>(), found, List.copyOf(keywordFound.values()),
                 Set.of(), List.copyOf(searchTerms), goalSources(keywordFound, tagFound),
                 List.copyOf(tagFound.values()), List.copyOf(tags));
+        if (config.lastfmConfigured() && !tags.isEmpty()) {
+            retrieval.trackTagFit = new TrackTagFit(tagService, config, tags, retriever.errors()::add);
+        }
         fetchGenres(retrieval, config.discoverInitialGenres());
         return retrieval;
     }
@@ -496,13 +499,21 @@ public class RecommendationEngine {
     }
 
     /**
-     * A familiar track (library, album or genre result by an artist the user knows) fits the goal when a goal source found it (keyword search or Last.fm tag song) or one of the
-     * leading genres of its artists (the profile's, else the cached MusicBrainz ones) or the genre it was
-     * found under is one of the requested genres, ignoring case.
+     * A familiar track (library, album or genre result by an artist the user knows) fits the goal when a goal source
+     * found it (keyword search or Last.fm tag song). Otherwise, when Last.fm knows the song's own tags
+     * ({@link TrackTagFit}), they decide. Failing that (Last.fm off, failed, capped or
+     * not knowing the song), one of the leading genres of its artists (the profile's, else the cached MusicBrainz ones)
+     * or the genre it was found under must be one of the requested genres, ignoring case.
      */
     private boolean fitsGoal(Track track, ArtistGenreCache cache) {
         if (goalSourceIds.contains(track.id())) {
             return true;
+        }
+        if (currentRetrieval.trackTagFit != null) {
+            Optional<Boolean> bySongTags = currentRetrieval.trackTagFit.fits(track);
+            if (bySongTags.isPresent()) {
+                return bySongTags.get();
+            }
         }
         Set<String> wanted = new HashSet<>();
         seedGenres.forEach(g -> wanted.add(g.toLowerCase(Locale.ROOT)));
