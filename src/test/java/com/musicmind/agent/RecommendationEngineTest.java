@@ -11,6 +11,7 @@ import com.musicmind.domain.Feedback;
 import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.Recommendation;
+import com.musicmind.domain.SearchQuery;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.Verdict;
 import com.musicmind.music.MusicServiceException;
@@ -25,6 +26,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -733,9 +735,8 @@ class RecommendationEngineTest {
         List<Recommendation> recs = e.recommend(profile(), spec(0.7), List.of(), true, List.of("lo-fi"));
 
         List<String> fresh = recs.stream().filter(r -> r.familiarity() < 1.0).map(r -> r.track().id()).toList();
-        // The rock library songs do not fit "lo-fi", so only the known artists' album tracks stay familiar (5)
-        // and the other 5 are new: the 4 lo-fi tracks first, then one more.
-        assertEquals(5, fresh.size());
+        // The rock library and album songs do not fit "lo-fi", so all 10 are new: the 4 lo-fi tracks first.
+        assertEquals(10, fresh.size());
         assertTrue(fresh.containsAll(List.of("l0", "l1", "l2", "l3")), fresh.toString());
     }
 
@@ -986,7 +987,7 @@ class RecommendationEngineTest {
         m.byGenre.put("blues", List.of(track("other", "stranger-other")));
         m.byGenre.put("rock", List.of(track("rk", "stranger-rk")));
         // keyword search: the fake matches the query text exactly, as byKeywords builds it
-        String q = new com.musicmind.domain.SearchQuery("zumba", null, Map.of(), 1.0).toSpotifyQuery();
+        String q = new SearchQuery("zumba", null, Map.of(), 1.0).toSpotifyQuery();
         m.byGenre.put(q, List.of(track("kw", "stranger-kw")));
         RecommendationEngine e = new RecommendationEngine(toolsFor(m), config);
         e.setStrategy(new DiscoveryStrategy());
@@ -1003,7 +1004,7 @@ class RecommendationEngineTest {
     void score_keywordStockTitleRanksBelowOtherKeywordTrack() {
         FakeMusic m = new FakeMusic();
         m.top = List.of(track("top0", "a1"));
-        String q = new com.musicmind.domain.SearchQuery("gym workout", null, Map.of(), 1.0).toSpotifyQuery();
+        String q = new SearchQuery("gym workout", null, Map.of(), 1.0).toSpotifyQuery();
         Track stock = new Track("stock", "spotify:track:stock", "Workout Music", 1000, false, List.of("stranger-stock"));
         Track real = new Track("real", "spotify:track:real", "Eye of the Tiger", 1000, false, List.of("stranger-real"));
         m.byGenre.put(q, List.of(stock, real));
@@ -1071,7 +1072,7 @@ class RecommendationEngineTest {
         assertEquals(10, recs.size());
         assertEquals(4, ids(recs).stream().filter(id -> id.startsWith("s")).count(), ids(recs).toString());
         assertTrue(ids(recs).stream().noneMatch(id -> id.startsWith("p")), ids(recs).toString());
-        assertTrue(e.lastNotices().stream().noneMatch(n -> n.contains("fit your goal")), e.lastNotices().toString());
+        assertTrue(e.lastNotices().stream().noneMatch(n -> n.contains("match your goal")), e.lastNotices().toString());
     }
 
     @Test
@@ -1083,14 +1084,14 @@ class RecommendationEngineTest {
         assertEquals(10, recs.size());
         assertEquals(2, ids(recs).stream().filter(id -> id.startsWith("s")).count(), ids(recs).toString());
         assertEquals(8, ids(recs).stream().filter(id -> id.startsWith("n")).count());
-        assertTrue(e.lastNotices().stream().anyMatch(n -> n.contains("2 of 4") && n.contains("fit your goal")),
+        assertTrue(e.lastNotices().stream().anyMatch(n -> n.contains("2 of 4") && n.contains("match your goal")),
                 e.lastNotices().toString());
     }
 
     @Test
     void create_libraryTrackFoundByGoalKeywordSearch_isFit() {
         FakeMusic m = slowDanceMusic(6, 0);
-        String q = new com.musicmind.domain.SearchQuery("slow dance", null, Map.of(), 1.0).toSpotifyQuery();
+        String q = new SearchQuery("slow dance", null, Map.of(), 1.0).toSpotifyQuery();
         m.byGenre.put(q, List.of(track("p1", "popA")));
         RecommendationEngine e = engine(m);
 
@@ -1106,7 +1107,7 @@ class RecommendationEngineTest {
         FakeMusic m = slowDanceMusic(0, 0);
         m.top = List.of(track("c0", "cachedA"), track("c1", "cachedA"), track("c2", "cachedA"), track("c3", "cachedA"));
         RecommendationEngine e = new RecommendationEngine(toolsFor(m), config,
-                id -> id.equals("cachedA") ? java.util.Optional.of(List.of("Soul")) : java.util.Optional.empty());
+                id -> id.equals("cachedA") ? Optional.of(List.of("Soul")) : Optional.empty());
 
         List<Recommendation> recs = e.recommend(goalProfile(), spec(0.4), List.of(), true, SLOW_DANCE);
 
@@ -1122,6 +1123,23 @@ class RecommendationEngineTest {
         List<Recommendation> recs = e.recommend(goalProfile(), spec(1.0), List.of(), true, List.of());
 
         assertEquals(6, ids(recs).stream().filter(id -> id.startsWith("p")).count(), ids(recs).toString());
-        assertTrue(e.lastNotices().stream().noneMatch(n -> n.contains("fit your goal")));
+        assertTrue(e.lastNotices().stream().noneMatch(n -> n.contains("match your goal")));
+    }
+
+    @Test
+    void create_topArtistsAlbumTrackOutsideGoalGenres_notPicked_matchingOneIs() {
+        FakeMusic m = slowDanceMusic(0, 0);
+        m.top = List.of();
+        m.albumsByArtist.put("popA", List.of(new Album("albP", "P", "2020")));
+        m.albumsByArtist.put("soulA", List.of(new Album("albS", "S", "2020")));
+        m.tracksByAlbum.put("albP", List.of(track("pa0", "popA"), track("pa1", "popA"), track("pa2", "popA")));
+        m.tracksByAlbum.put("albS", List.of(track("sa0", "soulA"), track("sa1", "soulA")));
+        RecommendationEngine e = engine(m);
+
+        List<Recommendation> recs = e.recommend(goalProfile(), spec(0.4), List.of(), true, SLOW_DANCE);
+
+        assertTrue(ids(recs).stream().noneMatch(id -> id.startsWith("pa")), ids(recs).toString());
+        assertEquals(2, ids(recs).stream().filter(id -> id.startsWith("sa")).count(), ids(recs).toString());
+        assertEquals(10, recs.size());
     }
 }

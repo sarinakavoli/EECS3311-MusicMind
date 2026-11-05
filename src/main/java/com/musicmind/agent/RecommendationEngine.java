@@ -80,8 +80,8 @@ public class RecommendationEngine {
     // Create (goal given, library allowed): a library track is picked only when it fits the goal.
     private boolean goalDriven;
     private Set<String> goalSourceIds = Set.of();
-    private java.util.function.BiFunction<Track, ArtistGenreCache, List<String>> libraryGenres;
-    private int libraryOffGoal;
+    private Retrieval currentRetrieval;
+    private int offGoalFamiliar;
     private DecisionTrace trace;
     private List<String> notices = List.of();
 
@@ -222,8 +222,8 @@ public class RecommendationEngine {
         this.keywordWords = wordsOf(retrieval.searchTerms);
         this.goalSourceIds = retrieval.goalSourceIds;
         this.goalDriven = allowLibraryTracks && (!retrieval.seedGenres.isEmpty() || !retrieval.searchTerms.isEmpty());
-        this.libraryGenres = retrieval::knownGenres;
-        this.libraryOffGoal = 0;
+        this.currentRetrieval = retrieval;
+        this.offGoalFamiliar = 0;
         List<String> notes = new ArrayList<>();
 
         CandidateRetriever retriever = retrieval.retriever;
@@ -278,7 +278,7 @@ public class RecommendationEngine {
             if (selection.novelSelected() < wantedNew) {
                 notes.add(String.format(config.wording("createFewNewArtists"), selection.novelSelected(), wantedNew));
             }
-            if (goalDriven && libraryOffGoal > 0) {
+            if (goalDriven && offGoalFamiliar > 0) {
                 int familiarPicked = result.size() - selection.novelSelected();
                 if (familiarPicked < wantedFamiliar(result.size(), spec)) {
                     notes.add(String.format(config.wording("familiarShortForGoal"), familiarPicked,
@@ -399,19 +399,9 @@ public class RecommendationEngine {
         if (!allowLibraryTracks) {
             all.removeIf(t -> libraryIds.contains(t.id()));
         }
-        libraryOffGoal = 0;
-        if (goalDriven) {
-            Map<String, Optional<List<String>>> memo = new HashMap<>();
-            ArtistGenreCache cache = id -> memo.computeIfAbsent(id, genreCache::cached);
-            Set<String> offGoal = new HashSet<>();
-            for (Track t : all) {
-                if (isLibraryTrack(t, libraryIds) && !fitsGoal(t, cache)) {
-                    offGoal.add(t.id());
-                }
-            }
-            libraryOffGoal = offGoal.size();
-            all.removeIf(t -> offGoal.contains(t.id()));
-        }
+        offGoalFamiliar = 0;
+        Map<String, Optional<List<String>>> memo = new HashMap<>();
+        ArtistGenreCache cache = id -> memo.computeIfAbsent(id, genreCache::cached);
         for (Track t : all) {
             if (!seen.add(t.id())) {
                 continue;
@@ -420,8 +410,16 @@ public class RecommendationEngine {
                 blocked++;
             } else if (t.isExplicit() && !spec.allowExplicit()) {
                 explicit++;
+            } else if (isFamiliar(t, libraryIds)) {
+                // Create: the user's own songs and songs by artists they know must fit the goal; one that does not
+                // is dropped, not moved to the new pool.
+                if (goalDriven && !fitsGoal(t, cache)) {
+                    offGoalFamiliar++;
+                } else {
+                    familiar.add(t);
+                }
             } else {
-                (isFamiliar(t, libraryIds) ? familiar : novel).add(t);
+                novel.add(t);
             }
         }
         // Tracks that match the genres the user asked for (a mood) rank first inside each pool, then by score.
@@ -453,13 +451,8 @@ public class RecommendationEngine {
         return new Selection(recs, novelSelected, blocked, explicit, seedMatched);
     }
 
-    private boolean isLibraryTrack(Track track, Set<String> libraryIds) {
-        Origin origin = origins.get(track.id());
-        return libraryIds.contains(track.id()) || (origin != null && origin.source() == Source.LIBRARY);
-    }
-
     /**
-     * A library track fits the goal when a goal source found it (keyword search, later Last.fm tags) or any
+     * A familiar track (library, album or genre result by an artist the user knows) fits the goal when a goal source found it (keyword search, later Last.fm tags) or any
      * genre known for its artists (the profile's, the cached MusicBrainz ones, the genre it was found under)
      * is one of the requested genres, ignoring case.
      */
@@ -469,7 +462,7 @@ public class RecommendationEngine {
         }
         Set<String> wanted = new HashSet<>();
         seedGenres.forEach(g -> wanted.add(g.toLowerCase(Locale.ROOT)));
-        return libraryGenres.apply(track, cache).stream().anyMatch(g -> wanted.contains(g.toLowerCase(Locale.ROOT)));
+        return currentRetrieval.knownGenres(track, cache).stream().anyMatch(g -> wanted.contains(g.toLowerCase(Locale.ROOT)));
     }
 
     /**
