@@ -289,7 +289,7 @@ public final class Config {
 
     /**
      * Tags that count as the same goal as {@code tag}, from {@code lastfm.synonyms.<key>} where the key is the whole
-     * tag or one of its words, lower case, joined by "-" (for example {@code lastfm.synonyms.slow-dance}).
+     * tag (a one-word tag is its own key), lower case, joined by "-" (for example {@code lastfm.synonyms.slow-dance}).
      * Empty when none is listed.
      */
     public List<String> lastfmSynonyms(String tag) {
@@ -297,16 +297,13 @@ public final class Config {
         if (words.isEmpty()) {
             return List.of();
         }
-        List<String> keys = new ArrayList<>();
-        keys.add(words.replace(' ', '-'));
-        keys.addAll(Arrays.asList(words.split(" ")));
-        Set<String> out = new LinkedHashSet<>();
-        for (String key : keys) {
-            String value = tunables.getProperty("lastfm.synonyms." + key);
-            if (value != null) {
-                Arrays.stream(value.split(",")).map(String::trim).filter(v -> !v.isEmpty()).forEach(out::add);
-            }
+        // The whole tag only: "late night running" must not borrow the synonyms of "running". A one-word tag is its own key.
+        String value = tunables.getProperty("lastfm.synonyms." + words.replace(' ', '-'));
+        if (value == null) {
+            return List.of();
         }
+        Set<String> out = new LinkedHashSet<>();
+        Arrays.stream(value.split(",")).map(String::trim).filter(v -> !v.isEmpty()).forEach(out::add);
         return List.copyOf(out);
     }
 

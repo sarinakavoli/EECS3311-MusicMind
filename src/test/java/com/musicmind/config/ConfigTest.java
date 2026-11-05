@@ -162,4 +162,13 @@ class ConfigTest {
         assertEquals(10, c.guiTracksShown());
         assertEquals(3, c.guiTrendGenresShown());
     }
+
+    @Test
+    void synonymsUseTheWholeTagKey_andASingleWordKeyOnlyForAOneWordTag() {
+        Config c = Config.of(Map.of());
+        assertFalse(c.lastfmSynonyms("late night running").contains("cardio"));
+        assertTrue(c.lastfmSynonyms("running").contains("cardio"));
+        assertTrue(c.lastfmSynonyms("slow dance").contains("romantic"));
+        assertTrue(c.lastfmSynonyms("R&B").contains("rnb"));
+    }
 }
