@@ -22,7 +22,7 @@ import javafx.scene.layout.VBox;
 
 import java.util.List;
 
-/** F4: personalised recommendations with like / not-for-me icons, "+ Add", one "Why these songs?" and "Why this song?" per row. */
+/** F4: personalised recommendations with like / not-for-me icons, "+ Add" and one "Why these songs?" for the list. */
 public final class DiscoveryView implements TabView {
 
     /** The recommendations and what the controller said about them, read on the worker straight after the call. */
@@ -45,8 +45,10 @@ public final class DiscoveryView implements TabView {
     private final VBox sliderBox = new VBox();
     private final Button discover;
     private final StatusLine status = new StatusLine();
-    private final StatusLine feedbackStatus = new StatusLine();
-    private final VBox list = new VBox(UiParts.SPACE_S);
+    /** What the run said about its songs ("Showing 3 songs."), directly under the status line. */
+    private final Label summary = UiParts.collapsing(UiParts.muted(""));
+    private final Label example;
+    private final VBox list = new VBox();   // rows carry their own padding
     private final VBox listNotes = new VBox(UiParts.SPACE_S);
     private final Node root;
 
@@ -81,10 +83,11 @@ public final class DiscoveryView implements TabView {
         top.setAlignment(Pos.CENTER_LEFT);
         VBox controls = new VBox(UiParts.SPACE_S, top, mixLabel, sliderBox);
         list.getChildren().add(UiParts.muted(format.w("NoRecommendations")));
-        ScrollPane scroll = new ScrollPane(new VBox(UiParts.SPACE_S, listNotes, list));
+        ScrollPane scroll = new ScrollPane(new VBox(UiParts.SPACE_S, UiParts.collapsing(listNotes), list));
         scroll.setFitToWidth(true);
         scroll.setPrefHeight(480);
-        VBox page = UiParts.page(format.w("Menu.discover"), format.w("Desc.discover"), format.w("Example.discover"), UiParts.group(controls, status, feedbackStatus), scroll);
+        example = UiParts.example(format.w("Example.discover"));
+        VBox page = UiParts.page(format.w("Menu.discover"), format.w("Desc.discover"), example, UiParts.group(controls, status, summary), scroll);
         root = new LoginGate(ctx, page, false);
     }
 
@@ -147,39 +150,31 @@ public final class DiscoveryView implements TabView {
     }
 
     private void show(Found found) {
+        summary.setText(ViewFormat.joinDetails(found.notices().toArray(new String[0])));
         listNotes.getChildren().clear();
-        found.notices().forEach(n -> listNotes.getChildren().add(UiParts.muted(n)));
         list.getChildren().clear();
         if (found.recommendations().isEmpty()) {
             list.getChildren().add(UiParts.muted(format.w("NoRecommendations")));
             return;
         }
-        List<String> traceLines = format.traceLines(found.trace());
-        if (!traceLines.isEmpty()) {
-            listNotes.getChildren().add(WhyExpander.of(format, "WhyTheseSongs", String.join("\n", traceLines)));
-        }
+        UiParts.show(example, false);
+        // One expander for the whole list; it holds each song's reason, so the rows stay plain.
+        listNotes.getChildren().add(WhyExpander.of(format, "WhyTheseSongs",
+                format.whyTheseSongs(format.traceLines(found.trace()), found.recommendations()), WhyExpander.LIST_HEIGHT));
         for (Recommendation rec : found.recommendations()) {
-            list.getChildren().add(card(rec, found.verdicts()));
+            list.getChildren().add(TrackRow.of(ctx, status, rec.track(), TrackRow.Options.feedbackOnly().withPlay().withAdd(this::add),
+                    found.verdicts().get(rec.track().id()), format.familiarityLabel(rec.familiarity())));
         }
-    }
-
-    private VBox card(Recommendation rec, java.util.Map<String, com.musicmind.domain.Verdict> verdicts) {
-        Label familiarity = UiParts.muted(format.familiarityLabel(rec.familiarity()));
-        VBox card = new VBox(UiParts.SPACE_S, TrackRow.of(ctx, feedbackStatus, rec.track(), TrackRow.Options.feedbackOnly().withPlay().withAdd(this::add),
-                verdicts.get(rec.track().id())), familiarity,
-                WhyExpander.of(format, "WhyThisSong", rec.reason()));
-        card.getStyleClass().add("mm-card");
-        return card;
     }
 
     /** Puts a recommended song on the list that waits for the next playlist. */
     private void add(Track track) {
-        ctx.run(feedbackStatus, "ActionChangeCandidates", format.w("Working"), () -> {
+        ctx.run(status, "ActionChangeCandidates", format.w("Working"), () -> {
             ctx.controller().addCandidate(track.id());
             return new Added(ctx.controller().getCandidates().size(), ctx.controller().memory().warning());
         }, added -> {
             if (added.warning() == null) {
-                feedbackStatus.info(format.candidateAdded(track.title(), added.total()));
+                status.info(format.candidateAdded(track.title(), added.total()));
             }
         });
     }
