@@ -611,6 +611,11 @@ public final class Config {
         return integer("create.fitLeadingGenres");
     }
 
+    /** Penalty for a genre search result whose title holds the genre word, in a run that has Last.fm tag songs. */
+    public double discoverGenreTitleContainsPenalty() {
+        return Double.parseDouble(text("discover.weight.genreTitleContainsPenalty"));
+    }
+
     public double discoverTagBonus() {
         return Double.parseDouble(text("discover.weight.tagBonus"));
     }

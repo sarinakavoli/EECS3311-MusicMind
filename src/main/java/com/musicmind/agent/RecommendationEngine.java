@@ -366,7 +366,9 @@ public class RecommendationEngine {
         double familiarity = familiarity(track);
         double fit = 1.0 - Math.abs(familiarity - spec.familiarRatio());
         double score = config.discoverFitWeight() * fit + config.discoverGenreWeight() * affinity(track);
-        if (isBareGenreTitle(track)) {
+        if (!tagIds.isEmpty() && isGenreWordTitle(track)) {
+            score -= Math.max(config.discoverGenreTitlePenalty(), config.discoverGenreTitleContainsPenalty());
+        } else if (isBareGenreTitle(track)) {
             score -= config.discoverGenreTitlePenalty();
         }
         if (isKeywordStockTitle(track)) {
@@ -393,6 +395,17 @@ public class RecommendationEngine {
         return origin != null && origin.source() == Source.GENRE && origin.genre() != null
                 && track.title() != null && !squash(origin.genre()).isEmpty()
                 && squash(track.title()).equals(squash(origin.genre()));
+    }
+
+    /**
+     * True for a track found by searching a genre whose title holds that genre word ("R&B All Night", "Ambiente"):
+     * letters and digits only, case ignored. Used only when the run has Last.fm tag songs to fill the share instead.
+     */
+    private boolean isGenreWordTitle(Track track) {
+        Origin origin = origins.get(track.id());
+        return origin != null && origin.source() == Source.GENRE && origin.genre() != null
+                && track.title() != null && !squash(origin.genre()).isEmpty()
+                && squash(track.title()).contains(squash(origin.genre()));
     }
 
     /**

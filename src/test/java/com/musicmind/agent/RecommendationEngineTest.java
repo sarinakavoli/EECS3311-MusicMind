@@ -1437,4 +1437,52 @@ class RecommendationEngineTest {
         assertTrue(java.util.Arrays.stream(RecommendationEngine.class.getDeclaredFields())
                 .noneMatch(f -> f.getType().getSimpleName().contains("LLM") || f.getType().getSimpleName().contains("Repository")));
     }
+
+    // ---- Genre results titled with the genre word, when Last.fm tag songs can fill the new share ----
+
+    private FakeMusic genreTitleMusic() {
+        FakeMusic m = slowDanceMusic(0, 0);
+        m.top = List.of();
+        m.byGenre.put("soul", List.of(titled("t1", "Soul All Night"), titled("t2", "Open Road"), titled("t3", "Soulful")));
+        m.byGenre.put(tagQuery("Tag One", "Singer One"), List.of(named("tg1", "Tag One", "singer1", "Singer One")));
+        return m;
+    }
+
+    private static final TagService ONE_TAG_SONG = (tag, limit) -> List.of(new TagTrack("Tag One", "Singer One"));
+
+    @Test
+    void create_withTagSongs_aGenreResultWhoseTitleHoldsTheGenreWordRanksFarBelowTheRest() {
+        RecommendationEngine e = new RecommendationEngine(toolsFor(genreTitleMusic()), withKey, ArtistGenreCache.NONE, ONE_TAG_SONG);
+        Retrieval r = e.retrieve(goalProfile(), spec(0.0), true, SLOW_DANCE, List.of(), List.of("slow dance"));
+
+        List<Recommendation> recs = e.recommend(r, spec(0.0), List.of());
+
+        List<String> ids = ids(recs);
+        assertEquals(List.of("t1", "t3"), ids.subList(ids.size() - 2, ids.size()).stream().sorted().toList(), ids.toString());
+        double open = recs.get(ids.indexOf("t2")).score();
+        assertTrue(open - recs.get(ids.indexOf("t1")).score() >= withKey.discoverGenreTitleContainsPenalty() - 1e-9);
+        assertTrue(ids.contains("t1") && ids.contains("t3"), "still listed when needed to fill the length");
+    }
+
+    @Test
+    void create_withoutTagSongs_theGenreWordInATitleIsNotPenalisedBeyondTheBareTitleRule() {
+        RecommendationEngine e = new RecommendationEngine(toolsFor(genreTitleMusic()), config, ArtistGenreCache.NONE, TagService.NONE);
+        Retrieval r = e.retrieve(goalProfile(), spec(0.0), true, SLOW_DANCE, List.of(), List.of());
+
+        List<Recommendation> recs = e.recommend(r, spec(0.0), List.of());
+
+        List<String> ids = ids(recs);
+        assertEquals(recs.get(ids.indexOf("t2")).score(), recs.get(ids.indexOf("t1")).score(), 1e-9);
+    }
+
+    @Test
+    void discover_genreWordInATitleIsNeverPenalisedBeyondTheBareTitleRule() {
+        RecommendationEngine e = new RecommendationEngine(toolsFor(genreTitleMusic()), withKey, ArtistGenreCache.NONE, ONE_TAG_SONG);
+        e.setStrategy(new DiscoveryStrategy());
+
+        List<Recommendation> recs = e.recommend(goalProfile(), spec(0.0), List.of(), false, SLOW_DANCE);
+
+        List<String> ids = ids(recs);
+        assertEquals(recs.get(ids.indexOf("t2")).score(), recs.get(ids.indexOf("t1")).score(), 1e-9);
+    }
 }
