@@ -282,9 +282,9 @@ public final class Config {
         return integer("lastfm.timeoutSeconds");
     }
 
-    /** Same pattern as MusicBrainz: an identifying agent string. */
+    /** An identifying agent string: MusicMind/version (contact). */
     public String lastfmUserAgent() {
-        return musicBrainzUserAgent();
+        return text("lastfm.userAgent");
     }
 
     public String lastfmAttribution() {

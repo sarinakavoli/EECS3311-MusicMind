@@ -84,16 +84,18 @@ public class LastFmAdapter implements TagService {
             }
             List<TagTrack> out = new ArrayList<>();
             JsonElement list = tracks.get("track");
-            if (list == null || !list.isJsonArray()) {
+            if (list == null) {
                 return out; // an unknown or empty tag
             }
-            for (JsonElement e : (JsonArray) list) {
-                JsonObject t = e.getAsJsonObject();
-                String title = t.get("name").getAsString().strip();
-                JsonElement artist = t.get("artist");
-                String artistName = (artist.isJsonObject() ? artist.getAsJsonObject().get("name") : artist).getAsString().strip();
-                if (!title.isEmpty() && !artistName.isEmpty()) {
-                    out.add(new TagTrack(title, artistName));
+            // Last.fm sends an object, not an array, when there is exactly one result.
+            JsonArray elements = list.isJsonArray() ? list.getAsJsonArray() : new JsonArray();
+            if (list.isJsonObject()) {
+                elements.add(list);
+            }
+            for (JsonElement e : elements) {
+                TagTrack track = tagTrack(e);
+                if (track != null) { // a malformed element is skipped, not fatal
+                    out.add(track);
                     if (out.size() >= limit) {
                         break;
                     }
@@ -104,6 +106,19 @@ public class LastFmAdapter implements TagService {
             throw e;
         } catch (RuntimeException e) {
             throw new MusicServiceException("Last.fm reply could not be read.");
+        }
+    }
+
+    private static TagTrack tagTrack(JsonElement e) {
+        try {
+            JsonObject t = e.getAsJsonObject();
+            String title = t.get("name").getAsString().strip();
+            JsonElement artist = t.get("artist");
+            String artistName = (artist.isJsonObject() ? artist.getAsJsonObject().get("name") : artist)
+                    .getAsString().strip();
+            return title.isEmpty() || artistName.isEmpty() ? null : new TagTrack(title, artistName);
+        } catch (RuntimeException ignored) {
+            return null;
         }
     }
 

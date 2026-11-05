@@ -108,4 +108,46 @@ class LastFmAdapterTest {
         assertEquals(2, adapter(true).topTracks("study", 2).size());
         assertTrue(rawQueries.get(0).contains("limit=2"));
     }
+
+    @Test
+    void topTracks_singleObjectTrack_parses() {
+        body = "{\"tracks\":{\"track\":{\"name\":\"Only\",\"artist\":{\"name\":\"Solo\"}}}}";
+        assertEquals(List.of(new TagTrack("Only", "Solo")), adapter(true).topTracks("study", 10));
+    }
+
+    @Test
+    void topTracks_malformedElementSkipped_restKept() {
+        body = "{\"tracks\":{\"track\":[{\"name\":\"A\"},42,{\"name\":\"B\",\"artist\":{\"name\":\"Y\"}},"
+                + "{\"artist\":{\"name\":\"Q\"}}]}}";
+        assertEquals(List.of(new TagTrack("B", "Y")), adapter(true).topTracks("study", 10));
+    }
+
+    @Test
+    void topTracks_blankTagOrNonPositiveLimit_noRequest() {
+        assertTrue(adapter(true).topTracks("  ", 10).isEmpty());
+        assertTrue(adapter(true).topTracks(null, 10).isEmpty());
+        assertTrue(adapter(true).topTracks("study", 0).isEmpty());
+        assertTrue(adapter(true).topTracks("study", -3).isEmpty());
+        assertTrue(rawQueries.isEmpty());
+    }
+
+    @Test
+    void topTracks_connectionFailure_messageHasNoKey() {
+        int port = server.getAddress().getPort();
+        server.stop(0);
+        Config config = Config.of(Map.of("LASTFM_API_KEY", "secret-key-123")).withTunables(Map.of(
+                "lastfm.apiBaseUrl", "http://127.0.0.1:" + port + "/2.0/"));
+        MusicServiceException e = assertThrows(MusicServiceException.class,
+                () -> new LastFmAdapter(config).topTracks("study", 5));
+        assertFalse(e.getMessage().contains("secret-key-123"));
+        assertFalse(String.valueOf(e.getCause()).contains("secret-key-123"));
+    }
+
+    @Test
+    void userAgent_isNotMusicBrainzSpecific() {
+        Config c = Config.of(Map.of());
+        assertTrue(c.lastfmUserAgent().startsWith("MusicMind/"));
+        assertFalse(c.lastfmUserAgent().toLowerCase().contains("musicbrainz"));
+        assertFalse(c.lastfmUserAgent().isBlank());
+    }
 }
