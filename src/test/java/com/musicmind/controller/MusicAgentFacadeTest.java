@@ -171,6 +171,66 @@ class MusicAgentFacadeTest extends PostgresTestBase {
         assertEquals(1, memory.loadHistory("user-1").size(), "saveSession is the last step");
     }
 
+    private static com.musicmind.domain.Play weekPlay(String id, String artistId, java.time.Duration ago) {
+        return new com.musicmind.domain.Play(new Track(id, "spotify:track:" + id, "T " + id, 1000, false,
+                List.of(artistId), List.of("N " + artistId)), java.time.Instant.now().minus(ago));
+    }
+
+    private FakeMusic musicWithPlays(List<com.musicmind.domain.Play> plays) {
+        return new FakeMusic() {
+            @Override public List<com.musicmind.domain.Play> getRecentPlays() { return plays; }
+        };
+    }
+
+    @Test
+    void pastWeekCountsOnlyPlaysInsideSevenDays() {
+        FakeMusic music = musicWithPlays(List.of(
+                weekPlay("in", "ain", java.time.Duration.ofDays(7).minusMinutes(5)),
+                weekPlay("out", "aout", java.time.Duration.ofDays(7).plusMinutes(5))));
+
+        ListeningProfile p = facade(music, null).analyzeTaste(USER, "week");
+
+        assertEquals(List.of("in"), p.topTracks().stream().map(Track::id).toList());
+        assertEquals(List.of("ain"), p.topArtists().stream().map(Artist::id).toList());
+    }
+
+    @Test
+    void aFailedRecentPlaysReadDoesNotAlsoSayThereWereNoPlays() {
+        FakeMusic music = new FakeMusic() {
+            @Override public List<com.musicmind.domain.Play> getRecentPlays() { throw new RuntimeException("boom"); }
+        };
+
+        ListeningProfile p = facade(music, null).analyzeTaste(USER, "week");
+
+        assertTrue(p.notices().stream().anyMatch(n -> n.contains("recent plays could not be read")), p.notices().toString());
+        assertFalse(p.notices().stream().anyMatch(n -> n.contains("No plays")), p.notices().toString());
+    }
+
+    @Test
+    void aPastWeekProfileIsShownOnYourTasteButNotUsedToPlanOrDiscover() {
+        FakeMusic music = musicWithPlays(List.of(weekPlay("w1", "weekArtist", java.time.Duration.ofDays(1))));
+        MusicAgentFacade f = facade(music, null);
+        f.analyzeTaste(USER, "medium");
+        f.analyzeTaste(USER, "week");
+        int readsBefore = music.calls.size();
+
+        assertEquals("week", f.lastProfile(USER).orElseThrow().range(), "Your Taste may show the week");
+        ListeningProfile planning = f.profileFor(USER);
+
+        assertEquals("medium", planning.range());
+        assertEquals(readsBefore, music.calls.size(), "the stored 6-month profile is reused, nothing rebuilt");
+        assertFalse(f.listeningArtistIds(USER).contains("weekArtist"));
+    }
+
+    @Test
+    void withOnlyAPastWeekProfileStoredPlanningRebuildsFromASpotifyPeriod() {
+        FakeMusic music = musicWithPlays(List.of(weekPlay("w1", "weekArtist", java.time.Duration.ofDays(1))));
+        MusicAgentFacade f = facade(music, null);
+        f.analyzeTaste(USER, "week");
+
+        assertEquals("medium", f.profileFor(USER).range());
+    }
+
     @Test
     void theRangeIsPassedToBothTopItemTools() {
         FakeMusic music = new FakeMusic();

@@ -44,6 +44,18 @@ class ViewFormatTest {
     }
 
     @Test
+    void everyScreenHasMenuNameAndDescription() {
+        Map<String, String> names = Map.of("profile", "Your Taste", "trends", "Trends", "search", "Find Songs",
+                "discover", "Discover", "playlists", "Playlists", "preferences", "Your Rules", "history", "History");
+        for (Map.Entry<String, String> screen : names.entrySet()) {
+            assertEquals(screen.getValue(), format.w("Menu." + screen.getKey()));
+            assertFalse(format.w("Desc." + screen.getKey()).isBlank(), screen.getKey());
+        }
+        assertEquals("Start listening to something new. Artists and songs you haven't heard yet, picked from your taste.",
+                format.w("Desc.discover"));
+    }
+
+    @Test
     void durationShowsMinutesAndPaddedSeconds() {
         assertEquals("3:05", format.duration(185_000));
         assertEquals("0:09", format.duration(9_000));
@@ -91,7 +103,7 @@ class ViewFormatTest {
     void aPassingPlaylistGetsOneGoodBadge() {
         List<ViewFormat.Badge> badges = format.badges(ValidationResult.ok(), List.of(track("a", 3, false)), 0);
         assertEquals(1, badges.size());
-        assertEquals("Meets every constraint", badges.get(0).text());
+        assertEquals("Meets your rules", badges.get(0).text());
         assertFalse(badges.get(0).warning());
     }
 
@@ -133,6 +145,21 @@ class ViewFormatTest {
     }
 
     @Test
+    void rangeLabel_mapsSpotifyRanges() {
+        assertEquals("Past month", format.rangeLabel("short"));
+        assertEquals("Past 6 months", format.rangeLabel("medium"));
+        assertEquals("Past year", format.rangeLabel("long"));
+        assertEquals("Past week", format.rangeLabel("week"));
+    }
+
+    @Test
+    void rangeLabel_unknownStaysRaw() {
+        assertEquals("weekly", format.rangeLabel("weekly"));
+        assertEquals("", format.rangeLabel(""));
+        assertEquals(null, format.rangeLabel(null));
+    }
+
+    @Test
     void trendColumnsFollowTheRangeOrderAndRespectTheLimits() {
         Map<String, List<Artist>> artists = new LinkedHashMap<>();
         artists.put("short", List.of(new Artist("1", "A", List.of("rock")), new Artist("2", "B", List.of())));
@@ -148,10 +175,10 @@ class ViewFormatTest {
         List<ViewFormat.TrendColumn> columns = format.trendColumns(report, List.of("short", "medium", "long"), 1, 2);
 
         assertEquals(3, columns.size());
-        assertEquals("short", columns.get(0).range());
+        assertEquals("Past month", columns.get(0).range());
         assertEquals(List.of("A"), columns.get(0).artists());
         assertEquals(List.of("rock", "indie"), columns.get(0).genres());
-        assertEquals("genre data: 1 of 2 artists", columns.get(0).coverage());
+        assertEquals("Genres known for 1 of 2 artists", columns.get(0).coverage());
         assertTrue(columns.get(1).artists().isEmpty());
         assertEquals("", columns.get(1).coverage());
         assertEquals(List.of("C"), columns.get(2).artists());
@@ -166,34 +193,32 @@ class ViewFormatTest {
 
         List<String> lines = format.trendStepLines(report);
 
-        assertEquals("From long to medium:", lines.get(0));
-        assertTrue(lines.contains("  Genres added: pop"));
-        assertTrue(lines.contains("  Genres dropped: (none)"));
-        assertTrue(lines.contains("  Artists added: Nine"));
+        assertEquals("From Past year to Past 6 months:", lines.get(0));
+        assertTrue(lines.contains("  New genres: pop"));
+        assertTrue(lines.contains("  Genres you listen to less: Nothing changed"));
+        assertTrue(lines.contains("  New artists: Nine"));
+        assertTrue(lines.contains("  Artists you listen to less: Nothing changed"));
+        assertEquals("From Past year to Past 6 months:", lines.get(lines.size() - 5));
+        assertTrue(lines.stream().noneMatch(l -> l.contains("Overall") || l.contains("(none)") || l.contains("added")));
     }
 
     @Test
-    void historyRowsShowTheRequestAndTheResult() {
-        AgentSession session = new AgentSession("s-1", Instant.parse("2026-11-01T14:05:00Z"), new IdleState());
-        session.setStatus("done");
-        session.setRequest(new AgentRequest("calm study mix", RequestKind.CREATE_PLAYLIST));
-        session.setPlaylistId("pl9");
-
-        ViewFormat.HistoryRow row = format.historyRows(List.of(session)).get(0);
-
-        assertEquals("s-1", row.sessionId());
-        assertEquals("2026-11-01 14:05", row.when());
-        assertEquals("done", row.status());
-        assertEquals("Create playlist: calm study mix", row.request());
-        assertEquals("pl9", row.playlistId());
+    void trendOverallLineSpansTheFirstAndLastRange() {
+        RangeChange a = new RangeChange("long", "medium", List.of(), List.of(), List.of(), List.of());
+        RangeChange b = new RangeChange("medium", "short", List.of(), List.of(), List.of(), List.of());
+        TrendReport report = new TrendReport(Map.of(), Map.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                "n", List.of(a, b));
+        List<String> lines = format.trendStepLines(report);
+        assertEquals("From Past year to Past month:", lines.get(lines.size() - 5));
     }
 
     @Test
-    void aSessionWithNoRequestOrPlaylistStillFormats() {
-        AgentSession session = new AgentSession("s-2", Instant.parse("2026-11-01T14:05:00Z"), new IdleState());
-        ViewFormat.HistoryRow row = format.historyRows(List.of(session)).get(0);
-        assertEquals("", row.request());
-        assertEquals("", row.playlistId());
+    void generatedLineLeavesOutABlankRange() {
+        Instant when = Instant.parse("2026-11-01T14:05:00Z");
+        assertEquals("Updated 2026-11-01 14:05 \u00b7 Past month", format.generatedLine(when, "short"));
+        assertEquals("Updated 2026-11-01 14:05", format.generatedLine(when, ""));
+        assertEquals("Updated 2026-11-01 14:05", format.generatedLine(when, null));
+        assertEquals("", format.generatedLine(null, "short"));
     }
 
     @Test
@@ -248,8 +273,127 @@ class ViewFormatTest {
     void aDecisionTraceIsExplainedAsStrategyAndConstraints() {
         DecisionTrace trace = new DecisionTrace("Balanced", Map.of("a", "why"), List.of("no duplicate tracks", "explicit tracks excluded"));
 
-        assertEquals(List.of("Chosen with the Balanced strategy.", "- no duplicate tracks", "- explicit tracks excluded"),
-                format.traceLines(trace));
+        assertEquals(List.of("Chosen using a balance of artists you know and new ones.", "- no duplicate tracks",
+                "- explicit tracks excluded"), format.traceLines(trace));
+    }
+
+    @Test
+    void strategyNamesAreShownInPlainWords() {
+        assertEquals("a balance of artists you know and new ones", format.strategyWords("BalancedStrategy"));
+        assertEquals("a balance of artists you know and new ones", format.strategyWords("Balanced"));
+        assertEquals("mostly new artists you have not heard yet", format.strategyWords("DiscoveryStrategy"));
+        assertEquals("mostly artists you already listen to", format.strategyWords("FamiliarStrategy"));
+        for (String name : new String[]{"BalancedStrategy", "DiscoveryStrategy", "FamiliarStrategy", "SomethingElseStrategy", null, ""}) {
+            String words = format.strategyWords(name);
+            assertFalse(words.isBlank());
+            assertFalse(words.contains("Strategy"), words);
+            assertFalse(format.traceLines(new DecisionTrace(name, Map.of(), List.of())).get(0).contains("Strategy"));
+        }
+    }
+
+    @Test
+    void unknownStrategyGetsGenericWordsNotItsClassName() {
+        assertEquals("a method picked for your request", format.strategyWords("SomethingElseStrategy"));
+        assertEquals("a method picked for your request", format.strategyWords(null));
+    }
+
+    private static AgentSession session(String id, String when, String text, RequestKind kind) {
+        AgentSession s = new AgentSession(id, when == null ? null : Instant.parse(when), new IdleState());
+        s.setRequest(new AgentRequest(text, kind));
+        return s;
+    }
+
+    private List<AgentSession> activitySample() {
+        return List.of(
+                session("create", "2026-11-01T10:00:00Z", "calm", RequestKind.CREATE_PLAYLIST),
+                session("modify", "2026-11-02T10:00:00Z", "remove slow songs", RequestKind.MODIFY_PLAYLIST),
+                session("restore", "2026-11-03T10:00:00Z", "restore a saved version", RequestKind.MODIFY_PLAYLIST),
+                session("recreate", "2026-11-04T10:00:00Z", "recreate a deleted playlist from a saved version", RequestKind.CREATE_PLAYLIST),
+                session("taste", "2026-11-05T10:00:00Z", "view taste profile (medium)", RequestKind.ANALYZE_TASTE),
+                session("discover", "2026-11-06T10:00:00Z", "discover", RequestKind.DISCOVER));
+    }
+
+    private static List<String> ids(List<AgentSession> list) {
+        return list.stream().map(AgentSession::id).toList();
+    }
+
+    @Test
+    void activityTypeOfASession() {
+        List<AgentSession> s = activitySample();
+        assertEquals(ViewFormat.ActivityType.CREATED, format.activityType(s.get(0)));
+        assertEquals(ViewFormat.ActivityType.CHANGED, format.activityType(s.get(1)));
+        assertEquals(ViewFormat.ActivityType.RESTORED, format.activityType(s.get(2)));
+        assertEquals(ViewFormat.ActivityType.RESTORED, format.activityType(s.get(3)));
+        assertEquals(ViewFormat.ActivityType.TASTE, format.activityType(s.get(4)));
+        assertEquals(ViewFormat.ActivityType.OTHER, format.activityType(s.get(5)));
+    }
+
+    @Test
+    void activityIsNewestFirstByDefaultAndOldestFirstOnRequest() {
+        List<AgentSession> s = activitySample();
+        assertEquals(List.of("discover", "recreate", "restore", "modify", "create"),
+                ids(format.activity(s, ViewFormat.ActivityType.ALL, true, false)));
+        assertEquals(List.of("create", "modify", "restore", "recreate", "discover"),
+                ids(format.activity(s, ViewFormat.ActivityType.ALL, false, false)));
+    }
+
+    @Test
+    void activityTypeFilters() {
+        List<AgentSession> s = activitySample();
+        assertEquals(List.of("create"), ids(format.activity(s, ViewFormat.ActivityType.CREATED, true, false)));
+        assertEquals(List.of("modify"), ids(format.activity(s, ViewFormat.ActivityType.CHANGED, true, false)));
+        assertEquals(List.of("recreate", "restore"), ids(format.activity(s, ViewFormat.ActivityType.RESTORED, true, false)));
+    }
+
+    @Test
+    void tasteViewsAreHiddenUnlessAskedForByTypeOrByTheRoutineSwitch() {
+        List<AgentSession> s = activitySample();
+        assertFalse(ids(format.activity(s, ViewFormat.ActivityType.ALL, true, false)).contains("taste"));
+        assertTrue(ids(format.activity(s, ViewFormat.ActivityType.ALL, true, true)).contains("taste"));
+        assertEquals(List.of("taste"), ids(format.activity(s, ViewFormat.ActivityType.TASTE, true, false)));
+    }
+
+    @Test
+    void sessionsWithoutADateGoLastNewestFirstAndFirstOldestFirst() {
+        List<AgentSession> s = List.of(session("none", null, "x", RequestKind.DISCOVER),
+                session("a", "2026-11-01T10:00:00Z", "y", RequestKind.DISCOVER));
+        assertEquals(List.of("a", "none"), ids(format.activity(s, ViewFormat.ActivityType.ALL, true, false)));
+        assertEquals(List.of("none", "a"), ids(format.activity(s, ViewFormat.ActivityType.ALL, false, false)));
+    }
+
+    @Test
+    void activityTypeAndSortLabelsAreWorded() {
+        assertEquals("All", format.activityTypeLabel(ViewFormat.ActivityType.ALL));
+        assertEquals("Created", format.activityTypeLabel(ViewFormat.ActivityType.CREATED));
+        assertEquals("Changed", format.activityTypeLabel(ViewFormat.ActivityType.CHANGED));
+        assertEquals("Restored", format.activityTypeLabel(ViewFormat.ActivityType.RESTORED));
+        assertEquals("Taste profile", format.activityTypeLabel(ViewFormat.ActivityType.TASTE));
+        assertEquals("Newest first", format.w("SortNewest"));
+        assertEquals("Oldest first", format.w("SortOldest"));
+    }
+
+    @Test
+    void foundSongsAlreadyWaitingAreLeftOutOfTheResults() {
+        List<Track> found = List.of(track("a", 3, false), track("b", 3, false), track("c", 3, false));
+        List<Track> waiting = List.of(track("b", 3, false));
+        assertEquals(List.of("a", "c"), format.withoutWaiting(found, waiting).stream().map(Track::id).toList());
+        assertEquals(found, format.withoutWaiting(found, List.of()));
+    }
+
+    @Test
+    void spotifyLinkOpensTheTrackPageOrIsAbsent() {
+        assertEquals("https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC",
+                format.spotifyTrackUrl(new Track("4uLU6hMCjMI75M1A2tKUQC", "spotify:track:4uLU6hMCjMI75M1A2tKUQC", "T", 1000, false, List.of())));
+        assertEquals(null, format.spotifyTrackUrl(new Track("", "", "T", 1000, false, List.of())));
+        assertEquals(null, format.spotifyTrackUrl(new Track("a/../b", "", "T", 1000, false, List.of())));
+        assertEquals(null, format.spotifyTrackUrl(null));
+    }
+
+    @Test
+    void dialogHeightIsCappedToTheScreen() {
+        assertEquals(700, UiParts.fitHeight(700, 900), 0.01);
+        assertEquals(810, UiParts.fitHeight(1000, 900), 0.01);   // 90% of the screen
+        assertEquals(360, UiParts.fitHeight(700, 400), 0.01);
     }
 
     @Test
@@ -258,9 +402,35 @@ class ViewFormatTest {
     }
 
     @Test
-    void recommendationDetailShowsTheScoreAndFamiliarShare() {
-        Recommendation rec = new Recommendation(track("a", 3, false), "by an artist new to you", 0.25, 0.8765);
-        assertEquals("score 0.88, familiar 25%", format.recommendationDetail(rec));
+    void mixLabel_roundsAndSums100() {
+        assertEquals("Mix: 60% new artists, 40% artists you know", format.mixLabel(0.4));
+        assertEquals("Mix: 67% new artists, 33% artists you know", format.mixLabel(0.333));
+        assertEquals("Mix: 29% new artists, 71% artists you know", format.mixLabel(0.706));
+    }
+
+    @Test
+    void mixLabel_extremes() {
+        assertEquals("Mix: 0% new artists, 100% artists you know", format.mixLabel(1.0));
+        assertEquals("Mix: 100% new artists, 0% artists you know", format.mixLabel(0.0));
+        assertEquals("Mix: 100% new artists, 0% artists you know", format.mixLabel(-3));
+        assertEquals("Mix: 0% new artists, 100% artists you know", format.mixLabel(7));
+    }
+
+    @Test
+    void mixLabel_defaultWhenNoSavedValue() {
+        double fallback = config.discoverDefaultFamiliarRatio();
+        assertEquals(format.mixLabel(fallback), format.mixLabel(java.util.OptionalDouble.empty()));
+        assertEquals(format.mixLabel(0.4), format.mixLabel(java.util.OptionalDouble.of(0.4)));
+        assertEquals(format.mixLabel(fallback), format.mixLabel(Double.NaN));
+        assertFalse(format.mixLabel(java.util.OptionalDouble.empty()).contains("NaN"));
+    }
+
+    @Test
+    void familiarityLabel_knownAndNew() {
+        assertEquals("Artist you know", format.familiarityLabel(1.0));
+        assertEquals("Artist you know", format.familiarityLabel(1.5));
+        assertEquals("New artist for you", format.familiarityLabel(0.0));
+        assertEquals("New artist for you", format.familiarityLabel(0.99));
     }
 
     @Test
@@ -277,15 +447,9 @@ class ViewFormatTest {
     }
 
     @Test
-    void thumbsWordingSurvivesTheFileEncoding() {
-        assertTrue(config.wording("guiAccept").startsWith("\uD83D\uDC4D"));
-        assertTrue(config.wording("guiReject").startsWith("\uD83D\uDC4E"));
-    }
-
-    @Test
-    void aSavedVersionIsDescribedByNameSizeAndTime() {
-        SnapshotInfo info = new SnapshotInfo(4, "pl9", "Mix", 12, Instant.parse("2026-11-01T14:05:00Z"));
-        assertEquals("Mix (12 tracks), saved 2026-11-01 14:05", format.snapshotLine(info));
+    void iconWordingSurvivesTheFileEncoding() {
+        assertTrue(config.wording("guiLikeIcon").startsWith("\u2665"));
+        assertTrue(config.wording("guiNotForMeIcon").startsWith("\u2298"));
     }
 
     @Test
@@ -325,19 +489,73 @@ class ViewFormatTest {
         assertEquals("Could not search: " + friendly, format.failure("ActionSearch", new IllegalArgumentException(friendly)));
     }
 
+    private static void refused(Runnable call) {
+        IllegalArgumentException e = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, call::run);
+        assertFalse(e.getMessage() == null || e.getMessage().isBlank());
+    }
+
     @Test
-    void lengthTextIsAWholeNumberOfMinutesWithinTheLimit() {
-        int max = config.parserMaxTargetMinutes();
-        assertEquals(java.util.OptionalInt.of(45), format.parseMinutes("45"));
-        assertEquals(java.util.OptionalInt.of(45), format.parseMinutes(" 45 "));
-        assertEquals(java.util.OptionalInt.of(0), format.parseMinutes(""));
-        assertEquals(java.util.OptionalInt.of(0), format.parseMinutes(null));
-        assertEquals(java.util.OptionalInt.of(max), format.parseMinutes(String.valueOf(max)));
-        assertTrue(format.parseMinutes(String.valueOf(max + 1)).isEmpty());
-        assertTrue(format.parseMinutes("-5").isEmpty());
-        assertTrue(format.parseMinutes("abc").isEmpty());
-        assertTrue(format.parseMinutes("4.5").isEmpty());
-        assertTrue(format.parseMinutes("99999999999999999999").isEmpty());
+    void parseHoursMinutes_blankIsFromGoal() {
+        assertEquals(0, format.parseHoursMinutes("", ""));
+        assertEquals(0, format.parseHoursMinutes(null, null));
+        assertEquals(0, format.parseHoursMinutes("0", "0"));
+        assertEquals(0, format.parseHoursMinutes(" ", "0"));
+    }
+
+    @Test
+    void parseHoursMinutes_oneHourThirty_is90() {
+        assertEquals(90, format.parseHoursMinutes("1", "30"));
+        assertEquals(60, format.parseHoursMinutes(" 1 ", ""));
+        assertEquals(45, format.parseHoursMinutes("", "45"));
+    }
+
+    @Test
+    void parseHoursMinutes_minutesOver59_refused() {
+        refused(() -> format.parseHoursMinutes("1", "75"));
+        refused(() -> format.parseHoursMinutes("", "60"));
+    }
+
+    @Test
+    void parseHoursMinutes_letters_refused() {
+        refused(() -> format.parseHoursMinutes("a", "10"));
+        refused(() -> format.parseHoursMinutes("1", "x"));
+        refused(() -> format.parseHoursMinutes("-1", "10"));
+        refused(() -> format.parseHoursMinutes("1", "-5"));
+        refused(() -> format.parseHoursMinutes("1.5", ""));
+        refused(() -> format.parseHoursMinutes("99999999999999999999", ""));
+    }
+
+    @Test
+    void parseHoursMinutes_outOfRange_refused() {
+        int maxHours = config.parserMaxTargetMinutes() / 60;
+        assertEquals(config.parserMaxTargetMinutes(), format.parseHoursMinutes(String.valueOf(maxHours),
+                String.valueOf(config.parserMaxTargetMinutes() % 60)));
+        refused(() -> format.parseHoursMinutes(String.valueOf(maxHours + 1), "0"));
+        refused(() -> format.parseHoursMinutes("1000", "0"));
+    }
+
+    @Test
+    void parseHoursMinutes_belowPlannerMinimum_refusedWithTheRange() {
+        ViewFormat strict = new ViewFormat(config.withTunables(Map.of("parser.minTargetMinutes", "5")), ZoneOffset.UTC);
+        assertEquals(5, strict.parseHoursMinutes("", "5"));
+        refused(() -> strict.parseHoursMinutes("", "4"));
+        try {
+            strict.parseHoursMinutes("0", "1");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("between 5 and"), e.getMessage());
+        }
+    }
+
+    @Test
+    void candidateAlreadyWaiting_saysSoInsteadOfAdded() {
+        assertEquals("Idol is already waiting for your next playlist.", format.candidateAlreadyWaiting("Idol"));
+    }
+
+    @Test
+    void waitingCount_isShownNextToTheResultsHeading() {
+        assertEquals("1 waiting", format.waitingCount(1));
+        assertEquals("3 waiting", format.waitingCount(3));
+        assertEquals("", format.waitingCount(0));
     }
 
     @Test
@@ -349,5 +567,194 @@ class ViewFormatTest {
     @Test
     void aCancelledNegotiationWithoutAMessageUsesTheStandardWording() {
         assertEquals(config.wording("negotiationCancelled"), format.failure("ActionCreate", new NegotiationCancelledException(null)));
+    }
+
+    private static Track named(String title, String... artists) {
+        return new Track("x", "spotify:track:x", title, 1000, false, List.of(), List.of(artists));
+    }
+
+    @Test
+    void artists_joinsNames() {
+        assertEquals("Ado, Yoasobi", format.artists(named("Song", "Ado", "Yoasobi")));
+    }
+
+    @Test
+    void artists_noNames_isEmpty() {
+        assertEquals("", format.artists(track("1", 3, false)));
+    }
+
+    @Test
+    void trackTitleLine_noArtists_hasNoSeparator() {
+        assertEquals("T1", format.trackTitleLine(track("1", 3, false)));
+        assertEquals("Song - Ado", format.trackTitleLine(named("Song", "Ado")));
+    }
+
+    @Test
+    void candidateAdded_includesRunningTotal() {
+        assertEquals("Added All the Old Things. 2 songs are waiting for your next playlist.",
+                format.candidateAdded("All the Old Things", 2));
+        assertEquals("Added Idol. 1 song is waiting for your next playlist.", format.candidateAdded("Idol", 1));
+    }
+
+    @Test
+    void preferenceError_isPlain() {
+        String raw = config.wording("feedbackBadTrackId");
+        String shown = format.blockFailure(new IllegalArgumentException(raw));
+        assertFalse(shown.contains("22-character"), shown);
+        assertFalse(shown.toLowerCase(java.util.Locale.ROOT).contains(" id"), shown);
+        assertFalse(shown.isBlank());
+        assertEquals(format.blockFailure(new IllegalArgumentException("x")), shown);
+    }
+
+    @Test
+    void blockFailure_keepsTheStoredBlocksMessage() {
+        String message = config.wording("prefsUnavailable");
+        assertEquals(message, format.blockFailure(new IllegalStateException(message)));
+    }
+
+    @Test
+    void blockedArtistName_neverShowsARawId() {
+        String id = "4Z8W4fKeB5YxbusRsdQVPb";
+        assertEquals("Ebi", format.blockedArtistName(id, "Ebi"));
+        assertEquals(format.w("BlockedArtistUnknown"), format.blockedArtistName(id, id));
+        assertEquals(format.w("BlockedArtistUnknown"), format.blockedArtistName(id, " "));
+        assertEquals(format.w("BlockedArtistUnknown"), format.blockedArtistName(id, null));
+    }
+
+    @Test
+    void blockedSongName_usesTheTitleOrAPlainPhrase() {
+        assertEquals("Hello", format.blockedSongName("Hello"));
+        assertEquals(format.w("BlockedSongUnknown"), format.blockedSongName(null));
+        assertFalse(format.w("BlockedSongUnknown").contains("id"));
+    }
+
+    @Test
+    void artistMatchesLine_saysHowManyAndToChoose() {
+        assertEquals(format.w("ArtistMatchesMany", 3, "Ebi"), format.artistMatchesLine("Ebi", 3));
+        assertEquals(format.w("ArtistMatchesOne", "Ebi"), format.artistMatchesLine("Ebi", 1));
+        assertEquals(format.w("ArtistMatchesNone", "Ebi"), format.artistMatchesLine("Ebi", 0));
+        assertEquals(true, format.artistMatchesLine("Ebi", 3).contains("3"));
+    }
+
+    @Test
+    void preferencesWording_matchesTheControls() {
+        assertFalse(format.w("Example.preferences").toLowerCase(java.util.Locale.ROOT).contains("save"));
+        assertEquals(true, format.w("Example.preferences").toLowerCase(java.util.Locale.ROOT).contains("block"));
+    }
+
+    @Test
+    void artistPosition_countsOnlyRepeatedNames() {
+        assertEquals("1 of 3", format.artistPosition(1, 3));
+        assertEquals("", format.artistPosition(1, 1));
+    }
+
+    @Test
+    void blankSongSearch_hasAMessage() {
+        assertFalse(format.w("SongBlank").isBlank());
+    }
+
+    @Test
+    void versionChange_counts() {
+        assertEquals("27 \u2192 22 songs", format.versionChange(27, 22));
+    }
+
+    @Test
+    void versionChange_same() {
+        assertEquals("27 songs (no change)", format.versionChange(27, 27));
+    }
+
+    @Test
+    void isRoutine_profileViewTrue_createFalse() {
+        AgentSession profile = new AgentSession("a", Instant.parse("2026-11-01T14:05:00Z"), new IdleState());
+        profile.setRequest(new AgentRequest("view taste profile (medium)", RequestKind.ANALYZE_TASTE));
+        AgentSession create = new AgentSession("b", Instant.parse("2026-11-01T14:05:00Z"), new IdleState());
+        create.setRequest(new AgentRequest("calm", RequestKind.CREATE_PLAYLIST));
+        AgentSession bare = new AgentSession("c", Instant.parse("2026-11-01T14:05:00Z"), new IdleState());
+
+        assertTrue(format.isRoutine(profile));
+        assertFalse(format.isRoutine(create));
+        assertFalse(format.isRoutine(bare));
+    }
+
+    @Test
+    void versionsAreGroupedByPlaylistWithTheChangeFromTheVersionBefore() {
+        Instant t = Instant.parse("2026-11-01T14:05:00Z");
+        List<SnapshotInfo> list = List.of(
+                new SnapshotInfo(5, "a", "Mix A", 22, t.plusSeconds(300)),
+                new SnapshotInfo(4, "b", "Mix B", 10, t.plusSeconds(200)),
+                new SnapshotInfo(3, "a", "Mix A", 27, t.plusSeconds(100)),
+                new SnapshotInfo(2, "a", "Mix A", 27, t));
+
+        List<ViewFormat.VersionGroup> groups = format.versionGroups(list);
+
+        assertEquals(2, groups.size());
+        assertEquals("Mix A", groups.get(0).name());
+        assertEquals(List.of("27 \u2192 22 songs", "27 songs (no change)", "27 songs"),
+                groups.get(0).versions().stream().map(ViewFormat.VersionLine::change).toList());
+        assertEquals("Mix B", groups.get(1).name());
+        assertEquals("10 songs", groups.get(1).versions().get(0).change());
+    }
+
+    @Test
+    void aProfileViewReadsAsItsRangeNotItsRawRequest() {
+        AgentSession profile = new AgentSession("a", Instant.parse("2026-11-01T14:05:00Z"), new IdleState());
+        profile.setRequest(new AgentRequest("view taste profile (medium)", RequestKind.ANALYZE_TASTE));
+        AgentSession create = new AgentSession("b", Instant.parse("2026-11-01T14:05:00Z"), new IdleState());
+        create.setRequest(new AgentRequest("calm study mix", RequestKind.CREATE_PLAYLIST));
+
+        assertEquals("Past 6 months", format.timelineText(profile));
+        assertEquals("calm study mix", format.timelineText(create));
+        assertEquals("Taste profile", format.kindLabel(profile));
+    }
+
+    @Test
+    void statusFlagIsBlankForADoneRun() {
+        AgentSession done = new AgentSession("a", Instant.parse("2026-11-01T14:05:00Z"), new IdleState());
+        done.setStatus("done");
+        AgentSession failed = new AgentSession("b", Instant.parse("2026-11-01T14:05:00Z"), new IdleState());
+        failed.setStatus("failed");
+        assertEquals("", format.statusFlag(done));
+        assertEquals("failed", format.statusFlag(failed));
+    }
+
+    // ---- playlist song counts (Spotify's list total lags after a playlist is created or changed) ----
+
+    private static com.musicmind.domain.PlaylistSummary listed(String id, int total) {
+        return new com.musicmind.domain.PlaylistSummary(id, "Name " + id, total);
+    }
+
+    @Test
+    void mergeTrackCounts_ownReadWinsForAPlaylistWeCreatedOrOpened() {
+        List<com.musicmind.domain.PlaylistSummary> merged = format.mergeTrackCounts(
+                List.of(listed("new", 0), listed("other", 12)), Map.of("new", 7));
+
+        assertEquals(7, merged.get(0).trackCount(), "Slow Dance had 7 songs, not 0");
+        assertEquals("Name new", merged.get(0).name());
+        assertEquals(12, merged.get(1).trackCount(), "an unopened playlist keeps Spotify's total");
+    }
+
+    @Test
+    void mergeTrackCounts_noKnownCountsLeavesTheListAlone() {
+        List<com.musicmind.domain.PlaylistSummary> list = List.of(listed("a", 3));
+        assertEquals(list, format.mergeTrackCounts(list, Map.of()));
+    }
+
+    @Test
+    void mergeTrackCounts_spotifysTotalIsUsedOnceItIsAtLeastOurCount() {
+        Map<String, Integer> known = Map.of("same", 7, "more", 7);
+        List<com.musicmind.domain.PlaylistSummary> merged = format.mergeTrackCounts(
+                List.of(listed("same", 7), listed("more", 9)), known);
+
+        assertEquals(7, merged.get(0).trackCount());
+        assertEquals(9, merged.get(1).trackCount(), "edited elsewhere: Spotify's higher total is shown");
+    }
+
+    @Test
+    void countsStillLagging_keptOnlyWhileSpotifysTotalIsBelowOurs() {
+        Map<String, Integer> known = Map.of("below", 7, "equal", 21, "above", 4, "gone", 4);
+        Map<String, Integer> left = format.countsStillLagging(
+                List.of(listed("below", 0), listed("equal", 21), listed("above", 9)), known);
+
+        assertEquals(Map.of("below", 7), left);
     }
 }

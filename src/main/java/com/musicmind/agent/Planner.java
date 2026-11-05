@@ -95,7 +95,7 @@ public class Planner {
         seeds.addAll(prefs.preferredStyles());
         List<String> seedGenres = seeds.stream().limit(config.planMaxSeedGenres()).toList();
         return new AgentPlan(spec, List.of(config.wording("planSteps").split("\\|")), Instant.now(), seedGenres,
-                parsed.extras().searchTerms());
+                parsed.extras().searchTerms(), parsed.extras().tags());
     }
 
     /** The constraints the LLM reads out of a goal; low confidence or a malformed reply is a clarification. */
@@ -108,7 +108,7 @@ public class Planner {
         List<String> steps = new ArrayList<>(plan.steps());
         steps.add(String.format(config.wording("planStepRelaxed"), chosen.description()));
         return new AgentPlan(chosen.applyTo(plan.spec()), steps, Instant.now(), plan.seedGenres(),
-                plan.searchTerms());
+                plan.searchTerms(), plan.tags());
     }
 
     /**

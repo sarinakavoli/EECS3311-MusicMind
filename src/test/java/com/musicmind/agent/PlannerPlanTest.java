@@ -193,4 +193,38 @@ class PlannerPlanTest {
         Relaxation chosen = new Relaxation(Relaxation.Kind.ALLOW_EXPLICIT, 1, "x");
         assertEquals(List.of("gym"), planner(p -> PLAN).regenerate(plan, chosen).searchTerms());
     }
+
+    @Test
+    void plan_readsTags() {
+        List<String> prompts = new ArrayList<>();
+        AgentPlan plan = planner(p -> {
+            prompts.add(p);
+            return PLAN.replace("\"mood\":\"chill\"", "\"mood\":\"\",\"tags\":[\" Slow Dance \",\"romantic\",\"slow dance\",\"\",\"third\"]");
+        }).plan(request("music for a slow dance", null));
+
+        assertEquals(List.of("Slow Dance", "romantic"), plan.tags()); // trimmed, no repeats, capped at lastfm.maxTags
+        assertTrue(prompts.get(0).contains("\"tags\""), prompts.get(0));
+        assertTrue(prompts.get(0).contains("Last.fm"), prompts.get(0));
+        assertTrue(planner(p -> PLAN).plan(request("x", null)).tags().isEmpty());
+    }
+
+    @Test
+    void plan_aStringTagsValueIsOneTag_andAnyOtherNonArrayIsIgnored() {
+        AgentPlan text = planner(p -> PLAN.replace("\"mood\":\"chill\"", "\"mood\":\"\",\"tags\":\"slow dance\"")).plan(request("x", null));
+        AgentPlan number = planner(p -> PLAN.replace("\"mood\":\"chill\"", "\"mood\":\"\",\"tags\":5")).plan(request("x", null));
+        AgentPlan plain = planner(p -> PLAN).plan(request("x", null));
+
+        assertEquals(List.of("slow dance"), text.tags());
+        assertTrue(number.tags().isEmpty());
+        assertEquals(plain.spec().targetMinutes(), text.spec().targetMinutes());
+        assertEquals(plain.spec().familiarRatio(), number.spec().familiarRatio());
+        assertEquals(plain.spec().name(), number.spec().name());
+    }
+
+    @Test
+    void aRegeneratedPlanKeepsItsTags() {
+        AgentPlan plan = planner(p -> PLAN.replace("\"mood\":\"chill\"", "\"mood\":\"\",\"tags\":[\"study\"]")).plan(request("x", null));
+        Relaxation chosen = new Relaxation(Relaxation.Kind.ALLOW_EXPLICIT, 1, "x");
+        assertEquals(List.of("study"), planner(p -> PLAN).regenerate(plan, chosen).tags());
+    }
 }

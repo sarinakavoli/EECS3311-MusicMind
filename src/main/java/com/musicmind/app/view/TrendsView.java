@@ -22,6 +22,7 @@ public final class TrendsView implements TabView {
     private final StatusLine status = new StatusLine();
     private final HBox columns = new HBox(UiParts.PAD);
     private final VBox changes = new VBox(2);
+    private final VBox changesCard;
     private final Label narrative = UiParts.wrapped("");
     private final VBox notices = new VBox(2);
     private final Node root;
@@ -30,21 +31,35 @@ public final class TrendsView implements TabView {
         this.ctx = ctx;
         this.format = ctx.format();
         compare = new Button(format.w("CompareTrends"));
+        compare.getStyleClass().add("mm-primary");
         compare.setDefaultButton(true);
         compare.setOnAction(e -> run());
+        changesCard = buildChangesCard();
         HBox controls = new HBox(UiParts.GAP, compare);
         controls.setAlignment(Pos.CENTER_LEFT);
-        VBox content = UiParts.page(controls, status, columns, notices, UiParts.heading(format.w("TrendsOverTime")), changes,
-                narrative);
+        VBox content = UiParts.page(format.w("Menu.trends"), format.w("Desc.trends"), "", controls, status, columns, notices, changesCard, narrative);
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
         root = new LoginGate(ctx, scroll, false);
         status.info(format.w("TrendsHint"));
     }
 
+    private VBox buildChangesCard() {
+        VBox card = new VBox(UiParts.GAP, UiParts.heading(format.w("TrendsOverTime")), UiParts.muted(format.w("TrendsExplain")), changes);
+        card.getStyleClass().add("mm-card");
+        card.setVisible(false);
+        card.setManaged(false);
+        return card;
+    }
+
     @Override
     public String title() {
-        return format.w("TabTrends");
+        return format.w("Menu.trends");
+    }
+
+    @Override
+    public String description() {
+        return format.w("Desc.trends");
     }
 
     @Override
@@ -54,7 +69,9 @@ public final class TrendsView implements TabView {
 
     @Override
     public void onLogin(User user) {
-        status.info(format.w("TrendsHint"));
+        if (columns.getChildren().isEmpty()) {   // the hint is stale once a comparison is on screen
+            status.info(format.w("TrendsHint"));
+        }
     }
 
     private void run() {
@@ -75,10 +92,13 @@ public final class TrendsView implements TabView {
             if (!column.coverage().isEmpty()) {
                 box.getChildren().add(UiParts.muted(column.coverage()));
             }
+            box.getStyleClass().add("mm-card");
             HBox.setHgrow(box, Priority.ALWAYS);
             columns.getChildren().add(box);
         }
-        changes.getChildren().setAll(format.trendStepLines(report).stream().map(Label::new).toList());
+        changesCard.setVisible(true);
+        changesCard.setManaged(true);
+        changes.getChildren().setAll(format.trendStepLines(report).stream().map(UiParts::wrapped).toList());
         notices.getChildren().setAll(report.gaps().stream().map(UiParts::wrapped).toList());
         narrative.setText(report.narrative() == null ? "" : report.narrative());
     }

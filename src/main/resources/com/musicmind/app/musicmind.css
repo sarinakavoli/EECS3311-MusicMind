@@ -1,0 +1,667 @@
+/*
+ * MusicMind look: one dark, Spotify-style stylesheet. Palette:
+ *   background #121212, panels #181818, cards #202020, hover #2a2a2a,
+ *   text #ffffff, muted #b3b3b3, accent #1db954, lines #2e2e2e.
+ * Views use only the mm-* style classes below; none sets a colour in Java.
+ */
+
+.root {
+    -fx-base: #202020;
+    -fx-background: #121212;
+    -fx-control-inner-background: #202020;
+    -fx-control-inner-background-alt: #202020;
+    -fx-accent: #1db954;
+    -fx-focus-color: #1db954;
+    -fx-faint-focus-color: transparent;
+    -fx-text-base-color: #ffffff;
+    -fx-text-background-color: #ffffff;
+    -fx-text-fill: #ffffff;
+    -fx-prompt-text-fill: #b3b3b3;
+    -fx-selection-bar: #2a2a2a;
+    -fx-selection-bar-text: #ffffff;
+    -fx-selection-bar-non-focused: #2a2a2a;
+    -fx-box-border: #2e2e2e;
+    -fx-font-size: 13px;
+    -fx-background-color: #121212;
+}
+
+.label {
+    -fx-text-fill: #ffffff;
+}
+
+/* ---- Window frame ------------------------------------------------------ */
+
+.mm-header {
+    -fx-background-color: #000000;
+    -fx-padding: 12 18 12 18;
+    -fx-alignment: center-left;
+}
+
+.mm-brand {
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #ffffff;
+}
+
+.mm-brand-accent {
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1db954;
+}
+
+.mm-user {
+    -fx-text-fill: #b3b3b3;
+}
+
+.mm-footer {
+    -fx-background-color: #000000;
+    -fx-padding: 6 18 6 18;
+}
+
+.mm-footer .label {
+    -fx-text-fill: #b3b3b3;
+    -fx-font-size: 11px;
+}
+
+.mm-banner {
+    -fx-background-color: #3a2f00;
+    -fx-text-fill: #ffd866;
+    -fx-padding: 8 18 8 18;
+    -fx-border-color: #2e2e2e;
+    -fx-border-width: 0 0 1 0;
+}
+
+/* ---- Left menu --------------------------------------------------------- */
+
+.mm-menu {
+    -fx-background-color: #000000;
+    -fx-padding: 14 10 14 10;
+    -fx-spacing: 2;
+    -fx-min-width: 190;
+    -fx-pref-width: 190;
+}
+
+.button.mm-menu-item {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 6;
+    -fx-border-color: transparent;
+    -fx-border-radius: 6;
+    -fx-text-fill: #b3b3b3;
+    -fx-font-size: 14px;
+    -fx-padding: 9 12 9 12;
+    -fx-alignment: center-left;
+    -fx-cursor: hand;
+    -fx-max-width: infinity;
+}
+
+.button.mm-menu-item:hover {
+    -fx-background-color: #181818;
+    -fx-text-fill: #ffffff;
+}
+
+.button.mm-menu-item-selected,
+.button.mm-menu-item-selected:hover {
+    -fx-background-color: #2a2a2a;
+    -fx-text-fill: #ffffff;
+    -fx-font-weight: bold;
+}
+
+/* ---- Page contents ----------------------------------------------------- */
+
+.mm-content {
+    -fx-background-color: #121212;
+}
+
+.mm-page {
+    -fx-background-color: #121212;
+    -fx-padding: 20 24 20 24;
+    -fx-spacing: 10;
+}
+
+.mm-page-title {
+    -fx-font-size: 26px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #ffffff;
+}
+
+.mm-page-desc {
+    -fx-font-size: 14px;
+    -fx-text-fill: #b3b3b3;
+}
+
+.mm-example {
+    -fx-font-size: 13px;
+    -fx-font-style: italic;
+    -fx-text-fill: #1db954;
+}
+
+/* A header stays readable when the login gate disables the screen below it. */
+.mm-page-title:disabled,
+.mm-page-desc:disabled,
+.mm-example:disabled {
+    -fx-opacity: 1;
+}
+
+.mm-heading {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #ffffff;
+}
+
+.mm-card {
+    -fx-background-color: #202020;
+    -fx-background-radius: 8;
+    -fx-border-color: #2e2e2e;
+    -fx-border-radius: 8;
+    -fx-padding: 12;
+    -fx-spacing: 6;
+}
+
+/* A track or playlist row: highlights on hover, holds text on the left and icons on the right. */
+.mm-row {
+    -fx-background-color: transparent;
+    -fx-background-radius: 6;
+    -fx-padding: 8 10 8 10;
+    -fx-spacing: 12;
+    -fx-alignment: center-left;
+}
+
+.mm-row:hover {
+    -fx-background-color: #2a2a2a;
+}
+
+.mm-muted {
+    -fx-text-fill: #b3b3b3;
+}
+
+.mm-gate-prompt {
+    -fx-font-size: 15px;
+    -fx-text-fill: #b3b3b3;
+    -fx-background-color: #181818;
+    -fx-background-radius: 8;
+    -fx-border-color: #2e2e2e;
+    -fx-border-radius: 8;
+    -fx-padding: 16 20 16 20;
+}
+
+.mm-status-error {
+    -fx-text-fill: #ff6b6b;
+}
+
+/* ---- Buttons ----------------------------------------------------------- */
+
+.button {
+    -fx-background-color: #2a2a2a;
+    -fx-background-radius: 999;
+    -fx-background-insets: 0;
+    -fx-border-color: #2e2e2e;
+    -fx-border-radius: 999;
+    -fx-text-fill: #ffffff;
+    -fx-padding: 7 16 7 16;
+    -fx-cursor: hand;
+}
+
+.button:hover {
+    -fx-background-color: #343434;
+}
+
+.button:disabled {
+    -fx-opacity: 0.4;
+}
+
+/* The main action of a screen: green, black text, pill shaped. */
+.mm-primary,
+.button.mm-primary {
+    -fx-background-color: #1db954;
+    -fx-border-color: transparent;
+    -fx-text-fill: #000000;
+    -fx-font-weight: bold;
+    -fx-padding: 9 20 9 20;
+}
+
+.mm-primary:hover,
+.button.mm-primary:hover {
+    -fx-background-color: #1ed760;
+}
+
+/* Small round icon button (like, not for me); mm-icon-on marks one that is chosen. */
+.mm-icon-button,
+.button.mm-icon-button {
+    -fx-background-color: transparent;
+    -fx-background-radius: 999;
+    -fx-border-color: #2e2e2e;
+    -fx-border-radius: 999;
+    -fx-text-fill: #b3b3b3;
+    -fx-min-height: 30;
+    -fx-pref-height: 30;
+    -fx-padding: 0 12 0 12;
+    -fx-font-size: 12px;
+    -fx-alignment: center;
+}
+
+.mm-icon-button:hover,
+.button.mm-icon-button:hover {
+    -fx-background-color: #2a2a2a;
+    -fx-text-fill: #ffffff;
+}
+
+.mm-icon-on,
+.button.mm-icon-on,
+.button.mm-icon-on:hover {
+    -fx-border-color: #1db954;
+    -fx-text-fill: #1db954;
+    -fx-background-color: transparent;
+}
+
+/* Chosen "not for me": amber, so a rejected song never looks approved. */
+.mm-icon-off-on,
+.button.mm-icon-off-on,
+.button.mm-icon-off-on:hover {
+    -fx-border-color: #e8a33d;
+    -fx-text-fill: #e8a33d;
+    -fx-background-color: transparent;
+}
+
+/* ---- Inputs ------------------------------------------------------------ */
+
+.text-field,
+.text-area,
+.password-field {
+    -fx-background-color: #202020;
+    -fx-background-radius: 999;
+    -fx-border-color: #2e2e2e;
+    -fx-border-radius: 999;
+    -fx-text-fill: #ffffff;
+    -fx-prompt-text-fill: #b3b3b3;
+    -fx-padding: 8 16 8 16;
+}
+
+.text-area {
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+}
+
+.text-area .content {
+    -fx-background-color: #202020;
+    -fx-background-radius: 8;
+}
+
+.text-area .scroll-pane,
+.text-area .scroll-pane > .viewport,
+.text-area .scroll-pane > .corner {
+    -fx-background-color: transparent;
+}
+
+.text-field:focused,
+.text-area:focused {
+    -fx-border-color: #1db954;
+}
+
+.combo-box-base,
+.choice-box {
+    -fx-background-color: #202020;
+    -fx-background-radius: 999;
+    -fx-border-color: #2e2e2e;
+    -fx-border-radius: 999;
+}
+
+.combo-box .list-cell,
+.combo-box .arrow-button {
+    -fx-background-color: transparent;
+}
+
+.combo-box-popup .list-view,
+.context-menu {
+    -fx-background-color: #202020;
+    -fx-border-color: #2e2e2e;
+}
+
+.menu-item:focused {
+    -fx-background-color: #2a2a2a;
+}
+
+.check-box .box,
+.radio-button .radio {
+    -fx-background-color: #202020;
+    -fx-border-color: #2e2e2e;
+}
+
+.radio-button .radio {
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+}
+
+.radio-button:selected .radio {
+    -fx-background-color: #1db954;
+}
+
+.radio-button .dot {
+    -fx-background-color: transparent;
+}
+
+.radio-button:selected .dot {
+    -fx-background-color: #000000;
+}
+
+.check-box:selected .mark {
+    -fx-background-color: #000000;
+}
+
+.check-box:selected .box {
+    -fx-background-color: #1db954;
+}
+
+.slider .track {
+    -fx-background-color: #2e2e2e;
+}
+
+.slider .thumb {
+    -fx-background-color: #ffffff;
+}
+
+/* ---- Lists, tables, scrolling ------------------------------------------ */
+
+.list-view,
+.table-view,
+.tree-view {
+    -fx-background-color: #121212;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+}
+
+.list-cell,
+.table-row-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #ffffff;
+}
+
+.list-cell:hover,
+.table-row-cell:hover {
+    -fx-background-color: #2a2a2a;
+}
+
+.list-cell:filled:selected,
+.table-row-cell:filled:selected {
+    -fx-background-color: #2a2a2a;
+}
+
+/* Buttons on a selected playlist row stay readable against the row colour. */
+.list-cell:filled:selected .button {
+    -fx-background-color: #3a3a3a;
+    -fx-border-color: #5a5a5a;
+    -fx-text-fill: #ffffff;
+}
+
+.list-cell:filled:selected .button.mm-danger {
+    -fx-background-color: transparent;
+    -fx-border-color: #8a8a8a;
+    -fx-text-fill: #ffffff;
+}
+
+.table-view .column-header-background,
+.table-view .column-header,
+.table-view .filler {
+    -fx-background-color: #181818;
+}
+
+.table-view .column-header .label {
+    -fx-text-fill: #b3b3b3;
+}
+
+.scroll-pane {
+    -fx-background-color: #121212;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.scroll-pane > .viewport {
+    -fx-background-color: #121212;
+}
+
+.scroll-pane > .corner {
+    -fx-background-color: #121212;
+}
+
+.scroll-bar {
+    -fx-background-color: transparent;
+}
+
+.scroll-bar .thumb {
+    -fx-background-color: #2e2e2e;
+    -fx-background-radius: 999;
+}
+
+.scroll-bar .track,
+.scroll-bar .increment-button,
+.scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.scroll-bar .increment-arrow,
+.scroll-bar .decrement-arrow {
+    -fx-shape: " ";
+    -fx-padding: 0;
+}
+
+.split-pane {
+    -fx-background-color: #121212;
+}
+
+.split-pane > .split-pane-divider {
+    -fx-background-color: #2e2e2e;
+    -fx-padding: 0 1 0 1;
+}
+
+/* 16px regular: the bold 14px face drew "60%new" with the space after "%" squashed out
+   (13 to 15px still crowd it); this size renders every space. */
+.mm-mix-label {
+    -fx-font-size: 16px;
+    -fx-font-weight: normal;
+    -fx-text-fill: #ffffff;
+}
+
+.mm-slider-box {
+    -fx-spacing: 2;
+    -fx-max-width: 420;
+}
+
+.mm-why-scroll,
+.mm-why-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.mm-why-scroll {
+    -fx-padding: 0;
+    -fx-background-insets: 0;
+}
+
+.mm-why-text {
+    -fx-text-fill: #b3b3b3;
+    -fx-padding: 2 4 2 4;
+}
+
+.titled-pane > .title {
+    -fx-background-color: #181818;
+}
+
+.titled-pane > .content {
+    -fx-background-color: #181818;
+    -fx-border-color: #2e2e2e;
+}
+
+.tooltip {
+    -fx-background-color: #2a2a2a;
+    -fx-text-fill: #ffffff;
+}
+
+.progress-indicator {
+    -fx-progress-color: #1db954;
+}
+
+.dialog-pane {
+    -fx-background-color: #181818;
+}
+
+.dialog-pane > .button-bar > .container {
+    -fx-background-color: #181818;
+}
+
+.dialog-pane > .content.label {
+    -fx-text-fill: #ffffff;
+}
+
+/* ---- Badges ------------------------------------------------------------ */
+
+.mm-badge {
+    -fx-background-color: #123d22;
+    -fx-text-fill: #1db954;
+    -fx-background-radius: 999;
+    -fx-padding: 2 10 2 10;
+}
+
+.mm-badge-warn {
+    -fx-background-color: #3a2f00;
+    -fx-text-fill: #ffd866;
+}
+
+/* ---- Song row (TrackRow) ------------------------------------------------ */
+.mm-track-title {
+    -fx-text-fill: #ffffff;
+    -fx-font-size: 14px;
+}
+
+.mm-track-artists {
+    -fx-font-size: 12px;
+}
+
+/* ---- Playlists and the Create dialog ------------------------------------ */
+
+.mm-length-field,
+.text-field.mm-length-field {
+    -fx-pref-width: 70;
+    -fx-max-width: 70;
+}
+
+.mm-dialog-content {
+    -fx-spacing: 8;
+    -fx-padding: 4 8 8 4;
+}
+
+.mm-dialog-scroll,
+.mm-dialog-scroll > .viewport {
+    -fx-background-color: #181818;
+}
+
+/* Delete in a playlist row: quiet until pointed at, then amber like a warning. Border and text are light
+   enough to read on the dark list without looking like the main action. */
+.button.mm-danger {
+    -fx-background-color: transparent;
+    -fx-border-color: #5a5a5a;
+    -fx-border-radius: 999;
+    -fx-background-radius: 999;
+    -fx-text-fill: #e0e0e0;
+}
+
+.button.mm-danger:hover {
+    -fx-border-color: #e8a33d;
+    -fx-text-fill: #e8a33d;
+    -fx-background-color: transparent;
+}
+
+.mm-section {
+    -fx-background-color: #181818;
+    -fx-background-radius: 8;
+    -fx-padding: 14;
+    -fx-spacing: 8;
+}
+
+.mm-mix-slider {
+    -fx-max-width: 420;
+}
+
+.mm-pick-box {
+    -fx-spacing: 2;
+}
+
+/* ---- History ------------------------------------------------------------ */
+.mm-when {
+    -fx-min-width: 120;
+    -fx-text-fill: #b3b3b3;
+}
+
+.mm-group-name {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #ffffff;
+}
+
+.mm-timeline-detail {
+    -fx-background-color: #181818;
+    -fx-background-radius: 6;
+    -fx-padding: 8 12 8 132;
+}
+
+.mm-preview-scroll {
+    -fx-pref-width: 410;
+    -fx-pref-height: 360;
+}
+
+.mm-clickable {
+    -fx-cursor: hand;
+}
+
+/* ---- In-app question (ConfirmDialog): one dark surface, no stock icon ----- */
+.mm-confirm {
+    -fx-background-color: #181818;
+    -fx-border-color: #2e2e2e;
+    -fx-border-width: 1;
+    -fx-padding: 22;
+    -fx-spacing: 14;
+}
+
+.mm-confirm-title {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #ffffff;
+}
+
+.mm-confirm-message {
+    -fx-text-fill: #d6d6d6;
+    -fx-font-size: 13px;
+}
+
+.mm-confirm-buttons {
+    -fx-padding: 6 0 0 0;
+    -fx-spacing: 8;
+}
+
+/* A destructive main action: solid red, white text. */
+.button.mm-danger-solid {
+    -fx-background-color: #e5484d;
+    -fx-border-color: transparent;
+    -fx-text-fill: #ffffff;
+    -fx-font-weight: bold;
+    -fx-padding: 9 20 9 20;
+}
+
+.button.mm-danger-solid:hover {
+    -fx-background-color: #ef5a5f;
+}
+
+/* Small "play in Spotify" button on a song row. */
+.button.mm-play-button {
+    -fx-background-color: transparent;
+    -fx-border-color: #2e2e2e;
+    -fx-text-fill: #1db954;
+    -fx-font-size: 12px;
+    -fx-padding: 0 12 0 12;
+    -fx-min-height: 30;
+    -fx-pref-height: 30;
+}
+
+.button.mm-play-button:hover {
+    -fx-background-color: #2a2a2a;
+    -fx-border-color: #1db954;
+}

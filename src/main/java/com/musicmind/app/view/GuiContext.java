@@ -8,6 +8,7 @@ import com.musicmind.domain.FeasibilityReport;
 import com.musicmind.domain.Relaxation;
 import com.musicmind.domain.User;
 import com.musicmind.music.AuthExpiredException;
+import javafx.application.HostServices;
 import javafx.application.Platform;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.ObjectProperty;
@@ -48,9 +49,31 @@ public final class GuiContext {
     private final List<Runnable> dataListeners = new ArrayList<>();
     private final ControlLock locks = new ControlLock();
 
+    private volatile HostServices hostServices;
+
     public GuiContext(AppController controller, Config config) {
         this.controller = controller;
         this.format = new ViewFormat(config);
+    }
+
+    /** Lets song rows open the system browser (set once by the application; null in tests). */
+    public void setHostServices(HostServices hostServices) {
+        this.hostServices = hostServices;
+    }
+
+    /**
+     * Opens the song's Spotify page in the user's Spotify app or web player. The app cannot play audio itself;
+     * nothing is stored and no Spotify call is made. JavaFX thread only.
+     *
+     * @return false when the page could not be opened (no host services, or no usable id)
+     */
+    public boolean openInSpotify(com.musicmind.domain.Track track) {
+        String url = format.spotifyTrackUrl(track);
+        if (url == null || hostServices == null) {
+            return false;
+        }
+        hostServices.showDocument(url);
+        return true;
     }
 
     /** The controller. Call it only inside a task given to {@link #run}. */

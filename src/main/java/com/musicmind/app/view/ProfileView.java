@@ -3,13 +3,13 @@ package com.musicmind.app.view;
 import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.User;
+import com.musicmind.domain.Verdict;
 import javafx.collections.FXCollections;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
-import javafx.scene.control.ListView;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.GridPane;
@@ -18,17 +18,17 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /** F1: the taste profile with its genre breakdown, top artists and tracks, and a "Refresh profile" button. */
 public final class ProfileView implements TabView {
 
     /** A profile and what the view needs to know about how it was got. */
-    private record Shown(ListeningProfile profile, boolean stored, String memoryWarning) { }
+    private record Shown(ListeningProfile profile, boolean stored, String memoryWarning, Map<String, Verdict> verdicts) { }
 
     private static final double GENRE_NAME_WIDTH = 160;
     private static final double GENRE_BAR_WIDTH = 260;
-    private static final double LIST_HEIGHT = 200;
 
     private final GuiContext ctx;
     private final ViewFormat format;
@@ -38,17 +38,29 @@ public final class ProfileView implements TabView {
     private final Label notice = UiParts.muted("");
     private final Label generated = UiParts.muted("");
     private final GridPane genres = new GridPane();
-    private final ListView<String> artists = new ListView<>();
-    private final ListView<String> tracks = new ListView<>();
+    private final VBox artists = new VBox(2);
+    private final VBox tracks = new VBox(2);
     private final Label summary = UiParts.wrapped("");
     private final Node root;
 
     public ProfileView(GuiContext ctx) {
         this.ctx = ctx;
         this.format = ctx.format();
-        range.setItems(FXCollections.observableArrayList(ctx.config().profileRanges()));
+        range.setItems(FXCollections.observableArrayList(ctx.controller().timeRanges()));
+        range.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(String raw) {
+                return raw == null ? "" : format.rangeLabel(raw);
+            }
+
+            @Override
+            public String fromString(String label) {
+                return label;
+            }
+        });
         range.getSelectionModel().select(ctx.config().profileDefaultRange());
         refresh = new Button(format.w("RefreshProfile"));
+        refresh.getStyleClass().add("mm-primary");
         refresh.setDefaultButton(true);
         refresh.setOnAction(e -> rebuild());
 
@@ -56,28 +68,32 @@ public final class ProfileView implements TabView {
         controls.setAlignment(Pos.CENTER_LEFT);
         genres.setHgap(UiParts.GAP);
         genres.setVgap(4);
-        artists.setPrefHeight(LIST_HEIGHT);
-        tracks.setPrefHeight(LIST_HEIGHT);
-        HBox lists = new HBox(UiParts.PAD, listColumn(format.w("TopArtists"), artists),
-                listColumn(format.w("TopTracks"), tracks));
+        HBox lists = new HBox(UiParts.PAD, card(format.w("TopArtists"), artists), card(format.w("TopTracks"), tracks));
+        VBox summaryCard = card(format.w("Summary"), summary);
 
-        VBox content = UiParts.page(controls, status, generated, notice, UiParts.heading(format.w("TopGenres")), genres, lists,
-                UiParts.heading(format.w("Summary")), summary);
+        VBox content = UiParts.page(format.w("Menu.profile"), format.w("Desc.profile"), "", controls, status, generated,
+                notice, card(format.w("TopGenres"), genres), lists, summaryCard);
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
         root = new LoginGate(ctx, scroll, false);
         status.info(format.w("ProfileNone"));
     }
 
-    private VBox listColumn(String title, ListView<String> list) {
-        VBox column = new VBox(4, UiParts.heading(title), list);
-        HBox.setHgrow(column, Priority.ALWAYS);
-        return column;
+    private static VBox card(String title, Node body) {
+        VBox card = new VBox(UiParts.GAP, UiParts.heading(title), body);
+        card.getStyleClass().add("mm-card");
+        HBox.setHgrow(card, Priority.ALWAYS);
+        return card;
     }
 
     @Override
     public String title() {
-        return format.w("TabProfile");
+        return format.w("Menu.profile");
+    }
+
+    @Override
+    public String description() {
+        return format.w("Desc.profile");
     }
 
     @Override
@@ -90,7 +106,8 @@ public final class ProfileView implements TabView {
     public void onLogin(User user) {
         ctx.run(status, "ActionShowProfile", format.w("Working"), () -> {
             Optional<ListeningProfile> stored = ctx.controller().lastProfile(user);
-            return stored.map(p -> new Shown(p, true, ctx.controller().memory().warning())).orElse(null);
+            return stored.map(p -> new Shown(p, true, ctx.controller().memory().warning(),
+                    ctx.controller().feedbackFor())).orElse(null);
         }, shown -> {
             if (shown != null) {
                 show(shown);
@@ -105,15 +122,17 @@ public final class ProfileView implements TabView {
         String chosen = range.getValue();
         ctx.run(status, "ActionBuildProfile", format.w("ProfileBuilding"), () -> {
             ListeningProfile profile = ctx.controller().analyzeTaste(user, chosen);
-            return new Shown(profile, false, ctx.controller().memory().warning());
+            return new Shown(profile, false, ctx.controller().memory().warning(), ctx.controller().feedbackFor());
         }, this::show, refresh, range);
     }
 
     private void show(Shown shown) {
         ListeningProfile profile = shown.profile();
         status.info(shown.stored() ? format.w("ProfileStored") : "");
-        generated.setText(profile.generatedAt() == null ? ""
-                : format.w("ProfileGenerated", format.timestamp(profile.generatedAt()), profile.range() == null ? "" : profile.range()));
+        generated.setText(format.generatedLine(profile.generatedAt(), profile.range()));
+        if (shown.stored() && profile.range() != null && range.getItems().contains(profile.range())) {
+            range.setValue(profile.range());
+        }
         List<String> notices = new java.util.ArrayList<>(profile.notices());
         if (shown.memoryWarning() != null) {
             notices.add(ctx.config().wording("cliNotSaved").formatted(shown.memoryWarning()));
@@ -135,14 +154,28 @@ public final class ProfileView implements TabView {
         }
 
         List<String> artistNames = format.artistNames(profile.topArtists(), ctx.config().guiArtistsShown());
-        artists.setItems(FXCollections.observableArrayList(artistNames.isEmpty()
-                ? List.of(ctx.config().wording("cliTopArtistsCounted").formatted(profile.topArtists().size()))
-                : artistNames));
-        List<String> trackTitles = profile.topTracks().stream().map(Track::title).filter(t -> t != null && !t.isBlank())
+        artists.getChildren().setAll(artistNames.isEmpty()
+                ? List.of(placeholder(profile.topArtists().size(), "NamesNotLoaded"))
+                : artistNames.stream().map(this::plainRow).toList());
+        List<Track> named = profile.topTracks().stream().filter(t -> t.title() != null && !t.title().isBlank())
                 .limit(ctx.config().guiTracksShown()).toList();
-        tracks.setItems(FXCollections.observableArrayList(trackTitles.isEmpty()
-                ? List.of(ctx.config().wording("cliTracksCounted").formatted(profile.topTracks().size(), profile.savedTrackIds().size()))
-                : trackTitles));
+        tracks.getChildren().setAll(named.isEmpty()
+                ? List.of(placeholder(profile.topTracks().size(), "TrackNamesNotLoaded"))
+                : named.stream().map(t -> TrackRow.of(ctx, status, t, TrackRow.Options.feedbackOnly(),
+                        shown.verdicts().get(t.id()))).toList());
         summary.setText(profile.summary() == null ? "" : profile.summary());
+    }
+
+    private Node plainRow(String name) {
+        Label label = new Label(name);
+        label.getStyleClass().add("mm-track-title");
+        HBox row = new HBox(label);
+        row.getStyleClass().add("mm-row");
+        return row;
+    }
+
+    /** What to show when only counts are stored: a plain line, or "nothing yet" when there are none at all. */
+    private Node placeholder(int count, String key) {
+        return UiParts.muted(count > 0 ? format.w(key) : format.w("NoneYet"));
     }
 }

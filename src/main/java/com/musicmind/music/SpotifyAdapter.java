@@ -119,6 +119,25 @@ public class SpotifyAdapter implements MusicService {
         return tracksFromWrapped(array(body, "items"));
     }
 
+    @Override
+    public List<com.musicmind.domain.Play> getRecentPlays() {
+        JsonObject body = get("/me/player/recently-played?limit=" + recentLimit);
+        List<com.musicmind.domain.Play> plays = new ArrayList<>();
+        for (JsonElement e : array(body, "items")) {
+            Track track = wrappedTrack(e);
+            String playedAt = track == null ? null : str(e.getAsJsonObject(), "played_at");
+            if (playedAt == null) {
+                continue;
+            }
+            try {
+                plays.add(new com.musicmind.domain.Play(track, java.time.Instant.parse(playedAt)));
+            } catch (java.time.format.DateTimeParseException ignored) {
+                // a play whose time cannot be read cannot be placed in a week
+            }
+        }
+        return plays;
+    }
+
     // ---- read: catalogue ----
 
     @Override
@@ -496,8 +515,10 @@ public class SpotifyAdapter implements MusicService {
         if (timeRange == null) return "medium_term";
         return switch (timeRange.toLowerCase()) {
             case "short", "short_term", "recent" -> "short_term";
+            case "medium", "medium_term" -> "medium_term";
             case "long", "long_term", "all", "all_time" -> "long_term";
-            default -> "medium_term";
+            default -> throw new IllegalArgumentException("Unknown time range '" + timeRange
+                    + "'; Spotify offers short, medium and long.");
         };
     }
 

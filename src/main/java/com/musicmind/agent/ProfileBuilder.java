@@ -38,6 +38,12 @@ public class ProfileBuilder {
      *                    makes the profile partial and is shown as a notice
      */
     public ListeningProfile build(TopItems topItems, List<Track> saved, List<String> readNotices) {
+        return build(topItems, saved, readNotices, List.of());
+    }
+
+    /** As above, plus {@code infoNotices}: things to tell the user that do not make the profile partial. */
+    public ListeningProfile build(TopItems topItems, List<Track> saved, List<String> readNotices,
+                                  List<String> infoNotices) {
         List<Artist> artists = topItems.artists();
         List<Track> tracks = topItems.tracks();
         List<Track> savedTracks = saved == null ? List.of() : saved;
@@ -51,9 +57,11 @@ public class ProfileBuilder {
             notices.add("Little listening history: " + artists.size() + " top artists and " + tracks.size()
                     + " top tracks found, and a full profile needs at least " + minItems + " of each.");
         }
+        boolean partial = !notices.isEmpty();
+        notices.addAll(infoNotices);
         return new ListeningProfile(computeGenreHistogram(artists), artists, tracks,
                 savedTracks.stream().map(Track::id).toList(), null, Instant.now(),
-                !notices.isEmpty(), notices);
+                partial, notices);
     }
 
     /**

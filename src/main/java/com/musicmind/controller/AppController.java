@@ -29,6 +29,7 @@ import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.PlaylistSummary;
 import com.musicmind.domain.Recommendation;
 import com.musicmind.domain.SnapshotInfo;
+import com.musicmind.domain.SnapshotPreview;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.User;
@@ -47,11 +48,13 @@ import com.musicmind.memory.repository.PlaylistHistoryRepository;
 import com.musicmind.memory.repository.PreferenceRepository;
 import com.musicmind.memory.repository.SessionRepository;
 import com.musicmind.music.GenreEnrichingMusicService;
+import com.musicmind.music.LastFmAdapter;
 import com.musicmind.music.MusicBrainzAdapter;
 import com.musicmind.music.MusicService;
 import com.musicmind.music.OAuthTokenStore;
 import com.musicmind.music.RetryingMusicService;
 import com.musicmind.music.SpotifyAdapter;
+import com.musicmind.music.TagService;
 import com.musicmind.tool.MemoryTool;
 import com.musicmind.tool.SpotifyTool;
 import com.musicmind.tool.ToolManager;
@@ -59,7 +62,9 @@ import com.musicmind.tool.ToolManager;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.Set;
@@ -125,6 +130,16 @@ public class AppController {
      */
     public AppController(MusicService music, MemoryManager memory, LLMProvider llm, Config config,
                          Runnable reauthenticator, BooleanSupplier browserLoginNeeded, ArtistGenreCache genreCache) {
+        this(music, memory, llm, config, reauthenticator, browserLoginNeeded, genreCache, TagService.NONE);
+    }
+
+    /**
+     * @param tagService Last.fm's top songs for a tag, which Create matches to Spotify tracks; it returns nothing
+     *                   (and makes no request) when no Last.fm key is configured
+     */
+    public AppController(MusicService music, MemoryManager memory, LLMProvider llm, Config config,
+                         Runnable reauthenticator, BooleanSupplier browserLoginNeeded, ArtistGenreCache genreCache,
+                         TagService tagService) {
         this.browserLoginNeeded = browserLoginNeeded;
         this.music = music;
         this.memory = memory;
@@ -145,7 +160,7 @@ public class AppController {
             this.facade = new MusicAgentFacade(tools, memory, profileBuilder,
                     new TrendComparator(profileBuilder, config), prompts, llm, config,
                     new Planner(llm, prompts, parser, config), parser, new SearchRanker(config),
-                    new RecommendationEngine(tools, config),
+                    new RecommendationEngine(tools, config, genreCache, tagService),
                     () -> currentUser == null ? null : currentUser.id(),
                     new MusicAgentFacade.CreateSupport(music, new PlaylistManager(config, music, memory),
                             explainer, reauthenticator, genreCache));
@@ -198,7 +213,8 @@ public class AppController {
                 new SessionRepository(db, userId),
                 new PlaylistHistoryRepository(db, userId),
                 new CandidateRepository(db, userId));
-        return new AppController(music, memory, llm, config, reauthenticator, browserLoginNeeded, genreCache);
+        return new AppController(music, memory, llm, config, reauthenticator, browserLoginNeeded, genreCache,
+                new LastFmAdapter(config));
     }
 
     public boolean isSpotifyConfigured() {
@@ -223,13 +239,23 @@ public class AppController {
         return config.spotifyAttribution();
     }
 
+    /** The line both interfaces show to credit Last.fm for the song tags. */
+    public String lastfmAttribution() {
+        return config.lastfmAttribution();
+    }
+
     /** The line both interfaces show to credit MusicBrainz for the genres. */
     public String genreAttribution() {
         return config.genreAttribution();
     }
 
-    /** The time ranges the views offer, most recent first. */
+    /** The time ranges Your Taste offers, most recent first (the past week, then Spotify's three). */
     public List<String> timeRanges() {
+        return config.profileTasteRanges();
+    }
+
+    /** The ranges Trends compares: Spotify's three only, since a week of plays is too thin to compare. */
+    public List<String> trendRanges() {
         return config.profileRanges();
     }
 
@@ -562,6 +588,13 @@ public class AppController {
         return facade.restore(snapshotId);
     }
 
+    /** The songs of a saved version, titled from Spotify where it can be read, for a preview; changes nothing. */
+    public SnapshotPreview previewSnapshot(int snapshotId) {
+        requireSpotify();
+        signInIfNeeded();
+        return facade.previewSnapshot(snapshotId);
+    }
+
     /** Whether the last {@link #restore} changed the playlist; false when it already matched the saved version. */
     public boolean lastRestoreChanged() {
         return facade.lastRestoreChanged();
@@ -626,6 +659,22 @@ public class AppController {
         return facade.findArtists(name);
     }
 
+    /** A short display-only line (an album title, and whether the artist is in the user's listening) to tell same-named artists apart; blank if none can be read. */
+    public String artistHint(String artistId) {
+        return artistHints(List.of(artistId)).get(artistId);
+    }
+
+    /** {@link #artistHint} for several artists at once: the saved profile is read once, not once per artist. */
+    public Map<String, String> artistHints(List<String> artistIds) {
+        requireSpotify();
+        Set<String> listening = facade.listeningArtistIds(currentUser());
+        Map<String, String> hints = new LinkedHashMap<>();
+        for (String id : artistIds) {
+            hints.put(id, facade.artistHint(id, listening));
+        }
+        return hints;
+    }
+
     /** Tracks for what the user typed, the same ranked list as {@link #searchMusic}. */
     public List<Track> findTracks(String text) {
         return searchMusic(text);
@@ -656,18 +705,51 @@ public class AppController {
     }
 
     /**
-     * Saves the blocked ids with {@code id} added. If the stored preferences cannot be read the database is down
-     * and {@link #getPreferences()} returns the safe defaults; saving on top of those would wipe the blocks that are
-     * stored, so nothing is saved.
+     * Removes the artist from the blocked artists, keeping the others; removing the last one clears the rule.
+     *
+     * @throws IllegalArgumentException if the id is not shaped like a Spotify artist id (or {@code spotify:artist:} URI)
+     * @throws IllegalStateException    if the stored blocks cannot be read, so nothing is saved
      */
+    public void unblockArtist(String artistId) {
+        String id = artistId == null ? "" : artistId.strip();
+        if (!config.prefsArtistIdPattern().matcher(id).matches()) {
+            throw new IllegalArgumentException(config.wording("prefsBadArtistId"));
+        }
+        changeBlocks(PreferenceSettings.BLOCKED_ARTISTS, ARTIST_URI_PREFIX, id, false);
+    }
+
+    /**
+     * Removes the track from the blocked tracks, keeping the others; removing the last one clears the rule.
+     *
+     * @throws IllegalArgumentException if the id is not shaped like a Spotify track id
+     * @throws IllegalStateException    if the stored blocks cannot be read, so nothing is saved
+     */
+    public void unblockTrack(String trackId) {
+        changeBlocks(PreferenceSettings.BLOCKED_TRACKS, TRACK_URI_PREFIX, requireTrackId(trackId), false);
+    }
+
     private void addBlock(String key, String uriPrefix, String id) {
+        changeBlocks(key, uriPrefix, id, true);
+    }
+
+    /**
+     * Saves the blocked ids with {@code id} added or removed. If the stored preferences cannot be read the database is
+     * down and {@link #getPreferences()} returns the safe defaults; saving on top of those would wipe the blocks that
+     * are stored, so nothing is saved.
+     */
+    private void changeBlocks(String key, String uriPrefix, String id, boolean add) {
         List<UserPreference> stored = getPreferences();
         if (stored.stream().anyMatch(p -> UserPreference.DEFAULTS_KEY.equals(p.key()))) {
             throw new IllegalStateException(config.wording("prefsUnavailable"));
         }
         PreferenceSettings settings = PreferenceSettings.from(stored);
         Set<String> all = new TreeSet<>(PreferenceSettings.BLOCKED_ARTISTS.equals(key) ? settings.blockedArtists() : settings.blockedTracks());
-        all.add(id.startsWith(uriPrefix) ? id.substring(uriPrefix.length()) : id);
+        String bare = id.startsWith(uriPrefix) ? id.substring(uriPrefix.length()) : id;
+        if (add) {
+            all.add(bare);
+        } else {
+            all.remove(bare);
+        }
         setPreference(PreferenceSettings.parse(key, String.join(",", all), config));
     }
 
@@ -695,6 +777,41 @@ public class AppController {
             throw new IllegalArgumentException("Choose accept or reject.");
         }
         memory.saveFeedback(new Feedback(id, verdict, Instant.now()));
+    }
+
+    /**
+     * Track id to the user's latest verdict, so screens can show what was chosen; empty with the database down. Reads
+     * under the id {@link #recordFeedback} stores under (the local user without Spotify), so a stored verdict always
+     * shows, and never signs in: while that would open the browser, nothing is read.
+     */
+    public Map<String, Verdict> feedbackFor() {
+        Map<String, Verdict> latest = new LinkedHashMap<>();
+        String id = feedbackUserId();
+        if (id == null) {
+            return latest;
+        }
+        for (Feedback f : memory.loadFeedback(id)) {   // oldest first, so the last one wins
+            latest.put(f.trackId(), f.verdict());
+        }
+        return latest;
+    }
+
+    /** The id feedback is stored under, found without opening the browser; null when it cannot be known yet. */
+    private String feedbackUserId() {
+        if (currentUser != null) {
+            return currentUser.id();
+        }
+        if (music == null) {
+            return LOCAL_USER;
+        }
+        if (willOpenBrowser()) {
+            return null;
+        }
+        try {
+            return music.currentUserId();   // the id the repositories stamp on recordFeedback
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     /**

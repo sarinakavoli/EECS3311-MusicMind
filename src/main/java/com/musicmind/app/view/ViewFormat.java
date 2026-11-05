@@ -9,9 +9,10 @@ import com.musicmind.domain.Artist;
 import com.musicmind.domain.DecisionTrace;
 import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.Playlist;
-import com.musicmind.domain.Recommendation;
+import com.musicmind.domain.PlaylistSummary;
 import com.musicmind.domain.SnapshotInfo;
 import com.musicmind.domain.RangeChange;
+import com.musicmind.domain.RequestKind;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.ValidationResult;
@@ -29,7 +30,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalInt;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * What the GUI shows, worked out as plain text and numbers, so the views hold no logic and this class can
@@ -46,10 +49,14 @@ public final class ViewFormat {
     /** One time range of the Trends view. */
     public record TrendColumn(String range, List<String> artists, List<String> genres, String coverage) { }
 
-    /** One line of the History list. */
-    public record HistoryRow(String sessionId, String when, String status, String request, String playlistId) { }
+    /** One saved version on a timeline line: when it was saved and how the song count moved from the version before. */
+    public record VersionLine(SnapshotInfo info, String when, String change) { }
+
+    /** The saved versions of one playlist, newest first. */
+    public record VersionGroup(String playlistId, String name, List<VersionLine> versions) { }
 
     /** A message with a web address, an HTTP status or a JSON body in it is not fit to show. */
+    private static final Pattern PROFILE_RANGE = Pattern.compile("\\((short|medium|long)\\)");
     private static final Pattern LOOKS_RAW = Pattern.compile("://|HTTP\\s*\\d{3}|[{}]");
 
     private final Config config;
@@ -80,10 +87,77 @@ public final class ViewFormat {
         return args.length == 0 ? template : String.format(Locale.ROOT, template, args);
     }
 
+    /** A Spotify time range in plain words ({@code short} to Past month); any other value stays as it is. */
+    public String rangeLabel(String range) {
+        return switch (range == null ? "" : range) {
+            case "week", "short", "medium", "long" -> w("Range." + range);
+            default -> range;
+        };
+    }
+
+    /** "Updated <time> . <range>" for a profile; the range is left out when blank, and nothing when there is no time. */
+    public String generatedLine(java.time.Instant generatedAt, String range) {
+        if (generatedAt == null) {
+            return "";
+        }
+        String when = timestamp(generatedAt);
+        return range == null || range.isBlank() ? w("ProfileUpdated", when) : w("ProfileUpdatedRange", when, rangeLabel(range));
+    }
+
+    /**
+     * The playlist list with MusicMind's own song counts in place of Spotify's total while that total is lower:
+     * the total (items.total) lags just after a change and showed "0 songs" for a new playlist. A total at or
+     * above our count is Spotify's own and is used as it is.
+     */
+    public List<PlaylistSummary> mergeTrackCounts(List<PlaylistSummary> listed, Map<String, Integer> known) {
+        return listed.stream()
+                .map(p -> known.containsKey(p.id()) && p.trackCount() < known.get(p.id())
+                        ? new PlaylistSummary(p.id(), p.name(), known.get(p.id())) : p)
+                .toList();
+    }
+
+    /** The own counts still lagging: kept only while Spotify's total is below them, dropped once it reports as many or more. */
+    public Map<String, Integer> countsStillLagging(List<PlaylistSummary> listed, Map<String, Integer> known) {
+        Map<String, Integer> left = new LinkedHashMap<>();
+        for (PlaylistSummary p : listed) {
+            Integer own = known.get(p.id());
+            if (own != null && p.trackCount() < own) {
+                left.put(p.id(), own);
+            }
+        }
+        return left;
+    }
+
     /** A track length as {@code m:ss}. */
     public String duration(int durationMs) {
         int seconds = Math.round(durationMs / 1000f);
         return String.format(Locale.ROOT, "%d:%02d", seconds / 60, seconds % 60);
+    }
+
+    /** The artist names of a track joined by ", "; empty when the track has none. */
+    public String artists(Track track) {
+        return track.artistNames().stream().filter(n -> n != null && !n.isBlank()).collect(Collectors.joining(", "));
+    }
+
+    /** The line after adding a song: its title and how many songs now wait for the next playlist. */
+    public String candidateAdded(String title, int total) {
+        return w(total == 1 ? "CandidateAddedOne" : "CandidateAddedMany", title, total);
+    }
+
+    /** The line when a song is added again: it is already on the waiting list. */
+    public String candidateAlreadyWaiting(String title) {
+        return w("CandidateAlready", title);
+    }
+
+    /** "N waiting" for the results heading; blank when nothing waits. */
+    public String waitingCount(int count) {
+        return count <= 0 ? "" : w("WaitingCount", count);
+    }
+
+    /** The title, then " - " and the artists when there are any. */
+    public String trackTitleLine(Track track) {
+        String artists = artists(track);
+        return artists.isEmpty() ? track.title() : w("TrackTitleLine", track.title(), artists);
     }
 
     /** Milliseconds as whole minutes, rounded to the nearest. */
@@ -152,9 +226,9 @@ public final class ViewFormat {
             List<String> genres = report.genresByRange().getOrDefault(range, Map.of()).keySet().stream()
                     .limit(genresShown).toList();
             String coverage = artists.isEmpty() ? ""
-                    : String.format(Locale.ROOT, config.wording("trendCoverageLine"),
+                    : w("TrendCoverage",
                             report.artistsWithGenres(range), report.artistCount(range));
-            columns.add(new TrendColumn(range, artistNames(artists, artistsShown), genres, coverage));
+            columns.add(new TrendColumn(rangeLabel(range), artistNames(artists, artistsShown), genres, coverage));
         }
         return columns;
     }
@@ -163,11 +237,13 @@ public final class ViewFormat {
     public List<String> trendStepLines(TrendReport report) {
         List<String> lines = new ArrayList<>();
         for (RangeChange step : report.steps()) {
-            lines.add(cli("TrendStep", step.from(), step.to()));
+            lines.add(w("TrendStep", rangeLabel(step.from()), rangeLabel(step.to())));
             changeLines(lines, step.addedGenres(), step.droppedGenres(), names(report, step.addedArtistIds()),
                     names(report, step.droppedArtistIds()));
         }
-        lines.add(cli("TrendOverall"));
+        List<RangeChange> steps = report.steps();
+        lines.add(steps.isEmpty() ? w("TrendOverall")
+                : w("TrendStep", rangeLabel(steps.get(0).from()), rangeLabel(steps.get(steps.size() - 1).to())));
         changeLines(lines, report.addedGenres(), report.droppedGenres(), names(report, report.addedArtistIds()),
                 names(report, report.droppedArtistIds()));
         return lines;
@@ -175,32 +251,20 @@ public final class ViewFormat {
 
     private void changeLines(List<String> lines, List<String> genresAdded, List<String> genresDropped,
                              List<String> artistsAdded, List<String> artistsDropped) {
-        lines.add("  " + cli("GenresAdded") + ": " + listOrNone(genresAdded));
-        lines.add("  " + cli("GenresDropped") + ": " + listOrNone(genresDropped));
-        lines.add("  " + cli("ArtistsAdded") + ": " + listOrNone(artistsAdded));
-        lines.add("  " + cli("ArtistsDropped") + ": " + listOrNone(artistsDropped));
+        lines.add("  " + w("GenresAdded") + ": " + listOrNone(genresAdded));
+        lines.add("  " + w("GenresDropped") + ": " + listOrNone(genresDropped));
+        lines.add("  " + w("ArtistsAdded") + ": " + listOrNone(artistsAdded));
+        lines.add("  " + w("ArtistsDropped") + ": " + listOrNone(artistsDropped));
     }
 
     private String listOrNone(List<String> items) {
-        return items.isEmpty() ? cli("None") : String.join(", ", items);
+        return items.isEmpty() ? w("NothingChanged") : String.join(", ", items);
     }
 
     private static List<String> names(TrendReport report, List<String> ids) {
         Map<String, String> byId = new LinkedHashMap<>();
         report.artistsByRange().values().forEach(list -> list.forEach(a -> byId.put(a.id(), a.name())));
         return ids.stream().map(id -> byId.getOrDefault(id, id)).toList();
-    }
-
-    /** The rows of the History list, in the order given. */
-    public List<HistoryRow> historyRows(List<AgentSession> sessions) {
-        List<HistoryRow> rows = new ArrayList<>();
-        for (AgentSession s : sessions) {
-            String request = s.request() == null ? ""
-                    : config.wording("guiKind." + s.request().kind().name()) + ": " + s.request().rawText();
-            rows.add(new HistoryRow(s.id(), s.startedAt() == null ? "" : timeFormat.format(s.startedAt()),
-                    s.status() == null ? "" : s.status(), request, s.playlistId() == null ? "" : s.playlistId()));
-        }
-        return rows;
     }
 
     /** One past session opened: its request, status, plan and result. */
@@ -265,14 +329,29 @@ public final class ViewFormat {
             return List.of();
         }
         List<String> lines = new ArrayList<>();
-        lines.add(w("Strategy", trace.strategyName()));
+        lines.add(w("Strategy", strategyWords(trace.strategyName())));
         trace.constraintsSatisfied().forEach(c -> lines.add(w("ConstraintLine", c)));
         return lines;
     }
 
-    /** The score and familiar share of one recommendation. */
-    public String recommendationDetail(Recommendation recommendation) {
-        return w("RecommendationDetail", recommendation.score(), recommendation.familiarity() * 100);
+    /**
+     * "Mix: 60% new artists, 40% artists you know" for a familiar share (0.4 means 40% known). The share is
+     * clamped to 0..1 and the two numbers always add up to 100; an unreadable share counts as the default.
+     */
+    public String mixLabel(double familiarShare) {
+        double share = Double.isNaN(familiarShare) ? config.discoverDefaultFamiliarRatio() : familiarShare;
+        long known = Math.round(Math.max(0, Math.min(1, share)) * 100);
+        return w("MixLabel", 100 - known, known);
+    }
+
+    /** The mix label for the saved familiar share, or for the default share when none is saved. */
+    public String mixLabel(java.util.OptionalDouble saved) {
+        return mixLabel(saved.orElse(config.discoverDefaultFamiliarRatio()));
+    }
+
+    /** "Artist you know" for a familiarity of 1 or more, otherwise "New artist for you". */
+    public String familiarityLabel(double familiarity) {
+        return w(familiarity >= 1.0 ? "FamiliarKnown" : "FamiliarNew");
     }
 
     /** A playlist's name with its track count and length. */
@@ -281,19 +360,76 @@ public final class ViewFormat {
     }
 
     /**
-     * The target length typed by the user: blank means 0 (take it from the goal); otherwise a whole number
-     * from 0 to the configured maximum. Empty when the text is anything else.
+     * The target length typed as hours and minutes: both blank (or 0) mean 0, take it from the goal. Otherwise
+     * whole numbers, minutes 0 to 59, and a total within the planner's shortest and longest playlist.
+     *
+     * @throws IllegalArgumentException with a message for the user when the text cannot be used
      */
-    public java.util.OptionalInt parseMinutes(String text) {
+    public int parseHoursMinutes(String hours, String minutes) {
+        long h = wholeNumber(hours);
+        long m = wholeNumber(minutes);
+        if (m > 59) {
+            throw new IllegalArgumentException(w("MinutesOver59"));
+        }
+        long total = h * 60 + m;
+        if (total == 0) {
+            return 0;
+        }
+        int min = config.parserMinTargetMinutes();
+        int max = config.parserMaxTargetMinutes();
+        if (total < min || total > max) {
+            throw new IllegalArgumentException(w("LengthRange", min, max));
+        }
+        return (int) total;
+    }
+
+    /** Blank is 0; digits only otherwise (and few enough to fit), else a user-facing refusal. */
+    private long wholeNumber(String text) {
         String typed = text == null ? "" : text.strip();
         if (typed.isEmpty()) {
-            return java.util.OptionalInt.of(0);
+            return 0;
         }
-        if (!typed.chars().allMatch(c -> c >= '0' && c <= '9') || typed.length() > String.valueOf(Integer.MAX_VALUE).length()) {
-            return java.util.OptionalInt.empty();
+        if (!typed.chars().allMatch(c -> c >= '0' && c <= '9') || typed.length() > 6) {
+            throw new IllegalArgumentException(w("LengthNotNumber"));
         }
-        long value = Long.parseLong(typed);
-        return value <= config.parserMaxTargetMinutes() ? java.util.OptionalInt.of((int) value) : java.util.OptionalInt.empty();
+        return Long.parseLong(typed);
+    }
+
+    /**
+     * What to tell the user when a block could not be saved. A refused value gets one plain sentence (the
+     * underlying message may talk about ids); a refusal because the stored blocks cannot be read keeps its own wording.
+     */
+    public String blockFailure(Throwable error) {
+        if (error instanceof IllegalArgumentException) {
+            return w("BlockRefused");
+        }
+        if (error instanceof IllegalStateException && error.getMessage() != null && !error.getMessage().isBlank()) {
+            return error.getMessage();
+        }
+        return failure("ActionBlock", error);
+    }
+
+    /** The artist's name for the blocked list; a missing name, or the id itself, becomes plain words. */
+    public String blockedArtistName(String id, String name) {
+        return name == null || name.isBlank() || name.strip().equals(id) ? w("BlockedArtistUnknown") : name.strip();
+    }
+
+    /** The song's title for the blocked list, or plain words when the title is not known. */
+    public String blockedSongName(String title) {
+        return title == null || title.isBlank() ? w("BlockedSongUnknown") : title;
+    }
+
+    /** "1 of 3" for one of several artists sharing a name; blank when the name is not shared. */
+    public String artistPosition(int position, int total) {
+        return total <= 1 ? "" : w("ArtistPosition", position, total);
+    }
+
+    /** The line above the artist choices: how many artists carry the typed name. */
+    public String artistMatchesLine(String typed, int count) {
+        if (count <= 0) {
+            return w("ArtistMatchesNone", typed);
+        }
+        return count == 1 ? w("ArtistMatchesOne", typed) : w("ArtistMatchesMany", count, typed);
     }
 
     /** A moment as a readable date and time in the formatter's time zone. */
@@ -301,8 +437,137 @@ public final class ViewFormat {
         return timeFormat.format(instant);
     }
 
-    /** A saved playlist version as one line of the restore list. */
-    public String snapshotLine(SnapshotInfo info) {
-        return w("VersionLine", info.name(), info.trackCount(), info.createdAt() == null ? "" : timeFormat.format(info.createdAt()));
+    /** "27 \u2192 22 songs", or "27 songs (no change)" when the count did not change. */
+    public String versionChange(int fromCount, int toCount) {
+        return fromCount == toCount ? w("VersionSame", toCount) : w("VersionChange", fromCount, toCount);
+    }
+
+    /** True for the quick looks (taste profile, trends), which the timeline hides by default. */
+    public boolean isRoutine(AgentSession session) {
+        return session.request() != null && session.request().kind() == RequestKind.ANALYZE_TASTE;
+    }
+
+    /**
+     * Saved versions (newest first, as the controller returns them) grouped by playlist, the playlist with the most
+     * recent version first. Each line compares its song count with the version saved before it.
+     */
+    public List<VersionGroup> versionGroups(List<SnapshotInfo> snapshots) {
+        Map<String, List<SnapshotInfo>> byPlaylist = new LinkedHashMap<>();
+        for (SnapshotInfo info : snapshots) {
+            byPlaylist.computeIfAbsent(info.playlistId(), k -> new ArrayList<>()).add(info);
+        }
+        List<VersionGroup> groups = new ArrayList<>();
+        for (Map.Entry<String, List<SnapshotInfo>> entry : byPlaylist.entrySet()) {
+            List<SnapshotInfo> list = entry.getValue();
+            List<VersionLine> lines = new ArrayList<>();
+            for (int i = 0; i < list.size(); i++) {
+                SnapshotInfo info = list.get(i);
+                String change = i + 1 < list.size() ? versionChange(list.get(i + 1).trackCount(), info.trackCount())
+                        : w("VersionFirst", info.trackCount());
+                lines.add(new VersionLine(info, info.createdAt() == null ? "" : timeFormat.format(info.createdAt()), change));
+            }
+            groups.add(new VersionGroup(entry.getKey(), list.get(0).name(), lines));
+        }
+        return groups;
+    }
+
+    /** What a timeline entry says: the request, or for a taste profile view the range it looked at. */
+    public String timelineText(AgentSession session) {
+        if (session.request() == null) {
+            return "";
+        }
+        String raw = session.request().rawText() == null ? "" : session.request().rawText();
+        if (isRoutine(session)) {
+            Matcher m = PROFILE_RANGE.matcher(raw);
+            if (m.find()) {
+                return w("TimelineProfile", rangeLabel(m.group(1)));
+            }
+        }
+        return raw;
+    }
+
+    /** The name of what the session did ("Create playlist", "Taste profile"); empty when it has no request. */
+    public String kindLabel(AgentSession session) {
+        return session.request() == null ? "" : config.wording("guiKind." + session.request().kind().name());
+    }
+
+    /** The preview heading for a saved version: its name and when it was saved. */
+    public String previewTitle(SnapshotInfo info) {
+        return w("PreviewTitle", info.name(), info.createdAt() == null ? "" : timeFormat.format(info.createdAt()));
+    }
+
+    /** The status to flag on a timeline line: blank when the run finished normally. */
+    public String statusFlag(AgentSession session) {
+        String status = session.status();
+        return status == null || "done".equals(status) ? "" : status;
+    }
+
+    /** The line under the previewed songs: how many more the version holds. */
+    public String previewMoreLine(int more) {
+        return w("PreviewMore", more);
+    }
+
+    /** The kinds of activity the History timeline can be narrowed to; OTHER (Discover, search) shows only under ALL. */
+    public enum ActivityType { ALL, CREATED, CHANGED, RESTORED, TASTE, OTHER }
+
+    /** The strategy class name in plain words ("BalancedStrategy" becomes a sentence part); never the class name itself. */
+    public String strategyWords(String name) {
+        String key = name == null ? "" : name.strip().replaceAll("Strategy$", "").toLowerCase(java.util.Locale.ROOT);
+        if (key.isEmpty()) {
+            return w("StrategyOther");
+        }
+        try {
+            return config.wording("guiStrategy." + key);
+        } catch (IllegalStateException unknown) {
+            return w("StrategyOther");
+        }
+    }
+
+    /** What kind of activity a session was; a restore or recreate counts as RESTORED, not as a change or creation. */
+    public ActivityType activityType(AgentSession session) {
+        if (session.request() == null) {
+            return ActivityType.OTHER;
+        }
+        String text = session.request().rawText() == null ? "" : session.request().rawText();
+        boolean restore = text.equals(config.wording("restoreRecordText")) || text.equals(config.wording("recreateRecordText"));
+        return switch (session.request().kind()) {
+            case ANALYZE_TASTE -> ActivityType.TASTE;
+            case CREATE_PLAYLIST, MODIFY_PLAYLIST -> restore ? ActivityType.RESTORED
+                    : session.request().kind() == RequestKind.CREATE_PLAYLIST ? ActivityType.CREATED : ActivityType.CHANGED;
+            default -> ActivityType.OTHER;
+        };
+    }
+
+    /**
+     * The timeline: only {@code type} (ALL shows everything), sorted by date, newest first or oldest first (a session
+     * without a date counts as the oldest). Taste profile views stay hidden unless asked for, either by choosing
+     * that type or by {@code showRoutine}.
+     */
+    public List<AgentSession> activity(List<AgentSession> sessions, ActivityType type, boolean newestFirst, boolean showRoutine) {
+        java.util.Comparator<AgentSession> byDate = java.util.Comparator.comparing(AgentSession::startedAt,
+                java.util.Comparator.nullsFirst(java.util.Comparator.naturalOrder()));
+        return sessions.stream()
+                .filter(s -> type == ActivityType.ALL ? showRoutine || !isRoutine(s) : activityType(s) == type)
+                .sorted(newestFirst ? byDate.reversed() : byDate)
+                .toList();
+    }
+
+    public String activityTypeLabel(ActivityType type) {
+        return w("ActivityType." + type.name());
+    }
+
+    /** The found songs that are not already on the waiting list (so an added song leaves the results). */
+    public List<Track> withoutWaiting(List<Track> found, List<Track> waiting) {
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        waiting.forEach(t -> ids.add(t.id()));
+        return found.stream().filter(t -> !ids.contains(t.id())).toList();
+    }
+
+    /** The song's Spotify web page, or null when the id is missing or not a plain Spotify id. */
+    public String spotifyTrackUrl(Track track) {
+        if (track == null || track.id() == null || !track.id().matches("[A-Za-z0-9]{1,40}")) {
+            return null;
+        }
+        return w("SpotifyTrackUrl", track.id());
     }
 }

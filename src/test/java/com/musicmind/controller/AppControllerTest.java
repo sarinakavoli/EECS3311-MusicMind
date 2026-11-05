@@ -4,6 +4,7 @@ import com.musicmind.agent.PreferenceSettings;
 import com.musicmind.agent.command.PlaylistChangeException;
 import com.musicmind.agent.command.PlaylistMissingException;
 import com.musicmind.config.Config;
+import com.musicmind.domain.Album;
 import com.musicmind.domain.Artist;
 import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.Playlist;
@@ -26,6 +27,7 @@ import com.musicmind.music.StubMusicService;
 import org.junit.jupiter.api.Test;
 
 import java.sql.SQLException;
+import com.musicmind.domain.Verdict;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -118,6 +120,63 @@ class AppControllerTest extends PostgresTestBase {
         assertThrows(IllegalArgumentException.class, () -> c.analyzeTaste(c.currentUser(), "nope"));
     }
 
+    /** Plays 5 days ago (two of "a"), 1 day ago ("b"), and 20 days ago ("old", outside the week); newest first. */
+    private class Plays extends Music {
+        final java.time.Instant now = java.time.Instant.now();
+        final List<com.musicmind.domain.Play> plays;
+        Plays(List<com.musicmind.domain.Play> plays) { this.plays = plays; }
+        @Override public List<com.musicmind.domain.Play> getRecentPlays() { return plays; }
+        @Override public List<Artist> withGenres(List<Artist> artists) {
+            return artists.stream().map(a -> new Artist(a.id(), a.name(), List.of("genre-" + a.id()))).toList();
+        }
+    }
+
+    private static com.musicmind.domain.Play play(String id, String artist, java.time.Instant at) {
+        return new com.musicmind.domain.Play(
+                new Track(id, "spotify:track:" + id, "Title " + id, 1000, false, List.of(artist), List.of("Name " + artist)), at);
+    }
+
+    @Test
+    void pastWeekCountsPlaysFromTheLastSevenDaysOnly() {
+        java.time.Instant now = java.time.Instant.now();
+        Music music = new Plays(List.of(
+                play("t1", "b", now.minus(java.time.Duration.ofDays(1))),
+                play("t2", "a", now.minus(java.time.Duration.ofDays(3))),
+                play("t2", "a", now.minus(java.time.Duration.ofDays(5))),
+                play("t3", "old", now.minus(java.time.Duration.ofDays(20)))));
+        AppController c = controller(music);
+
+        ListeningProfile p = c.analyzeTaste(c.login(), "week");
+
+        assertEquals("week", p.range());
+        assertEquals(List.of("a", "b"), p.topArtists().stream().map(Artist::id).toList(), "most played first");
+        assertEquals(List.of("t2", "t1"), p.topTracks().stream().map(Track::id).toList());
+        assertEquals("Name a", p.topArtists().get(0).name());
+        assertTrue(p.genreHistogram().containsKey("genre-a"), "genres come through the genre path");
+        assertFalse(p.genreHistogram().containsKey("genre-old"));
+        assertTrue(p.notices().stream().anyMatch(n -> n.contains("last 3 plays") && n.contains("50 most recent")),
+                p.notices().toString());
+        assertEquals("week", c.lastProfile(c.currentUser()).orElseThrow().range(), "derived data only is stored, with the range");
+    }
+
+    @Test
+    void pastWeekWithNoRecentPlaysSaysSoPlainly() {
+        java.time.Instant now = java.time.Instant.now();
+        AppController c = controller(new Plays(List.of(play("t3", "old", now.minus(java.time.Duration.ofDays(20))))));
+
+        ListeningProfile p = c.analyzeTaste(c.login(), "week");
+
+        assertTrue(p.isEmpty());
+        assertTrue(p.notices().stream().anyMatch(n -> n.contains("No plays in the last 7 days")), p.notices().toString());
+    }
+
+    @Test
+    void yourTasteOffersPastWeekButTrendsKeepsSpotifysThreeRanges() {
+        AppController c = controller(new Music());
+        assertEquals(List.of("week", "short", "medium", "long"), c.timeRanges());
+        assertEquals(List.of("short", "medium", "long"), c.trendRanges());
+    }
+
     @Test
     void withoutSpotifyEveryFeatureSaysSoInsteadOfFailingObscurely() {
         AppController c = new AppController(null, memory(new Music()), null, config);
@@ -125,6 +184,11 @@ class AppControllerTest extends PostgresTestBase {
         IllegalStateException e = assertThrows(IllegalStateException.class, c::login);
         assertTrue(e.getMessage().contains("SPOTIFY_CLIENT_ID"), e.getMessage());
         assertNull(c.currentUser());
+    }
+
+    @Test
+    void lastfmAttributionComesFromConfiguration() {
+        assertEquals(config.lastfmAttribution(), controller(new Music()).lastfmAttribution());
     }
 
     @Test
@@ -176,6 +240,58 @@ class AppControllerTest extends PostgresTestBase {
         List<Artist> found = controller(music).findArtists("Nova");
         assertEquals(List.of("a2", "a3"), found.stream().limit(2).map(Artist::id).toList());
         assertEquals(3, found.size());
+    }
+
+    @Test
+    void artistHint_isAnAlbumTitle() {
+        Music music = new Music() {
+            @Override public List<Album> getArtistAlbums(String id) { return List.of(new Album("al1", "First Light", "2020")); }
+        };
+        AppController c = controller(music);
+        c.login();
+        assertEquals("First Light", c.artistHint("other"));
+    }
+
+    @Test
+    void artistHint_marksArtistsInYourListening() {
+        Music music = new Music() {
+            @Override public List<Album> getArtistAlbums(String id) { return List.of(new Album("al1", "First Light", "2020")); }
+        };
+        AppController c = controller(music);
+        c.analyzeTaste(c.login());
+        assertEquals(config.wording("artistHintListening") + " \u00b7 First Light", c.artistHint("indie0"));
+        assertEquals("First Light", c.artistHint("not-in-profile"));
+    }
+
+    @Test
+    void artistHints_oneLinePerArtist_withoutExtraSpotifyReads() {
+        List<String> topReads = new ArrayList<>();
+        Music music = new Music() {
+            @Override public List<Album> getArtistAlbums(String id) { return List.of(new Album("al1", "First Light", "2020")); }
+            @Override public List<Artist> getTopArtists(String range) {
+                topReads.add(range);
+                return super.getTopArtists(range);
+            }
+        };
+        AppController c = controller(music);
+        c.analyzeTaste(c.login());
+        int readsBefore = topReads.size();
+
+        Map<String, String> hints = c.artistHints(List.of("indie0", "not-in-profile"));
+
+        assertEquals(config.wording("artistHintListening") + " \u00b7 First Light", hints.get("indie0"));
+        assertEquals("First Light", hints.get("not-in-profile"));
+        assertEquals(readsBefore, topReads.size(), "hints are display-only: no new listening reads");
+    }
+
+    @Test
+    void artistHint_isEmptyWhenTheReadFails() {
+        Music music = new Music() {
+            @Override public List<Album> getArtistAlbums(String id) { throw new RuntimeException("down"); }
+        };
+        AppController c = controller(music);
+        c.login();
+        assertEquals("", c.artistHint("other"));
     }
 
     @Test
@@ -276,6 +392,81 @@ class AppControllerTest extends PostgresTestBase {
     }
 
     @Test
+    void unblockTrack_removesOnlyThatId() {
+        AppController c = controller(new Music());
+        String first = "1234567890123456789012";
+        String second = "abcdefghijABCDEFGHIJ12";
+        c.blockTrack(first);
+        c.blockTrack(second);
+        c.unblockTrack("spotify:track:" + first);
+        assertEquals(Set.of(second), PreferenceSettings.from(c.getPreferences()).blockedTracks());
+    }
+
+    @Test
+    void unblockTrack_lastIdClearsTheRule() {
+        AppController c = controller(new Music());
+        String only = "1234567890123456789012";
+        c.blockTrack(only);
+        c.unblockTrack(only);
+        assertTrue(c.getPreferences().stream().noneMatch(p -> PreferenceSettings.BLOCKED_TRACKS.equals(p.key())));
+        assertTrue(PreferenceSettings.from(c.getPreferences()).blockedTracks().isEmpty());
+    }
+
+    @Test
+    void unblockArtist_removesOnlyThatId() {
+        AppController c = controller(new Music());
+        c.blockArtist(ARTIST_ONE);
+        c.blockArtist(ARTIST_TWO);
+        c.unblockArtist("spotify:artist:" + ARTIST_ONE);
+        assertEquals(Set.of(ARTIST_TWO), PreferenceSettings.from(c.getPreferences()).blockedArtists());
+        c.unblockArtist(ARTIST_TWO);
+        assertTrue(c.getPreferences().stream().noneMatch(p -> PreferenceSettings.BLOCKED_ARTISTS.equals(p.key())));
+    }
+
+    @Test
+    void unblock_badIdIsRefused() {
+        AppController c = controller(new Music());
+        assertThrows(IllegalArgumentException.class, () -> c.unblockArtist("nope"));
+        assertThrows(IllegalArgumentException.class, () -> c.unblockTrack("nope"));
+    }
+
+    @Test
+    void unblock_preferencesUnreadable_savesNothing() {
+        Music music = new Music();
+        AppController working = controller(music);
+        String kept = "1234567890123456789012";
+        working.blockTrack(kept);
+        working.blockArtist(ARTIST_ONE);
+        List<String> changed = new ArrayList<>();
+        PreferenceRepository unreadable = new PreferenceRepository(db, music::currentUserId) {
+            @Override public List<UserPreference> findByUser(String userId) {
+                throw new PersistenceException("down", new SQLException("down"));
+            }
+            @Override public void save(UserPreference pref) {
+                changed.add(pref.key());
+                super.save(pref);
+            }
+            @Override public void delete(String key) {
+                changed.add(key);
+                super.delete(key);
+            }
+        };
+        AppController c = new AppController(music, new MemoryManager(db, unreadable,
+                new FeedbackRepository(db, music::currentUserId), new SessionRepository(db, music::currentUserId),
+                new PlaylistHistoryRepository(db, music::currentUserId), new CandidateRepository(db, music::currentUserId)),
+                null, config);
+
+        IllegalStateException track = assertThrows(IllegalStateException.class, () -> c.unblockTrack(kept));
+        IllegalStateException artist = assertThrows(IllegalStateException.class, () -> c.unblockArtist(ARTIST_ONE));
+
+        assertEquals(config.wording("prefsUnavailable"), track.getMessage());
+        assertEquals(config.wording("prefsUnavailable"), artist.getMessage());
+        assertTrue(changed.isEmpty(), changed.toString());
+        assertEquals(Set.of(kept), PreferenceSettings.from(working.getPreferences()).blockedTracks());
+        assertEquals(Set.of(ARTIST_ONE), PreferenceSettings.from(working.getPreferences()).blockedArtists());
+    }
+
+    @Test
     void blockTrack_rejectsBadId() {
         AppController c = controller(new Music());
         assertThrows(IllegalArgumentException.class, () -> c.blockTrack("nope"));
@@ -362,5 +553,67 @@ class AppControllerTest extends PostgresTestBase {
         Playlist back = c.recreateFromSnapshot(snapshotId);
         assertEquals("Mix p", back.name());
         assertEquals(List.of("a", "b", "c"), music.held.get(back.spotifyId()).stream().map(Track::id).toList());
+    }
+
+    @Test
+    void feedbackFor_beforeLogin_isEmptyWhenNothingWasRecorded() {
+        AppController c = controller(new Music());
+        assertTrue(c.feedbackFor().isEmpty());
+        assertNull(c.currentUser(), "reading feedback must not sign in");
+    }
+
+    @Test
+    void feedbackFor_beforeLogin_showsWhatWasRecorded() {
+        AppController c = controller(new Music());
+        c.recordFeedback("4uLU6hMCjMI75M1A2tKUQC", Verdict.ACCEPT);
+
+        assertEquals(Map.of("4uLU6hMCjMI75M1A2tKUQC", Verdict.ACCEPT), c.feedbackFor());
+        assertNull(c.currentUser(), "reading feedback must not sign in");
+    }
+
+    @Test
+    void feedbackFor_withoutSpotify_usesTheLocalUser() {
+        MemoryManager local = new MemoryManager(db,
+                new PreferenceRepository(db, () -> "local"), new FeedbackRepository(db, () -> "local"),
+                new SessionRepository(db, () -> "local"), new PlaylistHistoryRepository(db, () -> "local"),
+                new CandidateRepository(db, () -> "local"));
+        AppController c = new AppController(null, local, null, config);
+        c.recordFeedback("4uLU6hMCjMI75M1A2tKUQC", Verdict.REJECT);
+
+        assertEquals(Map.of("4uLU6hMCjMI75M1A2tKUQC", Verdict.REJECT), c.feedbackFor());
+    }
+
+    @Test
+    void feedbackFor_whenSigningInWouldOpenTheBrowser_isEmptyAndDoesNotAsk() {
+        Music music = new Music() {
+            @Override public String currentUserId() { throw new IllegalStateException("must not be asked"); }
+        };
+        AppController c = new AppController(music, memory(music), null, config, null, () -> true);
+
+        assertTrue(c.feedbackFor().isEmpty());
+        assertNull(c.currentUser());
+    }
+
+    @Test
+    void feedbackFor_returnsLatestVerdictPerTrack() {
+        AppController c = controller(new Music());
+        c.login();
+        c.recordFeedback("4uLU6hMCjMI75M1A2tKUQC", Verdict.ACCEPT);
+        c.recordFeedback("1301WleyT98MSxVHPtVN9C", Verdict.REJECT);
+        c.recordFeedback("4uLU6hMCjMI75M1A2tKUQC", Verdict.REJECT);
+
+        assertEquals(Map.of("4uLU6hMCjMI75M1A2tKUQC", Verdict.REJECT, "1301WleyT98MSxVHPtVN9C", Verdict.REJECT), c.feedbackFor());
+    }
+
+    @Test
+    void feedbackFor_databaseDown_isEmpty() {
+        Music music = new Music();
+        Database dead = new Database("jdbc:postgresql://127.0.0.1:1/none", "u", "p");
+        AppController c = new AppController(music, new MemoryManager(dead,
+                new PreferenceRepository(dead, music::currentUserId), new FeedbackRepository(dead, music::currentUserId),
+                new SessionRepository(dead, music::currentUserId), new PlaylistHistoryRepository(dead, music::currentUserId),
+                new CandidateRepository(dead, music::currentUserId)), null, config);
+        c.login();
+        assertTrue(c.feedbackFor().isEmpty());
     }
 }

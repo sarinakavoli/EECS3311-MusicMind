@@ -595,6 +595,7 @@ class CliAppTest extends PostgresTestBase {
         assertTrue(r.out().contains("Created \"MusicMind Mix\"") || r.out().contains("Created \"Work Mix\""), r.out());
         assertTrue(r.out().contains("planning..."), "progress is shown: " + r.out());
         assertTrue(r.out().contains(config.spotifyAttribution()));
+        assertTrue(r.out().contains(config.lastfmAttribution()), r.out());
         assertTrue(music.calls.stream().anyMatch(c -> c.startsWith("create sp-user")), music.calls.toString());
     }
 

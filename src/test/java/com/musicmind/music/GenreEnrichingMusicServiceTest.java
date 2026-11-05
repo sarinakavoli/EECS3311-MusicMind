@@ -65,6 +65,19 @@ class GenreEnrichingMusicServiceTest extends PostgresTestBase {
     }
 
     @Test
+    void withGenresFillsInAnyListOfArtistsAndLeavesKnownGenresAlone() {
+        FakeGenres genres = new FakeGenres();
+        genres.byId.put("a1", Optional.of(List.of("jazz")));
+        MusicService s = service(new StubMusicService(), genres);
+
+        List<Artist> out = s.withGenres(List.of(new Artist("a1", "A", List.of()), new Artist("a2", "B", List.of("rock"))));
+
+        assertEquals(List.of("jazz"), out.get(0).genres());
+        assertEquals(List.of("rock"), out.get(1).genres());
+        assertEquals(List.of("a1"), genres.asked);
+    }
+
+    @Test
     void artistsWithoutGenresGetThemFilledInOrderKept() {
         FakeGenres genres = new FakeGenres();
         genres.byId.put("a1", Optional.of(List.of("jazz", "bebop")));
@@ -166,7 +179,7 @@ class GenreEnrichingMusicServiceTest extends PostgresTestBase {
 
         int checked = 0;
         for (Method m : MusicService.class.getMethods()) {
-            if (m.getName().equals("getTopArtists")) {
+            if (m.getName().equals("getTopArtists") || m.getName().equals("withGenres")) {
                 continue;
             }
             Object[] args = new Object[m.getParameterCount()];
@@ -184,6 +197,17 @@ class GenreEnrichingMusicServiceTest extends PostgresTestBase {
             }
             checked++;
         }
-        assertEquals(MusicService.class.getMethods().length - 1, checked);
+        assertEquals(MusicService.class.getMethods().length - 2, checked);
+    }
+
+    @Test
+    void genreOrderFromMusicBrainzIsKeptSoTheLeadingGenresAreTheMostVoted() {
+        FakeGenres genres = new FakeGenres();
+        genres.byId.put("a1", Optional.of(List.of("zydeco", "ambient", "blues", "acoustic")));
+        MusicService s = service(new StubMusicService(), genres);
+
+        List<Artist> out = ((GenreEnrichingMusicService) s).withGenres(List.of(new Artist("a1", "A", List.of())));
+
+        assertEquals(List.of("zydeco", "ambient", "blues", "acoustic"), out.get(0).genres(), "not re-sorted alphabetically");
     }
 }

@@ -26,7 +26,8 @@ This is one repository used across all three stages.
 - Every change from the Stage 1 design (Original -> Change -> Reason -> Impact): `docs/STAGE2_PLAN.md`
 - AI tools and collaboration log: `docs/AI_COLLABORATION_LOG.md`
 - What was run against the real accounts, and what was not: `docs/DAILY_TEST_NOTES.md`
-- The GUI is a plain tabbed form today. Known problems and the planned redesign are in
+- The GUI is the dark redesign with a left-hand menu (merged in pull request #4). The test
+  findings that led to it are in
   `docs/GUI_TEST_FINDINGS.md`.
 
 ## Features
@@ -35,7 +36,7 @@ All twelve Stage 1 features work in the CLI and the GUI.
 
 | ID | Feature | CLI command |
 |----|---------|-------------|
-| F1 | Music taste profile | `profile [--refresh] [--range short\|medium\|long]` |
+| F1 | Music taste profile | `profile [--refresh] [--range week\|short\|medium\|long]` |
 | F2 | Taste-change analysis | `trends` |
 | F3 | Natural-language music search | `search "<query>"`, `candidates list\|add\|remove\|clear` |
 | F4 | Personalized discovery | `discover [--novelty 0.3]` |
@@ -119,6 +120,7 @@ Open `.env` in an editor and fill in your own values:
 | `DATABASE_URL` | `jdbc:postgresql://localhost:5432/musicmind` |
 | `DATABASE_USER` | `musicmind` |
 | `DATABASE_PASSWORD` | The password you chose above |
+| `LASTFM_API_KEY` | Optional. A free Last.fm key (<https://www.last.fm/api/account/create>); leave empty to skip song tags |
 
 `.env` is git-ignored; only `.env.example`, which holds placeholders, is committed. The app reads
 `.env` from the folder you start it in, so run the commands below from the project folder. After you
@@ -133,7 +135,9 @@ Never paste real keys into source files, reports, or recordings.
 ./gradlew run
 ```
 
-A window opens with seven tabs: Profile, Trends, Search, Discover, Playlists, Preferences, History.
+A dark window opens with a left-hand menu of seven screens: Your Taste, Trends, Find Songs,
+Discover, Playlists, Your Rules and History. Your Taste can show a Past week, built from your
+recent plays (Spotify only keeps the last 50).
 Opening it does not contact Spotify. Press **Log in to Spotify** first; the first time, your
 browser opens for you to approve access.
 
@@ -195,6 +199,7 @@ problem and some changes to choose from (F11). Choosing nothing cancels without 
 |---------|--------------|
 | No Spotify Client ID | The app starts, and every feature that needs Spotify says so. |
 | No `LLM_API_KEY` | Features that need the model say so. F1 summary, F2 narrative and F3 search use a computed fallback, labelled as such. |
+| No `LASTFM_API_KEY` | Create works as before without Last.fm song tags and says that tag data is off. |
 | PostgreSQL not running | The app keeps running with safe default preferences and shows a warning; history and saved data are unavailable. |
 
 ## Troubleshooting
@@ -271,6 +276,9 @@ HTML for `REFRESH BEFORE SUBMISSION` to find each spot, edit it, and rebuild.
   call are used; discovery is built from your own listening data, not Spotify's retired recommender.
 - Spotify sends no artist genres to this app, so genres come from **MusicBrainz**
   (<https://musicbrainz.org>) and are cached by artist id.
+- Optional song tags come from **Last.fm** (credited in the GUI footer and after a CLI Create). With a
+  key, each Create run sends the goal's tags and up to 30 song titles with artist names to Last.fm
+  only to read tags. Nothing from Last.fm or Spotify is sent to OpenAI, and no title is stored.
 - Playlist goals are interpreted by an **OpenAI** model. Prompts carry your own words, ids, counts and
   MusicBrainz genres. They never contain Spotify track titles, artist names or album names. The
   goal-fit review sends only track ids and genres, and may only name ids to remove.

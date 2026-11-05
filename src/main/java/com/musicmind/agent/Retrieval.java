@@ -35,6 +35,17 @@ public final class Retrieval {
     final Set<String> removedIds;
     /** The phrases searched for the goal's activity; a result titled with one of their words is usually stock music. */
     final List<String> searchTerms;
+    /**
+     * Ids of tracks a goal source vouched for (the goal's keyword search; Last.fm tags later). A library track
+     * in this set fits the goal whatever its artist's genres are.
+     */
+    final Set<String> goalSourceIds;
+    /** Real Spotify tracks matched to songs Last.fm lists under the goal's tags. */
+    final List<Track> tagTracks;
+    /** The tags the plan asked for; empty when the goal has none. */
+    final List<String> tags;
+    /** Last.fm's tags for the familiar songs themselves; null when the run has no tags or Last.fm is off. */
+    TrackTagFit trackTagFit;
 
     Retrieval(ListeningProfile profile, boolean allowLibraryTracks, Set<String> seedGenres,
               CandidateRetriever retriever, List<Track> library, Set<String> libraryIds,
@@ -49,6 +60,26 @@ public final class Retrieval {
               List<Track> albumTracks, List<String> genres, Map<String, List<Track>> genreTracks,
               Map<String, RecommendationEngine.Origin> origins, List<Track> keywordTracks, Set<String> removedIds,
               List<String> searchTerms) {
+        this(profile, allowLibraryTracks, seedGenres, retriever, library, libraryIds, albumTracks, genres,
+                genreTracks, origins, keywordTracks, removedIds, searchTerms, Set.of());
+    }
+
+    Retrieval(ListeningProfile profile, boolean allowLibraryTracks, Set<String> seedGenres,
+              CandidateRetriever retriever, List<Track> library, Set<String> libraryIds,
+              List<Track> albumTracks, List<String> genres, Map<String, List<Track>> genreTracks,
+              Map<String, RecommendationEngine.Origin> origins, List<Track> keywordTracks, Set<String> removedIds,
+              List<String> searchTerms, Set<String> goalSourceIds) {
+        this(profile, allowLibraryTracks, seedGenres, retriever, library, libraryIds, albumTracks, genres,
+                genreTracks, origins, keywordTracks, removedIds, searchTerms, goalSourceIds, List.of(), List.of());
+    }
+
+    Retrieval(ListeningProfile profile, boolean allowLibraryTracks, Set<String> seedGenres,
+              CandidateRetriever retriever, List<Track> library, Set<String> libraryIds,
+              List<Track> albumTracks, List<String> genres, Map<String, List<Track>> genreTracks,
+              Map<String, RecommendationEngine.Origin> origins, List<Track> keywordTracks, Set<String> removedIds,
+              List<String> searchTerms, Set<String> goalSourceIds, List<Track> tagTracks, List<String> tags) {
+        this.tagTracks = tagTracks;
+        this.tags = tags;
         this.profile = profile;
         this.allowLibraryTracks = allowLibraryTracks;
         this.seedGenres = seedGenres;
@@ -62,6 +93,7 @@ public final class Retrieval {
         this.keywordTracks = keywordTracks;
         this.removedIds = removedIds;
         this.searchTerms = searchTerms;
+        this.goalSourceIds = goalSourceIds;
     }
 
     /**
@@ -74,9 +106,11 @@ public final class Retrieval {
         removed.addAll(trackIds);
         Map<String, List<Track>> byGenre = new LinkedHashMap<>();
         genreTracks.forEach((genre, tracks) -> byGenre.put(genre, keeping(tracks, removed)));
-        return new Retrieval(profile, allowLibraryTracks, seedGenres, retriever, keeping(library, removed), libraryIds,
+        Retrieval copy = new Retrieval(profile, allowLibraryTracks, seedGenres, retriever, keeping(library, removed), libraryIds,
                 keeping(albumTracks, removed), genres, byGenre, origins, keeping(keywordTracks, removed), Set.copyOf(removed),
-                searchTerms);
+                searchTerms, goalSourceIds, keeping(tagTracks, removed), tags);
+        copy.trackTagFit = trackTagFit; // the same lookups and answers
+        return copy;
     }
 
     /**
@@ -94,6 +128,27 @@ public final class Retrieval {
             List<String> own = profile.topArtists().stream().filter(a -> a.id().equals(artistId))
                     .flatMap(a -> a.genres().stream()).toList();
             found.addAll(own.isEmpty() ? cache.cached(artistId).orElse(List.of()) : own);
+        }
+        return List.copyOf(found);
+    }
+
+    /**
+     * The genres that characterise a track, for the Create goal-fit check: the genre it was searched under and
+     * the first {@code leading} genres of each of its artists (profile genres, else cached MusicBrainz ones).
+     * Long artist tag lists run to dozens of tags, so a requested genre far down the list ("ambient" for a
+     * grunge band) says nothing about the artist.
+     */
+    public List<String> leadingGenres(Track track, ArtistGenreCache cache, int leading) {
+        Set<String> found = new LinkedHashSet<>();
+        RecommendationEngine.Origin origin = origins.get(track.id());
+        if (origin != null && origin.genre() != null && !origin.genre().isBlank()) {
+            found.add(origin.genre());
+        }
+        for (String artistId : track.artistIds()) {
+            List<String> own = profile.topArtists().stream().filter(a -> a.id().equals(artistId))
+                    .flatMap(a -> a.genres().stream()).toList();
+            List<String> all = own.isEmpty() ? cache.cached(artistId).orElse(List.of()) : own;
+            found.addAll(all.subList(0, Math.min(leading, all.size())));
         }
         return List.copyOf(found);
     }
@@ -118,6 +173,7 @@ public final class Retrieval {
         library.forEach(t -> all.putIfAbsent(t.id(), t));
         albumTracks.forEach(t -> all.putIfAbsent(t.id(), t));
         keywordTracks.forEach(t -> all.putIfAbsent(t.id(), t));
+        tagTracks.forEach(t -> all.putIfAbsent(t.id(), t));
         genreTracks.values().forEach(tracks -> tracks.forEach(t -> all.putIfAbsent(t.id(), t)));
         if (!allowLibraryTracks) {
             all.keySet().removeAll(libraryIds);

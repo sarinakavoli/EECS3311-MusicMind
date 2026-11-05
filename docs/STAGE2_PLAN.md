@@ -1,24 +1,24 @@
 # Stage 2: Plan, Status and Changes from Stage 1
 
-**Window:** Oct 20 to Nov 10, 2026. **Due:** Nov 10, 2026. **Last updated:** Nov 3, 2026.
+**Window:** Oct 20 to Nov 10, 2026. **Due:** Nov 10, 2026. **Last updated:** Nov 5, 2026.
 
 This file records two things: where Stage 2 stands, and every difference between the
 Stage 1 design and the code, each as **Original -> Change -> Reason -> Impact**. Feature by
 feature status is in `docs/STAGE1_CONFORMANCE.md`; the binding plan and the rulings
 R1 to R20 are in `docs/STAGE2_IMPLEMENTATION_PLAN.md`.
 
-## Status on Nov 3
+## Status on Nov 5
 
 - All twelve Stage 1 features (F1 to F12) are implemented behind the shared `AppController`
-  and reachable from the CLI and the GUI. `./gradlew build` passes with 846 tests and no
-  database server or keys (a forced clean run on Nov 3).
+  and reachable from the CLI and the GUI. `./gradlew build` passes with 995 tests and no
+  database server or keys (the count on `main` after pull request #4).
 - What was tested against the real Spotify and OpenAI accounts, and what was not, is listed in
   `docs/DAILY_TEST_NOTES.md`. Nothing in this file claims more than that file says.
-- The GUI (seven tabs, the Create dialog and the F11 dialog) is on the `stage2-gui` branch
-  (pull request #4). `main` currently ends at pull request #3, so the GUI is not on `main` yet.
-- A visual redesign of the GUI is planned from `docs/GUI_TEST_FINDINGS.md` and has not been
-  started. Until it lands, the GUI is the plain tabbed form described in
-  `docs/STAGE1_CONFORMANCE.md`.
+- The GUI is merged into `main` with pull request #4: the dark Spotify-like redesign with a
+  left-hand menu, one shared song row, a confirm dialog, and every screen restyled. Your Taste
+  also has a Past week range, and Create only keeps familiar songs that fit the goal and uses
+  Last.fm song tags (optional `LASTFM_API_KEY`). The Nov 5 code review of the Last.fm work
+  applied five fixes and rejected one suggestion (see section 4).
 - Not done yet: the Stage 2 Implementation Report (PDF or Word, named `stage2-report`), the
   updated UML diagrams (`docs/diagrams/uxf` still holds the Stage 1 versions), and the
   feature demonstration videos.
@@ -26,13 +26,13 @@ R1 to R20 are in `docs/STAGE2_IMPLEMENTATION_PLAN.md`.
 ## Commit cadence (at least 5 meaningful code commits per period, Toronto time)
 
 A code commit here means a commit that changes files under `src/` or the build files.
-Counts come from `git log` with `TZ=America/Toronto` on Nov 3.
+Counts come from `git log` with `TZ=America/Toronto`; Period 3 was counted on Nov 5.
 
 | Period | Dates | Required | Code commits | Status |
 |---|---|---|---|---|
 | 1 | Oct 20-26 | 5 | 0 | Missed. The single 5-point deduction already applies. |
 | 2 | Oct 27-Nov 2 | 5 | 147 (Oct 30: 23, Oct 31: 28, Nov 1: 55, Nov 2: 41) | Met. |
-| 3 | Nov 3-9 | 5 | 0 so far | Pending. Documentation-only commits do not count. |
+| 3 | Nov 3-9 | 5 | 51 so far (Nov 3: 2, Nov 4: 42, Nov 5: 7) | Met. Documentation-only commits do not count. |
 
 Commits that start Period 2 (links for the report): see "Weekly commit summary" at the end of
 this file.
@@ -53,8 +53,9 @@ this file.
   floor, optional candidates, blocking by choice, delete a playlist.
 - [x] **Documentation and conformance (Nov 3).** This file, `STAGE1_CONFORMANCE.md`, README,
   AI log.
-- [ ] **GUI redesign (Nov 3 onwards).** Dark theme and left menu, working through
-  `docs/GUI_TEST_FINDINGS.md`.
+- [x] **GUI redesign, Past week, goal fit and Last.fm tags (Nov 4 to 5).** Dark theme and left menu,
+  working through `docs/GUI_TEST_FINDINGS.md`; merged as pull request #4. Screenshots and videos
+  of the new GUI still to be made.
 - [ ] **Goal-fit proof.** Create several playlists (workout, study, road trip) on the real account
   to see whether the goal review improves them. Not yet run since the fixes.
 - [ ] **Report, UML and videos (Nov 8 to 9).** `stage2-report` with the seven required sections,
@@ -304,6 +305,8 @@ beyond Stage 1".
   would add cost and a failure path to a feature that is otherwise deterministic. Impact: F4 works
   with no LLM key; F4 is deterministic in the conformance table.
 
+- **Your Taste: Past week, counted from recent plays (F1; Nov 4)** — Original: Your Taste offered the three Spotify periods (`short`, `medium`, `long`) and `normalizeRange` refused anything else; Trends compares the same three. Change: a fourth range `week`. Spotify has no top items for a week, so `MusicAgentFacade.analyzePastWeek` reads the new `MusicService.getRecentPlays()` (a `Play` is a track and its `played_at`, parsed by `SpotifyAdapter`, never stored), keeps the plays of the last `profile.weekDays` (7) days, ranks tracks and artists by play count (at most `profile.weekTopLimit`), and fills genres through the new `MusicService.withGenres(artists)` (`GenreEnrichingMusicService`, the same MusicBrainz lookup and cache as the other ranges). `ProfileBuilder.build` gained an overload whose information notices do not make a profile partial; the screen says "Built from your last N plays (Spotify only keeps your 50 most recent)", or that there were no plays in the last 7 days. Only derived data is stored (range `week`, ids and genres), as for other ranges. `AppController.timeRanges()` is now week, short, medium, long (Your Taste, the CLI `--range`); the new `trendRanges()` keeps Trends and `trends` to Spotify's three. `ViewFormat.rangeLabel("week")` is Past week. Reason: the owner asked for a past week twice. Impact: additive; a week built from at most 50 plays is thin and is labelled so, and it is left out of Trends because comparing it with the other periods would mix a 50-play sample with Spotify's own rankings. Nothing new is sent to OpenAI (the summary prompt takes the same profile data).
+
 ## 4. F5 playlist creation, F10 explanation and the LLM's role
 
 - **The LLM may remove retrieved tracks (difference from Global Constraint 2)** -
@@ -412,6 +415,11 @@ beyond Stage 1".
     - Goal tracks must still rank above unrelated tracks even with no taste match (a plain additive bonus let them fall below ordinary tracks and undid the activity search), yet they should differ by how much the user likes the artist or genre.
     - Seed and keyword tracks use the same floor.
   - **Impact:** Scores of goal tracks fall slightly (at most 0.3 of the genre weight) and now vary; one tunable added; feedback boost and penalty are unchanged.
+
+- **Create: library songs count as familiar only when they fit the goal (F5; Nov 4)** — Original: about 40% of a Create playlist came from the user's own library chosen by taste alone, so "slow dance" got a pop/dance song. Change: when a Create run has seed genres or search terms, `RecommendationEngine` drops every familiar-pool track (library, album track or genre result by an artist the user knows) from the candidates unless it is goal-fit: any genre known for its artists (profile top artists, or the cached MusicBrainz genres through the new `RecommendationEngine(tools, config, ArtistGenreCache)` constructor and `Retrieval.knownGenres`) is one of the seed genres (case ignored), or its id is in `Retrieval.goalSourceIds`, which holds the goal's keyword-search results today and is where the Last.fm tag source (Task 3) will add ids. When fewer goal-fit library songs exist than the familiar share needs, new goal tracks fill the shortfall and the notice `familiarShortForGoal` says so. Reason: the owner's test of Nov 4. Impact: Discover (F4: no seeds, no terms, or library excluded) is unchanged; selection stays deterministic and no LLM or OpenAI input changes. Tests: `RecommendationEngineTest` (`create_*`, `discover_unchanged_libraryRules`) and `CreatePlaylistFlowTest`.
+- **Create: Last.fm tag songs matched to Spotify (F5; Nov 4)** — Original: new Create songs came from Spotify genre searches and the goal's activity searches, and Spotify gives this app no tempo, energy or playlist-of-others data, so "slow dance" and "workout" still got songs that only matched by title words. The live finding behind the change: Spotify returns 403 for other users' playlists, so a playlist someone made for the goal cannot be read either. Change: the plan prompt also asks for up to `lastfm.maxTags` short Last.fm-style tags such as "slow dance" or "romantic" (`AgentPlan.tags`, `PlanExtras.tags`; the older `AgentPlan` constructors give an empty list; the prompt still forbids song and artist names). New `TagService` (`topTracks(tag, limit)`) with `LastFmAdapter` (Adapter over Last.fm `tag.gettoptracks`; a single-object `track` reply parses, a malformed element is skipped, an error never carries the key). `CandidateRetriever.byTag` takes each Last.fm song (at most `lastfm.maxTracks` Spotify lookups per run, across tags) and runs one Spotify search `track:"title" artist:"artist"` with limit 1; the result is kept only when the normalised title (`SearchRanker.normalise`, also with a trailing "(...)", "[...]" or " - Remastered" part removed) and one artist name both match, so a wrong-artist or loose match is dropped and never replaced. `RecommendationEngine` has `Source.TAG`; tag tracks join the new-music pool, their ids are added to `Retrieval.goalSourceIds` (so a library song that is also a tag song counts as goal-fit under the Task 1 rule), they get the goal affinity floor, a score bonus `discover.weight.tagBonus=0.15`, and rank ahead of other tracks inside their pool; blocked artists, blocked tracks and explicit rules apply to them as to any track. `AppController.create()` builds the `LastFmAdapter`; the `RecommendationEngine` and `AppController` constructors without a `TagService` use `TagService.NONE`. The key `LASTFM_API_KEY` is optional: without it `topTracks` returns nothing and makes no request, and Create adds one notice (`text.lastfmOff`) when the plan had tags; if Last.fm fails the failure is counted with the other read failures (`discoverReadFailed`) and Create carries on. Last.fm terms: "Song tags from Last.fm" (`text.lastfmAttribution`) is in the GUI footer next to the Spotify and MusicBrainz credits and in the CLI after a Create. Reason: the owner's test of Nov 4 (finding 16): a tag list is the one goal-specific song source that needs neither audio features nor other users' playlists. Impact: Last.fm titles and artists are not Spotify content but are used only to build a Spotify query and compare names; they are never stored and never sent to OpenAI (the goal review still sends ids and genres only, and the planner prompt holds the user's own words only); the Spotify titles read for matching are not stored either. Selection stays deterministic and the LLM names no song. Discover (F4) passes no tags and is unchanged. Tests: `LastFmAdapterTest`, `PlannerPlanTest.plan_readsTags`, `CandidateRetrieverTest.byTag_*`, `RecommendationEngineTest.create_tagTracks*` and `create_lastfm*`, `CreatePlaylistFlowTest.create_lastfm*`, `ConfigTest.footerShowsLastfmCredit`.
+- **Create: familiar picks must fit by leading genres and by the song's own Last.fm tags (F5; Nov 4)** — Original: a familiar track fit the goal when any genre known for its artists was a seed genre, and the first live run showed that was far too loose: "music for studying" (ambient, classical, instrumental, lo-fi) picked 12 Nirvana songs, "slow dance" picked Billie Jean and "Pop", "workout" picked 8 songs by one rapper. Root cause (checked live with the cached genres printed): the filter did run, but MusicBrainz lists dozens of tags per artist and Nirvana's list holds "ambient" and "instrumental" far down it, Michael Jackson's holds "soul" and "r&b", so every artist matched some goal. Change: (1) `Retrieval.leadingGenres` and `create.fitLeadingGenres=3`: only an artist's first three genres (profile genres, else cached MusicBrainz) and the genre the track was searched under count in `RecommendationEngine.fitsGoal`. (2) When Last.fm is configured and the plan has tags, `TrackTagFit` asks `TagService.trackTags(artist, title)` (new default method, `LastFmAdapter` implements `track.gettoptags`, error 6 is an empty list, the key and title never appear in a message) for the song's top `lastfm.trackTagsKept=10` tags; a familiar track fits only if one of them equals, as letters and digits ignoring case, a plan tag or a synonym from `lastfm.synonyms.<key>` in `musicmind.properties` (a tag that merely contains a plan word, such as "slow", does not count). At most `lastfm.maxTrackTagLookups=30` songs are looked up per retrieval, once each (answers are kept in `Retrieval`, shared by `without`, and in memory only); after one failed lookup no more are made. When Last.fm is off, fails, is capped, or does not know the song, the leading-genre rule decides, and a failure is counted with the other read failures (`discoverReadFailed`); with no key the existing `lastfmOff` notice appears. A song with a goal source (keyword or Last.fm tag song) still fits. (3) In a Create run that has Last.fm tag songs, a genre search result whose title holds the genre word ("R&B All Night", "Ambiente") is scored down by `discover.weight.genreTitleContainsPenalty=0.6` (never below the bare-title penalty); Discover and runs without tag songs are unchanged. Reason: the owner's live test; artist genres are too coarse to separate one song from another. Impact: titles go only to Last.fm, are never stored and never sent to OpenAI; selection stays deterministic and the LLM adds nothing. Disclosure: with a Last.fm key, up to `lastfm.maxTrackTagLookups=30` song titles with artist names per Create run (plus the plan's tags) are sent to Last.fm to read their tags; nothing goes to OpenAI. Review round (Nov 4): tag and keyword songs now count as matching the goal in the "match the genres you asked for" notice; the pick order has three tiers (tag song and genre match; either; neither) before the ordinary score; zero kept familiar songs says `familiarNoneForGoal` instead of "Only 0 of N"; `CandidateRetriever.byTag` stops after the first Last.fm failure; MusicBrainz genre lists are already ordered by vote count (`MusicBrainzAdapter`) and the cache and enrichment keep that order, so "leading" means most voted. Tests: `RecommendationEngineTest` (`create_*GenresWith*`, `create_songTag*`, `create_withTagSongs_aGenreResult*`), `LastFmAdapterTest.trackTags_*`.
+- **Create: Last.fm review fixes (F5; Nov 5)** — Original: the first Last.fm tag used the whole `lastfm.maxTracks` budget; slow Last.fm could stall Create with up to 30 sequential calls; each Create repeated up to 20 Spotify searches; a non-array `tags` in the plan failed it; synonyms of every single word of a tag were added. Change: (1) `CandidateRetriever.byTag(tag, share)`: the run's tags share the budget, share = ceil(maxTracks / tags). (2) Not changed: the review also suggested letting a song's genre tags ("soul") count for a requested genre, but that would let pop hits by artists also tagged soul or r&b (Billie Jean) back into "slow dance", which the leading-genre entry above removed on purpose; a song's own tags must name the goal. (3) `lastfm.trackTagBudgetSeconds=15`: after that time from the first song lookup no more are made and the genre rule decides. (4) In-memory, session-only cache of Last.fm song to Spotify matches in `RecommendationEngine` (`lastfm.matchCacheSize=500`, oldest dropped; failed searches not cached; never stored). (5) `ResponseParser`: a string `tags` is one tag, any other non-array is ignored. (6) `Config.lastfmSynonyms` looks up the whole tag key only. Reason: code review of the Last.fm work. Impact: second tag now returns songs; Create waits at most about 15 s on song tags; repeat Creates use fewer Spotify calls; no data stored or sent to the LLM. Tests: `CandidateRetrieverTest`, `TrackTagFitTest`, `PlannerPlanTest`, `ConfigTest`, `RecommendationEngineTest`.
 
 ## 5. F6 modify, F7 validate, F12 history and restore, and the Command pattern
 
@@ -683,17 +691,9 @@ beyond Stage 1".
     - **Impact:** No Stage 1 name changes; tabs refresh through `GuiContext.dataChanged()` after a playlist write.
   - **`musicmind.properties` read as UTF-8 (Task 13)** - Original: `Properties.load(InputStream)` read the file as ISO-8859-1. Change: `Config` loads it through a UTF-8 reader. Reason: live testing showed the thumbs labels garbled. Impact: non-ASCII wording now works; no existing value changed.
 
-- **What the GUI shows today (not the redesign)** -
-  Original: Stage 1 lists a Profile tab, a Trends view, a search bar, a Discover panel, a playlist
-  view with Modify and Undo, validation badges, a Preferences screen, a Why-these expander, a
-  conflict dialog and a History list. Change: all of these exist as seven plain JavaFX tabs, a
-  Create dialog and an F11 dialog. Known gaps, all listed in `docs/GUI_TEST_FINDINGS.md`: no delete
-  button, no chooser for blocking artists or songs, no choice of candidates in the Create dialog,
-  track rows do not show artist names, time ranges are labelled short, medium and long, and the
-  look is a default desktop form. The backend for several of these is done (artist names,
-  display name, delete, block chooser calls); the screens are not. Reason: the redesign is
-  planned after this documentation task so that it can be tested by Sarina first. Impact: the
-  report and the videos must describe the GUI as it is. No Stage 1 GUI interaction is dropped.
+- **Frontend redesign: plain names, dark theme, new reads (F1-F12 screens; Nov 4)** — Original: the GUI was seven default-looking JavaFX tabs named Profile, Trends, Search, Discover, Playlists, Preferences and History, with ids, scores and raw numbers on screen (`docs/GUI_TEST_FINDINGS.md`, items 1-24). Change: the same seven screens are a left menu named Your Taste (F1, `ProfileView`), Trends (F2), Find Songs (F3), Discover (F4, `DiscoveryView`), Playlists (F5, F6, F12, `PlaylistView`), Your Rules (F7, F8) and History (F12); each has a title and a one-line description, with a "Try:" line where it takes input. One dark stylesheet, `musicmind.css`, styles every screen and dialog; wording is in `musicmind.properties` under `text.gui*`; the songs show as one shared row (`TrackRow`) with artist names, like and not-for-me icons (F9), "+ Add", "Block" or "Remove". Time ranges read Past month, Past 6 months, Past year. Create takes hours and minutes and offers the songs waiting from Find Songs as a choice; Your Rules uses pickers in place of ids; History is a timeline with saved versions grouped by playlist and a preview before Restore; Playlists gained Delete. New read-only `AppController` methods: `currentUserName()` (the Spotify display name for the header), `feedbackFor()` (track id to the user's latest verdict, so a row shows what was chosen), `artistHint(id)` (an album title and whether the artist is in the user's listening, to tell same-name artists apart; display only), `previewSnapshot(id)` (the songs of a saved version, titled from Spotify, for the Restore preview; changes nothing). `TabView.onShown()` is a new hook the menu calls each time a screen is opened (Discover and Your Rules read their saved values then). Reason: Sarina's test of Nov 2 found the screens hard to understand and the features hidden behind technical wording; the videos show every screen. Impact: the Stage 1 class names and `GuiApp.start()` are unchanged and the F-numbers still map as in `docs/STAGE1_CONFORMANCE.md`; the visible menu names differ from the Stage 1 names for F1, F3 and F7/F8 and the report should say so. Views still call only `AppController` through `GuiContext.run`; no backend behaviour changed, and nothing new is sent to OpenAI. The Nov 4 polish round added an "already waiting" message and an "N waiting" count on Find Songs, a Create button that waits for the waiting songs to load, and readable Open and Delete buttons on a selected playlist row.
+- **Playlists list shows our own song count for a new or opened playlist (F5-F8; Nov 4)** — Original: each row showed Spotify's `items.total` from `/me/playlists`. Change: `PlaylistView` remembers the count of the playlists it created or opened (from MusicMind's own read of the tracks) and `ViewFormat.mergeTrackCounts` puts that count on the row; `ViewFormat.countsStillLagging` keeps it only while Spotify's total is below it and drops it once Spotify reports as many or more. Reason: right after Create the list said "Slow Dance 0 songs" for a 7-song playlist and "yoga 0 songs" for 21, because Spotify's total lags just after a change. Impact: display only; an unopened playlist keeps Spotify's total, and a playlist changed outside MusicMind shows Spotify's total as soon as that is at least the remembered count. Past-week profiles are shown on Your Taste only: Discover, Create and the listening hints use the newest Spotify-period profile, and `week` is never sent to Spotify's top-items call, which now refuses unknown ranges.
+- **Task 13 GUI entries above are superseded in layout only** - Original: the seven-tab form described above. Change: the Nov 4 redesign entry replaces the tabs with a left menu and a dark theme; `FeedbackBar` was removed in favour of `TrackRow`. Reason: owner's test findings. Impact: the Task 13 entries record how the controller, worker thread and wording keys work and are still accurate for those parts.
 
 ## 8. Design patterns
 
@@ -725,11 +725,12 @@ Dates are Toronto time. Links use the public repository
   [`515e8d9`](https://github.com/sarinakavoli/EECS3311-MusicMind/commit/515e8d9) Strategy classes.
   Later work (the adapter, F1 to F12, the GUI and the backend fixes) is in the same range;
   `git log --since=2026-10-27 --until=2026-11-03 -- src build.gradle` lists all of it.
-- **Period 3 (Nov 3-9):** pending. This task's commits change documentation only.
+- **Period 3 (Nov 3-9):** 51 code commits by Nov 5 (the redesign, Past week, goal fit and Last.fm
+  tags); the list is `git log --since=2026-11-03 -- src build.gradle`.
 
 ## 10. Open items
 
-- GUI redesign and the items in `docs/GUI_TEST_FINDINGS.md`.
+- Retake the report screenshots of the redesigned GUI after the owner's test, and record the videos.
 - Live proof that the goal review improves playlists; `delete` has not been run live.
 - `stage2-report`, updated UML, and the demonstration videos.
 - Search by description ("mellow alternative for studying") is still weak, because Spotify's

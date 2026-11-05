@@ -491,3 +491,17 @@ Blocking an artist on Preferences affects later Discover and Create runs, so cle
 **Still weak:** searches by description. "mellow alternative for studying" returned "Boss Battle" and "Alternative Rock".
 
 **To check in Create:** try workout, study and road trip goals.
+
+## Wed Nov 4: the frontend redesign and its live read-only check
+
+**Built:** the seven screens as a dark left menu (Your Taste, Trends, Find Songs, Discover, Playlists, Your Rules, History) with plain wording, shared song rows, hours and minutes in Create, pickers on Your Rules, a History timeline, and Delete on playlists. Each finding in `docs/GUI_TEST_FINDINGS.md` is marked done or not done.
+
+**Checked live, read-only, on the real account** (a throwaway JavaFX driver started the real `GuiApp` over `AppController.create()`, logged in from the saved token without opening a browser, and saved a PNG per screen outside the repository): each screen before login (description and "Log in to Spotify" message shown, nothing empty); the "database cannot be reached" banner (shown by setting the banner flag only, the database was up); after login, Your Taste (Refresh profile), Trends (Compare), Find Songs ("american girls" returned four American Girls songs with artists; "mellow alternative for studying" gave a plain keyword result and said so; a nonsense query still returned keyword hits), Discover (Find music, saved mix 60% new / 40% known), Playlists (open a playlist and a selected row), Your Rules (loaded), History (loaded, then the Restore preview for one saved version, then Cancel), the Create dialog with stand-in goal text (Create not pressed), the F11 dialog with a stand-in report (Cancel pressed), and sample rows with a very long title and artist list and a song with no artist names (the title and artists end in "...", the icons stay on the row, no stray separator).
+
+**Layout fixes found by looking:** empty status lines left a gap under the controls (Discover); the "What changed" lines on Trends were cut off at the right edge; buttons on a selected playlist row had the colour of the row; the goal box in Create had stray dark blocks at its edges. All fixed and looked at again.
+
+**Not checked:** creating, modifying, undoing, restoring (confirming), deleting, blocking, like / not for me, adding or clearing waiting songs, saving rules. These change the account or the database, so none was pressed; the "already waiting" message, the "N waiting" count and the "No songs matched" message are covered by unit tests only (the live searches all returned hits and nothing was added). The "database down" banner was shown, but the screens were not run with the database really stopped. The Create button waiting for the waiting songs was not seen live.
+
+**Build:** `./gradlew build --rerun-tasks --no-build-cache`: 888 tests, 0 failures.
+
+**Still open:** goal fit of created playlists (not tried since Nov 2); searches by description (finding 25); the Stage 2 report, updated UML and demo videos.

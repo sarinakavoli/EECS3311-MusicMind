@@ -15,6 +15,7 @@ import com.musicmind.domain.Playlist;
 import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.Relaxation;
 import com.musicmind.domain.RequestKind;
+import com.musicmind.domain.TagTrack;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.UserPreference;
 import com.musicmind.llm.LLMException;
@@ -31,6 +32,7 @@ import com.musicmind.memory.repository.SessionRepository;
 import com.musicmind.music.AuthExpiredException;
 import com.musicmind.music.MusicServiceException;
 import com.musicmind.music.StubMusicService;
+import com.musicmind.music.TagService;
 import org.junit.jupiter.api.Test;
 
 import java.sql.SQLException;
@@ -68,6 +70,7 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
         int libraryTracks = 12;
         int novelTracks = 12;
         int minutes = 4;
+        List<String> artistGenres = List.of("rock");
         final List<Track> extraLibrary = new ArrayList<>();
         RuntimeException failOnSearch;
         RuntimeException failOnAdd;
@@ -77,7 +80,7 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
         }
         @Override public String currentUserId() { return "sp-user"; }
         @Override public List<Artist> getTopArtists(String r) {
-            return IntStream.range(0, 3).mapToObj(i -> new Artist("a" + i, "N", List.of("rock"))).toList();
+            return IntStream.range(0, 3).mapToObj(i -> new Artist("a" + i, "N", artistGenres)).toList();
         }
         @Override public List<Track> getTopItems(String type, String r) {
             List<Track> top = new ArrayList<>(IntStream.range(0, libraryTracks).mapToObj(i -> track("t", i, "a" + i % 3)).toList());
@@ -94,7 +97,12 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
                 failOnSearch = null;
                 throw e;
             }
-            return IntStream.range(0, novelTracks).mapToObj(i -> track("n", i, "x" + i)).toList();
+            List<Track> found = new ArrayList<>(IntStream.range(0, novelTracks).mapToObj(i -> track("n", i, "x" + i)).toList());
+            if (query.contains("workout")) {
+                // The goal's keyword search also finds the user's own songs, which makes them fit the goal.
+                found.addAll(IntStream.range(0, libraryTracks).mapToObj(i -> track("t", i, "a" + i % 3)).toList());
+            }
+            return found;
         }
         @Override public Playlist createPlaylist(String userId, String name) {
             calls.add("create " + name);
@@ -461,6 +469,7 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
     void aValidationRetryShowsOnlyTheLatestSelectionsGenreNotice() {
         Music music = new Music();
         music.minutes = 5; // the first, 15-track selection is too long and is reselected with 12
+        music.artistGenres = List.of("rock", "jazz"); // the library fits the goal, though its leading genre is rock
         AppController c = controller(music, new MockLLMProvider());
         c.setPreference(c.parsePreference("preferredStyles", "jazz"));
 
@@ -725,6 +734,7 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
     @Test
     void aMoodSearchesItsGenresFirstAndTheReasonsSaySo() {
         Music music = new Music();
+        music.novelTracks = 30; // the rock library songs do not fit "chill", so new songs fill the playlist
         AppController c = controller(music, prompt -> prompt.startsWith("MUSICMIND_TASK: PLAN")
                 ? PLAN_60.replace("\"mood\":\"\"", "\"mood\":\"chill\"") : new MockLLMProvider().complete(prompt));
         c.setPreference(new UserPreference("preferredStyles", "jazz", false, 0.5));
@@ -739,6 +749,21 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
         assertTrue(c.lastSession().trace().requestedGenres().contains("chill"), c.lastSession().trace().requestedGenres().toString());
         AgentSession stored = memory().findSessionByPlaylist("pl1");
         assertTrue(stored.trace().requestedGenres().contains("chill"), "the requested genres are stored with the trace");
+    }
+
+    @Test
+    void aLibrarySongOutsideTheGoalsGenresIsNotPickedAndTheNoticeSaysSo() {
+        Music music = new Music();
+        music.novelTracks = 30;
+        AppController c = controller(music, prompt -> prompt.startsWith("MUSICMIND_TASK: PLAN")
+                ? PLAN_60.replace("\"mood\":\"\"", "\"mood\":\"chill\"") : new MockLLMProvider().complete(prompt));
+
+        Playlist playlist = c.createPlaylist(request("something chill"));
+
+        assertEquals(15, playlist.tracks().size());
+        assertTrue(playlist.tracks().stream().noneMatch(t -> t.id().startsWith("t")), "rock songs do not fit chill");
+        assertTrue(c.lastSession().notices().stream().anyMatch(n -> n.contains("None of your own songs fit this goal")),
+                c.lastSession().notices().toString());
     }
 
     @Test
@@ -954,5 +979,83 @@ class CreatePlaylistFlowTest extends PostgresTestBase {
         assertFalse(prompts.isEmpty());
         prompts.forEach(p -> assertFalse(idsIn(p).contains(inPool), p));
         assertTrue(playlist.tracks().stream().anyMatch(t -> t.id().equals(inPool)));
+    }
+
+    // ---- Last.fm tag songs ----
+
+    private static final String PLAN_WITH_TAGS = PLAN_60.replace("\"mood\":\"\"", "\"mood\":\"\",\"tags\":[\"slow dance\"]");
+
+    private static LLMProvider taggingPlan() {
+        MockLLMProvider mock = new MockLLMProvider();
+        return prompt -> PromptBuilder.kindOf(prompt).orElseThrow() == PromptBuilder.Kind.PLAN
+                ? PLAN_WITH_TAGS : mock.complete(prompt);
+    }
+
+    /** Spotify that knows two real tracks for the Last.fm songs and the default stock otherwise. */
+    private static Music musicWithTagSongs() {
+        Music music = new Music() {
+            @Override public List<Track> search(String query, int limit) {
+                if (query.startsWith("track:")) {
+                    searches.add(query);
+                    return query.contains("Tag One")
+                            ? List.of(new Track("tagged1", "spotify:track:tagged1", "Tag One", 240_000, false,
+                                    List.of("sing1"), List.of("Singer One")))
+                            : List.of();
+                }
+                return super.search(query, limit);
+            }
+        };
+        music.novelTracks = 30; // library songs need a goal source to count, so new songs fill the length
+        return music;
+    }
+
+    private static final Config WITH_KEY = Config.of(Map.of("LASTFM_API_KEY", "test-key"));
+
+    private AppController taggingController(Music music, TagService tags) {
+        return new AppController(music, memory(), taggingPlan(), WITH_KEY, null, () -> false,
+                com.musicmind.agent.ArtistGenreCache.NONE, tags);
+    }
+
+    @Test
+    void create_lastfmSongsJoinThePlaylist() {
+        Music music = musicWithTagSongs();
+        AppController c = taggingController(music, (tag, limit) -> List.of(new TagTrack("Tag One", "Singer One"),
+                new TagTrack("Missing", "Nobody")));
+
+        Playlist playlist = c.createPlaylist(request("music for a slow dance"));
+
+        assertEquals(15, playlist.tracks().size());
+        assertTrue(playlist.tracks().stream().anyMatch(t -> t.id().equals("tagged1")),
+                playlist.tracks().stream().map(Track::id).toList().toString());
+        assertTrue(music.searches.stream().anyMatch(q -> q.equals("track:\"Tag One\" artist:\"Singer One\"")));
+        assertTrue(c.lastSession().notices().stream().noneMatch(n -> n.contains("Last.fm")), c.lastSession().notices().toString());
+    }
+
+    @Test
+    void create_lastfmDown_stillCreatesWithNotice() {
+        Music music = musicWithTagSongs();
+        AppController c = taggingController(music, (tag, limit) -> {
+            throw new MusicServiceException("Last.fm returned HTTP 500.");
+        });
+
+        Playlist playlist = c.createPlaylist(request("music for a slow dance"));
+
+        assertEquals("pl1", playlist.spotifyId());
+        assertEquals(15, playlist.tracks().size());
+        assertEquals("done", c.lastSession().status());
+        assertTrue(c.lastSession().notices().stream().anyMatch(n -> n.contains("1 Spotify reads failed")),
+                c.lastSession().notices().toString());
+    }
+
+    @Test
+    void create_noLastfmKey_oneOffNotice() {
+        AppController c = new AppController(musicWithTagSongs(), memory(), taggingPlan(), config, null, () -> false,
+                com.musicmind.agent.ArtistGenreCache.NONE, TagService.NONE);
+
+        Playlist playlist = c.createPlaylist(request("music for a slow dance"));
+
+        assertEquals(15, playlist.tracks().size());
+        assertEquals(1, c.lastSession().notices().stream().filter(n -> n.equals(config.lastfmOffNotice())).count(),
+                c.lastSession().notices().toString());
     }
 }

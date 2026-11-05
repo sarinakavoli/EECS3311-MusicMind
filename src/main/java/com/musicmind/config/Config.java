@@ -4,10 +4,14 @@ import io.github.cdimascio.dotenv.Dotenv;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.function.UnaryOperator;
 
 /**
@@ -21,6 +25,7 @@ public final class Config {
     private static final String TUNABLES_RESOURCE = "/musicmind.properties";
     private static final String PLACEHOLDER_MODEL = "your_model_name_here";
     private static final String PLACEHOLDER_LLM_KEY = "your_llm_api_key_here";
+    private static final String PLACEHOLDER_LASTFM_KEY = "your_lastfm_api_key_here";
     private static final String PLACEHOLDER_CLIENT_ID = "your_client_id_here";
     private static final String LEGACY_MODEL_PREFIX = "gemini-";
 
@@ -256,6 +261,84 @@ public final class Config {
         return integer("musicbrainz.cooldownSeconds");
     }
 
+    // ---- Last.fm (song tags) ----
+    public String lastfmApiKey() {
+        return get("LASTFM_API_KEY");
+    }
+
+    public boolean lastfmConfigured() {
+        return isReal(lastfmApiKey(), PLACEHOLDER_LASTFM_KEY);
+    }
+
+    public String lastfmApiBaseUrl() {
+        return text("lastfm.apiBaseUrl");
+    }
+
+    public int lastfmMaxTracks() {
+        return integer("lastfm.maxTracks");
+    }
+
+    /** Most Last.fm song to Spotify track matches kept in memory for the session. */
+    public int lastfmMatchCacheSize() {
+        return integer("lastfm.matchCacheSize");
+    }
+
+    public int lastfmMaxTags() {
+        return integer("lastfm.maxTags");
+    }
+
+    /**
+     * Tags that count as the same goal as {@code tag}, from {@code lastfm.synonyms.<key>} where the key is the whole
+     * tag (a one-word tag is its own key), lower case, joined by "-" (for example {@code lastfm.synonyms.slow-dance}).
+     * Empty when none is listed.
+     */
+    public List<String> lastfmSynonyms(String tag) {
+        String words = tag == null ? "" : tag.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]+", " ").trim();
+        if (words.isEmpty()) {
+            return List.of();
+        }
+        // The whole tag only: "late night running" must not borrow the synonyms of "running". A one-word tag is its own key.
+        String value = tunables.getProperty("lastfm.synonyms." + words.replace(' ', '-'));
+        if (value == null) {
+            return List.of();
+        }
+        Set<String> out = new LinkedHashSet<>();
+        Arrays.stream(value.split(",")).map(String::trim).filter(v -> !v.isEmpty()).forEach(out::add);
+        return List.copyOf(out);
+    }
+
+    /** Total seconds, from the first lookup, that one Create run may spend on song-tag lookups. */
+    public int lastfmTrackTagBudgetSeconds() {
+        return integer("lastfm.trackTagBudgetSeconds");
+    }
+
+    /** Most Last.fm song lookups (track.gettoptags) per Create run. */
+    public int lastfmMaxTrackTagLookups() {
+        return integer("lastfm.maxTrackTagLookups");
+    }
+
+    /** How many of a song's top Last.fm tags are kept. */
+    public int lastfmTrackTagsKept() {
+        return integer("lastfm.trackTagsKept");
+    }
+
+    public int lastfmTimeoutSeconds() {
+        return integer("lastfm.timeoutSeconds");
+    }
+
+    /** An identifying agent string: MusicMind/version (contact). */
+    public String lastfmUserAgent() {
+        return text("lastfm.userAgent");
+    }
+
+    public String lastfmAttribution() {
+        return text("text.lastfmAttribution");
+    }
+
+    public String lastfmOffNotice() {
+        return text("text.lastfmOff");
+    }
+
     /** Credits MusicBrainz as the genre source; shown wherever genres are shown. */
     public String genreAttribution() {
         return text("text.genreAttribution");
@@ -325,6 +408,11 @@ public final class Config {
 
     public String parserDefaultPlaylistName() {
         return text("parser.defaultPlaylistName");
+    }
+
+    /** How many songs of a saved version get their title looked up for the restore preview. */
+    public int historyPreviewTitleLimit() {
+        return integer("history.previewTitleLimit");
     }
 
     // ---- Playlist commands (F5, F6) ----
@@ -524,6 +612,21 @@ public final class Config {
         return Double.parseDouble(text("discover.weight.keywordTitlePenalty"));
     }
 
+    /** How many of an artist's leading genres count when a familiar track is checked against a Create goal. */
+    public int createFitLeadingGenres() {
+        return integer("create.fitLeadingGenres");
+    }
+
+    /** Penalty for a genre search result whose title holds the genre word, in a run that has Last.fm tag songs. */
+    public double discoverGenreTitleContainsPenalty() {
+        return Double.parseDouble(text("discover.weight.genreTitleContainsPenalty"));
+    }
+
+    /** Added to the score of a song Last.fm lists under one of the goal's tags. */
+    public double discoverTagBonus() {
+        return Double.parseDouble(text("discover.weight.tagBonus"));
+    }
+
     public double discoverAcceptBoost() {
         return Double.parseDouble(text("discover.feedback.acceptBoost"));
     }
@@ -574,6 +677,21 @@ public final class Config {
     /** Time ranges from most recent to oldest, as the user types them (short, medium, long). */
     public List<String> profileRanges() {
         return Arrays.stream(text("profile.ranges").split(",")).map(String::trim).toList();
+    }
+
+    /** The ranges Your Taste offers: the past week (built from recent plays) then Spotify's three. */
+    public List<String> profileTasteRanges() {
+        return Arrays.stream(text("profile.tasteRanges").split(",")).map(String::trim).toList();
+    }
+
+    /** Days in the past-week range. */
+    public int profileWeekDays() {
+        return integer("profile.weekDays");
+    }
+
+    /** Most artists and tracks the past-week profile keeps. */
+    public int profileWeekTopLimit() {
+        return integer("profile.weekTopLimit");
     }
 
     public String profileDefaultRange() {

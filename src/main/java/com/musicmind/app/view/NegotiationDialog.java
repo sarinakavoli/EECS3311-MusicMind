@@ -2,9 +2,6 @@ package com.musicmind.app.view;
 
 import com.musicmind.domain.FeasibilityReport;
 import com.musicmind.domain.Relaxation;
-import javafx.scene.control.Alert;
-import javafx.scene.control.ButtonBar;
-import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.layout.VBox;
 
@@ -25,31 +22,18 @@ final class NegotiationDialog {
      * @return the chosen relaxation, or empty if the user cancelled
      */
     static Optional<Relaxation> ask(ViewFormat format, FeasibilityReport report, List<String> options) {
-        Alert alert = new Alert(Alert.AlertType.NONE);
-        alert.setTitle(format.w("ConflictTitle"));
-        alert.setHeaderText(format.w("ConflictTitle"));
-        VBox body = new VBox(8);
+        VBox body = new VBox(UiParts.GAP);
         for (String conflict : report.conflicts()) {
-            Label line = new Label(conflict);
-            line.setWrapText(true);
+            Label line = UiParts.wrapped(conflict);
+            line.getStyleClass().add("mm-confirm-message");
             body.getChildren().add(line);
         }
-        body.getChildren().add(new Label(format.w("ConflictChoose")));
-        alert.getDialogPane().setContent(body);
+        body.getChildren().add(UiParts.muted(format.w("ConflictChoose")));
+        List<ConfirmDialog.Choice> choices = new ArrayList<>();
+        options.forEach(option -> choices.add(ConfirmDialog.Choice.primary(option)));
+        choices.add(ConfirmDialog.Choice.secondary(format.w("ConflictCancel")));   // last: the way out
 
-        List<ButtonType> optionButtons = new ArrayList<>();
-        for (String option : options) {
-            optionButtons.add(new ButtonType(option, ButtonBar.ButtonData.OTHER));
-        }
-        ButtonType cancel = new ButtonType(format.w("ConflictCancel"), ButtonBar.ButtonData.CANCEL_CLOSE);
-        alert.getButtonTypes().setAll(optionButtons);
-        alert.getButtonTypes().add(cancel);
-
-        Optional<ButtonType> picked = alert.showAndWait();
-        if (picked.isEmpty()) {
-            return Optional.empty();
-        }
-        int index = optionButtons.indexOf(picked.get());
-        return index >= 0 && index < report.relaxations().size() ? Optional.of(report.relaxations().get(index)) : Optional.empty();
+        int picked = ConfirmDialog.show(null, format.w("ConflictTitle"), body, choices);
+        return picked >= 0 && picked < options.size() && picked < report.relaxations().size() ? Optional.of(report.relaxations().get(picked)) : Optional.empty();
     }
 }
