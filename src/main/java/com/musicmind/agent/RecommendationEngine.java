@@ -61,6 +61,9 @@ public class RecommendationEngine {
     private final StrategySelector selector;
     private final ArtistGenreCache genreCache;
     private final TagService tagService;
+    // Spotify tracks matched to Last.fm songs (normalised title|artist; empty = confirmed no match), kept for this
+    // engine's lifetime only so a repeated Create does not search again. In memory, never stored; the oldest go first.
+    private final Map<String, Optional<Track>> matchCache;
     private RecommendationStrategy strategy;
     // Per-run: whether the current run may pick tracks the user already has.
     private boolean allowLibraryTracks = true;
@@ -104,6 +107,12 @@ public class RecommendationEngine {
         this.genreCache = Objects.requireNonNull(genreCache, "genreCache");
         this.tools = tools;
         this.config = config;
+        int cacheSize = config.lastfmMatchCacheSize();
+        this.matchCache = java.util.Collections.synchronizedMap(new LinkedHashMap<>() {
+            @Override protected boolean removeEldestEntry(Map.Entry<String, Optional<Track>> eldest) {
+                return size() > cacheSize;
+            }
+        });
         this.selector = new StrategySelector(config);
         this.strategy = new BalancedStrategy(config);
     }
@@ -189,7 +198,7 @@ public class RecommendationEngine {
         Objects.requireNonNull(profile, "profile");
         Objects.requireNonNull(spec, "spec");
         Map<String, Origin> found = new HashMap<>();
-        CandidateRetriever retriever = new CandidateRetriever(tools, config, tagService);
+        CandidateRetriever retriever = new CandidateRetriever(tools, config, tagService, matchCache);
         String range = profile.range() != null ? profile.range() : config.profileDefaultRange();
         List<Track> library = retriever.library(range);
         library.forEach(t -> found.put(t.id(), new Origin(Source.LIBRARY, null)));

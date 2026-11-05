@@ -199,6 +199,41 @@ class CandidateRetrieverTest {
     }
 
     @Test
+    void retrieve_sameTagTwice_searchesSpotifyOncePerLastFmSong() {
+        TagMusic music = new TagMusic();
+        music.answers.put("track:\"Slow Song\" artist:\"Band A\"", List.of(named("s1", "Slow Song", "Band A")));
+        TagService lastFm = (tag, limit) -> List.of(new TagTrack("Slow Song", "Band A"), new TagTrack("Unknown", "Band Z"));
+        RecommendationEngine engine = new RecommendationEngine(tools(music), config, com.musicmind.agent.ArtistGenreCache.NONE, lastFm);
+        PlaylistSpec spec = new PlaylistSpec(30, true, 0.5, List.of(), null);
+
+        Retrieval first = engine.retrieve(profile(), spec, true, List.of(), List.of(), List.of("slow dance"));
+        Retrieval second = engine.retrieve(profile(), spec, true, List.of(), List.of(), List.of("slow dance"));
+
+        long lookups = music.searches.stream().filter(q -> q.startsWith("track:")).count();
+        assertEquals(2, lookups, "one search per Last.fm song, a confirmed no-match included");
+        assertEquals(List.of("s1"), second.tagTracks.stream().map(Track::id).toList());
+        assertEquals(first.tagTracks.stream().map(Track::id).toList(), second.tagTracks.stream().map(Track::id).toList());
+    }
+
+    @Test
+    void byTag_aFailedSpotifySearchIsNotCached() {
+        int[] calls = {0};
+        TagMusic music = new TagMusic() {
+            @Override public List<Track> search(String query, int limit) {
+                if (++calls[0] == 1) throw new MusicServiceException("Spotify returned HTTP 500.");
+                return List.of(named("s1", "Slow Song", "Band A"));
+            }
+        };
+        TagService lastFm = (tag, limit) -> List.of(new TagTrack("Slow Song", "Band A"));
+        java.util.Map<String, java.util.Optional<Track>> cache = new java.util.LinkedHashMap<>();
+        CandidateRetriever retriever = new CandidateRetriever(tools(music), config, lastFm, cache);
+
+        assertTrue(retriever.byTag("x").isEmpty());
+        assertEquals(List.of("s1"), retriever.byTag("x").stream().map(Track::id).toList());
+        assertEquals(2, calls[0]);
+    }
+
+    @Test
     void byTag_lastfmFailure_recordedAndEmpty() {
         TagService down = (tag, limit) -> { throw new MusicServiceException("Last.fm returned HTTP 500."); };
         CandidateRetriever retriever = new CandidateRetriever(tools(new Music()), config, down);

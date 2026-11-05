@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Reads the candidate pools for F4 through the {@link ToolManager}: the user's own tracks (top,
@@ -26,6 +27,8 @@ class CandidateRetriever {
     private final ToolManager tools;
     private final Config config;
     private final TagService tagService;
+    // Session cache of Last.fm song -> Spotify track (empty = confirmed no match); a failed search is never put in.
+    private final Map<String, Optional<Track>> matchCache;
     private final List<String> errors = new ArrayList<>();
     private int successes;
     // Spotify lookups made for Last.fm songs in this run, against lastfm.maxTracks.
@@ -38,6 +41,11 @@ class CandidateRetriever {
     }
 
     CandidateRetriever(ToolManager tools, Config config, TagService tagService) {
+        this(tools, config, tagService, new LinkedHashMap<>());
+    }
+
+    CandidateRetriever(ToolManager tools, Config config, TagService tagService, Map<String, Optional<Track>> matchCache) {
+        this.matchCache = matchCache;
         this.tools = tools;
         this.config = config;
         this.tagService = tagService;
@@ -100,17 +108,32 @@ class CandidateRetriever {
             }
             used++;
             tagLookups++;
-            String query = "track:\"" + wanted.title().replace("\"", " ") + "\" artist:\""
-                    + wanted.artist().replace("\"", " ") + "\"";
-            List<Track> hits = read("search", Map.of("query", query, "limit", 1));
-            for (Track hit : hits) {
-                if (matches(wanted, hit)) {
-                    byId.putIfAbsent(hit.id(), hit);
-                    break;
-                }
-            }
+            Optional<Track> match = lookup(wanted);
+            match.ifPresent(hit -> byId.putIfAbsent(hit.id(), hit));
         }
         return new ArrayList<>(byId.values());
+    }
+
+    /** The Spotify track for a Last.fm song: from the session cache, else one search; a failed search is not cached. */
+    private Optional<Track> lookup(TagTrack wanted) {
+        String key = SearchRanker.normalise(wanted.title()) + "|" + SearchRanker.normalise(wanted.artist());
+        Optional<Track> cached = matchCache.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        String query = "track:\"" + wanted.title().replace("\"", " ") + "\" artist:\""
+                + wanted.artist().replace("\"", " ") + "\"";
+        ToolResult result = tools.execute("search", Map.of("query", query, "limit", 1));
+        if (!result.ok()) {
+            errors.add(result.error());
+            return Optional.empty();
+        }
+        successes++;
+        @SuppressWarnings("unchecked")
+        List<Track> hits = (List<Track>) result.payload();
+        Optional<Track> match = hits.stream().filter(hit -> matches(wanted, hit)).findFirst();
+        matchCache.put(key, match);
+        return match;
     }
 
     private static boolean matches(TagTrack wanted, Track hit) {
