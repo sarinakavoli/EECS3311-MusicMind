@@ -242,8 +242,7 @@ All of this runs through `controller/AppController` and `controller/MusicAgentFa
   were added in response and are covered by `agent/RecommendationEngineTest`
   (`create_*`), `agent/CandidateRetrieverTest` (`byTag_*`), `agent/TrackTagFitTest`,
   `agent/PlannerPlanTest`, `music/LastFmAdapterTest`, `controller/CreatePlaylistFlowTest`
-  and `config/ConfigTest`. A live Create without a Last.fm key used the goal-fit rule only;
-  the song-tag rules have **not** been judged live with a key.
+  and `config/ConfigTest`. A read-only live check with a Last.fm key on Nov 4 (planning, retrieval and selection only, no playlist created) found no off-goal familiar songs for "slow dance" and no Nirvana for "music for studying" (mostly lo-fi and ambient, a few weak tag picks); "workout" still picked several songs by one hip-hop artist, because Last.fm has no tags for them and hip hop is a workout genre. The final ranking tiers and the Nov 5 review fixes have not yet been checked live.
 
 ### F6 Natural-Language Playlist Modification (UC07, SD02)
 
