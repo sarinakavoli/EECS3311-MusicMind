@@ -183,7 +183,7 @@ public final class HistoryView implements TabView {
         Label when = new Label(session.startedAt() == null ? "" : format.timestamp(session.startedAt()));
         when.getStyleClass().addAll("mm-muted", "mm-when");
         Label kind = new Label(format.kindLabel(session));
-        kind.getStyleClass().add("mm-badge");
+        kind.getStyleClass().add("mm-chip");
         Label text = new Label(format.timelineText(session));
         text.setTextOverrun(OverrunStyle.ELLIPSIS);
         text.setMaxWidth(Double.MAX_VALUE);
