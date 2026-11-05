@@ -11,7 +11,6 @@ import com.musicmind.domain.DecisionTrace;
 import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.Playlist;
 import com.musicmind.domain.Recommendation;
-import com.musicmind.domain.RangeChange;
 import com.musicmind.domain.SnapshotInfo;
 import com.musicmind.domain.RequestKind;
 import com.musicmind.domain.Track;
@@ -159,57 +158,74 @@ class ViewFormatTest {
         assertEquals(null, format.rangeLabel(null));
     }
 
-    @Test
-    void trendColumnsFollowTheRangeOrderAndRespectTheLimits() {
+    private static TrendReport tableReport() {
         Map<String, List<Artist>> artists = new LinkedHashMap<>();
-        artists.put("short", List.of(new Artist("1", "A", List.of("rock")), new Artist("2", "B", List.of())));
-        artists.put("long", List.of(new Artist("3", "C", List.of("pop"))));
+        artists.put("short", List.of(new Artist("1", "Newbie", List.of("rock")), new Artist("2", "Steady", List.of())));
+        artists.put("medium", List.of(new Artist("2", "Steady", List.of())));
+        artists.put("long", List.of(new Artist("2", "Steady", List.of()), new Artist("3", "Gone", List.of("folk"))));
         Map<String, Map<String, Double>> genres = new LinkedHashMap<>();
-        Map<String, Double> shortGenres = new LinkedHashMap<>();
-        shortGenres.put("rock", 0.6);
-        shortGenres.put("indie", 0.3);
-        shortGenres.put("folk", 0.1);
-        genres.put("short", shortGenres);
-        TrendReport report = new TrendReport(artists, genres, List.of(), List.of(), List.of(), List.of(), List.of(), "n");
-
-        List<ViewFormat.TrendColumn> columns = format.trendColumns(report, List.of("short", "medium", "long"), 1, 2);
-
-        assertEquals(3, columns.size());
-        assertEquals("Past month", columns.get(0).range());
-        assertEquals(List.of("A"), columns.get(0).artists());
-        assertEquals(List.of("rock", "indie"), columns.get(0).genres());
-        assertEquals("Genres known for 1 of 2 artists", columns.get(0).coverage());
-        assertTrue(columns.get(1).artists().isEmpty());
-        assertEquals("", columns.get(1).coverage());
-        assertEquals(List.of("C"), columns.get(2).artists());
+        Map<String, Double> shortG = new LinkedHashMap<>();
+        shortG.put("rock", 0.6);
+        Map<String, Double> mediumG = new LinkedHashMap<>();
+        mediumG.put("rock", 0.5);
+        mediumG.put("pop", 0.3);
+        Map<String, Double> longG = new LinkedHashMap<>();
+        longG.put("folk", 0.4);
+        longG.put("pop", 0.2);
+        genres.put("short", shortG);
+        genres.put("medium", mediumG);
+        genres.put("long", longG);
+        return new TrendReport(artists, genres, List.of(), List.of(), List.of(), List.of(), List.of(), "n");
     }
 
     @Test
-    void trendStepLinesNameArtistsFromTheReport() {
-        Map<String, List<Artist>> artists = Map.of("long", List.of(new Artist("9", "Nine", List.of())));
-        RangeChange step = new RangeChange("long", "medium", List.of("pop"), List.of(), List.of("9"), List.of());
-        TrendReport report = new TrendReport(artists, Map.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
-                "n", List.of(step));
+    void trendTableRunsOldestToNewestWithGenresThenArtists() {
+        ViewFormat.TrendTable table = format.trendTable(tableReport(), List.of("short", "medium", "long"), 10, 3);
 
-        List<String> lines = format.trendStepLines(report);
-
-        assertEquals("From Past year to Past 6 months:", lines.get(0));
-        assertTrue(lines.contains("  New genres: pop"));
-        assertTrue(lines.contains("  Genres you listen to less: Nothing changed"));
-        assertTrue(lines.contains("  New artists: Nine"));
-        assertTrue(lines.contains("  Artists you listen to less: Nothing changed"));
-        assertEquals("From Past year to Past 6 months:", lines.get(lines.size() - 5));
-        assertTrue(lines.stream().noneMatch(l -> l.contains("Overall") || l.contains("(none)") || l.contains("added")));
+        assertEquals(List.of("Past year", "Past 6 months", "Past month"), table.periods());
+        List<String> labels = table.rows().stream().map(ViewFormat.TrendRow::label).toList();
+        assertEquals(List.of("Genres", "rock", "pop", "folk", "Artists", "Newbie", "Steady", "Gone"), labels);
+        assertTrue(table.rows().get(0).header());
+        assertTrue(table.rows().get(4).header());
+        assertFalse(table.rows().get(1).header());
     }
 
     @Test
-    void trendOverallLineSpansTheFirstAndLastRange() {
-        RangeChange a = new RangeChange("long", "medium", List.of(), List.of(), List.of(), List.of());
-        RangeChange b = new RangeChange("medium", "short", List.of(), List.of(), List.of(), List.of());
-        TrendReport report = new TrendReport(Map.of(), Map.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
-                "n", List.of(a, b));
-        List<String> lines = format.trendStepLines(report);
-        assertEquals("From Past year to Past month:", lines.get(lines.size() - 5));
+    void trendTableTicksWhereTheItemIsAndSaysNewOrDropped() {
+        ViewFormat.TrendTable table = format.trendTable(tableReport(), List.of("short", "medium", "long"), 10, 3);
+        Map<String, ViewFormat.TrendRow> byLabel = new LinkedHashMap<>();
+        table.rows().forEach(r -> byLabel.put(r.label(), r));
+
+        assertEquals(List.of(false, true, true), byLabel.get("rock").present());
+        assertEquals(ViewFormat.TrendChange.NEW, byLabel.get("rock").change());
+        assertEquals("\u2191 new", byLabel.get("rock").changeText());
+        assertEquals(List.of(true, false, false), byLabel.get("folk").present());
+        assertEquals("\u2193 dropped", byLabel.get("folk").changeText());
+        assertEquals(List.of(true, true, false), byLabel.get("pop").present());   // in the oldest, not the newest
+        assertEquals(ViewFormat.TrendChange.DROPPED, byLabel.get("pop").change());
+        assertEquals("", byLabel.get("Steady").changeText());
+        assertEquals(ViewFormat.TrendChange.NONE, byLabel.get("Steady").change());
+        assertEquals(List.of(false, false, true), byLabel.get("Newbie").present());
+        assertEquals("\u2193 dropped", byLabel.get("Gone").changeText());
+    }
+
+    @Test
+    void trendTableRespectsTheLimitsAndLeavesOutEmptySections() {
+        ViewFormat.TrendTable limited = format.trendTable(tableReport(), List.of("short", "medium", "long"), 1, 1);
+        assertEquals(List.of("Genres", "rock", "folk", "Artists", "Newbie", "Steady"),
+                limited.rows().stream().map(ViewFormat.TrendRow::label).toList());   // one from each range
+        TrendReport empty = new TrendReport(Map.of(), Map.of(), List.of(), List.of(), List.of(), List.of(), List.of(), "n");
+        assertTrue(format.trendTable(empty, List.of("short", "medium", "long"), 10, 3).rows().isEmpty());
+    }
+
+    @Test
+    void trendTableCoverageNoteOnlyWhenSomeArtistsHaveNoGenres() {
+        // Newbie and Gone have genres, Steady has none: 2 of 3
+        assertEquals("Genres known for 2 of 3 artists",
+                format.trendTable(tableReport(), List.of("short", "medium", "long"), 10, 3).coverage());
+        Map<String, List<Artist>> all = Map.of("short", List.of(new Artist("1", "A", List.of("rock"))));
+        TrendReport complete = new TrendReport(all, Map.of(), List.of(), List.of(), List.of(), List.of(), List.of(), "n");
+        assertEquals("", format.trendTable(complete, List.of("short"), 10, 3).coverage());
     }
 
     @Test
@@ -265,8 +281,29 @@ class ViewFormatTest {
     }
 
     @Test
-    void progressTextShowsTheStateName() {
-        assertEquals("planning...", format.progress("planning"));
+    void progressTextIsPlainWordsForEachRunStep() {
+        assertEquals("Understanding your goal...", format.progress("planning"));
+        assertEquals("Finding songs...", format.progress("retrieving"));
+        assertEquals("Choosing the best ones...", format.progress("selecting"));
+        assertEquals("Checking your rules...", format.progress("validating"));
+        assertEquals("Saving to Spotify...", format.progress("executing"));
+        assertEquals("Understanding your goal...", format.progress(" Planning "));
+    }
+
+    @Test
+    void progressTextForAnUnknownStateIsWorking() {
+        assertEquals("Working...", format.progress("done"));
+        assertEquals("Working...", format.progress("whatever"));
+        assertEquals("Working...", format.progress(""));
+        assertEquals("Working...", format.progress(null));
+    }
+
+    @Test
+    void waitingListShowsUpToFiveRowsThenScrolls() {
+        assertEquals(0, format.waitingRowsShown(0));
+        assertEquals(3, format.waitingRowsShown(3));
+        assertEquals(5, format.waitingRowsShown(5));
+        assertEquals(5, format.waitingRowsShown(12));
     }
 
     @Test
@@ -521,6 +558,8 @@ class ViewFormatTest {
     @Test
     void parseHoursMinutes_blankIsFromGoal() {
         assertEquals(0, format.parseHoursMinutes("", ""));
+        assertEquals(0, format.parseHoursMinutes("0", "0"));   // the Create dialog starts with 0 in both boxes
+        assertEquals(0, format.parseHoursMinutes("0", ""));
         assertEquals(0, format.parseHoursMinutes(null, null));
         assertEquals(0, format.parseHoursMinutes("0", "0"));
         assertEquals(0, format.parseHoursMinutes(" ", "0"));

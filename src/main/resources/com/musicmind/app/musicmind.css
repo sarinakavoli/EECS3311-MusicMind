@@ -153,6 +153,27 @@
     -fx-text-fill: #ffffff;
 }
 
+.mm-subhead {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #ffffff;
+}
+
+/* The one-sentence summary of Trends, the most prominent line on the page. */
+.mm-summary {
+    -fx-font-size: 16px;
+    -fx-text-fill: #ffffff;
+}
+
+/* The Change column of Trends: the words carry the meaning, the colour only backs them up. */
+.mm-trend-new {
+    -fx-text-fill: #1db954;
+}
+
+.mm-trend-dropped {
+    -fx-text-fill: #ffd866;
+}
+
 .mm-card {
     -fx-background-color: #202020;
     -fx-background-radius: 8;
@@ -177,6 +198,18 @@
 
 .mm-muted {
     -fx-text-fill: #b3b3b3;
+}
+
+/* A helper line under a control: 12px, muted. Under a check box it lines up with the label text. */
+.mm-caption {
+    -fx-font-size: 12px;
+    -fx-text-fill: #b3b3b3;
+}
+
+/* The check box's 16px box plus the 8px gap to its label are off the spacing scale on purpose: they are the
+ * control's own geometry, so the caption text starts under the label text. */
+.mm-check-caption {
+    -fx-padding: 0 0 0 26;
 }
 
 .mm-gate-prompt {
@@ -330,6 +363,10 @@
 
 .menu-item:focused {
     -fx-background-color: #2a2a2a;
+}
+
+.check-box {
+    -fx-text-fill: #ffffff;
 }
 
 .check-box .box,

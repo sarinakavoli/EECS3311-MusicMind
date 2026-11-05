@@ -5,6 +5,7 @@ import com.musicmind.domain.AgentSession;
 import com.musicmind.domain.Playlist;
 import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.RequestKind;
+import com.musicmind.domain.Track;
 import com.musicmind.domain.Verdict;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
@@ -42,7 +43,8 @@ public final class CreatePlaylistDialog {
     /** A finished run: the playlist, the run's notices, its explanation and the verdicts already given. */
     private record Created(Playlist playlist, List<String> notices, String explanation, Map<String, Verdict> verdicts) { }
 
-    private static final double WAITING_HEIGHT = 90;
+    /** One waiting song: a 12-14px line plus the 4px gap under it. */
+    private static final double WAITING_ROW_HEIGHT = 22;
     /** Room the dialog keeps for its header and the button row, below the scrolling part. */
     private static final double BUTTON_AREA = 130;
     private static final double PREFERRED_WIDTH = 600;
@@ -86,8 +88,10 @@ public final class CreatePlaylistDialog {
         goal.setPrefRowCount(3);
         goal.setWrapText(true);
 
-        hours.setPromptText("0");
-        minutes.setPromptText("0");
+        hours.setText("0");   // a real 0, not a grey prompt: both at 0 means "take the length from the goal"
+        minutes.setText("0");
+        selectAllOnFocus(hours);
+        selectAllOnFocus(minutes);
         hours.getStyleClass().add("mm-length-field");
         minutes.getStyleClass().add("mm-length-field");
         HBox length = new HBox(UiParts.SPACE_S, hours, UiParts.muted(format.w("Hours")), minutes, UiParts.muted(format.w("Minutes")));
@@ -110,7 +114,7 @@ public final class CreatePlaylistDialog {
         // Nothing to choose while the AI picks the mix, so the slider is hidden rather than shown locked.
         mixBox.visibleProperty().bind(mixFromGoal.selectedProperty().not());
         mixBox.managedProperty().bind(mixBox.visibleProperty());
-        Label mixHint = UiParts.muted(format.w("MixHint"));
+        Label mixHint = UiParts.caption(format.w("MixHint"));
         mixHint.visibleProperty().bind(mixFromGoal.selectedProperty());
         mixHint.managedProperty().bind(mixHint.visibleProperty());
 
@@ -120,8 +124,8 @@ public final class CreatePlaylistDialog {
         name.setPromptText(format.w("PlaylistNameHint"));
 
         form = new VBox(UiParts.SPACE_S, UiParts.muted(format.w("Goal")), goal,
-                UiParts.muted(format.w("Length")), length, UiParts.muted(format.w("LengthHint")), allowExplicit,
-                mixFromGoal, mixHint, mixBox, waitingBox, UiParts.muted(format.w("PlaylistName")), name);
+                UiParts.muted(format.w("Length")), UiParts.group(length, UiParts.caption(format.w("LengthHint"))),
+                allowExplicit, UiParts.checkWithCaption(mixFromGoal, mixHint), mixBox, waitingBox, UiParts.muted(format.w("PlaylistName")), name);
         VBox content = new VBox(UiParts.SPACE_M, form, result);
         content.getStyleClass().add("mm-dialog-content");
         // The form and the result scroll; the buttons below stay in view and the window can be resized.
@@ -149,6 +153,14 @@ public final class CreatePlaylistDialog {
         });
     }
 
+    private static void selectAllOnFocus(TextField field) {
+        field.focusedProperty().addListener((obs, was, is) -> {
+            if (is) {
+                Platform.runLater(field::selectAll);
+            }
+        });
+    }
+
     /** Shows the dialog without blocking; the creation runs on the worker. */
     public void show() {
         show((Window) null);
@@ -165,23 +177,33 @@ public final class CreatePlaylistDialog {
 
     /** Reads the songs waiting from Find Songs; the choice to start with them shows only when there are some. */
     private void loadWaiting() {
-        ctx.run(status, "ActionShowCandidates", format.w("Working"), () -> ctx.controller().getCandidates(), waiting -> {
-            haveWaiting = !waiting.isEmpty();
-            waitingBox.setVisible(haveWaiting);
-            waitingBox.setManaged(haveWaiting);
-            if (!haveWaiting) {
-                return;
-            }
-            useWaiting.setText(format.w(waiting.size() == 1 ? "UseWaitingOne" : "UseWaitingMany", waiting.size()));
-            VBox songs = new VBox(UiParts.SPACE_XS);
-            waiting.forEach(t -> songs.getChildren().add(UiParts.muted(format.trackTitleLine(t))));
+        ctx.run(status, "ActionShowCandidates", format.w("Working"), () -> ctx.controller().getCandidates(),
+                this::showWaiting, createNode);   // Create stays off until the waiting songs are known, so they are not missed
+    }
+
+    private void showWaiting(List<Track> waiting) {
+        haveWaiting = !waiting.isEmpty();
+        waitingBox.setVisible(haveWaiting);
+        waitingBox.setManaged(haveWaiting);
+        if (!haveWaiting) {
+            return;
+        }
+        useWaiting.setText(format.w(waiting.size() == 1 ? "UseWaitingOne" : "UseWaitingMany", waiting.size()));
+        VBox songs = new VBox(UiParts.SPACE_XS);
+        waiting.forEach(t -> songs.getChildren().add(UiParts.muted(format.trackTitleLine(t))));
+        Node list = songs;
+        if (waiting.size() > format.waitingRowsShown(waiting.size())) {
+            // Up to the configured number of rows the list is as tall as its songs; more rows scroll.
             ScrollPane scroll = new ScrollPane(songs);
             scroll.setFitToWidth(true);
-            scroll.setPrefViewportHeight(WAITING_HEIGHT);
-            scroll.setMaxHeight(WAITING_HEIGHT);
+            double rows = format.waitingRowsShown(waiting.size());
+            scroll.setPrefViewportHeight(rows * WAITING_ROW_HEIGHT);
+            scroll.setMaxHeight(rows * WAITING_ROW_HEIGHT + UiParts.SPACE_S);
             scroll.getStyleClass().add("mm-why-scroll");
-            waitingBox.getChildren().setAll(useWaiting, UiParts.muted(format.w("UseWaitingHint")), scroll);
-        }, createNode);   // Create stays off until the waiting songs are known, so they are not missed
+            list = scroll;
+        }
+        waitingBox.getChildren().setAll(
+                UiParts.checkWithCaption(useWaiting, UiParts.caption(format.w("UseWaitingHint"))), list);
     }
 
     private void start(Node create) {

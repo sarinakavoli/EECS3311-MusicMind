@@ -14,7 +14,6 @@ import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.Playlist;
 import com.musicmind.domain.PlaylistSummary;
 import com.musicmind.domain.SnapshotInfo;
-import com.musicmind.domain.RangeChange;
 import com.musicmind.domain.RequestKind;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
@@ -49,8 +48,17 @@ public final class ViewFormat {
     /** A short status label for a playlist; {@code warning} marks a constraint that is not met. */
     public record Badge(String text, boolean warning) { }
 
-    /** One time range of the Trends view. */
-    public record TrendColumn(String range, List<String> artists, List<String> genres, String coverage) { }
+    /** The change column of a {@link TrendRow}: in the newest period only, in the oldest only, or neither. */
+    public enum TrendChange { NEW, DROPPED, NONE }
+
+    /**
+     * One line of the Trends table. A header row (Genres or Artists) has only a label; an item row has one flag per
+     * period, oldest first, saying whether the item is in that period's list, and its change from oldest to newest.
+     */
+    public record TrendRow(String label, boolean header, List<Boolean> present, TrendChange change, String changeText) { }
+
+    /** The Trends table: the period names (oldest first), the rows, and a note on genre coverage (empty when complete). */
+    public record TrendTable(List<String> periods, List<TrendRow> rows, String coverage) { }
 
     /** One saved version on a timeline line: when it was saved and how the song count moved from the version before. */
     public record VersionLine(SnapshotInfo info, String when, String change) { }
@@ -222,47 +230,62 @@ public final class ViewFormat {
         }
     }
 
-    /** One column per range in {@code ranges}, in that order; a range with no data has empty lists. */
-    public List<TrendColumn> trendColumns(TrendReport report, List<String> ranges, int artistsShown, int genresShown) {
-        List<TrendColumn> columns = new ArrayList<>();
+    /**
+     * The Trends table: one column per range, oldest first (the configured {@code ranges} run newest to oldest), and
+     * rows for the top genres then the top artists. An item is listed when it is in the top {@code genresShown} genres
+     * or {@code artistsShown} artists of some range, newest range first; a cell is ticked when the item is in that
+     * range's data. "New" means in the newest range but not the oldest, "dropped" the reverse. The coverage note says
+     * how many of the listed artists have genre data and is empty when all do.
+     */
+    public TrendTable trendTable(TrendReport report, List<String> ranges, int artistsShown, int genresShown) {
+        List<String> oldestFirst = new ArrayList<>(ranges);
+        java.util.Collections.reverse(oldestFirst);
+        List<String> periods = oldestFirst.stream().map(this::rangeLabel).toList();
+        List<TrendRow> rows = new ArrayList<>();
+
+        Map<String, String> genreRows = new LinkedHashMap<>();   // key and label are the genre
         for (String range : ranges) {
-            List<Artist> artists = report.artistsByRange().getOrDefault(range, List.of());
-            List<String> genres = report.genresByRange().getOrDefault(range, Map.of()).keySet().stream()
-                    .limit(genresShown).toList();
-            String coverage = artists.isEmpty() ? ""
-                    : w("TrendCoverage",
-                            report.artistsWithGenres(range), report.artistCount(range));
-            columns.add(new TrendColumn(rangeLabel(range), artistNames(artists, artistsShown), genres, coverage));
+            report.genresByRange().getOrDefault(range, Map.of()).keySet().stream().limit(genresShown)
+                    .forEach(g -> genreRows.putIfAbsent(g, g));
         }
-        return columns;
-    }
-
-    /** What changed from each range to the next, then overall, as lines of text. */
-    public List<String> trendStepLines(TrendReport report) {
-        List<String> lines = new ArrayList<>();
-        for (RangeChange step : report.steps()) {
-            lines.add(w("TrendStep", rangeLabel(step.from()), rangeLabel(step.to())));
-            changeLines(lines, step.addedGenres(), step.droppedGenres(), names(report, step.addedArtistIds()),
-                    names(report, step.droppedArtistIds()));
+        if (!genreRows.isEmpty()) {
+            rows.add(new TrendRow(w("Genres"), true, List.of(), TrendChange.NONE, ""));
+            genreRows.keySet().forEach(g -> rows.add(itemRow(g, oldestFirst,
+                    range -> report.genresByRange().getOrDefault(range, Map.of()).containsKey(g))));
         }
-        List<RangeChange> steps = report.steps();
-        lines.add(steps.isEmpty() ? w("TrendOverall")
-                : w("TrendStep", rangeLabel(steps.get(0).from()), rangeLabel(steps.get(steps.size() - 1).to())));
-        changeLines(lines, report.addedGenres(), report.droppedGenres(), names(report, report.addedArtistIds()),
-                names(report, report.droppedArtistIds()));
-        return lines;
+
+        Map<String, String> artistRows = new LinkedHashMap<>();   // id -> name
+        for (String range : ranges) {
+            report.artistsByRange().getOrDefault(range, List.of()).stream()
+                    .filter(a -> a.name() != null && !a.name().isBlank()).limit(artistsShown)
+                    .forEach(a -> artistRows.putIfAbsent(a.id(), a.name()));
+        }
+        if (!artistRows.isEmpty()) {
+            rows.add(new TrendRow(w("Artists"), true, List.of(), TrendChange.NONE, ""));
+            artistRows.forEach((id, name) -> rows.add(itemRow(name, oldestFirst,
+                    range -> report.artistsByRange().getOrDefault(range, List.of()).stream()
+                            .anyMatch(a -> id.equals(a.id())))));
+        }
+
+        Map<String, Artist> distinct = new LinkedHashMap<>();
+        report.artistsByRange().values().forEach(list -> list.forEach(a -> distinct.putIfAbsent(a.id(), a)));
+        long known = distinct.values().stream().filter(a -> !a.genres().isEmpty()).count();
+        String coverage = known < distinct.size() ? w("TrendCoverage", known, distinct.size()) : "";
+        return new TrendTable(periods, rows, coverage);
     }
 
-    private void changeLines(List<String> lines, List<String> genresAdded, List<String> genresDropped,
-                             List<String> artistsAdded, List<String> artistsDropped) {
-        lines.add("  " + w("GenresAdded") + ": " + listOrNone(genresAdded));
-        lines.add("  " + w("GenresDropped") + ": " + listOrNone(genresDropped));
-        lines.add("  " + w("ArtistsAdded") + ": " + listOrNone(artistsAdded));
-        lines.add("  " + w("ArtistsDropped") + ": " + listOrNone(artistsDropped));
-    }
-
-    private String listOrNone(List<String> items) {
-        return items.isEmpty() ? w("NothingChanged") : String.join(", ", items);
+    private TrendRow itemRow(String label, List<String> oldestFirst, java.util.function.Predicate<String> in) {
+        List<Boolean> present = oldestFirst.stream().map(in::test).toList();
+        boolean inOldest = !present.isEmpty() && present.get(0);
+        boolean inNewest = !present.isEmpty() && present.get(present.size() - 1);
+        TrendChange change = inNewest && !inOldest ? TrendChange.NEW
+                : inOldest && !inNewest ? TrendChange.DROPPED : TrendChange.NONE;
+        String text = switch (change) {
+            case NEW -> w("TrendNew");
+            case DROPPED -> w("TrendDropped");
+            case NONE -> "";
+        };
+        return new TrendRow(label, false, present, change, text);
     }
 
     private static List<String> names(TrendReport report, List<String> ids) {
@@ -334,9 +357,18 @@ public final class ViewFormat {
                 || error instanceof PlaylistChangeException;
     }
 
-    /** A creation step shown as progress. */
+    private static final java.util.Set<String> RUN_STEPS =
+            java.util.Set.of("planning", "retrieving", "selecting", "validating", "executing");
+
+    /** A step of an agent run in plain words ("Finding songs..."); a state with no words of its own is "Working...". */
     public String progress(String stateName) {
-        return w("Progress", stateName);
+        String key = stateName == null ? "" : stateName.strip().toLowerCase(Locale.ROOT);
+        return w(RUN_STEPS.contains(key) ? "Progress." + key : "ProgressUnknown");
+    }
+
+    /** How many rows of the waiting-songs list show at once; more scroll. */
+    public int waitingRowsShown(int count) {
+        return Math.max(0, Math.min(count, config.guiWaitingRowsShown()));
     }
 
     /** How the run chose its tracks: the strategy, then each constraint it kept. Empty when there is no trace. */

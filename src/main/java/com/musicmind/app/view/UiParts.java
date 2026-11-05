@@ -28,6 +28,13 @@ public final class UiParts {
         return label;
     }
 
+    /** A table or group header: bold like a heading but smaller, so a card or section title stays the biggest. */
+    static Label subhead(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().add("mm-subhead");
+        return label;
+    }
+
     static Label wrapped(String text) {
         Label label = new Label(text);
         label.setWrapText(true);
@@ -69,6 +76,19 @@ public final class UiParts {
         Label label = wrapped(text);
         label.getStyleClass().add("mm-muted");
         return label;
+    }
+
+    /** A helper line under a control: small (12px) and muted. */
+    static Label caption(String text) {
+        Label label = wrapped(text);
+        label.getStyleClass().add("mm-caption");
+        return label;
+    }
+
+    /** A check box with its helper line {@code SPACE_XS} under it, indented to line up with the box's label. */
+    static VBox checkWithCaption(javafx.scene.control.CheckBox box, Label caption) {
+        caption.getStyleClass().add("mm-check-caption");
+        return new VBox(SPACE_XS, box, caption);
     }
 
     /**

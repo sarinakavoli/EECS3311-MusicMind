@@ -667,6 +667,11 @@ public final class Config {
         return integer("gui.tracksShown");
     }
 
+    /** Songs of the waiting list the Create dialog shows before the list scrolls. */
+    public int guiWaitingRowsShown() {
+        return integer("gui.waitingRowsShown");
+    }
+
     /** Genres listed per range in the Trends view. */
     public int guiTrendGenresShown() {
         return integer("gui.trendGenresShown");
