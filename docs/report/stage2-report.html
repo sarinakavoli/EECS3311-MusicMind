@@ -1,0 +1,815 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MusicMind Stage 2 Implementation Report</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm 18mm 15mm; @bottom-center { content: "MusicMind Stage 2 report  |  page " counter(page); font: 8pt Helvetica, Arial, sans-serif; color: #666; } }
+  @page wide { size: A4 landscape; margin: 6mm 7mm 11mm 7mm; @bottom-center { content: "MusicMind Stage 2 report  |  page " counter(page); font: 8pt Helvetica, Arial, sans-serif; color: #666; } }
+  :root { --ink:#1b1f27; --muted:#5a6270; --line:#c5cad3; --head:#12355b; --soft:#eef2f7; --warn:#fff4d6; --warnline:#e0b84a; }
+  * { box-sizing: border-box; }
+  html { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 9.4pt; line-height: 1.34; color: var(--ink); }
+  body { margin: 0; }
+  h1 { font-size: 20pt; color: var(--head); margin: 0 0 4mm; }
+  h2 { font-size: 15pt; color: var(--head); border-bottom: 1.5pt solid var(--head); padding-bottom: 1.5mm; margin: 0 0 4mm; break-after: avoid; }
+  h3 { font-size: 11.5pt; color: var(--head); margin: 5mm 0 1.5mm; break-after: avoid; }
+  h4 { font-size: 10pt; margin: 3.5mm 0 1mm; break-after: avoid; }
+  p { margin: 0 0 2.4mm; }
+  ul, ol { margin: 0 0 2.6mm; padding-left: 5mm; }
+  li { margin-bottom: 0.8mm; }
+  code { font-family: Menlo, Consolas, "Courier New", monospace; font-size: 8.3pt; background: #f0f2f5; padding: 0 1pt; border-radius: 2pt; overflow-wrap: anywhere; }
+  a { color: #0b5cad; text-decoration: none; }
+  section.page { break-before: page; }
+  .keep { break-inside: avoid; }
+  section.first { break-before: auto; }
+  section.wide { page: wide; break-before: page; }
+  table { width: 100%; border-collapse: collapse; margin: 1.5mm 0 4mm; font-size: 8.4pt; }
+  th, td { border: 0.5pt solid var(--line); padding: 1.3mm 1.7mm; vertical-align: top; text-align: left; overflow-wrap: anywhere; }
+  th { background: var(--soft); font-weight: 700; }
+  table.tight th, table.tight td { padding: 0.5mm 1.7mm; }
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; }
+  table.fields th { width: 31mm; background: var(--soft); }
+  .note { background: var(--warn); border-left: 3pt solid var(--warnline); padding: 2mm 3mm; margin: 2mm 0 4mm; break-inside: avoid; }
+  .ok { background: #e8f4ea; border-left: 3pt solid #5aa469; padding: 2mm 3mm; margin: 2mm 0 4mm; break-inside: avoid; }
+  .small { font-size: 8.3pt; color: var(--muted); }
+  .ph { background: #ffe3e3; color: #8a1c1c; padding: 0 2pt; font-weight: 600; }
+  .feature { break-inside: avoid-page; margin-bottom: 4mm; }
+  .feature h3 { margin-top: 4mm; }
+  figure { margin: 0; text-align: center; }
+  figure img { display: block; margin: 0 auto; }
+  figure.land img { max-width: 100%; max-height: 166mm; width: auto; height: auto; }
+  figure.port img { max-width: 100%; max-height: 215mm; width: auto; height: auto; }
+  figcaption { font-size: 8pt; color: var(--muted); margin: 2mm 0 0; text-align: left; }
+  .cover { text-align: left; padding-top: 22mm; }
+  .cover .sub { font-size: 12pt; color: var(--muted); margin-bottom: 10mm; }
+  .toc ol { list-style: none; padding-left: 0; }
+  .toc li { margin-bottom: 1.2mm; }
+  dl.chg { margin: 0 0 3mm; }
+  dl.chg dt { font-weight: 700; margin-top: 1.4mm; }
+  dl.chg dd { margin: 0 0 0 4mm; }
+  dl.chg dt { break-after: avoid; }
+  .cols2 { column-count: 2; column-gap: 8mm; }
+</style>
+</head>
+<body>
+
+<!-- ============================ COVER ============================ -->
+<section class="first cover">
+  <h1>MusicMind: Stage 2 Implementation Report</h1>
+  <div class="sub">EECS3311 Software Design, Fall 2026. Individual project.</div>
+  <table class="fields" style="max-width:150mm">
+    <tr><th>Author</th><td>Sarina Kavoli (student ID 220816757)</td></tr>
+    <tr><th>Repository</th><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind">https://github.com/sarinakavoli/EECS3311-MusicMind</a></td></tr>
+    <tr><th>Report written</th><td>November 3, 2026; refreshed November 5, 2026 after pull request #4 was merged (Stage 2 is due November 10, 2026)</td></tr>
+    <!-- REFRESH BEFORE SUBMISSION -->
+    <tr><th>Code state described</th><td>Branch <code>stage2-docs</code>, which is <code>main</code> (including the merged GUI pull request #4) plus the documentation. This documentation branch is not yet merged into <code>main</code> as of November 5.</td></tr>
+    <tr><th>Automated tests</th><td>995 passing in 54 test classes (<code>./gradlew test</code> on the merged branch, November 5), with no API keys and no database server.</td></tr>
+  </table>
+
+  <div class="note">
+    <strong>Status of this document.</strong> It describes what exists in the repository and what was actually run.
+    Anything that was not run against the real Spotify and OpenAI accounts is marked as such. Items that only the
+    author can fill in are shown like this: <span class="ph">[to be filled by Sarina]</span> (token and money costs, and every demonstration video link).
+    Period 3 of the commit schedule (November 3-9) is in progress, so its commit count here is a count of what exists on November 5.
+  </div>
+
+  <!-- REFRESH BEFORE SUBMISSION -->
+  <div class="note">
+    <strong>Refresh before submission.</strong> These facts are true as of November 5 and change: (1) the merge status of the documentation pull request (this report); (2) the Period 3 commit count (Section 6.1); (3) the demonstration video links (Sections 2 and 7); (4) the AI token and money costs (Section 5); (5) the GUI screenshots, which will be retaken after the owner's test of the redesigned GUI (Sections 2 and 7). After editing <code>docs/report/stage2-report.html</code>, rebuild the PDF with <code>docs/report/build-report.sh</code>. Search the HTML for <code>REFRESH BEFORE SUBMISSION</code> to find each spot.
+  </div>
+
+  <div class="toc">
+    <h3>Contents</h3>
+    <ol>
+      <li><strong>1</strong> Project overview and implementation status</li>
+      <li><strong>2</strong> Feature to implementation mapping (F1-F12 and the one new feature)</li>
+      <li><strong>3</strong> Implemented design patterns, with the updated UML diagrams</li>
+      <li><strong>4</strong> Changes and rationale (Original design, Implemented change, Reason, Impact)</li>
+      <li><strong>5</strong> AI tools and collaboration log</li>
+      <li><strong>6</strong> Development and verification summary (weekly commits, checks, defects, limitations)</li>
+      <li><strong>7</strong> Demonstration index</li>
+    </ol>
+  </div>
+
+  <p class="small">Supporting documents in the repository: <code>docs/STAGE1_CONFORMANCE.md</code> (feature to code, tests and live status),
+  <code>docs/STAGE2_PLAN.md</code> (every change as Original, Change, Reason, Impact), <code>docs/AI_COLLABORATION_LOG.md</code>,
+  <code>docs/DAILY_TEST_NOTES.md</code> (what was run live), <code>docs/GUI_TEST_FINDINGS.md</code>, <code>docs/diagrams/</code>.
+  Class paths in this report are relative to <code>src/main/java/com/musicmind/</code>.</p>
+</section>
+
+<!-- ============================ SECTION 1 ============================ -->
+<section class="page">
+  <h2>1 Project overview and implementation status</h2>
+
+  <h3>1.1 The application</h3>
+  <p>MusicMind is an AI music-discovery and playlist-management agent built on the Spotify Web API. A listener types a goal in plain words,
+  for example "a 90 minute study playlist, mostly familiar but with some new artists". MusicMind reads the listener's own Spotify listening data,
+  turns the goal into a checked plan, retrieves candidate tracks, selects and orders them with its own deterministic recommender, validates the
+  result against constraints (length, explicit content, blocked artists and tracks, duplicates), and creates or edits a real private playlist.
+  It can also describe the listener's taste and how it changed, search in natural language, recommend new music, remember preferences and
+  feedback, explain its choices, negotiate when a request cannot be met, and undo or restore earlier versions of a playlist.</p>
+  <p><strong>Users.</strong> Individual Spotify listeners (Premium account required by Spotify for development apps) who want goal-driven playlists
+  and controlled discovery, with a visible reason for every choice. Spotify development-mode apps allow at most five listed users without a quota extension.</p>
+
+  <h3>1.2 Technology</h3>
+  <table>
+    <tr><th style="width:32mm">Language and build</th><td>Java 17, Gradle 9.1 (wrapper committed). <code>./gradlew build</code> compiles and runs all tests; a Java 17 toolchain is downloaded automatically if missing.</td></tr>
+    <tr><th>Interfaces</th><td>A JavaFX 21 GUI (<code>./gradlew run</code>) and a command-line interface (<code>./gradlew runCli --args="help"</code>). Both call the same <code>AppController</code>; neither holds business logic.</td></tr>
+    <tr><th>Music data</th><td>Spotify Web API (Authorization Code with PKCE, redirect <code>http://127.0.0.1:8080/callback</code>). Spotify returns no artist genres to this app, so genres come from MusicBrainz and are cached by artist id.</td></tr>
+    <tr><th>Song tags (optional)</th><td>Last.fm (<code>LASTFM_API_KEY</code>), behind the <code>TagService</code> interface (<code>LastFmAdapter</code>). Without a key Create works as before and says tag data is off. Credited in the GUI footer and after a CLI Create.</td></tr>
+    <tr><th>Persistence</th><td>PostgreSQL through JDBC. Tests use an embedded PostgreSQL binary, so no server is needed to build.</td></tr>
+    <tr><th>LLM</th><td>One model, <code>gpt-4o</code> from OpenAI, behind the <code>LLMProvider</code> interface (<code>OpenAiProvider</code>). The test double <code>MockLLMProvider</code> exists only under <code>src/test</code>.</td></tr>
+  </table>
+
+  <h3>1.3 How the AI and LLM take part</h3>
+  <p>The LLM is a planner and narrator; deterministic code decides and acts. It is called through <code>LLMProvider.complete</code> by these components only:</p>
+  <ul>
+    <li><code>Planner</code>: turns a goal, a search text or an edit instruction into a structured, validated plan (<code>PlaylistSpec</code>, <code>AgentPlan</code>, <code>SearchQuery</code>), and words the options offered when a request cannot be met (F11).</li>
+    <li><code>ProfileBuilder</code> and <code>TrendComparator</code> prompts: one summary sentence for the taste profile and a short narrative for taste change.</li>
+    <li><code>ExplanationService</code>: a grounded explanation of a playlist, which <code>ResponseParser.verifyExplanation</code> checks against the recorded decision trace.</li>
+    <li><code>PlaylistEditor</code>: turns a free-text edit into commands (tracks to add always come from Spotify search, never from the model).</li>
+    <li><code>GoalFitReviewer</code>: a removal-only review of already retrieved tracks (see 1.5 and Section 4).</li>
+  </ul>
+  <p><strong>The LLM never names or adds a track.</strong> Selection, ordering, length and validation are computed. Every model reply passes through <code>ResponseParser</code>, and a failed or rejected reply falls back to a computed result that is labelled as computed. With no <code>LLM_API_KEY</code> the features that need the model say so, and F1, F2 and F3 use labelled fallbacks.</p>
+  <p>The agent behaviour is multi-step planning and tool use: <code>AgentSession.run()</code> moves through the states Idle, Planning, Retrieving, Selecting, Validating, Executing and Done (Failed on any error); <code>ToolManager</code> runs the Spotify and memory tools; <code>MemoryManager</code> stores preferences, feedback, sessions, snapshots and candidates.</p>
+
+  <h3>1.4 Current working functionality</h3>
+  <p>All twelve Stage 1 features (F1-F12) are implemented and reachable from both the CLI and the GUI. One feature was added that Stage 1 did not have (delete one of the listener's playlists, in the CLI and, since November 4, with a confirm dialog in the GUI). No Stage 1 feature was dropped or replaced. Section 2 maps each one to its classes and methods; Section 6 records what was checked.</p>
+  <table class="tight">
+    <thead><tr><th style="width:12mm">ID</th><th>Feature</th><th style="width:30mm">Type in the code</th><th style="width:22mm">Status</th></tr></thead>
+    <tr><td>F1</td><td>Music Taste Profile</td><td>Hybrid</td><td>Modified</td></tr>
+    <tr><td>F2</td><td>Taste-Change Analysis</td><td>Hybrid</td><td>Modified</td></tr>
+    <tr><td>F3</td><td>Natural-Language Music Search</td><td>Hybrid</td><td>Modified</td></tr>
+    <tr><td>F4</td><td>Personalized Discovery</td><td>Deterministic</td><td>Modified</td></tr>
+    <tr><td>F5</td><td>AI Playlist Planning and Generation</td><td>Hybrid</td><td>Modified</td></tr>
+    <tr><td>F6</td><td>Natural-Language Playlist Modification</td><td>Hybrid</td><td>Modified</td></tr>
+    <tr><td>F7</td><td>Playlist Constraint Validation</td><td>Deterministic</td><td>Modified</td></tr>
+    <tr><td>F8</td><td>Preference Memory</td><td>Deterministic</td><td>Modified</td></tr>
+    <tr><td>F9</td><td>Recommendation Feedback</td><td>Deterministic</td><td>Implemented</td></tr>
+    <tr><td>F10</td><td>Grounded Recommendation Explanation</td><td>AI with a checked fallback</td><td>Modified</td></tr>
+    <tr><td>F11</td><td>Infeasible-Constraint Negotiation</td><td>Hybrid</td><td>Implemented</td></tr>
+    <tr><td>F12</td><td>Agent History and Snapshot/Restore</td><td>Deterministic</td><td>Modified</td></tr>
+    <tr><td>New</td><td>Delete a playlist</td><td>Deterministic</td><td>Added</td></tr>
+  </table>
+  <p class="small">"Modified" means the feature works as Stage 1 describes but with at least one documented difference (Section 4). The GUI is the dark, Spotify-like redesign merged on November 4 (pull request #4): a left-hand menu of seven screens (Your Taste, Trends, Find Songs, Discover, Playlists, Your Rules, History), one shared song row, a Create playlist dialog, a confirm dialog and the conflict dialog. Its menu names differ from the Stage 1 tab names for F1, F3 and F7/F8; the F-numbers map as before.</p>
+
+  <h3>1.5 Limitations and incomplete work (stated plainly)</h3>
+  <p>The detail and the evidence for each point are in <code>docs/STAGE1_CONFORMANCE.md</code> (section 7) and <code>docs/DAILY_TEST_NOTES.md</code>.</p>
+  <ul>
+    <li><strong>Goal fit is improved but not proven.</strong> In the author's first GUI test (November 2) the songs for a "workout" goal did not suit it. Fixes followed (activity searches, a removal-only goal review, scoring changes). On November 4 a further live run showed library songs chosen by taste alone still did not fit ("slow dance" got a pop song), so Create now keeps a familiar song only when it fits the goal by its artist's leading three genres or by its own Last.fm song tags, and adds songs that Last.fm lists under the goal's tags (Section 4.1). These rules are covered by tests; the author's own test of the result is still to come, so it is not known that playlists now reliably fit their goal. Last.fm tags need the optional <code>LASTFM_API_KEY</code>; without it only the genre rule applies.</li>
+    <li><strong>Not run against the real accounts:</strong> F11 with a real conflict (the prompt was only checked with stand-in text and in tests); delete (<code>delete</code>); recreating a deleted playlist from a snapshot; the GUI buttons Undo, Restore, like, not-for-me, Save and candidate controls pressed by a person (the same controller calls were run from the CLI for Undo and Restore); successful <code>feedback</code> and the other preference keys on the real account.</li>
+    <li><strong>GUI redesign done; not yet re-tested by hand end to end or re-screenshotted.</strong> After the author's own user testing, the GUI was redesigned and merged on November 4 (dark theme, left-hand menu, plain wording and a description on every screen). It closes the gaps in <code>docs/GUI_TEST_FINDINGS.md</code> that this report listed before: a Delete button, pickers for blocking artists and songs, a candidate choice in the Create dialog, and artist names in track rows. It is covered by view-helper and controller tests, but the author's own pass over every screen is still to come, and the screenshots and demonstration videos will be made after it.</li>
+    <li><strong>Past week is thin by design.</strong> Spotify has no top items for a week, so Your Taste builds that range from the recent plays (Spotify keeps only the last 50) and labels it so. It is left out of Trends.</li>
+    <li><strong>Last.fm needs a key and has limits.</strong> Song tags are optional. A Create run reads at most 30 songs' tags and stops after about 15 seconds, so a slow Last.fm only lessens the tag signal; a song Last.fm does not know falls back to the genre rule. The Last.fm code is unit-tested against a local stand-in server. A read-only live check with a Last.fm key on Nov 4 (planning, retrieval and selection only, no playlist created) found no off-goal familiar songs for "slow dance" and no Nirvana for "music for studying" (mostly lo-fi and ambient, a few weak tag picks); "workout" still picked several songs by one hip-hop artist, because Last.fm has no tags for them and hip hop is a workout genre. The final ranking tiers and the Nov 5 review fixes have not yet been checked live.</li>
+    <li><strong>Search by description is weak.</strong> Spotify matches title words and this app has no tempo or mood data (Spotify provides no audio features to this app), so "mellow alternative for studying" returns poor results. Title and artist searches work.</li>
+    <li><strong>Genre data is partial.</strong> It depends on MusicBrainz; genres appeared for 13 of 20 top artists in the first live run, and many artists have none. Trends and discovery say when coverage is partial.</li>
+    <li><strong>Policy correction (November 3).</strong> The first version of the goal-fit review sent track titles and artist names to OpenAI. Spotify Developer Policy section III item 14 forbids ingesting Spotify Content into an AI model. It was changed the same day to send track ids and MusicBrainz genres only (details in Section 4). The review is now less precise, does not judge tracks with no known genre, and was not re-run live.</li>
+    <li><strong>Open policy question (F6 edit prompt).</strong> The prompt that turns an edit instruction into commands sends the model each track's id, explicit flag and length in minutes (no titles or names), because edits such as "15 minutes shorter" or "remove explicit" need them. Whether this counts as Spotify Content under the policy is unresolved and is for the author to decide.</li>
+    <li><strong>Commit schedule.</strong> Period 1 (October 20-26) has no code commits and missed its minimum; the single 5-point deduction therefore applies (Section 6).</li>
+        <!-- REFRESH BEFORE SUBMISSION -->
+        <li><strong>Remaining work at the time of writing:</strong> for Stage 2, demonstration videos (links are placeholders in Section 7), cost figures (Section 5), merging the documentation pull request, retaking the GUI screenshots and a final hand test of the redesigned GUI. The Stage 2 instructions say the full deterministic testing and KUMA agent validation "remain part of Stage 3"; Stage 2 already has 995 automated deterministic tests (Section 6.2).</li>
+  </ul>
+</section>
+
+<!-- ============================ SECTION 2 ============================ -->
+<section class="page">
+  <h2>2 Feature to implementation mapping</h2>
+  <p>Every Stage 1 feature (F1-F12) and the one new feature are mapped below with the fields the Stage 2 instructions require: feature, Stage 1 reference,
+  status, classes and files with their responsibilities, key methods, design patterns and the demonstration video. Each entry then explains how the
+  classes work together from user input to the final result, and says whether the feature is deterministic, AI-based or hybrid.</p>
+  <p class="small">Common path for every feature: the CLI (<code>cli/CliApp</code>) or a GUI view (<code>app/view/*</code>) calls <code>controller/AppController</code>, which calls
+  <code>controller/MusicAgentFacade</code> (Facade). The facade uses <code>tool/ToolManager</code> with <code>SpotifyTool</code> and <code>MemoryTool</code> to reach <code>music/MusicService</code>
+  (implemented by <code>SpotifyAdapter</code> and wrapped by <code>RetryingMusicService</code> and <code>GenreEnrichingMusicService</code>) and <code>memory/MemoryManager</code> (repositories over PostgreSQL).
+  These are not repeated in each entry unless the feature uses them in a particular way. "Video" cells are placeholders for the author; the full index is Section 7.</p>
+
+  <!-- F1 -->
+  <div class="feature">
+  <h3>F01 Music Taste Profile</h3>
+  <table class="fields">
+    <tr><th>Feature ID and name</th><td>F01 Music Taste Profile (Stage 1 UC02, SD03)</td></tr>
+    <tr><th>Stage 1 reference</th><td>F1</td></tr>
+    <tr><th>Status</th><td>Modified (genres from MusicBrainz; stored profile; time range; a Past week range from recent plays)</td></tr>
+    <tr><th>Classes / files and responsibilities</th><td>
+      <code>AppController</code>, <code>MusicAgentFacade</code> (entry and orchestration); <code>tool/SpotifyTool</code> (tools <code>getTopItems</code>, <code>getSavedTracks</code>); <code>music/SpotifyAdapter</code> (Spotify HTTP and JSON);
+      <code>music/GenreEnrichingMusicService</code> + <code>MusicBrainzAdapter</code> + <code>memory/repository/GenreRepository</code> (fill artist genres, cached); <code>agent/ProfileBuilder</code> (genre histogram, rankings, partial-profile notices); <code>MusicService.getRecentPlays</code> and <code>withGenres</code> (the Past week range);
+      <code>agent/PromptBuilder</code> + <code>llm/OpenAiProvider</code> (summary sentence); <code>memory/MemoryManager</code> + <code>SessionRepository</code> (stored derived profile); <code>app/view/ProfileView</code> (the Your Taste screen), <code>cli/CliApp</code> (display).</td></tr>
+    <tr><th>Key methods</th><td><code>AppController.analyzeTaste</code>, <code>lastProfile</code>, <code>timeRanges</code>; <code>MusicAgentFacade.analyzeTaste</code>, <code>analyzePastWeek</code>; <code>ProfileBuilder.build(TopItems, saved)</code>, <code>computeGenreHistogram</code>; <code>PromptBuilder.buildSummaryPrompt</code>; <code>MemoryManager.saveSession</code>.</td></tr>
+    <tr><th>Design patterns</th><td>Facade, Adapter, Decorator, Repository, MVC</td></tr>
+    <tr><th>Video link / timestamp</th><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+  </table>
+  <p><strong>How it works.</strong> The user presses "Refresh profile" on the Your Taste screen (GUI) or runs <code>profile --refresh</code> (CLI). The controller asks the facade, which asks the tools for the top artists, top tracks and saved tracks; the decorators retry rate-limited calls and fill genres from MusicBrainz. <code>ProfileBuilder</code> computes the genre percentages and rankings and notes a partial profile. One LLM call words a one-sentence summary; with no key or a failed call a computed sentence is used and labelled "[computed from your listening data, not AI-written]". Only derived data (ids, genre counts, summary) is stored.
+  <strong>Past week.</strong> Besides Spotify's three periods (shown as Past month, Past 6 months and Past year), the range <code>week</code> (<code>--range week</code>; "Past week" in the GUI) is counted from the recent plays: <code>MusicAgentFacade.analyzePastWeek</code> keeps the plays of the last <code>profile.weekDays</code> (7) days, ranks tracks and artists by play count, and fills genres through the same MusicBrainz lookup. Spotify keeps only the 50 most recent plays, so the screen says "Built from your last N plays" and the profile is thin; play times are never stored, only the derived ids and genres. The week range is left out of Trends.
+  <strong>Type: hybrid.</strong></p>
+  </div>
+
+  <!-- F2 -->
+  <div class="feature">
+  <h3>F02 Taste-Change Analysis</h3>
+  <table class="fields">
+    <tr><th>Feature ID and name</th><td>F02 Taste-Change Analysis (UC03, SD03)</td></tr>
+    <tr><th>Stage 1 reference</th><td>F2</td></tr>
+    <tr><th>Status</th><td>Modified (every step between ranges; genre-coverage caution)</td></tr>
+    <tr><th>Classes / files and responsibilities</th><td>
+      <code>MusicAgentFacade</code> (reads the top artists of the three time ranges through <code>ToolManager</code>); <code>agent/TrendComparator</code> (set differences per range and between neighbouring ranges); <code>domain/TrendReport</code>, <code>RangeChange</code> (the result, including genre coverage per range); <code>PromptBuilder</code> + <code>OpenAiProvider</code> (the narrative); <code>app/view/TrendsView</code>, <code>cli/CliApp</code>.</td></tr>
+    <tr><th>Key methods</th><td><code>AppController.analyzeTrends</code>; <code>MusicAgentFacade.analyzeTrends</code>; <code>TrendComparator.compare</code>; <code>TrendReport.steps</code>; <code>PromptBuilder.buildTrendPrompt</code>.</td></tr>
+    <tr><th>Design patterns</th><td>Facade, Adapter, Decorator, MVC</td></tr>
+    <tr><th>Video link / timestamp</th><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+  </table>
+  <p><strong>How it works.</strong> "Compare my listening" / <code>trends</code> loads the short, medium and long ranges. <code>TrendComparator</code> computes which artists and genres were added or dropped between each pair of ranges. A range with no data is marked and the others are still compared. When fewer than half of a range's artists have genre data (<code>trends.minGenreCoverage</code> = 0.5) a notice is added and the wording becomes cautious. The LLM words the narrative; a computed, labelled narrative is the fallback. <strong>Type: hybrid.</strong></p>
+  </div>
+
+  <!-- F3 -->
+  <div class="feature">
+  <h3>F03 Natural-Language Music Search</h3>
+  <table class="fields">
+    <tr><th>Feature ID and name</th><td>F03 Natural-Language Music Search (UC04, SD01)</td></tr>
+    <tr><th>Stage 1 reference</th><td>F3</td></tr>
+    <tr><th>Status</th><td>Modified (genre as a plain keyword; typed words merged; artists listed; stored candidates)</td></tr>
+    <tr><th>Classes / files and responsibilities</th><td>
+      <code>agent/Planner</code> (asks the LLM for a <code>SearchQuery</code>); <code>agent/ResponseParser</code> (validates the reply, <code>verifyTracks</code> confirms every track exists in Spotify results); <code>domain/SearchQuery</code> (<code>toSpotifyQuery</code>); <code>agent/MoodGenreMap</code> (mood word to genre, from <code>mood-genres.json</code>);
+      <code>agent/SearchRanker</code> (rank and merge results); <code>memory/repository/CandidateRepository</code> (track ids kept for the next playlist); <code>app/view/SearchView</code>, <code>cli/CliApp</code>.</td></tr>
+    <tr><th>Key methods</th><td><code>AppController.searchMusic</code>, <code>addCandidate</code>, <code>removeCandidate</code>, <code>clearCandidates</code>, <code>getCandidates</code>; <code>MusicAgentFacade.searchMusic</code>, <code>withTypedWords</code>; <code>Planner.parseSearchQuery</code>; <code>SearchRanker.rank</code>, <code>merge</code>.</td></tr>
+    <tr><th>Design patterns</th><td>Facade, Adapter, Repository, MVC</td></tr>
+    <tr><th>Video link / timestamp</th><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+  </table>
+  <p><strong>How it works.</strong> The typed text goes to the LLM, which returns structured search terms (artists, activities, an era, a genre; mood words are removed and replaced by a mapped genre). The facade searches Spotify with that query and also with the words exactly as typed, then <code>SearchRanker.merge</code> puts exact title and artist matches first and removes duplicates of the same recording. Artists whose name the query contains are listed. If the LLM fails or has low confidence the text is searched as typed and the output says so. The user can add tracks to a stored candidate list that the next <code>create</code> starts with (unless <code>--no-candidates</code>). <strong>Type: hybrid</strong> (the LLM only reads the query; searching and ranking are deterministic).</p>
+  </div>
+
+  <!-- F4 -->
+  <div class="feature">
+  <h3>F04 Personalized Discovery</h3>
+  <table class="fields">
+    <tr><th>Feature ID and name</th><td>F04 Personalized Discovery (UC05, SD04)</td></tr>
+    <tr><th>Stage 1 reference</th><td>F4</td></tr>
+    <tr><th>Status</th><td>Modified (never calls the LLM; known tracks always excluded)</td></tr>
+    <tr><th>Classes / files and responsibilities</th><td>
+      <code>agent/RecommendationEngine</code> (Strategy context: retrieves pools, selects with the chosen strategy, scores); <code>agent/CandidateRetriever</code> (top, saved and recently played tracks, genre searches, artist to albums to tracks); <code>agent/strategy/StrategySelector</code> (picks Familiar, Discovery or Balanced from the novelty setting);
+      <code>FamiliarStrategy</code>, <code>DiscoveryStrategy</code>, <code>BalancedStrategy</code> over <code>AbstractRecommendationStrategy</code>; <code>agent/PreferenceSettings</code> (stored preferences as F4 uses them); <code>app/view/DiscoveryView</code>, <code>FeedbackBar</code>, <code>WhyExpander</code>.</td></tr>
+    <tr><th>Key methods</th><td><code>AppController.discoverSpec</code>, <code>discover</code>; <code>MusicAgentFacade.discover(profile, spec)</code>; <code>RecommendationEngine.retrieve</code>, <code>recommend</code>, <code>score</code>, <code>setStrategy</code>; strategies' <code>selectCandidates</code>, <code>scoreFamiliarity</code>, <code>excludeKnown</code>.</td></tr>
+    <tr><th>Design patterns</th><td>Strategy, Facade, Adapter, Repository, MVC</td></tr>
+    <tr><th>Video link / timestamp</th><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+  </table>
+  <p><strong>How it works.</strong> The facade loads the stored preferences and feedback, then <code>CandidateRetriever</code> builds candidate pools from the listener's own data (Spotify provides no recommendation endpoint to this app). <code>StrategySelector</code> sets a strategy on the engine, which excludes every track the listener already knows, drops blocked artists and tracks, and scores the rest (feedback boosts or penalises). Each result carries a reason built from recorded facts (known or new artist, where it was found, feedback). If there are too few candidates the genre set widens or novelty drops, and a notice says so. <strong>Type: deterministic.</strong> A test (<code>AppControllerDiscoverTest.discoverNeverCallsTheLlm</code>) checks that no model call happens.</p>
+  </div>
+
+  <!-- F5 -->
+  <div class="feature">
+  <h3>F05 AI Playlist Planning and Generation</h3>
+  <table class="fields">
+    <tr><th>Feature ID and name</th><td>F05 AI Playlist Planning and Generation (UC06, SD01)</td></tr>
+    <tr><th>Stage 1 reference</th><td>F5</td></tr>
+    <tr><th>Status</th><td>Modified (goal-fit review; activity searches; familiar songs must fit the goal; optional Last.fm tag songs; optional candidates; rollback on failure)</td></tr>
+    <tr><th>Classes / files and responsibilities</th><td>
+      <code>domain/AgentSession</code> (State context; <code>run()</code>); <code>agent/state/*State</code> (one class per phase) with <code>RunContext</code> and <code>RunServices</code>; <code>agent/Planner</code> (goal to plan, merging flags over goal over stored preferences);
+      <code>agent/RecommendationEngine</code>, <code>CandidateRetriever</code>, <code>Retrieval</code>, <code>TrackTagFit</code> (does a song's own Last.fm tag name the goal); <code>music/TagService</code> and <code>music/LastFmAdapter</code> (Last.fm tags, optional); <code>agent/GoalFitReviewer</code> (removal-only review); <code>agent/ConstraintChecker</code> (feasibility, F11); <code>agent/PlaylistValidator</code>;
+      <code>agent/command/PlaylistManager</code> with <code>CreatePlaylistCommand</code> and <code>AddItemsCommand</code>; <code>agent/ExplanationService</code>; <code>app/view/CreatePlaylistDialog</code>.</td></tr>
+    <tr><th>Key methods</th><td><code>AppController.createPlaylist(AgentRequest)</code>, <code>lastSession</code>, <code>setNegotiationHandler</code>, <code>setProgressListener</code>; <code>AgentSession.run</code>; <code>Planner.plan</code>; <code>RecommendationEngine.retrieve</code>/<code>recommend(Retrieval, ...)</code>; <code>CandidateRetriever.byTag</code>; <code>RecommendationEngine.fitsGoal</code>; <code>TagService.topTracks</code>, <code>trackTags</code>; <code>GoalFitReviewer.review</code>, <code>reviewPicks</code>; <code>ConstraintChecker.checkFeasibility</code>; <code>PlaylistValidator.validate</code>; <code>PlaylistManager.executeAll</code>.</td></tr>
+    <tr><th>Design patterns</th><td>State, Command, Strategy, Facade, Adapter, Repository, MVC</td></tr>
+    <tr><th>Video link / timestamp</th><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+  </table>
+  <p><strong>How it works.</strong> The goal and any flags (<code>--minutes</code>, <code>--no-explicit</code>, <code>--familiar</code>, <code>--name</code>, <code>--no-candidates</code>) become an <code>AgentRequest</code>. <code>AgentSession.run()</code> then walks the states:
+  <em>Planning</em> (the LLM parses the goal; the mood becomes genres through <code>MoodGenreMap</code>); <em>Retrieving</em> (one Spotify read shared by all later steps, the goal-fit review, then the feasibility check, which starts F11 if the request is infeasible); <em>Selecting</em> (user candidates first, then <code>BalancedStrategy</code>, then a review of the final picks); <em>Validating</em> (a violation sends the run back to selection, at most 3 times); <em>Executing</em> (<code>CreatePlaylistCommand</code> then <code>AddItemsCommand</code> through the Command invoker); <em>Done</em> (store the session and write the explanation). Any error goes to <em>Failed</em>, which rolls the new playlist back. An expired Spotify login is renewed once and the phase repeats.
+  <strong>Goal fit.</strong> When the run has seed genres or search terms, a "familiar" song (from the listener's library or by an artist the listener knows) is kept only if it fits the goal: one of its artist's <em>leading three</em> genres is a goal genre, or, when Last.fm is configured, one of the song's own top Last.fm tags equals a tag of the plan (or a configured synonym); a song found by a goal search or by a Last.fm tag also fits. If too few library songs fit, new goal songs fill the gap and a notice says so. <strong>Last.fm tags.</strong> The plan also carries a few short tags such as "slow dance" (never song or artist names). <code>CandidateRetriever.byTag</code> reads the songs Last.fm lists under each tag, at most <code>lastfm.maxTracks</code> per run, and looks each up on Spotify; a song is kept only when its title and one artist name both match, then it joins the new-music pool with a small score bonus. All of this is deterministic. Without <code>LASTFM_API_KEY</code>, no request is made and Create adds a notice that tag data is off.
+  <strong>Type: hybrid.</strong> The LLM parses the goal, suggests activity search phrases and tags, words the F11 options, writes the explanation and may remove already retrieved tracks that do not suit the goal; it never names or adds one. Last.fm only supplies tag data that the deterministic code uses.</p>
+  </div>
+
+  <!-- F6 -->
+  <div class="feature">
+  <h3>F06 Natural-Language Playlist Modification</h3>
+  <table class="fields">
+    <tr><th>Feature ID and name</th><td>F06 Natural-Language Playlist Modification (UC07, SD02)</td></tr>
+    <tr><th>Stage 1 reference</th><td>F6</td></tr>
+    <tr><th>Status</th><td>Modified (editor class; snapshot before each change; undo across runs; playlist list)</td></tr>
+    <tr><th>Classes / files and responsibilities</th><td>
+      <code>agent/PlaylistEditor</code> (instruction to an <code>EditPlan</code> of <code>CommandSpec</code>s; mood-only heuristic); <code>agent/ResponseParser.forPlaylist(...).parseCommands</code> (binds specs to real tracks); <code>agent/ConstraintChecker.checkEdit</code> (F11 for edits);
+      <code>agent/command/PlaylistManager</code> (invoker: snapshot, batch, undo) with <code>AddItemsCommand</code>, <code>RemoveTrackCommand</code>, <code>ReplaceTrackCommand</code>, <code>ReorderCommand</code>, <code>BatchCommand</code>; <code>agent/PlaylistValidator</code>; <code>app/view/PlaylistView</code>.</td></tr>
+    <tr><th>Key methods</th><td><code>AppController.modifyPlaylist</code>, <code>undo</code>, <code>getPlaylists</code>, <code>getPlaylist</code>; <code>MusicAgentFacade.modifyPlaylist</code>; <code>PlaylistEditor.plan</code>; <code>ConstraintChecker.checkEdit</code>; <code>PlaylistManager.modify</code>, <code>undo</code>; <code>PlaylistCommand.execute</code>/<code>undo</code>/<code>simulate</code>.</td></tr>
+    <tr><th>Design patterns</th><td>Command, Facade, Adapter, Repository, MVC</td></tr>
+    <tr><th>Video link / timestamp</th><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+  </table>
+  <p><strong>How it works.</strong> The user selects a playlist and types an instruction such as "make it 15 minutes shorter". The facade reads the playlist; <code>PlaylistEditor</code> asks the LLM for steps, and a feeling-only edit ("calmer") uses the genre heuristic and is flagged "Approximate". Tracks to add come from Spotify search. Before any write the edit is simulated: if it would add violations the editor re-plans (bounded), and if it would leave the playlist outside its length limits F11 offers a partial edit. <code>PlaylistManager.modify</code> saves a snapshot, then applies one undoable <code>BatchCommand</code>. The playlist is re-validated and a change summary is shown. <code>undo</code> reverses the last change, using the stored snapshot when the process is new (each CLI run is a new process). An ambiguous instruction produces a question and changes nothing.
+  <strong>Type: hybrid.</strong></p>
+  </div>
+
+  <!-- F7 -->
+  <div class="feature">
+  <h3>F07 Playlist Constraint Validation</h3>
+  <table class="fields">
+    <tr><th>Feature ID and name</th><td>F07 Playlist Constraint Validation (UC08)</td></tr>
+    <tr><th>Stage 1 reference</th><td>F7</td></tr>
+    <tr><th>Status</th><td>Modified (blocked tracks added; blocks in force now; target length follows edits)</td></tr>
+    <tr><th>Classes / files and responsibilities</th><td>
+      <code>agent/PlaylistValidator</code> (pure rule checks); <code>domain/ValidationResult</code> (pass or fail per rule and the offending track ids); <code>domain/PlaylistSpec</code> (the constraints); <code>controller/PlaylistTargets</code> (a playlist's target length over time); <code>app/view/PlaylistView</code> (badges through <code>ViewFormat.badges</code>).</td></tr>
+    <tr><th>Key methods</th><td><code>AppController.validatePlaylist</code>, <code>lastValidationTargetMinutes</code>; <code>MusicAgentFacade.validatePlaylist</code>; <code>PlaylistValidator.validate</code>, <code>durationStatus</code>, <code>introducedViolations</code>; <code>ValidationResult.offending</code>.</td></tr>
+    <tr><th>Design patterns</th><td>Facade, MVC (the validator is also the check inside the State pattern's <code>ValidatingState</code>)</td></tr>
+    <tr><th>Video link / timestamp</th><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+  </table>
+  <p><strong>How it works.</strong> <code>validate &lt;id&gt;</code> / the badge on the Playlists screen reads the playlist and judges it against the rules: explicit content, duplicates by id, target duration within tolerance, blocked artists, blocked tracks, and minimum and maximum track count. The spec saved with the creating run supplies the constraints, except that the blocks in force now always apply. The result lists which rule failed and which tracks offend; the same validator drives the adjustment loops in F5 and F6. <strong>Type: deterministic</strong> (no LLM).</p>
+  </div>
+
+  <!-- F8 -->
+  <div class="feature">
+  <h3>F08 Preference Memory</h3>
+  <table class="fields">
+    <tr><th>Feature ID and name</th><td>F08 Preference Memory (UC09)</td></tr>
+    <tr><th>Stage 1 reference</th><td>F8</td></tr>
+    <tr><th>Status</th><td>Modified (artists typed by name stored as ids; choose-then-block calls; safe defaults)</td></tr>
+    <tr><th>Classes / files and responsibilities</th><td>
+      <code>agent/PreferenceSettings</code> (validation and reading of the keys <code>blockedArtists</code>, <code>blockedTracks</code>, <code>explicitPolicy</code>, <code>familiarBias</code>, <code>preferredStyles</code>); <code>memory/MemoryManager</code> + <code>memory/repository/PreferenceRepository</code> (PostgreSQL); <code>tool/MemoryTool</code>; <code>app/view/PreferencesView</code>, <code>cli/CliApp</code>.</td></tr>
+    <tr><th>Key methods</th><td><code>AppController.parsePreference</code>, <code>setPreference</code>, <code>getPreferences</code>, <code>displayPreference</code>, <code>findArtists</code>, <code>findTracks</code>, <code>blockArtist</code>, <code>blockTrack</code>, <code>savedFamiliarBias</code>; <code>MemoryManager.savePreference</code>, <code>loadPreferences</code>.</td></tr>
+    <tr><th>Design patterns</th><td>Repository, Facade, MVC</td></tr>
+    <tr><th>Video link / timestamp</th><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+  </table>
+  <p><strong>How it works.</strong> <code>prefs set &lt;key&gt; &lt;value&gt;</code> (or Save on the Your Rules screen) is validated (for example <code>familiarBias</code> must be between 0 and 1), turned into ids (an artist typed by name is looked up and stored as a Spotify id; names are read for display and never stored) and saved by the repository. F4, F5 and F6 read these preferences. If the database is down the app keeps running with safe defaults and warns; blocking is refused when the stored preferences cannot be read so existing blocks are never overwritten. <strong>Type: deterministic.</strong></p>
+  </div>
+
+  <!-- F9 -->
+  <div class="feature">
+  <h3>F09 Recommendation Feedback</h3>
+  <table class="fields">
+    <tr><th>Feature ID and name</th><td>F09 Recommendation Feedback (UC10, SD04)</td></tr>
+    <tr><th>Stage 1 reference</th><td>F9</td></tr>
+    <tr><th>Status</th><td>Implemented (the track id is now validated before saving)</td></tr>
+    <tr><th>Classes / files and responsibilities</th><td>
+      <code>AppController</code> (<code>requireTrackId</code> checks the id); <code>memory/MemoryManager</code> + <code>memory/repository/FeedbackRepository</code> (one verdict per user and track); <code>domain/Feedback</code>, <code>Verdict</code>; <code>agent/RecommendationEngine</code> (score boost or penalty); <code>app/view/FeedbackBar</code>.</td></tr>
+    <tr><th>Key methods</th><td><code>AppController.recordFeedback</code>, <code>requireTrackId</code>; <code>MemoryManager.saveFeedback</code>; <code>RecommendationEngine.score</code>.</td></tr>
+    <tr><th>Design patterns</th><td>Repository, Facade, Strategy (the stored verdict changes later scores), MVC</td></tr>
+    <tr><th>Video link / timestamp</th><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+  </table>
+  <p><strong>How it works.</strong> Like or not-for-me on a song row (or <code>feedback &lt;trackId&gt; accept|reject</code>) passes through <code>requireTrackId</code> (22 letters or digits, or a <code>spotify:track:</code> URI); a bad id saves nothing. The verdict is upserted by user and track, and later <code>RecommendationEngine.score</code> calls boost accepted and penalise rejected tracks. <strong>Type: deterministic.</strong></p>
+  </div>
+
+  <!-- F10 -->
+  <div class="feature">
+  <h3>F10 Grounded Recommendation Explanation</h3>
+  <table class="fields">
+    <tr><th>Feature ID and name</th><td>F10 Grounded Recommendation Explanation (UC11)</td></tr>
+    <tr><th>Stage 1 reference</th><td>F10</td></tr>
+    <tr><th>Status</th><td>Modified (stricter checks; titles shown from the run; explain by playlist id)</td></tr>
+    <tr><th>Classes / files and responsibilities</th><td>
+      <code>agent/ExplanationService</code> (builds the explanation from a session); <code>domain/DecisionTrace</code> (strategy, per-track reasons, constraints met, requested genres, stored with the session); <code>agent/PromptBuilder.buildExplainPrompt</code>; <code>agent/ResponseParser.verifyExplanation</code> (rejects numbers, quoted names, genres or preference claims the trace does not record); <code>app/view/WhyExpander</code>.</td></tr>
+    <tr><th>Key methods</th><td><code>AppController.explain</code> (a session id or a playlist id); <code>MusicAgentFacade.explain</code>; <code>ExplanationService.explain</code>; <code>ResponseParser.verifyExplanation</code>.</td></tr>
+    <tr><th>Design patterns</th><td>Facade, Repository, MVC</td></tr>
+    <tr><th>Video link / timestamp</th><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+  </table>
+  <p><strong>How it works.</strong> The explain request reads the decision trace stored by the creating run, gives only those recorded facts to the LLM, and then <code>verifyExplanation</code> checks the reply. A rejected or missing reply is replaced by a computed sentence labelled as such; a missing trace gives a general note. The prompt forbids saying that a track fits a mood or goal unless its own recorded reason says so. <strong>Type: AI with a checked, computed fallback.</strong></p>
+  </div>
+
+  <!-- F11 -->
+  <div class="feature">
+  <h3>F11 Infeasible-Constraint Negotiation</h3>
+  <table class="fields">
+    <tr><th>Feature ID and name</th><td>F11 Infeasible-Constraint Negotiation (UC12)</td></tr>
+    <tr><th>Stage 1 reference</th><td>F11</td></tr>
+    <tr><th>Status</th><td>Implemented (extra relaxation kinds; applies to create and to modify)</td></tr>
+    <tr><th>Classes / files and responsibilities</th><td>
+      <code>agent/ConstraintChecker</code> (<code>checkFeasibility</code> on a <code>CandidatePool</code>, <code>checkEdit</code> on an edit); <code>domain/FeasibilityReport</code>, <code>Relaxation</code> (shorten, change the share, allow explicit, apply only part of an edit); <code>agent/Planner.phraseOptions</code> (the LLM words the options, used only if it returns one sentence per option) and <code>Planner.regenerate</code>; <code>agent/NegotiationHandler</code> (the choice callback); <code>agent/state/Negotiator</code> (one round); <code>app/view/NegotiationDialog</code>, the CLI prompt.</td></tr>
+    <tr><th>Key methods</th><td><code>ConstraintChecker.checkFeasibility</code>, <code>checkEdit</code>; <code>Planner.phraseOptions</code>, <code>regenerate</code>; <code>NegotiationHandler.choose</code>.</td></tr>
+    <tr><th>Design patterns</th><td>State (it runs inside <code>RetrievingState</code>), Facade, MVC</td></tr>
+    <tr><th>Video link / timestamp</th><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+  </table>
+  <p><strong>How it works.</strong> When the eligible pool cannot satisfy the request (for example 600 minutes of only familiar tracks) or an edit would empty the playlist, the checker counts what is available and builds relaxations. The LLM words them; the CLI prompts or the GUI shows a dialog; the user's choice is applied (the plan is regenerated, or only part of the edit is applied). Cancelling writes nothing to Spotify. With no handler or no possible relaxation the run stops with an explanation. <strong>Type: hybrid</strong> (the feasibility check is computed; the LLM only words the options).</p>
+  </div>
+
+  <!-- F12 -->
+  <div class="feature">
+  <h3>F12 Agent History and Snapshot/Restore</h3>
+  <table class="fields">
+    <tr><th>Feature ID and name</th><td>F12 Agent History and Snapshot/Restore (UC13, SD02)</td></tr>
+    <tr><th>Stage 1 reference</th><td>F12</td></tr>
+    <tr><th>Status</th><td>Modified (open one session; restore saves the current version first; recreate a missing playlist)</td></tr>
+    <tr><th>Classes / files and responsibilities</th><td>
+      <code>memory/MemoryManager</code> with <code>SessionRepository</code> and <code>PlaylistHistoryRepository</code> (sessions, and snapshots that hold ids and the playlist name only); <code>agent/command/PlaylistManager</code> and <code>RestoreSnapshotCommand</code> (replay a snapshot as an undoable command); <code>domain/SnapshotInfo</code>; <code>app/view/HistoryView</code>.</td></tr>
+    <tr><th>Key methods</th><td><code>AppController.getHistory</code>, <code>getSession</code>, <code>getSnapshots</code>, <code>restore</code>, <code>recreateFromSnapshot</code>; <code>MemoryManager.loadHistory</code>, <code>loadSnapshot</code>, <code>saveSnapshot</code>; <code>PlaylistManager.restoreFrom</code>.</td></tr>
+    <tr><th>Design patterns</th><td>Command, Repository, Facade, MVC</td></tr>
+    <tr><th>Video link / timestamp</th><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+  </table>
+  <p><strong>How it works.</strong> <code>history</code> lists sessions newest first and the saved playlist versions; <code>history &lt;id&gt;</code> opens one session's request, plan and result. <code>restore &lt;snapshotId&gt;</code> first saves the playlist's current content (so the restore can be undone), then replays the snapshot through <code>RestoreSnapshotCommand</code> and re-reads titles from Spotify when needed. If the Spotify playlist no longer exists, <code>PlaylistMissingException</code> is raised and the interface offers to recreate it with <code>CreatePlaylistCommand</code>. A restore of an unchanged playlist says that nothing changed. <strong>Type: deterministic.</strong></p>
+  </div>
+
+  <!-- New -->
+  <div class="feature">
+  <h3>New: Delete a playlist</h3>
+  <table class="fields">
+    <tr><th>Feature ID and name</th><td>New: Delete a playlist (UC14, added in Stage 2)</td></tr>
+    <tr><th>Stage 1 reference</th><td>New</td></tr>
+    <tr><th>Status</th><td>Implemented (added). CLI only; no GUI control yet.</td></tr>
+    <tr><th>Classes / files and responsibilities</th><td>
+      <code>agent/command/DeletePlaylistCommand</code> (calls <code>MusicService.unfollowPlaylist</code>, Spotify's only delete); <code>PlaylistManager.delete</code> (saves a snapshot first and removes nothing if it cannot); <code>MusicAgentFacade.deletePlaylist</code> (refuses a playlist not in the user's own list); <code>cli/CliApp</code> (asks for the playlist name to be typed).</td></tr>
+    <tr><th>Key methods</th><td><code>AppController.deletePlaylist</code> (returns the snapshot id); <code>MusicAgentFacade.deletePlaylist</code>; <code>PlaylistManager.delete</code>; <code>MusicService.unfollowPlaylist</code>.</td></tr>
+    <tr><th>Design patterns</th><td>Command, Adapter, Facade</td></tr>
+    <tr><th>Video link / timestamp</th><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+  </table>
+  <p><strong>How it works.</strong> <code>delete &lt;playlistId&gt;</code> checks that the playlist is the user's own, saves a snapshot, asks the user to type the playlist's name, and only then unfollows it. The command is not pushed on the undo stack because Spotify cannot restore a playlist under its old id; the way back is F12 (<code>restore</code> reports the playlist missing and offers to recreate it). <strong>Type: deterministic.</strong> <em>Not yet run against the real account.</em></p>
+  </div>
+
+  <h3>Interfaces</h3>
+  <p><strong>CLI</strong> (<code>cli/CliApp</code>): an instance built from a controller factory and input and output streams so tests can drive it. Commands: <code>login</code>, <code>help</code>, <code>exit</code>, <code>profile</code>, <code>trends</code>, <code>search</code>, <code>candidates</code>, <code>discover</code>, <code>create</code>, <code>playlists</code>, <code>show</code>, <code>modify</code>, <code>undo</code>, <code>validate</code>, <code>prefs</code>, <code>feedback</code>, <code>explain</code>, <code>history</code>, <code>restore</code>, <code>delete</code>. Exit status 0 means done, 1 could not complete, 2 wrong command or arguments. With no arguments it runs an interactive session.
+  <strong>GUI</strong> (<code>app/GuiApp</code>, <code>app/view/*</code>): a dark, Spotify-like theme (<code>musicmind.css</code>) with a left-hand menu of seven screens (Your Taste, Trends, Find Songs, Discover, Playlists, Your Rules, History), each with a title and a one-line description; one shared song row (<code>TrackRow</code>) with artist names, like and not-for-me icons, "+ Add", "Block" or "Remove"; a Create playlist dialog, a confirm dialog (<code>ConfirmDialog</code>, used for Delete) and the F11 dialog. The footer credits Spotify, MusicBrainz and Last.fm. One background worker (<code>app/view/GuiContext.java</code>) runs every controller call, and opening the window contacts neither Spotify nor the browser.</p>
+  <!-- REFRESH BEFORE SUBMISSION -->
+  <div class="note"><strong>Screenshots pending.</strong> This report contains no screenshot of the GUI. Screenshots of the redesigned GUI will be retaken after the owner's test of it; until then the GUI is described in words only. The updated UML in Section 3 was drawn before the Last.fm classes (<code>TagService</code>, <code>LastFmAdapter</code>, <code>TrackTagFit</code>) and the Nov 4 view classes (<code>TrackRow</code>, <code>ConfirmDialog</code>) were added, so it does not show them; they are described in the tables of Sections 2 and 3.</div>
+</section>
+
+<!-- ============================ SECTION 3 ============================ -->
+<section class="page">
+  <h2>3 Implemented design patterns</h2>
+  <p>Five patterns are counted for the course: <strong>Adapter, Strategy, Command, State and Facade</strong>, as in Stage 1. MVC, Repository and Decorator are also used and are not counted. Each is explained below with its problem, participants, files and methods, and whether it matches Stage 1. Details by class are also in <code>docs/STAGE1_CONFORMANCE.md</code>, section 4.</p>
+
+  <div class="keep"><h3>3.1 Adapter</h3>
+  <p><strong>Problem.</strong> The core must not depend on the wire formats of Spotify, MusicBrainz, Last.fm or OpenAI, which change (Spotify removed endpoints in November 2024 and February 2026). <strong>Matches Stage 1:</strong> yes; the MusicBrainz adapter (R18) and the Last.fm adapter are new.</p>
+  <table>
+    <thead><tr><th style="width:42mm">Class / interface</th><th style="width:22mm">Role</th><th>Responsibility</th></tr></thead>
+    <tr><td><code>music/MusicService</code></td><td>Target</td><td>Stable operations the agent uses: <code>getTopArtists</code>, <code>search</code>, <code>createPlaylist</code>, <code>addItems</code>, <code>unfollowPlaylist</code>, <code>getUserPlaylists</code>, and so on.</td></tr>
+    <tr><td><code>music/SpotifyAdapter</code></td><td>Adapter</td><td>Translates each call into Spotify HTTP requests (PKCE sign-in through <code>OAuthTokenStore</code>) and maps JSON to <code>Track</code>, <code>Artist</code>, <code>Playlist</code>. Knows the February 2026 shapes (<code>/items</code>, 10 results per search).</td></tr>
+    <tr><td><code>music/GenreService</code> / <code>MusicBrainzAdapter</code></td><td>Target / Adapter</td><td>Looks up an artist's genres in MusicBrainz, rate-limited, with an outage pause.</td></tr>
+    <tr><td><code>music/TagService</code> / <code>LastFmAdapter</code></td><td>Target / Adapter</td><td><code>topTracks(tag, limit)</code> and <code>trackTags(artist, title)</code> hide the Last.fm <code>tag.gettoptracks</code> and <code>track.gettoptags</code> calls and their JSON (a single-object <code>track</code> reply, a malformed element, error 6). <code>TagService.NONE</code> is used with no key. An error message never carries the key or a title.</td></tr>
+    <tr><td><code>llm/LLMProvider</code> / <code>OpenAiProvider</code></td><td>Target / Adapter</td><td><code>complete(prompt)</code> hides the OpenAI chat API.</td></tr>
+    <tr><td>Agent classes, <code>ToolManager</code></td><td>Clients</td><td>Depend only on the interfaces.</td></tr>
+  </table>
+  <p><strong>Why useful.</strong> All Spotify knowledge is in one class, and the tests replace Spotify with a local HTTP server (<code>SpotifyAdapterTest</code>) and the LLM with a mock without touching the agent.</p>
+
+  </div>
+<div class="keep"><h3>3.2 Strategy</h3>
+  <p><strong>Problem.</strong> F4 and F5 need different mixes of familiar and new music, chosen at run time. <strong>Matches Stage 1:</strong> yes; <code>AbstractRecommendationStrategy.bindProfile(profile)</code> was added (R7) because the helper methods need the listener's profile.</p>
+  <table>
+    <thead><tr><th style="width:52mm">Class / interface</th><th style="width:22mm">Role</th><th>Responsibility</th></tr></thead>
+    <tr><td><code>agent/strategy/RecommendationStrategy</code></td><td>Strategy</td><td><code>selectCandidates(pools, spec)</code>.</td></tr>
+    <tr><td><code>AbstractRecommendationStrategy</code></td><td>Base</td><td>Shared helpers <code>scoreFamiliarity</code>, <code>excludeKnown</code>; the bound profile.</td></tr>
+    <tr><td><code>FamiliarStrategy</code>, <code>DiscoveryStrategy</code>, <code>BalancedStrategy</code></td><td>Concrete strategies</td><td>Prefer known artists; prefer new music; mix by ratio.</td></tr>
+    <tr><td><code>agent/RecommendationEngine</code></td><td>Context</td><td>Holds the strategy (<code>setStrategy</code>) and delegates selection; adds scoring and exclusion.</td></tr>
+    <tr><td><code>agent/strategy/StrategySelector</code></td><td>Chooser</td><td>Picks the strategy from the request or novelty setting.</td></tr>
+  </table>
+  <p><strong>Why useful.</strong> A new policy is a new class. <code>StrategyTest</code> and <code>StrategySelectorTest</code> test each in isolation. F4 uses the strategy the user's novelty setting selects; F5 uses <code>BalancedStrategy</code>.</p>
+
+  </div>
+<div class="keep"><h3>3.3 Command</h3>
+  <p><strong>Problem.</strong> Playlist edits must be discrete, reversible, composable operations, recorded for history and undoable, including across separate CLI runs. <strong>Matches Stage 1:</strong> yes; three commands were added and undo also works from stored snapshots (R10).</p>
+  <table>
+    <thead><tr><th style="width:52mm">Class / interface</th><th style="width:22mm">Role</th><th>Responsibility</th></tr></thead>
+    <tr><td><code>agent/command/PlaylistCommand</code></td><td>Command</td><td><code>execute()</code>, <code>undo()</code>, plus <code>simulate</code>, <code>describe</code>, <code>playlistId</code>.</td></tr>
+    <tr><td><code>CreatePlaylistCommand</code>, <code>AddItemsCommand</code>, <code>RemoveTrackCommand</code>, <code>ReplaceTrackCommand</code>, <code>ReorderCommand</code></td><td>Concrete commands (Stage 1)</td><td>One operation each; removal and replacement re-add and reorder on undo.</td></tr>
+    <tr><td><code>BatchCommand</code>, <code>RestoreSnapshotCommand</code>, <code>DeletePlaylistCommand</code></td><td>Concrete commands (added)</td><td>One undo step for an edit; replay a saved version; unfollow a playlist.</td></tr>
+    <tr><td><code>agent/command/PlaylistManager</code></td><td>Invoker</td><td>Holds the history Deque; <code>execute</code>, <code>executeAll</code> (rolls back applied commands if one fails), <code>modify</code> (snapshot first), <code>undo</code>, <code>restoreFrom</code>, <code>delete</code>.</td></tr>
+    <tr><td><code>music/MusicService</code></td><td>Receiver</td><td>Performs the change on Spotify.</td></tr>
+  </table>
+  <p><strong>Why useful.</strong> F6 undo and F12 restore share one mechanism, and a failed multi-step change is undone instead of leaving a half-changed playlist.</p>
+
+  </div>
+<div class="keep"><h3>3.4 State</h3>
+  <p><strong>Problem.</strong> A create run moves through ordered phases with different actions and failure handling in each. <strong>Matches Stage 1:</strong> yes; shared run data lives in <code>RunContext</code> and <code>RunServices</code>.</p>
+  <table>
+    <thead><tr><th style="width:52mm">Class / interface</th><th style="width:22mm">Role</th><th>Responsibility</th></tr></thead>
+    <tr><td><code>agent/state/SessionState</code></td><td>State</td><td><code>handle(session)</code>, <code>name()</code>, <code>isTerminal()</code>.</td></tr>
+    <tr><td><code>IdleState</code>, <code>PlanningState</code>, <code>RetrievingState</code>, <code>SelectingState</code>, <code>ValidatingState</code>, <code>ExecutingState</code>, <code>DoneState</code>, <code>FailedState</code></td><td>Concrete states</td><td>Each performs its phase and sets the next state; <code>FailedState</code> centralises rollback and reporting.</td></tr>
+    <tr><td><code>domain/AgentSession</code></td><td>Context</td><td><code>setState</code>, <code>getState</code>, <code>run()</code> loops until a terminal state.</td></tr>
+    <tr><td><code>RunContext</code>, <code>RunServices</code>, <code>Negotiator</code></td><td>Support</td><td>Data and collaborators of one run; one F11 round.</td></tr>
+  </table>
+  <p><strong>Why useful.</strong> The flow is explicit and testable (<code>CreatePlaylistFlowTest</code> checks the lifecycle, bounded retries, token renewal and rollback), and the GUI shows the state names as progress.</p>
+
+  </div>
+<div class="keep"><h3>3.5 Facade</h3>
+  <p><strong>Problem.</strong> The GUI and CLI need one simple entry point over many collaborators, without duplicating orchestration. <strong>Matches Stage 1:</strong> yes; <code>AppController</code> adds the <code>last*()</code> accessors the interfaces need (R9).</p>
+  <table>
+    <thead><tr><th style="width:52mm">Class</th><th style="width:22mm">Role</th><th>Responsibility</th></tr></thead>
+    <tr><td><code>controller/MusicAgentFacade</code></td><td>Facade</td><td>Coarse operations: <code>analyzeTaste</code>, <code>analyzeTrends</code>, <code>searchMusic</code>, <code>discover</code>, <code>createPlaylist</code>, <code>modifyPlaylist</code>, <code>validatePlaylist</code>, <code>explain</code>, <code>restore</code>, <code>deletePlaylist</code>.</td></tr>
+    <tr><td><code>Planner</code>, <code>ToolManager</code>, <code>RecommendationEngine</code>, <code>PlaylistManager</code>, <code>PlaylistValidator</code>, <code>ConstraintChecker</code>, <code>MemoryManager</code>, <code>ExplanationService</code></td><td>Subsystem</td><td>Coordinated by the facade.</td></tr>
+    <tr><td><code>controller/AppController</code></td><td>Client entry</td><td>The one class both interfaces call; it holds no business logic of its own beyond input checks.</td></tr>
+  </table>
+
+  </div>
+<div class="keep"><h3>3.6 Also used (not counted)</h3>
+  <ul>
+    <li><strong>MVC.</strong> Views (<code>app/view/*</code> and the CLI) call <code>AppController</code>; the domain classes are the model. Matches Stage 1.</li>
+    <li><strong>Repository.</strong> <code>Repository&lt;T&gt;</code> with <code>PreferenceRepository</code>, <code>FeedbackRepository</code>, <code>SessionRepository</code>, <code>PlaylistHistoryRepository</code>, <code>CandidateRepository</code> behind <code>MemoryManager</code>; <code>GenreRepository</code> caches genres. <code>CandidateRepository</code> and <code>GenreRepository</code> are new.</li>
+    <li><strong>Decorator.</strong> <code>RetryingMusicService</code> (backoff on HTTP 429; safe retries only) and <code>GenreEnrichingMusicService</code> (fills artist genres) wrap a <code>MusicService</code> without changing it. <code>GenreEnrichingMusicService</code> is new (R18).</li>
+  </ul>
+</div>
+</section>
+
+<!-- UML figures: each page is one readable crop of a diagram (full PNGs are in docs/diagrams/png/) -->
+<section class="wide fig"><div class="figtitle">3.7 Updated class diagram (application and agent architecture): overview</div>
+  <figure class="land"><img src="../diagrams/png/MusicMind_ClassArchitecture.png" alt="3.7 Updated class diagram (application and agent architecture): overview"><figcaption>Figure 3.1. Overview of the whole diagram. It is too dense to read at this size; the next four pages show it in four readable quarters. Yellow = new in Stage 2; blue = a Stage 1 element with Stage 2 additions; white = unchanged. Small supporting classes are left out (<code>docs/STAGE1_CONFORMANCE.md</code>, section 6). Full PNG: <code>docs/diagrams/png/MusicMind_ClassArchitecture.png</code>; source: <code>docs/diagrams/uxf/</code>; Stage 1 version: <code>docs/diagrams/png/stage1/</code>.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.7 Class diagram, quarter 1 of 4 (top left)</div>
+  <figure class="land"><img src="figures/class_1.png" alt="3.7 Class diagram, quarter 1 of 4 (top left)"><figcaption>Figure 3.1 (continued). Crops overlap slightly. Colours as in the overview.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.7 Class diagram, quarter 2 of 4 (top right)</div>
+  <figure class="land"><img src="figures/class_2.png" alt="3.7 Class diagram, quarter 2 of 4 (top right)"><figcaption>Figure 3.1 (continued). Crops overlap slightly. Colours as in the overview.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.7 Class diagram, quarter 3 of 4 (bottom left)</div>
+  <figure class="land"><img src="figures/class_3.png" alt="3.7 Class diagram, quarter 3 of 4 (bottom left)"><figcaption>Figure 3.1 (continued). Crops overlap slightly. Colours as in the overview.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.7 Class diagram, quarter 4 of 4 (bottom right)</div>
+  <figure class="land"><img src="figures/class_4.png" alt="3.7 Class diagram, quarter 4 of 4 (bottom right)"><figcaption>Figure 3.1 (continued). Crops overlap slightly. Colours as in the overview.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.8 Updated domain model, part 1 of 2 (top half)</div>
+  <figure class="land"><img src="figures/domain_1.png" alt="3.8 Updated domain model, part 1 of 2 (top half)"><figcaption>Figure 3.2. Domain model. New types include <code>TopItems</code>, <code>PlaylistSummary</code>, <code>SnapshotInfo</code>, <code>TrendReport</code>, <code>RangeChange</code>, <code>SearchQuery</code>, <code>FeasibilityReport</code>, <code>Relaxation</code>, <code>DecisionTrace</code>; new fields include <code>PlaylistSpec.blockedTracks</code>, <code>AgentRequest.useCandidates</code>, <code>Track.artistNames</code>.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.8 Updated domain model, part 2 of 2 (bottom half)</div>
+  <figure class="land"><img src="figures/domain_2.png" alt="3.8 Updated domain model, part 2 of 2 (bottom half)"><figcaption>Figure 3.2. Domain model. New types include <code>TopItems</code>, <code>PlaylistSummary</code>, <code>SnapshotInfo</code>, <code>TrendReport</code>, <code>RangeChange</code>, <code>SearchQuery</code>, <code>FeasibilityReport</code>, <code>Relaxation</code>, <code>DecisionTrace</code>; new fields include <code>PlaylistSpec.blockedTracks</code>, <code>AgentRequest.useCandidates</code>, <code>Track.artistNames</code>.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.9 SD01 create playlist, part 1 of 6 (top left)</div>
+  <figure class="land"><img src="figures/sd01_1.png" alt="SD01 part 1"><figcaption>Figure 3.3. SD01 redrawn as the State pattern runs it: Planning, Retrieving (goal review sends only track ids and MusicBrainz genres), Selecting (pick review loop), Validating (loop back), Executing, Done; F11 negotiation and token renewal. Orange = new in Stage 2. Crops overlap slightly; full PNG in <code>docs/diagrams/png/</code>.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.9 SD01 create playlist, part 2 of 6 (top right)</div>
+  <figure class="land"><img src="figures/sd01_2.png" alt="SD01 part 2"><figcaption>Figure 3.3. SD01 redrawn as the State pattern runs it: Planning, Retrieving (goal review sends only track ids and MusicBrainz genres), Selecting (pick review loop), Validating (loop back), Executing, Done; F11 negotiation and token renewal. Orange = new in Stage 2. Crops overlap slightly; full PNG in <code>docs/diagrams/png/</code>.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.9 SD01 create playlist, part 3 of 6 (middle left)</div>
+  <figure class="land"><img src="figures/sd01_3.png" alt="SD01 part 3"><figcaption>Figure 3.3. SD01 redrawn as the State pattern runs it: Planning, Retrieving (goal review sends only track ids and MusicBrainz genres), Selecting (pick review loop), Validating (loop back), Executing, Done; F11 negotiation and token renewal. Orange = new in Stage 2. Crops overlap slightly; full PNG in <code>docs/diagrams/png/</code>.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.9 SD01 create playlist, part 4 of 6 (middle right)</div>
+  <figure class="land"><img src="figures/sd01_4.png" alt="SD01 part 4"><figcaption>Figure 3.3. SD01 redrawn as the State pattern runs it: Planning, Retrieving (goal review sends only track ids and MusicBrainz genres), Selecting (pick review loop), Validating (loop back), Executing, Done; F11 negotiation and token renewal. Orange = new in Stage 2. Crops overlap slightly; full PNG in <code>docs/diagrams/png/</code>.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.9 SD01 create playlist, part 5 of 6 (bottom left)</div>
+  <figure class="land"><img src="figures/sd01_5.png" alt="SD01 part 5"><figcaption>Figure 3.3. SD01 redrawn as the State pattern runs it: Planning, Retrieving (goal review sends only track ids and MusicBrainz genres), Selecting (pick review loop), Validating (loop back), Executing, Done; F11 negotiation and token renewal. Orange = new in Stage 2. Crops overlap slightly; full PNG in <code>docs/diagrams/png/</code>.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.9 SD01 create playlist, part 6 of 6 (bottom right)</div>
+  <figure class="land"><img src="figures/sd01_6.png" alt="SD01 part 6"><figcaption>Figure 3.3. SD01 redrawn as the State pattern runs it: Planning, Retrieving (goal review sends only track ids and MusicBrainz genres), Selecting (pick review loop), Validating (loop back), Executing, Done; F11 negotiation and token renewal. Orange = new in Stage 2. Crops overlap slightly; full PNG in <code>docs/diagrams/png/</code>.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.10 SD02 modify playlist with undo, part 1 of 2 (top half)</div>
+  <figure class="land"><img src="figures/sd02_1.png" alt="3.10 SD02 modify playlist with undo, part 1 of 2 (top half)"><figcaption>Figure 3.4. SD02: <code>PlaylistEditor</code> replaces the direct LLM and parser calls; adjustment loop; F11 partial edit; snapshot before every modify; undo from the latest snapshot when the history is empty.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.10 SD02 modify playlist with undo, part 2 of 2 (bottom half)</div>
+  <figure class="land"><img src="figures/sd02_2.png" alt="3.10 SD02 modify playlist with undo, part 2 of 2 (bottom half)"><figcaption>Figure 3.4. SD02: <code>PlaylistEditor</code> replaces the direct LLM and parser calls; adjustment loop; F11 partial edit; snapshot before every modify; undo from the latest snapshot when the history is empty.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.11 SD03 taste profile, part 1 of 2 (top half)</div>
+  <figure class="land"><img src="figures/sd03_1.png" alt="3.11 SD03 taste profile, part 1 of 2 (top half)"><figcaption>Figure 3.5. SD03: stored profile (R5), genres from MusicBrainz through the decorator and its cache (R1, R18), <code>TopItems</code>, labelled fallback summary.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.11 SD03 taste profile, part 2 of 2 (bottom half)</div>
+  <figure class="land"><img src="figures/sd03_2.png" alt="3.11 SD03 taste profile, part 2 of 2 (bottom half)"><figcaption>Figure 3.5. SD03: stored profile (R5), genres from MusicBrainz through the decorator and its cache (R1, R18), <code>TopItems</code>, labelled fallback summary.</figcaption></figure></section>
+<section class="wide fig"><div class="figtitle">3.12 SD04 discover and feedback</div>
+  <figure class="land"><img src="../diagrams/png/MusicMind_SD04_Discover.png" alt="3.12 SD04 discover and feedback"><figcaption>Figure 3.6. SD04: preference merge, strategy choice, library tracks excluded, no LLM call; feedback goes from <code>AppController</code> to <code>MemoryManager</code>.</figcaption></figure></section>
+<section class="page">
+  <h3 style="margin-top:0">3.13 Updated use-case diagram</h3>
+  <figure class="port"><img src="../diagrams/png/MusicMind_UseCase.png" alt="Updated use-case diagram">
+  <figcaption>Figure 3.7. Use cases. New: UC14 Delete Playlist. UC07 now includes UC12 (an infeasible edit is negotiated). UC05 no longer uses the LLM (F4 never calls it).</figcaption></figure>
+  <p class="small">The class and domain diagrams were generated from a script for layout, and every name on them was checked against <code>src/main</code> by search. Diagram notes are in <code>docs/diagrams/README.md</code>.</p>
+</section>
+
+<!-- ============================ SECTION 4 ============================ -->
+<section class="page">
+  <h2>4 Changes and rationale</h2>
+  <p>This section is the consolidated record in the form <strong>Original design &rarr; Implemented change &rarr; Reason &rarr; Impact</strong>. 4.1 covers features (items 1-5 of the instructions), 4.2 covers design patterns (items 6-10), and 4.3 covers architecture, class and platform changes. The full entries, with evidence, are in <code>docs/STAGE2_PLAN.md</code>. No Stage 1 feature was removed or replaced. One feature is new (Delete). "R1" to "R20" are the rulings in <code>docs/STAGE2_IMPLEMENTATION_PLAN.md</code> for places where Stage 1 was silent or inconsistent.</p>
+
+  <h3>4.1 Feature changes</h3>
+  <p class="small">For each feature: (1) original feature and ID; (2) implemented feature and behaviour; (3) what changed and why; (4) how the original need is still met, or how scope changed; (5) affected use cases, classes, methods and patterns. F9 and F11 were not substantially modified and are noted at the end.</p>
+
+  <dl class="chg">
+    <dt>F1 Music Taste Profile (Modified)</dt>
+    <dd><strong>1.</strong> Stage 1 F1: genres read from Spotify artist metadata; the profile is "persisted".<br><strong>2.</strong> Genres come from MusicBrainz via <code>GenreEnrichingMusicService</code>; <code>profile</code> shows the stored profile and <code>--refresh</code> rebuilds; <code>--range week|short|medium|long</code> added (the week range is built from the recent plays, Nov 4); the stored profile holds ids, counts and the summary only; coverage and a capped library are reported.<br><strong>3.</strong> A live run on October 31 showed Spotify returns no <code>genres</code> to this app (R18); Spotify's terms forbid storing content (R4).<br><strong>4.</strong> The listener still gets a genre mix, top artists and a summary; 13 of 20 top artists had genres in the first live run. The author asked twice for a past week, which Spotify's top items cannot give, so it is counted from at most 50 recent plays and labelled thin.<br><strong>5.</strong> UC02, SD03; <code>ProfileBuilder.build(TopItems, saved)</code> (R2), <code>MusicService.getTopArtists</code> (R1), <code>AppController.lastProfile</code> (R5), <code>MusicAgentFacade.analyzePastWeek</code>, <code>MusicService.getRecentPlays</code>; Adapter, Decorator, Facade.</dd>
+
+    <dt>F2 Taste-Change Analysis (Modified)</dt>
+    <dd><strong>1.</strong> F2: a diff per range, newest against oldest.<br><strong>2.</strong> Every step between neighbouring ranges is compared; genre coverage per range is reported and the wording becomes cautious below 50% coverage.<br><strong>3.</strong> Stage 1 text asks for the diff per range; live data showed many artists have no MusicBrainz genres, so a "dropped genre" was often just missing data.<br><strong>4.</strong> Same need, with honest wording.<br><strong>5.</strong> UC03, SD03; <code>TrendComparator</code>, <code>TrendReport.steps</code>, <code>RangeChange</code>, <code>PromptBuilder.buildTrendPrompt</code>.</dd>
+
+    <dt>F3 Natural-Language Music Search (Modified)</dt>
+    <dd><strong>1.</strong> F3: free text becomes a structured Spotify search; ranked results; "add to candidates".<br><strong>2.</strong> Genre is sent as a plain keyword; mood words are removed from the search text and replaced by a mapped genre; the typed words are searched as well and exact title or artist matches rank first; duplicates are merged; artists named in the query are listed; candidates are stored (ids only) and feed the next <code>create</code>.<br><strong>3.</strong> Live: the <code>genre:</code> filter returned 0 to 1 tracks where plain keywords returned 20 (R19); mood words matched stock-music titles; the AI's reading drifted from the typed words in the author's GUI test.<br><strong>4.</strong> Same need; search by exact title now works (5 of 5 live runs put exact titles in the top 3). Searching by description is still weak.<br><strong>5.</strong> UC04, SD01; <code>Planner.parseSearchQuery</code> (R6), <code>SearchQuery.toSpotifyQuery</code>, <code>SearchRanker.merge</code>, <code>CandidateRepository</code>; Repository, Adapter.</dd>
+
+    <dt>F4 Personalized Discovery (Modified)</dt>
+    <dd><strong>1.</strong> F4: the LLM is optional and only phrases reasons; exclude tracks the listener knows.<br><strong>2.</strong> Discovery never calls the LLM; reasons are computed from recorded facts; known tracks (top, saved, recently played) are excluded from every pool; widening notices; tracks titled only with a genre word rank lower.<br><strong>3.</strong> A live run found 13 of 20 results came from the user's own history; computed reasons cannot state anything untrue and avoid an extra cost and failure path.<br><strong>4.</strong> The need is met without the optional LLM step, which is a reduction in AI use for this feature.<br><strong>5.</strong> UC05, SD04; <code>RecommendationEngine.recommend(..., allowLibraryTracks)</code>, <code>StrategySelector</code>; Strategy.</dd>
+
+    <dt>F5 AI Playlist Planning and Generation (Modified)</dt>
+    <dd><strong>1.</strong> F5 (SD01): plan, retrieve, check feasibility, select deterministically with <code>BalancedStrategy</code>, validate, execute, explain. The LLM takes no part in choosing tracks.<br><strong>2.</strong> The same lifecycle through the State classes, plus: new tracks also come from the goal's activity words; a "familiar" track is one by an artist the listener knows; goal scores differ by taste; stored candidates are optional (<code>--no-candidates</code>); a failed run rolls the new playlist back; the LLM may <em>remove</em> already retrieved tracks that do not suit the goal (the goal-fit review, described below); a familiar song must fit the goal by its artist's leading three genres or its own Last.fm tags; songs listed by Last.fm under the plan's tags are matched to Spotify and added (Nov 4-5).<br><strong>3.</strong> The author's GUI test on November 2 produced unsuitable songs for a "workout" goal, and Spotify gives this app no tempo or energy data; the Nov 4 test showed library songs chosen by taste alone ("slow dance" got a pop/dance song) and artist genres too coarse to separate songs (MusicBrainz lists dozens per artist).<br><strong>4.</strong> The need (a playlist that fits the goal) is addressed more directly, but the change relaxes the Stage 1 and plan statement that the LLM takes no part in selection, and its effect on playlist quality is not yet proven by the author's own test. Last.fm is optional: without a key the genre rule alone applies.<br><strong>5.</strong> UC06, UC12, SD01; <code>TagService</code>, <code>LastFmAdapter</code>, <code>TrackTagFit</code>, <code>CandidateRetriever.byTag</code>, <code>RecommendationEngine.fitsGoal</code>, <code>GoalFitReviewer</code>, <code>RetrievingState</code>, <code>SelectingState</code>, <code>Retrieval</code>, <code>CandidateRetriever.byKeywords</code>, <code>RecommendationEngine.score</code>; State, Strategy, Command.</dd>
+
+    <dt>F6 Natural-Language Playlist Modification (Modified)</dt>
+    <dd><strong>1.</strong> F6 (SD02): the LLM parses the instruction, <code>executeAll</code> applies commands, then validate; Undo calls <code>PlaylistManager.undo</code>.<br><strong>2.</strong> A <code>PlaylistEditor</code> turns the instruction into commands (mood-only edits use a labelled heuristic); before any write the edit is simulated and re-planned if it would add violations; a snapshot is saved first; undo works across CLI runs from snapshots; the playlist's target length moves with a stated length change; <code>playlists</code> and <code>show</code> list and open playlists.<br><strong>3.</strong> Each CLI run is a new process, so an in-memory undo stack alone cannot undo (R10); Stage 1 said "opening a playlist" but no call listed playlists; the old target is wrong after a deliberate length change.<br><strong>4.</strong> Same need, with more safety.<br><strong>5.</strong> UC07, UC12, SD02; <code>PlaylistEditor</code>, <code>PlaylistManager.modify/undo</code>, <code>ConstraintChecker.checkEdit</code>, <code>PlaylistTargets</code>; Command.</dd>
+
+    <dt>F7 Playlist Constraint Validation (Modified)</dt>
+    <dd><strong>1.</strong> F7: explicit, duplicate, duration, blocked-artist and min/max rules, judged against the spec saved at creation.<br><strong>2.</strong> Blocked <em>tracks</em> added (Stage 1 lists "artists/tracks" but only artists existed); the blocks in force now judge every playlist; the newest recorded target length is used; <code>offending()</code> lists track ids.<br><strong>3.</strong> A block stands for the listener's current wishes, so removing or adding one must affect existing playlists.<br><strong>4.</strong> Same need, with one deliberate difference from "validate against the saved spec" for blocks only.<br><strong>5.</strong> UC08; <code>PlaylistValidator</code>, <code>PlaylistSpec.blockedTracks</code>, <code>PreferenceSettings.withCurrentBlocks</code>.</dd>
+
+    <dt>F8 Preference Memory (Modified)</dt>
+    <dd><strong>1.</strong> F8: preferences including blocked artists, stored in PostgreSQL.<br><strong>2.</strong> Artists are typed by name and stored as Spotify ids; <code>findArtists</code>, <code>findTracks</code>, <code>blockArtist(id)</code> and <code>blockTrack(id)</code> let a caller block what the user chose; blocking is refused when the stored preferences cannot be read.<br><strong>3.</strong> Users know names, not ids; a typo or a shared name blocked the wrong artist; an outage must not erase blocks. Names are read for display and never stored (Spotify terms).<br><strong>4.</strong> Same need.<br><strong>5.</strong> UC09; <code>PreferenceSettings</code>, <code>AppController.findArtists/blockArtist</code>, <code>MemoryManager</code>; Repository.</dd>
+
+    <dt>F10 Grounded Recommendation Explanation (Modified)</dt>
+    <dd><strong>1.</strong> F10: the LLM explanation may use only recorded facts.<br><strong>2.</strong> <code>verifyExplanation</code> also rejects unrecorded numbers, quoted names, genres and preference claims; the trace records the requested genres; titles are shown from the run (display only, never stored); the prompt forbids saying a track fits a mood unless its own reason says so; <code>explain</code> accepts a session id or a playlist id.<br><strong>3.</strong> A live explanation said "genres you love" for genres that came from the goal; users know playlist ids.<br><strong>4.</strong> Same need, stricter.<br><strong>5.</strong> UC11; <code>ExplanationService</code>, <code>DecisionTrace.requestedGenres</code>, <code>ResponseParser.verifyExplanation</code>, <code>MemoryManager.findSessionByPlaylist</code> (R13).</dd>
+
+    <dt>F12 Agent History and Snapshot/Restore (Modified)</dt>
+    <dd><strong>1.</strong> F12: <code>getHistory</code> and <code>restore</code> replay a snapshot through <code>PlaylistManager</code>; opening a past session shows its plan and result.<br><strong>2.</strong> <code>history &lt;id&gt;</code> opens one session; a restore saves the current content first so it can be undone; a missing playlist is recreated from a snapshot; snapshots hold ids and the name only (R14); a restore of an unchanged playlist says so.<br><strong>3.</strong> Spotify's terms forbid storing content; <code>history</code> originally printed one line per session; recreating covers delete.<br><strong>4.</strong> Same need.<br><strong>5.</strong> UC13, SD02; <code>MemoryManager.loadSnapshot</code>, <code>PlaylistManager.restoreFrom</code>, <code>RestoreSnapshotCommand</code>, <code>AppController.recreateFromSnapshot</code>; Command, Repository.</dd>
+
+    <dt>New: Delete a playlist (Added)</dt>
+    <dd><strong>1.</strong> New; Stage 1 has no delete.<br><strong>2.</strong> <code>delete &lt;playlistId&gt;</code> (CLI) unfollows a playlist the listener owns after saving a snapshot and asking for the name to be typed.<br><strong>3.</strong> In user testing a playlist could not be removed from MusicMind (Spotify's API has no true delete, only unfollow).<br><strong>4.</strong> Scope grows by one feature; the way back is F12.<br><strong>5.</strong> UC14 (new); <code>DeletePlaylistCommand</code>, <code>PlaylistManager.delete</code>, <code>MusicAgentFacade.deletePlaylist</code>, <code>MusicService.unfollowPlaylist</code> (R11, with the extra OAuth scope <code>user-library-modify</code>); Command. No GUI control yet.</dd>
+
+    <dt>F9 and F11 (not substantially modified)</dt>
+    <dd>F9: the only difference is that the track id is validated (22 letters or digits, or a <code>spotify:track:</code> URI) before saving, because a live test saved the literal text <code>TRACK_ID</code>. F11: the only differences are extra relaxation kinds (shorten, change the share, allow explicit, apply only part of an edit) and that negotiation also runs during modify, as Stage 1 UC12 says (at first only create negotiated).</dd>
+  </dl>
+
+
+  <h4>Changes of November 4-5 (redesign, Past week, goal fit, Last.fm)</h4>
+  <p class="small">These are the entries added to <code>docs/STAGE2_PLAN.md</code> after pull request #4, in the same Original, Change, Reason, Impact form. The plan has the full wording and the test names.</p>
+  <table>
+    <thead><tr><th style="width:26mm">Change</th><th style="width:38mm">Original</th><th>Change</th><th style="width:36mm">Reason</th><th style="width:40mm">Impact</th></tr></thead>
+    <tr><td>Frontend redesign (F1-F12 screens; Nov 4)</td><td>Seven default-looking JavaFX tabs (Profile, Trends, Search, Discover, Playlists, Preferences, History) with ids, scores and raw numbers on screen.</td><td>A left menu named Your Taste, Trends, Find Songs, Discover, Playlists, Your Rules and History, each with a title and one-line description; one dark stylesheet; one shared song row with artist names and like / not-for-me / "+ Add" / Block / Remove; ranges read Past month, Past 6 months, Past year; Create takes hours and minutes and offers the waiting songs; pickers instead of ids in Your Rules; History as a timeline with a preview before Restore; Delete on Playlists. New read-only controller methods <code>currentUserName</code>, <code>feedbackFor</code>, <code>artistHint</code>, <code>previewSnapshot</code>; <code>TabView.onShown()</code>.</td><td>The author's test of November 2 found the screens hard to understand and features hidden behind technical wording.</td><td>Stage 1 class names and <code>GuiApp.start()</code> unchanged; menu names differ for F1, F3 and F7/F8. Views call only <code>AppController</code>; no backend behaviour changed; nothing new goes to OpenAI.</td></tr>
+    <tr><td>Your Taste: Past week (F1)</td><td>Three Spotify periods; <code>normalizeRange</code> refused anything else.</td><td>A fourth range <code>week</code>, counted from recent plays by <code>analyzePastWeek</code>; <code>AppController.timeRanges()</code> gives week, short, medium, long and <code>trendRanges()</code> keeps Trends to Spotify's three.</td><td>The author asked for a past week twice; Spotify has no such top items.</td><td>Additive. A week from at most 50 plays is thin and labelled; left out of Trends. Only derived ids and genres are stored.</td></tr>
+    <tr><td>Playlist list counts (F5-F8)</td><td>Each row showed Spotify's song total.</td><td>The view remembers the count of playlists it created or opened and shows it while Spotify's total is lower.</td><td>Right after Create the list said "0 songs" because Spotify's total lags.</td><td>Display only.</td></tr>
+    <tr><td>Create: familiar songs must fit the goal (F5)</td><td>About 40% of a Create playlist came from the library chosen by taste alone.</td><td><code>RecommendationEngine</code> drops a familiar-pool track unless it is goal-fit: a seed genre among its artists' genres, or a goal source (keyword or Last.fm song). Too few fits are filled by new goal songs and a notice.</td><td>The author's test of Nov 4: "slow dance" got a pop/dance song.</td><td>Discover (F4) unchanged; selection stays deterministic.</td></tr>
+    <tr><td>Create: Last.fm tag songs matched to Spotify (F5)</td><td>New songs came from Spotify genre and activity searches only; Spotify gives no tempo or energy and refuses other users' playlists.</td><td>The plan asks for a few short tags (<code>AgentPlan.tags</code>); <code>TagService</code> with <code>LastFmAdapter</code> reads the songs under each tag; <code>CandidateRetriever.byTag</code> keeps a Spotify match only when title and an artist name both match; tag songs get the goal floor and a score bonus. Optional <code>LASTFM_API_KEY</code>; credited in the GUI footer and after a CLI Create.</td><td>A tag list is the one goal-specific song source needing neither audio features nor other users' playlists.</td><td>Last.fm titles and artists are used only to build a Spotify query; never stored, never sent to OpenAI. Discover unchanged.</td></tr>
+    <tr><td>Create: leading genres and the song's own tags (F5)</td><td>A familiar track fit when any genre of its artists was a seed genre. Live: "music for studying" picked 12 Nirvana songs, "slow dance" picked Billie Jean.</td><td>Only an artist's first three genres count (<code>create.fitLeadingGenres</code>); with Last.fm, a familiar song also fits through its own top tags equal to a plan tag or a configured synonym (at most 30 lookups per run). A genre search result whose title holds the genre word is scored down.</td><td>MusicBrainz lists dozens of tags per artist, so every artist matched some goal.</td><td>Song titles with artist names go only to Last.fm, are never stored and never reach OpenAI.</td></tr>
+    <tr><td>Create: Last.fm review fixes (F5; Nov 5)</td><td>The first tag used the whole song budget; slow Last.fm could stall Create; each Create repeated up to 20 Spotify searches; a non-array <code>tags</code> failed the plan; synonyms of every word of a tag were added.</td><td>Tags share the budget; a 15 second budget for song tags; an in-memory, session-only cache of song to Spotify matches; a string <code>tags</code> is one tag; synonyms look up the whole tag only. One suggestion was <strong>not</strong> applied: letting a song's genre tags ("soul") count for a requested genre, because it would let pop songs by artists also tagged soul or r&amp;b (Billie Jean) back into "slow dance".</td><td>Code review of the Last.fm work.</td><td>The second tag now returns songs; Create waits at most about 15 s on song tags; repeat Creates use fewer Spotify calls; nothing stored or sent to the LLM.</td></tr>
+  </table>
+
+  <div class="note">
+    <h4 style="margin-top:0">The LLM's role: the goal-fit review and the November 3 policy correction</h4>
+    <p><strong>Original.</strong> Stage 1 gives the LLM no part in choosing tracks, and the implementation plan's constraint 2 says "the LLM never selects tracks and never receives bulk catalogue data".</p>
+    <p><strong>Change.</strong> Since November 2 the LLM reviews real tracks that were already retrieved and may only return ids to <em>remove</em> (<code>GoalFitReviewer</code>, in <code>RetrievingState</code> and again on the final picks in <code>SelectingState</code>, bounded per run). It never names or adds a track, ids it was not given are ignored, and selection and order stay deterministic. The review is best effort: with no LLM, a failure, a malformed reply, or a reply that would remove too much, nothing is removed and a notice says it was skipped.</p>
+    <p><strong>Reason.</strong> The author's live test produced unsuitable "workout" songs and Spotify gives no audio features.</p>
+    <p><strong>Correction on November 3.</strong> The first version sent OpenAI each track's id, title and artist names. Spotify Developer Policy section III item 14 forbids ingesting Spotify Content into an AI model. This was found while writing the documentation and fixed the same day (commit <a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/1b18d24f126e4053576dbd20675ea308e961bf29">1b18d24</a>), test first: the prompt now carries only the track id and the genres MusicMind already knows for it (from the search that found it, the listener's profile, or cached MusicBrainz genres). A track with no known genre is not sent and is kept. A reflective test (<code>PromptBuilderTest</code>, hardened in commit <a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/4211b8b3db3bca85c69dbb4dbf9a312109f29ab5">4211b8b</a>) calls every <code>PromptBuilder.build*</code> method and fails if a prompt contains a track title or artist name.</p>
+    <p><strong>Impact.</strong> The constraint now holds in this form: ids and MusicBrainz genres, no Spotify titles or names. The review is less precise than a title-based one and cannot judge tracks without a genre. It is not proven to improve playlists on the real account, and it costs up to three extra LLM calls per create.</p>
+    <p><strong>Open question.</strong> The F6 edit prompt sends each track's id, explicit flag and length in minutes (no titles or names). Whether that counts as Spotify Content is undecided and is for the author to decide.</p>
+  </div>
+
+  <h3>4.2 Design pattern changes</h3>
+  <p class="small">Items: (6) original pattern; (7) pattern implemented; (8) participating classes and roles; (9) design problem; (10) why appropriate and effect on the architecture. <strong>No pattern was replaced or dropped.</strong> The five counted patterns are the Stage 1 patterns; the changes are additions inside them, plus two new Adapters (MusicBrainz, Last.fm) and one new Decorator. Participant tables are in Section 3.</p>
+  <table>
+    <thead><tr><th style="width:20mm">Pattern</th><th>6-7 Original and implemented</th><th>8 New or changed participants and roles</th><th>9-10 Problem, why, effect</th></tr></thead>
+    <tr><td>Adapter</td><td>Stage 1: <code>MusicService</code>/<code>SpotifyAdapter</code>, and <code>LLMProvider</code>. Implemented: the same, plus two more adapter pairs.</td><td><code>GenreService</code> (target) and <code>MusicBrainzAdapter</code> (adapter) supply genres; <code>TagService</code> (target) and <code>LastFmAdapter</code> (adapter) supply song tags for F5; <code>OpenAiProvider</code> is the only LLM adapter built by the app.</td><td>Spotify sends no genres, tempo or energy to this app (R18). Further sources behind interfaces keep the core independent of them. Effect: F1, F2, F4 and F5 get a genre signal again, and F5 gets a goal-specific song list; with no Last.fm key <code>TagService.NONE</code> is used.</td></tr>
+    <tr><td>Strategy</td><td>Same pattern. Added <code>bindProfile</code> (R7) and <code>StrategySelector</code>.</td><td><code>StrategySelector</code> picks one of the three strategies; <code>bindProfile</code> gives helpers the profile.</td><td>Stage 1 helpers needed a profile its signature did not carry. Effect: the Stage 1 signature is kept; an unbound strategy throws a clear error.</td></tr>
+    <tr><td>Command</td><td>Same pattern, five commands. Added three commands and undo from snapshots.</td><td><code>BatchCommand</code> (one undo step per edit), <code>RestoreSnapshotCommand</code> (F12), <code>DeletePlaylistCommand</code> (new feature); <code>PlaylistManager</code> snapshots before every change.</td><td>CLI runs are separate processes (R10), restore and delete need the same reversible machinery. Effect: undo, restore and delete share one mechanism; failures roll back.</td></tr>
+    <tr><td>State</td><td>Same eight states. Added support classes.</td><td><code>RunContext</code> (data of one run), <code>RunServices</code> (collaborators), <code>Negotiator</code> (one F11 round).</td><td>Keeps state classes small and the phase logic in the states. Effect: no change to the pattern, easier tests.</td></tr>
+    <tr><td>Facade</td><td>Same pattern.</td><td><code>AppController</code> gained <code>last*()</code> accessors, <code>login</code>, <code>setNegotiationHandler</code>, <code>setProgressListener</code> (R9, R16).</td><td>Both interfaces need the finished session, the F11 choice and progress without putting interface code in the core.</td></tr>
+    <tr><td>Decorator (not counted)</td><td>Stage 1: <code>RetryingMusicService</code>. Implemented: plus <code>GenreEnrichingMusicService</code>.</td><td>The new decorator wraps <code>MusicService</code> and fills genres through <code>GenreService</code>, with a cache.</td><td>Genre lookup is added without changing <code>SpotifyAdapter</code>.</td></tr>
+    <tr><td>Repository (not counted)</td><td>Stage 1 repositories. Plus two new.</td><td><code>CandidateRepository</code> (F3 candidates) and <code>GenreRepository</code> (genre cache).</td><td>Persistence details stay out of the agent.</td></tr>
+  </table>
+
+  <h3>4.3 Architecture, class and platform changes</h3>
+  <table>
+    <thead><tr><th style="width:30mm">Original design</th><th>Implemented change</th><th style="width:44mm">Reason</th><th style="width:38mm">Impact</th></tr></thead>
+    <tr><td>PostgreSQL named, no setup detail</td><td><code>memory/Database</code> creates six tables on start; tests use embedded PostgreSQL; the app runs with safe defaults and a warning when the database is down.</td><td>A reviewer must build with nothing installed; Stage 1 asks for the database error case.</td><td>README explains the one-time role and database creation.</td></tr>
+    <tr><td>Gradle 8.14.3; JavaFX 17.0.6</td><td>Gradle 9.1.0 with a toolchain resolver; JavaFX 21.0.13; <code>bin/musicmind</code> and <code>bin/musicmind-gui</code> from <code>installDist</code> (R15).</td><td>Gradle 8 cannot run on JDK 25; JavaFX 17.0.6 crashed at launch on macOS 26.</td><td>Builds on JDK 17 to 25; the project still compiles as Java 17.</td></tr>
+    <tr><td>No configuration named</td><td>Every tunable and every user-facing sentence is a key in <code>musicmind.properties</code>, read through <code>Config</code>; secrets from <code>.env</code>.</td><td>Stage 2 rejects hard-coded demonstration content.</td><td>No key, id or canned result in <code>src/main</code>.</td></tr>
+    <tr><td>A mock LLM implied for tests and demos</td><td><code>OpenAiProvider</code> is the only provider the app builds; <code>MockLLMProvider</code> is test-only (R17).</td><td>Canned answers are not functionality.</td><td>With no key, features say so or use labelled fallbacks.</td></tr>
+    <tr><td>Spotify endpoints as in Stage 1</td><td>February 2026 development-mode shapes: reads <code>item</code>, searches at most 10 per call and pages, never calls <code>/recommendations</code>, audio features, related artists, popularity or batch artist reads.</td><td>Those calls are closed to this app.</td><td>Discovery is built from the listener's own data, as Stage 1 already says.</td></tr>
+    <tr><td>Genres filtered with <code>genre:</code></td><td>Genre sent as a plain keyword (R19).</td><td>The filter returned 0 to 1 tracks in live tests.</td><td>F3 and F4 return results.</td></tr>
+    <tr><td>Signatures unspecified in places</td><td>Additive members only: R1 to R16 (for example <code>getTopArtists</code>, <code>TopItems</code>, user-aware repositories, <code>AgentRequest.constraints</code>, <code>unfollowPlaylist</code>, <code>login</code>). No Stage 1 name or signature changed.</td><td>Stage 1 was silent or inconsistent.</td><td>Stage 1 class and member names all still exist (checked by search over <code>src/main</code>).</td></tr>
+    <tr><td>Classes in the Stage 1 diagram</td><td>R20: small supporting classes (for example <code>Retrieval</code>, <code>CandidateRetriever</code>, <code>GoalFitReviewer</code>, <code>PlaylistEditor</code>, <code>RunContext</code>, <code>GuiContext</code>, <code>ViewFormat</code>); the full list is in <code>docs/STAGE1_CONFORMANCE.md</code>, section 6.</td><td>Keep each Stage 1 class focused.</td><td>Shown on the updated class diagram.</td></tr>
+    <tr><td>GUI as listed in Stage 1</td><td>The seven JavaFX screens were first plain tabs (Nov 2) and were redesigned on Nov 4: dark theme, left-hand menu, <code>TrackRow</code>, <code>ConfirmDialog</code>, plain wording from <code>musicmind.properties</code>; one background worker; friendly failure wording. No Stage 1 GUI interaction was dropped and Delete was added to the GUI.</td><td>The author's test found the first GUI hard to understand; <code>AppController</code> keeps mutable <code>last*()</code> state, so calls must not overlap.</td><td>The videos and screenshots must show the redesigned GUI (screenshots pending the owner's test).</td></tr>
+  </table>
+
+  <h3>4.4 External services and data policy</h3>
+  <table>
+    <thead><tr><th style="width:26mm">Service</th><th>What is sent</th><th>What is stored</th><th>What is never done</th></tr></thead>
+    <tr><td>Spotify</td><td>Searches and playlist writes, with the listener's own sign-in (PKCE).</td><td>Ids and MusicMind's own derived data only; no titles, artist or album names.</td><td>No Spotify content is sent to OpenAI or used to train a model.</td></tr>
+    <tr><td>MusicBrainz</td><td>Artist names, to read genres (rate-limited).</td><td>Genres by artist id.</td><td>Nothing is sent to OpenAI.</td></tr>
+    <tr><td>Last.fm (optional)</td><td>With a key, per Create run: the plan's tags, and up to 30 song titles with their artist names (the library songs it checks), only to read tags.</td><td>Nothing. The song to Spotify match cache lives in memory for the session only.</td><td>No Last.fm title or tag and no Spotify content is sent to OpenAI; the key never appears in an error message. Credited in the GUI footer and after a CLI Create.</td></tr>
+    <tr><td>OpenAI</td><td>The listener's own words, ids, counts and MusicBrainz genres. The goal review sends ids and genres only and may only name ids to remove. The planner may return tags in its reply but never receives song or artist names. The F6 edit prompt question stays open (Section 1.5).</td><td>Only the derived plan and explanation that MusicMind keeps.</td><td>No Spotify titles or names (guarded by <code>PromptBuilderTest</code>).</td></tr>
+  </table>
+</section>
+
+<!-- ============================ SECTION 5 ============================ -->
+<section class="page">
+  <h2>5 AI tools and collaboration log</h2>
+  <p>Using AI development tools was mandatory in Stage 2. The AI wrote code and drafts; the author set the rules, chose directions, ran the checks that need her own Spotify and OpenAI accounts, reviewed the changes and decides what is merged. Every task was built test first and then reviewed by a separate agent, and the larger pull requests were reviewed again before merging. The full log is <code>docs/AI_COLLABORATION_LOG.md</code>; it holds no keys.</p>
+
+  <!-- REFRESH BEFORE SUBMISSION -->
+  <h3>5.1 Tools and models</h3>
+  <table>
+    <thead><tr><th style="width:36mm">Tool / platform</th><th style="width:26mm">Model</th><th>Used for</th><th style="width:26mm">Total tokens</th><th style="width:24mm">Money cost</th></tr></thead>
+    <tr><td>Claude Code (Anthropic's coding agent, desktop app and CLI), as the coordinating session</td><td>Claude Opus 5.5</td><td>Planning, the rulings R1-R20, task briefs, code review of each task and pull request, live checks and fixes, the Stage 2 documents.</td><td><span class="ph">[to be filled by Sarina]</span></td><td><span class="ph">[to be filled by Sarina]</span></td></tr>
+    <tr><td>Claude Code subagents</td><td>Claude Sonnet 5.5</td><td>Implementing each task test first (<code>ProfileBuilder</code>, <code>TrendComparator</code>, <code>RecommendationEngine</code>, the create flow and state classes, the Command classes and <code>PlaylistManager</code>, the CLI, the GUI views, the backend fixes, the documentation, this report) and independent review of each task.</td><td><span class="ph">[to be filled by Sarina]</span></td><td><span class="ph">[to be filled by Sarina]</span></td></tr>
+    <tr><td>OpenAI API (the app's own <code>LLMProvider</code>)</td><td><code>gpt-4o</code></td><td>Not a development tool: it runs inside MusicMind (goal and search parsing, summaries, option wording, explanations, goal-fit review).</td><td><span class="ph">[to be filled by Sarina]</span></td><td><span class="ph">[to be filled by Sarina]</span> of the USD 10 credit paid</td></tr>
+  </table>
+  <p class="small">Cost cells are blank on purpose: the numbers cannot be read from the repository. Where to read them: the Claude usage or billing page for Claude Code, and platform.openai.com (usage page) for the OpenAI API. Claude Code runs under the author's own subscription. The Spotify Web API (development app) and MusicBrainz are free. <span class="ph">[Sarina: add a row here for any other AI tool used in Stage 2, with its model and purpose.]</span></p>
+
+  <h3>5.2 Collaboration log (by session)</h3>
+  <table>
+    <thead><tr><th style="width:17mm">Date</th><th style="width:36mm">Task</th><th>AI contribution</th><th style="width:44mm">Human (Sarina) contribution</th><th style="width:32mm">Outcome</th></tr></thead>
+    <tr><td>Oct 30</td><td>Scaffold, F1 spine</td><td>Gradle and JavaFX build, domain model, interfaces, <code>PlaylistValidator</code>, strategies, <code>SpotifyAdapter</code> (PKCE), <code>RetryingMusicService</code>, <code>AppController</code>, <code>MusicAgentFacade</code>; F1 in CLI and GUI.</td><td>Reviewed the design, confirmed the stack, approved installs.</td><td>Compiling skeleton and F1; not yet live.</td></tr>
+    <tr><td>Oct 30</td><td>Portable build; Tasks 1-5 foundation</td><td>Gradle 9.1 and JavaFX 21 fixes; PostgreSQL, Feb 2026 Spotify shapes, <code>OpenAiProvider</code>, <code>Config</code>, <code>ToolManager</code>, <code>PromptBuilder</code>, <code>ResponseParser</code>.</td><td>Approved the plan and the rulings R1-R20, including no hard-coded results in <code>src/main</code>.</td><td>Build green with no keys; nothing live yet.</td></tr>
+    <tr><td>Oct 31</td><td>Tasks 6-8: F1-F4, F8, F9</td><td><code>ProfileBuilder</code>, <code>TrendComparator</code>, <code>SearchRanker</code>, <code>RecommendationEngine</code>, <code>StrategySelector</code>, CLI commands. Reviews found and fixed an LLM failure that could skip the fallback and widening that overwrote the chosen strategy.</td><td>Ran the live checks with real keys.</td><td>285 tests; then live.</td></tr>
+    <tr><td>Oct 31</td><td>Live test, genre fix</td><td>Diagnosed "(no genre data)", tested MusicBrainz, built <code>GenreEnrichingMusicService</code>, <code>MusicBrainzAdapter</code> and a cache; review caught a missing timeout.</td><td>Ran the first live test, found the gap, chose MusicBrainz.</td><td>Genres for 13 of 20 top artists.</td></tr>
+    <tr><td>Nov 1</td><td>Tasks 10-12: F5, F11, F6, F7, F10, F12, CLI</td><td>Planner, <code>ConstraintChecker</code>, eight session states, <code>PlaylistEditor</code>, explanation checks, facade and controller methods, the complete testable CLI, install scripts.</td><td>Reviewed diffs; ran <code>create</code>, <code>modify</code>, <code>undo</code> and others live.</td><td>Live: create, validate, explain, history, modify, undo.</td></tr>
+    <tr><td>Nov 1</td><td>PR #1 review and fixes; live undo check</td><td>Whole-PR review; reproduced an undo defect with a test; fixed 10 findings test first (one-use snapshots, real Spotify positions, no blind retry of unsafe writes); recovery when a move fails part way.</td><td>Asked for the review before merging; approved the live check on a test playlist.</td><td>All findings fixed; tests pass.</td></tr>
+    <tr><td>Nov 1</td><td>Progress report, Stage 1 gaps</td><td>Found six gaps against Stage 1 and closed them test first (playlist list, session detail, all trend steps, blocked tracks, block by name, candidates).</td><td>Read the report and chose to close the gaps before the GUI.</td><td>Checked live, including a create using a candidate.</td></tr>
+    <tr><td>Nov 2</td><td>Task 13: GUI</td><td>Seven JavaFX tabs, Create and F11 dialogs, one worker over <code>AppController</code>. A reviewer found garbled thumbs labels, a silent bad-length entry and a swallowed expired login; the PR code review found the Create button could never start.</td><td>Set the rule of no Spotify writes without her say-so; ran the write checks.</td><td>GUI PR #4 open; read-only live run passed.</td></tr>
+    <tr><td>Nov 2</td><td>Backend fixes from the GUI test; final review round</td><td>Exact-title search, duplicates merged, optional candidates, activity searches and goal review, scoring floor, block by choice, delete; review findings (120-track review, pick review, stock-title penalty).</td><td>Ran the GUI test that produced the findings; set the rulings.</td><td>842 tests; goal fit not re-run live.</td></tr>
+    <tr><td>Nov 3</td><td>Policy fix: goal review sends no Spotify titles</td><td>Found the title and artist names in the review prompt while writing the documentation; fixed test first.</td><td>Decided the fix and reviews it.</td><td>Review sends ids and genres only.</td></tr>
+    <tr><td>Nov 3</td><td>Task 14: documentation; updated UML; this report</td><td>Rewrote the plan and conformance documents, README, updated the UML sources and PNGs, wrote this report and its build script.</td><td>Task rules: say only what was tested live; supplies costs and video links.</td><td>Documents match the code as of this commit.</td></tr>
+    <tr><td>Nov 4</td><td>Frontend redesign; Past week; Create goal fit; Last.fm tags</td><td>Redesigned the GUI task by task (dark stylesheet, left menu, <code>TrackRow</code>, <code>ConfirmDialog</code>, plain wording); built the Past week range from recent plays; made familiar songs fit the goal; added <code>TagService</code> and <code>LastFmAdapter</code> and matched tag songs to Spotify; per-song tags and leading genres after a live finding.</td><td>Approved the design; tested the screens and Create runs by hand and reported what was wrong (Nirvana in a study playlist, Billie Jean in slow dance).</td><td>Pull request #4 prepared.</td></tr>
+    <tr><td>Nov 5</td><td>Code review of the Last.fm work; PR #4 merged; docs refreshed</td><td>Reviewed the Last.fm code; applied five fixes (shared tag budget, 15 s budget, session-only match cache, string <code>tags</code>, whole-tag synonyms); rejected one suggestion; refreshed this report and the other documents.</td><td>Decided to reject the suggestion that would let Billie Jean back into slow dance; merged pull request #4.</td><td>995 tests passing; documentation matches the merged code.</td></tr>
+  </table>
+
+  <h3>5.3 Representative interactions</h3>
+  <ol>
+    <li><strong>A live result changed the design (Oct 31).</strong> The author ran <code>profile</code> on her real account and saw "(no genre data)". Claude Code did not guess: it checked the raw Spotify reply, found no <code>genres</code> field for this app, tested MusicBrainz, and built a Decorator over <code>MusicService</code>. The author chose MusicBrainz as the source. Reviewers then caught a missing timeout and a crash on a malformed reply, both fixed (R18).</li>
+    <li><strong>A review found what the tests missed (Nov 2).</strong> After 768 tests and the per-task reviews had passed, the PR code review found that the GUI Create button could never start, because it disabled a slider that was bound to a property. It was fixed and a write-free script confirmed the click path.</li>
+    <li><strong>A user test led to a change from Stage 1 (Nov 2).</strong> The author's GUI test produced a "workout" playlist with unsuitable songs. Because Spotify gives this app no audio features, the plan was to let the LLM review retrieved tracks and remove those that do not fit, with the rule that it may only return ids to remove. This is recorded as a difference from Stage 1.</li>
+    <li><strong>The AI found its own policy error (Nov 3).</strong> While documenting the goal review, Claude Code noticed the prompt carried titles and artist names, checked this against Spotify Developer Policy section III item 14, and reported it. The author decided the fix, and a guard test now prevents a repeat.</li>
+  </ol>
+</section>
+
+<!-- ============================ SECTION 6 ============================ -->
+<section class="page">
+  <h2>6 Development and verification summary</h2>
+
+  <h3>6.1 Weekly commit summary</h3>
+  <p>Dates are Toronto time. A "code commit" here means a commit that changes files under <code>src/</code> or the build files (<code>build.gradle</code>, <code>settings.gradle</code>), excluding merge commits; counts come from <code>git log</code> with <code>TZ=America/Toronto</code> (Period 3 counted on November 5). The instructions also exclude empty, report-only and formatting-only commits. The counts below are by file path, so they include a few small commits (for example a tidy of test comments) and are an upper bound; the lists below show substantive ones. Commit dates are authoring dates and links open once the branch holding the commit has been pushed (the documentation branch has not been pushed yet).</p>
+  <table>
+    <thead><tr><th style="width:16mm">Period</th><th style="width:30mm">Dates (inclusive)</th><th style="width:21mm">Required</th><th style="width:34mm">Code commits (non-merge)</th><th>Status</th></tr></thead>
+    <tr><td>1</td><td>Oct 20-26</td><td>5</td><td>0</td><td><strong>Missed.</strong> There were no commits at all in this period: Stage 1 was committed on October 9 and the first Stage 2 commit is on October 30. The single 5-point deduction applies.</td></tr>
+    <tr><td>2</td><td>Oct 27-Nov 2</td><td>5</td><td>147 (Oct 30: 23, Oct 31: 28, Nov 1: 55, Nov 2: 41)</td><td>Met. There were no commits on Oct 27-29.</td></tr>
+    <!-- REFRESH BEFORE SUBMISSION -->
+    <tr><td>3</td><td>Nov 3-9</td><td>5</td><td>51 so far (Nov 3: 2, Nov 4: 42, Nov 5: 7)</td><td><strong>Met</strong> (the redesign, Past week, goal fit and Last.fm work; documentation-only commits are not counted). Period 3 runs to November 9, so recount before submission.</td></tr>
+  </table>
+
+  <h4>Period 1 (October 20-26)</h4>
+  <p>No commits. This is a real miss and is not hidden: the work started on October 30.</p>
+
+  <h4>Period 2 (October 27 - November 2): 147 code commits; a representative selection</h4>
+  <table>
+    <thead><tr><th style="width:26mm">Commit</th><th style="width:22mm">Toronto time</th><th>What it did</th></tr></thead>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/3d6644e5ab8234cd04353bfee69d95430324ca58"><code>3d6644e</code></a></td><td>Oct 30 14:18</td><td>Gradle and JavaFX build setup and wrapper</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/cb0c8ee8094fd9fad83f840298ca35a63d53f9f5"><code>cb0c8ee</code></a></td><td>Oct 30 14:18</td><td>Domain model (Track, Playlist, PlaylistSpec, AgentSession, ...)</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/e1bb45f304977699dc09a20f5e886ad53ad9b16d"><code>e1bb45f</code></a></td><td>Oct 30 14:18</td><td>Core interfaces: MusicService, Tool, LLMProvider, RecommendationStrategy, PlaylistCommand, Repository, SessionState</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/f8f62831a0d3a91dd9c7ad8167fdac4b8b374ade"><code>f8f6283</code></a></td><td>Oct 30 14:20</td><td>Deterministic PlaylistValidator (F7) with unit tests</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/515e8d92dcd99910c57826e7365e0379ec680d1d"><code>515e8d9</code></a></td><td>Oct 30 14:20</td><td>Strategy pattern: the abstract, Familiar, Discovery and Balanced strategies</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/a6d65704029dbcf2550fdc3ca8f901f312cfab2d"><code>a6d6570</code></a></td><td>Oct 30 14:56</td><td>SpotifyAdapter (Adapter) with PKCE sign-in</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/e694438bc4eb2339589e1ae6a5e4eb2b685a1f2a"><code>e694438</code></a></td><td>Oct 30 14:57</td><td>RetryingMusicService decorator for 429 backoff, with tests</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/d784da606780fb769051ac907da3f268c3d7d877"><code>d784da6</code></a></td><td>Oct 30 20:12</td><td>Replace the first SQLite storage with PostgreSQL persistence and the Stage 1 repositories</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/2a1f0d076aab939821c8829a58e3850e2e6b9d61"><code>2a1f0d0</code></a></td><td>Oct 30 20:24</td><td>OpenAiProvider (replacing the first provider) and central tunables</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/fc242f85bb4e6ed1f4c4f48bcd1ce60f879ef764"><code>fc242f8</code></a></td><td>Oct 31 09:19</td><td>F1 and F2 through MusicAgentFacade and AppController per SD03</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/c2f9defc460d071d76434d5dd96cf02ce9a4556e"><code>c2f9def</code></a></td><td>Oct 31 09:25</td><td>F3 searchMusic through facade and controller, CLI search</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/ac601cf8bdacfdc8063b96bcab9a19508afb3546"><code>ac601cf</code></a></td><td>Oct 31 09:35</td><td>RecommendationEngine and CandidateRetriever for F4</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/bd3cbc884aa93513c88b155d9adc623bfdc0fb62"><code>bd3cbc8</code></a></td><td>Oct 31 10:18</td><td>MusicBrainz genre source behind a GenreEnrichingMusicService decorator (R18)</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/1dfac64951dd92bfb3c8a0f86bdc8fd6d07a83c4"><code>1dfac64</code></a></td><td>Oct 31 10:46</td><td>Exclude known tracks from discover (fix for a live finding)</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/457ed81e0e01c728c6fce0936f95aa18f3f89f6b"><code>457ed81</code></a></td><td>Nov 1 09:04</td><td>Playlist commands and PlaylistManager with batch rollback and snapshot undo</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/3e9a14de17c6b4ef77cae0ace87cb4a67c08d31a"><code>3e9a14d</code></a></td><td>Nov 1 10:50</td><td>F5 create flow with the session states, F11 negotiation and the create command</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/cc241b8333e5e139385f27cc52bcadd022e7bb9d"><code>cc241b8</code></a></td><td>Nov 1 11:13</td><td>F6 modify with undo, F7 validate-by-id, F10 explain-by-id and F12 history/restore in facade and controller</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/65250b5bd5aa81f7320afd9b523e852e45d40ca2"><code>65250b5</code></a></td><td>Nov 1 11:34</td><td>The CLI as a testable instance with every Stage 1 command and exit statuses</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/f70caa372f92b227f865f5687636170f75aa1168"><code>f70caa3</code></a></td><td>Nov 1 11:42</td><td>Negotiate an edit that cannot be applied during modify (F11)</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/0f8e71d32e7b6aeb6334f979d225f305be6fa512"><code>0f8e71d</code></a></td><td>Nov 1 17:30</td><td>Use each snapshot for one undo so undo never re-applies a change (defect found in PR review)</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/13af7f5d7863e7a717268a2dfa409d7aa9d2d911"><code>13af7f5</code></a></td><td>Nov 1 19:24</td><td>List the user's playlists and show a playlist</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/6c137212c492fb30361ea6a3b292b3e516cdbf24"><code>6c13721</code></a></td><td>Nov 1 19:34</td><td>Keep a candidate set from search and put it first in the next playlist</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/7cbe0b75db29799625581acb5db5efdabb0b110a"><code>7cbe0b7</code></a></td><td>Nov 2 09:20</td><td>GUI: shared worker context, login gate, status line, F11 dialog, Why-these expander</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/dd964ac4d4179824fbf210445ee15bb639a76ab8"><code>dd964ac</code></a></td><td>Nov 2 09:20</td><td>GUI: PlaylistView and CreatePlaylistDialog (F5, F6, F7, F10, F11)</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/0d69c162f77ef2688648868d4e05d04a153002fd"><code>0d69c16</code></a></td><td>Nov 2 09:52</td><td>GUI: the Create dialog no longer locks a bound slider (the bug that stopped Create from starting)</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/15019aa5b52f80c7da5f7c60ea51525eff1b8d15"><code>15019aa</code></a></td><td>Nov 2 20:48</td><td>Search puts exact title and artist matches first and removes duplicates</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/1bdd3cd46197d91e57ab4bdd97a964bc50f94fc8"><code>1bdd3cd</code></a></td><td>Nov 2 20:57</td><td>Create searches the goal's activity and reviews real tracks against the goal</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/1793e5c4fff7c832393fdb4bc755aa3b3a514463"><code>1793e5c</code></a></td><td>Nov 2 21:09</td><td>Delete a playlist after saving a snapshot</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/fd5c556508cd3bde41e64eb65ddcb916376e939b"><code>fd5c556</code></a></td><td>Nov 2 21:18</td><td>Review the picked tracks against the goal and replace rejected ones</td></tr>
+  </table>
+  <p class="small">All 147 are listed by <code>git log --no-merges --since="2026-10-27 00:00 -0400" --until="2026-11-03 00:00 -0500" -- src build.gradle settings.gradle</code> (Toronto is UTC-4 until Nov 1 and UTC-5 after; this command returns 147). The earlier pull requests #1 to #3 were merged into <code>main</code>.</p>
+
+  <h4>Period 3 (November 3-9): in progress, 51 code commits by November 5 (the first two are shown)</h4>
+  <table>
+    <thead><tr><th style="width:26mm">Commit</th><th style="width:22mm">Toronto time</th><th>What it did</th></tr></thead>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/1b18d24f126e4053576dbd20675ea308e961bf29"><code>1b18d24</code></a></td><td>Nov 3 14:17</td><td>Send the goal review only track ids and known genres, never titles or artist names (policy fix, with tests)</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/4211b8b3db3bca85c69dbb4dbf9a312109f29ab5"><code>4211b8b</code></a></td><td>Nov 3 14:20</td><td>Make the prompt-leak guard test reflect over every build method; tidy imports</td></tr>
+  </table>
+  <p>The other commits on November 3 are documentation and diagram work (the plan, the conformance table, the README, the AI log, the updated UML sources and PNGs, the diagram README) plus one merge, and do not count toward the minimum. The 51 code commits so far are the GUI redesign, the Past week range, the goal-fit rules and the Last.fm work, then the review fixes of November 5 (the minimum of 5 is already met). All of them are in <code>main</code> through pull request #4. This section will be recounted before submission.</p>
+
+  <h3>6.2 Checks performed</h3>
+  <ul>
+    <li><strong>Automated tests: 995 passing in 54 test classes</strong> (JUnit 5), run with <code>./gradlew test</code> on the merged documentation branch on November 5 with no keys and no database server. Spotify is a local <code>HttpServer</code> in the tests, PostgreSQL is an embedded binary, and the LLM is <code>MockLLMProvider</code> under <code>src/test</code>.</li>
+    <li><strong>Test first and independent review.</strong> Each task was built test first and then reviewed by a separate agent; the larger pull requests (#1, #2, #4) had a further whole-PR code review. Defects were reproduced with a test before they were fixed.</li>
+    <li><strong>Prompt guard.</strong> <code>PromptBuilderTest</code> calls every <code>PromptBuilder.build*</code> method by reflection and asserts that no prompt contains a Spotify track title or artist name.</li>
+    <li><strong>Behaviour tests per feature</strong> are named in <code>docs/STAGE1_CONFORMANCE.md</code> (for example <code>CreatePlaylistFlowTest</code>, <code>ModifyPlaylistFlowTest</code>, <code>PlaylistValidatorTest</code>, <code>SpotifyAdapterTest</code>, <code>CliAppTest</code>, <code>ViewFormatTest</code>).</li>
+    <li><strong>Stage 1 names.</strong> Every class and member named in the Stage 1 class diagram and traceability table was checked to exist in <code>src/main</code> by search.</li>
+    <li><strong>Secrets.</strong> Keys live only in the git-ignored <code>.env</code>; <code>.env.example</code> holds placeholders; <code>.spotify-tokens.json</code> is git-ignored. A search of the tracked files for key-shaped strings found none on November 3 (not repeated for the November 4-5 code; the new <code>LASTFM_API_KEY</code> is an empty placeholder in <code>.env.example</code>, and tests assert that a Last.fm error message never carries the key). No keys, tokens, Spotify user ids or playlist ids appear in this report.</li>
+    <li><strong>Run against the real Spotify and OpenAI accounts</strong> (from <code>docs/DAILY_TEST_NOTES.md</code>; only what is named here was run):
+      <table>
+        <thead><tr><th style="width:24mm">Date</th><th>What was run</th></tr></thead>
+        <tr><td>Oct 31</td><td>CLI <code>profile --refresh</code>, <code>profile</code>, <code>profile --range long</code>, <code>trends</code>, <code>search</code>, <code>discover</code> and <code>discover --novelty 0.9</code>. Genres for 13 of 20 top artists. 13 of 20 discover results came from the user's own history (then fixed).</td></tr>
+        <tr><td>Nov 1</td><td>CLI <code>create</code> (Stage 1's own example: 27 tracks, 8 by new artists, 30%; also a run using a candidate), <code>validate</code>, <code>explain</code>, <code>history</code> and <code>history &lt;id&gt;</code>, <code>modify</code> ("15 minutes shorter" removed 3 tracks) and <code>undo</code> (put them back), <code>playlists</code>, <code>show</code>, <code>trends</code> with all steps, the <code>Artists:</code> search section, <code>candidates</code>, <code>prefs set blockedArtists</code> by name, a blocked track making <code>validate</code> fail and <code>modify</code> refuse it; <code>restore</code> was tried on a test playlist according to the AI log. <code>feedback</code> with a bad id (status 2, nothing saved).</td></tr>
+        <tr><td>Nov 2</td><td>GUI, read-only through a throwaway script: login from the saved token, Profile refresh, Trends, Search, Discover, opening a playlist with its badge, Preferences and History; the Create and F11 dialogs were opened for layout and the Create click path was exercised with no Spotify settings so nothing could be written. The author ran Create (a "workout" goal, 6 tracks, finished; songs did not fit the goal) and Modify (6 tracks became 5) in the GUI by hand. Search for a song title returned exact titles in the top 3 in 5 of 5 runs.</td></tr>
+        <tr><td>Nov 4</td><td>GUI redesign, read-only on the real account through a throwaway driver that started the real <code>GuiApp</code>: every screen before and after login, the database-down banner, a Find Songs search, the Discover and History screens, the Restore preview (cancelled). Layout problems were found by looking and fixed. Nothing that writes (create, modify, undo, restore, delete, block, like, save) was pressed. The author also ran Create on Nov 4 by hand, which showed the library-song and Last.fm findings in Section 4.1 (Nirvana in a study playlist, Billie Jean in slow dance); the fixes were then tested in the unit suite. A live Create without a Last.fm key used the goal-fit rule only and still picked some library songs found by the goal's keyword search (a rock band for studying); a later read-only run with a Last.fm key is described in Section 1 (limitations); the Nov 5 review fixes have not been checked live.</td></tr>
+      </table></li>
+    <li><strong>Not run live</strong> (repeating Section 1.5): goal fit with Last.fm song tags switched on and after the November 5 review fixes (the author's own test is to come); the Past week range pressed by a person on the real account beyond the read-only check; F11 with a real conflict; <code>delete</code> (CLI and the GUI button); recreate from a deleted playlist; GUI Undo, Restore (confirming), like, not-for-me, Save and candidate controls pressed by a person; the other preference keys; a successful <code>feedback</code> on the real account.</li>
+  </ul>
+
+  <h3>6.3 Important defects found and corrected</h3>
+  <table>
+    <thead><tr><th style="width:58mm">Defect</th><th style="width:36mm">How it was found</th><th>Correction</th></tr></thead>
+    <tr><td>No artist genres at all (Spotify sends none to this app)</td><td>First live profile run, Oct 31</td><td>MusicBrainz source behind a Decorator, with a cache (R18).</td></tr>
+    <tr><td>Genre filter returned 0 to 1 tracks</td><td>Live search</td><td>Genre sent as a plain keyword (R19).</td></tr>
+    <tr><td>13 of 20 discover results were tracks the listener already knew</td><td>Live discover run</td><td>Known tracks excluded from every pool.</td></tr>
+    <tr><td>Mood words matched stock-music titles in search</td><td>Live search</td><td>Mood words removed and mapped to a genre; ranking weights retuned.</td></tr>
+    <tr><td>A repeated undo could re-apply a change the listener had reverted</td><td>PR #1 review, reproduced with a test</td><td>Each undo uses up one snapshot (<code>undone</code> flag); failures recover part-way changes.</td></tr>
+    <tr><td>A retried write could be applied twice; local files shifted positions</td><td>PR #1 review</td><td>Adds, creates and reorders are not retried on a 5xx; real Spotify positions are used.</td></tr>
+    <tr><td>A <code>TRACK_ID</code> placeholder saved as feedback</td><td>Live CLI test</td><td>Track id validated in the controller.</td></tr>
+    <tr><td>After "15 minutes shorter", validation failed against the old target</td><td>Live modify</td><td>The playlist's target length follows edits and restores.</td></tr>
+    <tr><td>An explanation said "genres you love" for goal genres</td><td>Live explain</td><td>Requested genres recorded in the trace; preference claims rejected unless recorded.</td></tr>
+    <tr><td>GUI: thumbs labels garbled; bad length entry failed silently; expired login swallowed</td><td>Task reviewer and a live read-only run</td><td>UTF-8 properties; a message for a bad length; errors surfaced.</td></tr>
+    <tr><td>GUI: the Create button could never start</td><td>PR #4 code review (768 tests had passed)</td><td>The dialog no longer disables a bound slider; a write-free probe confirmed the click path.</td></tr>
+    <tr><td>Candidates were forced into a "workout" playlist and the explanation said they suited the mood</td><td>Author's GUI test, Nov 2</td><td>Candidates are optional; the explain prompt may only state recorded reasons.</td></tr>
+    <tr><td>A blocked preference could be overwritten when the store was unreadable</td><td>Final review round, Nov 2</td><td>Blocking is refused when the stored preferences cannot be read.</td></tr>
+    <tr><td>The goal review sent track titles and artist names to OpenAI (Spotify Developer Policy section III item 14)</td><td>Found by Claude Code while documenting, Nov 3</td><td>Ids and MusicBrainz genres only; a reflective guard test (Section 4).</td></tr>
+    <tr><td>Library songs chosen by taste alone did not fit the goal ("slow dance" got a pop song; "music for studying" got 12 Nirvana songs; "workout" 8 songs by one rapper)</td><td>Author's Create runs, Nov 4</td><td>Familiar songs must fit by the artist's leading three genres or the song's own Last.fm tags; Last.fm tag songs added (Section 4.1).</td></tr>
+    <tr><td>Last.fm: the first tag used the whole song budget; slow Last.fm could stall Create; repeated Spotify searches; a non-array <code>tags</code> failed the plan</td><td>Code review of the Last.fm work, Nov 5</td><td>Shared budget, 15 second budget, session-only match cache, tolerant parsing, whole-tag synonyms. A suggestion that would let Billie Jean back into "slow dance" was rejected on purpose.</td></tr>
+    <tr><td>Playlist list said "0 songs" right after Create</td><td>Author's Create run, Nov 4</td><td>The view shows its own count while Spotify's total lags.</td></tr>
+  </table>
+
+  <h3>6.4 Remaining limitations</h3>
+  <p>See Section 1.5. In summary: goal fit improved by the Nov 4-5 rules but not yet confirmed by the author's own test; several paths not yet run live (F11 real conflict, delete, recreate, several GUI controls by hand); GUI screenshots and videos of the redesign still to be made; description-style searches weak; partial genre coverage; the F6 edit-prompt policy question open; Period 1 missed and Period 3 in progress (minimum already met); demonstration videos and cost figures still to be added; the full deterministic test suite and KUMA validation are Stage 3 work.</p>
+</section>
+
+<!-- ============================ SECTION 7 ============================ -->
+<section class="wide">
+  <!-- REFRESH BEFORE SUBMISSION -->
+  <h2>7 Demonstration index</h2>
+  <p>One row per feature. Each video segment must identify the feature ID and name, show how it is invoked and the required input, run in the actual application with its output, say briefly what it does and where AI is involved, and show an error or alternative case. The recordings together must show both the GUI and the CLI. Video links must be accessible to the instructor and teaching assistants without an access request, and no keys or credentials may appear.
+  <span class="ph">All link and timestamp cells are placeholders for Sarina.</span> <strong>The GUI invocations below use the names of the redesigned GUI (left-hand menu); the videos and screenshots of it are still to be recorded after the owner's test.</strong> "Run on real accounts so far" repeats Section 6.2 so the author knows which paths are new when recording.</p>
+  <table style="font-size:7.9pt">
+    <thead><tr>
+      <th style="width:27mm">Feature</th><th style="width:44mm">How to invoke (CLI / GUI)</th><th style="width:36mm">Input to show</th><th style="width:44mm">Output and alternative or error case to show</th><th style="width:24mm">AI involved</th><th style="width:32mm">Run on real accounts so far</th><th style="width:36mm">Video link / timestamp</th></tr></thead>
+    <tr><td><strong>F1</strong> Music Taste Profile</td><td><code>profile --refresh</code>, <code>profile</code>, <code>profile --range long</code> / Your Taste screen, "Refresh profile"</td><td>A time range</td><td>Genre bars, top artists and tracks, coverage notice, summary. Alternative: no LLM key gives the labelled computed summary; little history gives a partial notice.</td><td>Yes: summary sentence (hybrid)</td><td>CLI Oct 31; GUI read-only Nov 2</td><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+    <tr><td><strong>F2</strong> Taste-Change Analysis</td><td><code>trends</code> / Trends screen, "Compare my listening"</td><td>None</td><td>Three ranges, changes between them, narrative. Alternative: a range with no data marked; partial genre coverage gives cautious wording.</td><td>Yes: the narrative (hybrid)</td><td>CLI Oct 31 and Nov 1; GUI read-only Nov 2</td><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+    <tr><td><strong>F3</strong> Natural-Language Music Search</td><td><code>search "&lt;text&gt;"</code>, <code>candidates add|list|remove|clear</code> / Find Songs screen, "+ Add"</td><td>A song title and a description, for example an activity</td><td>Ranked tracks (exact title first) and named artists. Alternative: a blank query is refused; no results gives a simpler-query hint; a failed AI reading is labelled "plain keyword search".</td><td>Yes: reads the query (hybrid)</td><td>CLI Oct 31, Nov 1, Nov 2; GUI read-only Nov 2. Description searches are weak.</td><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+    <tr><td><strong>F4</strong> Personalized Discovery</td><td><code>discover [--novelty 0.7]</code> / Discover screen, "Find music"</td><td>A novelty setting</td><td>New tracks with reasons; none the listener already knows. Alternative: a widening notice; an invalid novelty value rejected.</td><td>No</td><td>CLI Oct 31 (exclusion fix covered by tests, not re-run live); GUI read-only Nov 2</td><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+    <tr><td><strong>F5</strong> AI Playlist Planning and Generation</td><td><code>create "&lt;goal&gt;" --minutes 30 --no-explicit --name "..."</code> / Playlists screen, "Create playlist..."</td><td>A goal, a length, flags; show candidate use and <code>--no-candidates</code></td><td>Progress through the state names, then the playlist, notices and explanation. Alternative: an unclear goal asks for clarification; no LLM key says so and changes nothing. <em>Writes a real private playlist.</em></td><td>Yes: parses the goal, goal review, explanation (hybrid)</td><td>CLI Nov 1; GUI by hand Nov 2 (songs did not fit the goal). <strong>Not run since the goal-fit fixes.</strong></td><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+    <tr><td><strong>F6</strong> Natural-Language Playlist Modification</td><td><code>playlists</code>, <code>show &lt;id&gt;</code>, <code>modify &lt;id&gt; "&lt;text&gt;"</code>, <code>undo &lt;id&gt;</code> / Playlists screen, Modify box, Undo</td><td>An instruction such as "make it 15 minutes shorter"</td><td>Change summary, updated badge, then undo. Alternative: an ambiguous instruction asks a question and changes nothing; a mood-only edit is flagged "Approximate".</td><td>Yes: instruction to steps (hybrid)</td><td>CLI Nov 1 (modify, undo); GUI Modify by hand Nov 2. <strong>GUI Undo not run by hand.</strong></td><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+    <tr><td><strong>F7</strong> Playlist Constraint Validation</td><td><code>validate &lt;id&gt;</code> / badges on the Playlists screen</td><td>A playlist id; a blocked artist or track to make it fail</td><td>PASS or FAIL per rule with offending tracks; exit status 1 on failure.</td><td>No</td><td>CLI Nov 1 (a blocked track made it fail)</td><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+    <tr><td><strong>F8</strong> Preference Memory</td><td><code>prefs list|get|set</code> / Your Rules screen</td><td>For example <code>explicitPolicy</code>, <code>familiarBias</code>, a blocked artist by name</td><td>Saved value and later effect on <code>discover</code> or <code>validate</code>. Alternative: <code>familiarBias 2</code> rejected; unknown artist refused; database down shows safe defaults.</td><td>No</td><td>CLI Nov 1 (<code>blockedArtists</code> only). Other keys and the GUI Save: not run live.</td><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+    <tr><td><strong>F9</strong> Recommendation Feedback</td><td><code>feedback &lt;trackId&gt; accept|reject</code> / like and not-for-me icons on a song row</td><td>A track id from <code>discover</code></td><td>"Recorded" and a changed later ranking. Alternative: a bad id is rejected with status 2 and nothing saved.</td><td>No</td><td>Bad id only (CLI). A successful verdict and the GUI buttons: not run live.</td><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+    <tr><td><strong>F10</strong> Grounded Recommendation Explanation</td><td><code>explain &lt;playlistId&gt;</code> / "Why these songs?" expander</td><td>A playlist id</td><td>An explanation using only recorded facts. Alternative: a rejected AI text shows the labelled computed explanation.</td><td>Yes: the explanation, checked (AI with fallback)</td><td>CLI Nov 1</td><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+    <tr><td><strong>F11</strong> Infeasible-Constraint Negotiation</td><td>The prompt during <code>create</code> (for example <code>--minutes 600 --familiar 1</code>) or <code>modify</code> / the conflict dialog</td><td>An impossible request</td><td>The conflict, numbered options, the applied choice. Alternative: cancel and show that nothing was created or changed on Spotify.</td><td>Yes: words the options (hybrid)</td><td><strong>Not run live.</strong> Tests, and the GUI dialog with stand-in text only.</td><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+    <tr><td><strong>F12</strong> Agent History and Snapshot/Restore</td><td><code>history [&lt;id&gt;]</code>, <code>restore &lt;snapshotId&gt;</code> / History screen, Restore</td><td>A saved version of a test playlist</td><td>Sessions with plan and result, saved versions, the restored playlist and an undo hint. Alternative: a restore of a deleted playlist offers to recreate it; an unchanged playlist says so.</td><td>No</td><td>CLI <code>history</code> Nov 1; <code>restore</code> on a test playlist per the AI log. Recreate and GUI Restore: not run live.</td><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+    <tr><td><strong>New</strong> Delete a playlist</td><td><code>delete &lt;playlistId&gt;</code> (CLI) / Delete on a playlist row and the confirm dialog (GUI)</td><td>A test playlist; type its name when asked (CLI) or press Delete and confirm (GUI)</td><td>The playlist leaves the library and a saved version remains for <code>restore</code>. Alternative: a playlist not owned is refused; a wrong typed name does nothing.</td><td>No</td><td><strong>Not run live.</strong></td><td><span class="ph">[link to be added by Sarina]</span></td></tr>
+  </table>
+  <p class="small">The CLI and the GUI are both shown by the rows above (the CLI for every feature, the GUI for F1-F12 except delete). Features that write to Spotify (F5, F6, F12, delete) should be recorded on a test playlist.</p>
+</section>
+
+</body>
+</html>

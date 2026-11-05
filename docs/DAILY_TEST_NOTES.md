@@ -352,15 +352,15 @@ build/install/musicmind/bin/musicmind playlists
 **Expected:** every playlist you own or collaborate on, with its id and track count.
 
 ```bash
-build/install/musicmind/bin/musicmind show 3ZoBJ3mKOVPA2tJV00IPxN
+build/install/musicmind/bin/musicmind show <playlist id>
 ```
 
-**Expected:** `Energetic Workout Mix` with its tracks and total length.
+**Expected:** with the id of the test playlist "Energetic Workout Mix" (from `playlists`), its tracks and total length.
 
 ### 2. One session (F12)
 
 ```bash
-build/install/musicmind/bin/musicmind history 3ZoBJ3mKOVPA2tJV00IPxN
+build/install/musicmind/bin/musicmind history <playlist id>
 ```
 
 **Expected:** the request, status, numbered plan and result for the session that created that playlist.
@@ -404,7 +404,7 @@ build/install/musicmind/bin/musicmind prefs set blockedArtists ""
 ### 6. Candidates (F3)
 
 ```bash
-build/install/musicmind/bin/musicmind candidates add 7J1uxwnxfQLu4APicE5Rnj
+build/install/musicmind/bin/musicmind candidates add <track id>
 ```
 
 ```bash
@@ -423,7 +423,7 @@ build/install/musicmind/bin/musicmind create "a calm 30 minute mix for studying"
 
 **Verified:** all tests, on a forced clean run. Live and read-only on your account: `playlists`, `show`, `history <id>`, `trends`, the `Artists:` section, single artist and track reads, and `candidates` add, list and clear.
 
-**Also checked live (Nov 1):** `create` with a candidate gave playlist `1tLPnOIvqQsx1pFYWPZzgq` with Billie Jean as track 1, confirmed by reading it back from Spotify, and the candidate list was empty afterwards. A blocked track made `validate` fail, and `modify` refused to add a blocked track and left the playlist unchanged. `blockedArtists` by name stored the id, listed the name, made `validate` fail, and refused an unknown name. Preferences were restored afterwards.
+**Also checked live (Nov 1):** `create` with a candidate gave the test playlist "MusicMind candidate test" with Billie Jean as track 1, confirmed by reading it back from Spotify, and the candidate list was empty afterwards. A blocked track made `validate` fail, and `modify` refused to add a blocked track and left the playlist unchanged. `blockedArtists` by name stored the id, listed the name, made `validate` fail, and refused an unknown name. Preferences were restored afterwards.
 
 **Not verified live:** the GUI controls for all of this, which arrive with Task 13.
 

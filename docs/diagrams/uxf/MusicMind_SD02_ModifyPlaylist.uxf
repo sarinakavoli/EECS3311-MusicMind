@@ -9,263 +9,903 @@
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>225</x><y>40</y><w>150</w><h>40</h></coordinates>
+    <coordinates><x>225</x><y>40</y><w>160</w><h>40</h></coordinates>
     <panel_attributes>PlaylistView</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>410</x><y>40</y><w>150</w><h>40</h></coordinates>
-    <panel_attributes>AppController</panel_attributes>
+    <coordinates><x>410</x><y>40</y><w>160</w><h>40</h></coordinates>
+    <panel_attributes>AppController
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>595</x><y>40</y><w>150</w><h>40</h></coordinates>
-    <panel_attributes>MusicAgentFacade</panel_attributes>
+    <coordinates><x>595</x><y>40</y><w>160</w><h>40</h></coordinates>
+    <panel_attributes>MusicAgentFacade
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>780</x><y>40</y><w>150</w><h>40</h></coordinates>
+    <coordinates><x>780</x><y>40</y><w>160</w><h>40</h></coordinates>
+    <panel_attributes>PlaylistEditor
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>965</x><y>40</y><w>160</w><h>40</h></coordinates>
     <panel_attributes>LLMProvider</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>965</x><y>40</y><w>150</w><h>40</h></coordinates>
+    <coordinates><x>1150</x><y>40</y><w>160</w><h>40</h></coordinates>
     <panel_attributes>ResponseParser</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>1150</x><y>40</y><w>150</w><h>40</h></coordinates>
-    <panel_attributes>PlaylistManager</panel_attributes>
+    <coordinates><x>1335</x><y>40</y><w>160</w><h>40</h></coordinates>
+    <panel_attributes>ConstraintChecker
+bg=#CFE8FF</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>1335</x><y>40</y><w>150</w><h>40</h></coordinates>
-    <panel_attributes>MusicService</panel_attributes>
+    <coordinates><x>1520</x><y>40</y><w>160</w><h>40</h></coordinates>
+    <panel_attributes>NegotiationHandler
+bg=#FFE9A8</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>1520</x><y>40</y><w>150</w><h>40</h></coordinates>
+    <coordinates><x>1705</x><y>40</y><w>160</w><h>40</h></coordinates>
+    <panel_attributes>PlaylistManager
+bg=#CFE8FF</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>1890</x><y>40</y><w>160</w><h>40</h></coordinates>
+    <panel_attributes>MemoryManager
+bg=#CFE8FF</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>2075</x><y>40</y><w>160</w><h>40</h></coordinates>
+    <panel_attributes>MusicService
+bg=#CFE8FF</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>2260</x><y>40</y><w>160</w><h>40</h></coordinates>
     <panel_attributes>PlaylistValidator</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLFrame</id>
-    <coordinates><x>1185</x><y>460</y><w>265</w><h>126</h></coordinates>
-    <panel_attributes>loop  [each PlaylistCommand; push to undo stack]</panel_attributes>
+    <coordinates><x>75</x><y>640</y><w>2365</w><h>160</h></coordinates>
+    <panel_attributes>loop  [edit would introduce a violation]
+fg=#C05A00</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLFrame</id>
-    <coordinates><x>75</x><y>736</y><w>1375</w><h>356</h></coordinates>
+    <coordinates><x>75</x><y>808</y><w>2365</w><h>206</h></coordinates>
+    <panel_attributes>alt  [edit infeasible or breaks a rule -&gt; UC12 / F11]
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLFrame</id>
+    <coordinates><x>1675</x><y>1150</y><w>570</w><h>114</h></coordinates>
+    <panel_attributes>loop  [each PlaylistCommand; push to undo history]</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLFrame</id>
+    <coordinates><x>695</x><y>1850</y><w>1735</w><h>114</h></coordinates>
+    <panel_attributes>alt  [command still in history]</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLFrame</id>
+    <coordinates><x>695</x><y>1966</y><w>1735</w><h>252</h></coordinates>
+    <panel_attributes>[else  no command in history: undo from the saved snapshot]
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLFrame</id>
+    <coordinates><x>75</x><y>1646</y><w>2395</w><h>756</h></coordinates>
     <panel_attributes>opt  [user clicks Undo]</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>115</x><y>80</y><w>10</w><h>1016</h></coordinates>
+    <coordinates><x>115</x><y>120</y><w>10</w><h>2316</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;1016</additional_attributes>
+    <additional_attributes>0;0;0;2316</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>300</x><y>80</y><w>10</w><h>1016</h></coordinates>
+    <coordinates><x>300</x><y>80</y><w>10</w><h>2356</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;1016</additional_attributes>
+    <additional_attributes>5;0;5;2356</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>485</x><y>80</y><w>10</w><h>1016</h></coordinates>
+    <coordinates><x>485</x><y>80</y><w>10</w><h>2356</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;1016</additional_attributes>
+    <additional_attributes>5;0;5;2356</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>80</y><w>10</w><h>1016</h></coordinates>
+    <coordinates><x>670</x><y>80</y><w>10</w><h>2356</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;1016</additional_attributes>
+    <additional_attributes>5;0;5;2356</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>855</x><y>80</y><w>10</w><h>1016</h></coordinates>
+    <coordinates><x>855</x><y>80</y><w>10</w><h>2356</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;1016</additional_attributes>
+    <additional_attributes>5;0;5;2356</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1040</x><y>80</y><w>10</w><h>1016</h></coordinates>
+    <coordinates><x>1040</x><y>80</y><w>10</w><h>2356</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;1016</additional_attributes>
+    <additional_attributes>5;0;5;2356</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1225</x><y>80</y><w>10</w><h>1016</h></coordinates>
+    <coordinates><x>1225</x><y>80</y><w>10</w><h>2356</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;1016</additional_attributes>
+    <additional_attributes>5;0;5;2356</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1410</x><y>80</y><w>10</w><h>1016</h></coordinates>
+    <coordinates><x>1410</x><y>80</y><w>10</w><h>2356</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;1016</additional_attributes>
+    <additional_attributes>5;0;5;2356</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>1595</x><y>80</y><w>10</w><h>1016</h></coordinates>
+    <coordinates><x>1595</x><y>80</y><w>10</w><h>2356</h></coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>0;0;0;1016</additional_attributes>
+    <additional_attributes>5;0;5;2356</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>115</x><y>110</y><w>185</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-"remove explicit, 15 min shorter"</panel_attributes>
+    <coordinates><x>1780</x><y>80</y><w>10</w><h>2356</h></coordinates>
+    <panel_attributes>lt=.</panel_attributes>
+    <additional_attributes>5;0;5;2356</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1965</x><y>80</y><w>10</w><h>2356</h></coordinates>
+    <panel_attributes>lt=.</panel_attributes>
+    <additional_attributes>5;0;5;2356</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>2150</x><y>80</y><w>10</w><h>2356</h></coordinates>
+    <panel_attributes>lt=.</panel_attributes>
+    <additional_attributes>5;0;5;2356</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>2335</x><y>80</y><w>10</w><h>2356</h></coordinates>
+    <panel_attributes>lt=.</panel_attributes>
+    <additional_attributes>5;0;5;2356</additional_attributes>
+  </element>
+  <element>
+    <id>UMLNote</id>
+    <coordinates><x>150</x><y>330</y><w>430</w><h>88</h></coordinates>
+    <panel_attributes>Legend (Stage 2 update)
+Orange arrows and frames = new in Stage 2
+Yellow lifeline = new class
+Blue lifeline = Stage 1 class with additions
+White lifeline / black arrow = as in Stage 1</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>115</x><y>156</y><w>190</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;</panel_attributes>
+    <additional_attributes>0;0;190;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>305</x><y>202</y><w>185</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;</panel_attributes>
     <additional_attributes>0;0;185;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>300</x><y>156</y><w>185</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-modifyPlaylist(id, instruction)</panel_attributes>
+    <coordinates><x>490</x><y>248</y><w>185</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;</panel_attributes>
     <additional_attributes>0;0;185;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>485</x><y>202</y><w>185</w><h>10</h></coordinates>
+    <coordinates><x>675</x><y>294</y><w>1480</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
-modifyPlaylist(playlistId, instruction)</panel_attributes>
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;1480;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>675</x><y>340</y><w>1295</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;1295;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>675</x><y>386</y><w>185</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+fg=#C05A00</panel_attributes>
     <additional_attributes>0;0;185;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>248</y><w>185</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-complete(editPrompt)</panel_attributes>
+    <coordinates><x>860</x><y>432</y><w>185</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;</panel_attributes>
     <additional_attributes>0;0;185;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>294</y><w>185</w><h>10</h></coordinates>
-    <panel_attributes>lt=.&gt;
-command list (JSON)</panel_attributes>
+    <coordinates><x>860</x><y>478</y><w>185</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;</panel_attributes>
     <additional_attributes>185;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>340</y><w>370</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-parseCommands(json)</panel_attributes>
+    <coordinates><x>860</x><y>524</y><w>370</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;</panel_attributes>
     <additional_attributes>0;0;370;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>386</y><w>370</w><h>10</h></coordinates>
-    <panel_attributes>lt=.&gt;
-[RemoveTrackCommand, ...]</panel_attributes>
+    <coordinates><x>860</x><y>570</y><w>370</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;</panel_attributes>
     <additional_attributes>370;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>432</y><w>555</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-executeAll(commands)</panel_attributes>
-    <additional_attributes>0;0;555;0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>1225</x><y>478</y><w>185</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-removeItems / reorderItems(...)</panel_attributes>
-    <additional_attributes>0;0;185;0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>1225</x><y>524</y><w>185</w><h>10</h></coordinates>
+    <coordinates><x>675</x><y>616</y><w>185</w><h>10</h></coordinates>
     <panel_attributes>lt=.&gt;
-ok</panel_attributes>
+fg=#C05A00</panel_attributes>
     <additional_attributes>185;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>570</y><w>555</w><h>10</h></coordinates>
-    <panel_attributes>lt=.&gt;
-updated Playlist</panel_attributes>
-    <additional_attributes>555;0;0;0</additional_attributes>
+    <coordinates><x>675</x><y>682</y><w>740</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;740;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>616</y><w>925</w><h>10</h></coordinates>
+    <coordinates><x>675</x><y>728</y><w>740</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+fg=#C05A00</panel_attributes>
+    <additional_attributes>740;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>675</x><y>774</y><w>185</w><h>10</h></coordinates>
     <panel_attributes>lt=-&gt;
-validate(tracks, spec)</panel_attributes>
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;185;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>675</x><y>850</y><w>740</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;740;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>675</x><y>896</y><w>740</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+fg=#C05A00</panel_attributes>
+    <additional_attributes>740;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>675</x><y>942</y><w>925</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+fg=#C05A00</panel_attributes>
     <additional_attributes>0;0;925;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>670</x><y>662</y><w>925</w><h>10</h></coordinates>
+    <coordinates><x>675</x><y>988</y><w>925</w><h>10</h></coordinates>
     <panel_attributes>lt=.&gt;
-ValidationResult</panel_attributes>
+fg=#C05A00</panel_attributes>
     <additional_attributes>925;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>485</x><y>708</y><w>185</w><h>10</h></coordinates>
+    <coordinates><x>675</x><y>1034</y><w>1110</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;1110;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1785</x><y>1080</y><w>185</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;185;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1785</x><y>1126</y><w>185</w><h>10</h></coordinates>
     <panel_attributes>lt=.&gt;
-updated Playlist + change summary</panel_attributes>
+fg=#C05A00</panel_attributes>
     <additional_attributes>185;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>115</x><y>754</y><w>185</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-Undo</panel_attributes>
-    <additional_attributes>0;0;185;0</additional_attributes>
+    <coordinates><x>1785</x><y>1192</y><w>370</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;</panel_attributes>
+    <additional_attributes>0;0;370;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>300</x><y>800</y><w>185</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-undo(playlistId)</panel_attributes>
-    <additional_attributes>0;0;185;0</additional_attributes>
+    <coordinates><x>1785</x><y>1238</y><w>370</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;</panel_attributes>
+    <additional_attributes>370;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>485</x><y>846</y><w>185</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-undo</panel_attributes>
-    <additional_attributes>0;0;185;0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>670</x><y>892</y><w>555</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-undo(playlistId)</panel_attributes>
-    <additional_attributes>0;0;555;0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>1225</x><y>938</y><w>185</w><h>10</h></coordinates>
-    <panel_attributes>lt=-&gt;
-inverse operation(s)</panel_attributes>
-    <additional_attributes>0;0;185;0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates><x>1225</x><y>984</y><w>185</w><h>10</h></coordinates>
+    <coordinates><x>675</x><y>1284</y><w>1110</w><h>10</h></coordinates>
     <panel_attributes>lt=.&gt;
-ok</panel_attributes>
+fg=#C05A00</panel_attributes>
+    <additional_attributes>1110;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>675</x><y>1330</y><w>1295</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;1295;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>675</x><y>1376</y><w>1480</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;1480;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>675</x><y>1422</y><w>1665</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;</panel_attributes>
+    <additional_attributes>0;0;1665;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>675</x><y>1468</y><w>1665</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;</panel_attributes>
+    <additional_attributes>1665;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>490</x><y>1514</y><w>185</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;</panel_attributes>
     <additional_attributes>185;0;0;0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
-    <coordinates><x>485</x><y>1030</y><w>185</w><h>10</h></coordinates>
+    <coordinates><x>305</x><y>1560</y><w>185</w><h>10</h></coordinates>
     <panel_attributes>lt=.&gt;
-reverted Playlist</panel_attributes>
+fg=#C05A00</panel_attributes>
     <additional_attributes>185;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>115</x><y>1606</y><w>190</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;</panel_attributes>
+    <additional_attributes>190;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>115</x><y>1688</y><w>190</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;</panel_attributes>
+    <additional_attributes>0;0;190;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>305</x><y>1734</y><w>185</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;</panel_attributes>
+    <additional_attributes>0;0;185;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>490</x><y>1780</y><w>185</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;</panel_attributes>
+    <additional_attributes>0;0;185;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>675</x><y>1826</y><w>1110</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;</panel_attributes>
+    <additional_attributes>0;0;1110;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1785</x><y>1892</y><w>370</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;</panel_attributes>
+    <additional_attributes>0;0;370;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1785</x><y>1938</y><w>370</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;</panel_attributes>
+    <additional_attributes>370;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1785</x><y>2008</y><w>185</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;185;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1785</x><y>2054</y><w>185</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+fg=#C05A00</panel_attributes>
+    <additional_attributes>185;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1785</x><y>2100</y><w>370</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;370;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1785</x><y>2146</y><w>370</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+fg=#C05A00</panel_attributes>
+    <additional_attributes>370;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>1785</x><y>2192</y><w>185</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;185;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>675</x><y>2238</y><w>1110</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;
+fg=#C05A00</panel_attributes>
+    <additional_attributes>1110;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>675</x><y>2284</y><w>1295</w><h>10</h></coordinates>
+    <panel_attributes>lt=-&gt;
+fg=#C05A00</panel_attributes>
+    <additional_attributes>0;0;1295;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>490</x><y>2330</y><w>185</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;</panel_attributes>
+    <additional_attributes>185;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>305</x><y>2376</y><w>185</w><h>10</h></coordinates>
+    <panel_attributes>lt=.&gt;</panel_attributes>
+    <additional_attributes>185;0;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>78</x><y>131</y><w>264</w><h>22</h></coordinates>
+    <panel_attributes>"remove explicit, 15 min shorter"
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>273</x><y>177</y><w>249</w><h>22</h></coordinates>
+    <panel_attributes>modifyPlaylist(id, instruction)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>428</x><y>223</y><w>308</w><h>22</h></coordinates>
+    <panel_attributes>modifyPlaylist(playlistId, instruction)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1194</x><y>269</y><w>441</w><h>22</h></coordinates>
+    <panel_attributes>getPlaylistItems(playlistId)  (the playlist as it is now)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1098</x><y>315</y><w>449</w><h>22</h></coordinates>
+    <panel_attributes>stored rules + target length (session record, preferences)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>580</x><y>361</y><w>375</w><h>22</h></coordinates>
+    <panel_attributes>plan(PlaylistContext, instruction, artistGenres)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>868</x><y>407</y><w>168</w><h>22</h></coordinates>
+    <panel_attributes>complete(editPrompt)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>872</x><y>453</y><w>160</w><h>22</h></coordinates>
+    <panel_attributes>command list (JSON)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>902</x><y>499</y><w>286</w><h>22</h></coordinates>
+    <panel_attributes>forPlaylist(ctx).parseCommands(json)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>883</x><y>545</y><w>323</w><h>22</h></coordinates>
+    <panel_attributes>[RemoveTrackCommand, ReorderCommand, ...]
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>617</x><y>591</y><w>301</w><h>22</h></coordinates>
+    <panel_attributes>EditPlan(commands, approximate?, mood)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>798</x><y>657</y><w>493</w><h>22</h></coordinates>
+    <panel_attributes>introduced(before, after, spec)  (violations the edit would add)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>950</x><y>703</y><w>190</w><h>22</h></coordinates>
+    <panel_attributes>List&lt;String&gt; introduced
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>491</x><y>749</y><w>552</w><h>22</h></coordinates>
+    <panel_attributes>plan(..., instruction + hint)  (re-plan, up to planMaxValidationRetries)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>913</x><y>825</y><w>264</w><h>22</h></coordinates>
+    <panel_attributes>checkEdit(before, commands, spec)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>972</x><y>871</y><w>145</w><h>22</h></coordinates>
+    <panel_attributes>FeasibilityReport
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>917</x><y>917</y><w>441</w><h>22</h></coordinates>
+    <panel_attributes>choose(report, phrasedOptions)  (GUI dialog / CLI prompt)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>917</x><y>963</y><w>441</w><h>22</h></coordinates>
+    <panel_attributes>Optional&lt;Relaxation&gt;  (e.g. apply only the first n steps)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1127</x><y>1009</y><w>205</w><h>22</h></coordinates>
+    <panel_attributes>modify(current, commands)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1612</x><y>1055</y><w>530</w><h>22</h></coordinates>
+    <panel_attributes>saveSnapshot(current)  (before anything changes; F12 and Undo use it)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1827</x><y>1101</y><w>101</w><h>22</h></coordinates>
+    <panel_attributes>snapshot id
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1675</x><y>1167</y><w>589</w><h>22</h></coordinates>
+    <panel_attributes>removeItems / addItems / reorderItems(...)  (one BatchCommand, one undo step)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1953</x><y>1213</y><w>34</w><h>22</h></coordinates>
+    <panel_attributes>ok
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1179</x><y>1259</y><w>101</w><h>22</h></coordinates>
+    <panel_attributes>snapshot id
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1065</x><y>1305</y><w>515</w><h>22</h></coordinates>
+    <panel_attributes>saveSession(change record: instruction, target length, snapshot id)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1253</x><y>1351</y><w>323</w><h>22</h></coordinates>
+    <panel_attributes>getPlaylistItems(playlistId)  (read back)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1342</x><y>1397</y><w>330</w><h>22</h></coordinates>
+    <panel_attributes>validate(tracks, spec with the new target)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1320</x><y>1443</y><w>375</w><h>22</h></coordinates>
+    <panel_attributes>ValidationResult  (a violation becomes a notice)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>513</x><y>1489</y><w>138</w><h>22</h></coordinates>
+    <panel_attributes>updated Playlist
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>276</x><y>1535</y><w>242</w><h>22</h></coordinates>
+    <panel_attributes>Playlist + lastChangeSummary()
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>78</x><y>1581</y><w>264</w><h>22</h></coordinates>
+    <panel_attributes>updated Playlist + change summary
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>185</x><y>1663</y><w>49</w><h>22</h></coordinates>
+    <panel_attributes>Undo
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>328</x><y>1709</y><w>138</w><h>22</h></coordinates>
+    <panel_attributes>undo(playlistId)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>513</x><y>1755</y><w>138</w><h>22</h></coordinates>
+    <panel_attributes>undo(playlistId)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1161</x><y>1801</y><w>138</w><h>22</h></coordinates>
+    <panel_attributes>undo(playlistId)
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1723</x><y>1867</y><w>493</w><h>22</h></coordinates>
+    <panel_attributes>inverse operation(s) of the latest command in this run's history
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1953</x><y>1913</y><w>34</w><h>22</h></coordinates>
+    <panel_attributes>ok
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1620</x><y>1983</y><w>515</w><h>22</h></coordinates>
+    <panel_attributes>loadLatestSnapshot(playlistId)  (history is empty in a new process)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1760</x><y>2029</y><w>234</w><h>22</h></coordinates>
+    <panel_attributes>Playlist (ids and order only)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1719</x><y>2075</y><w>501</w><h>22</h></coordinates>
+    <panel_attributes>getPlaylistItems; RestoreSnapshotCommand: remove, re-add, reorder
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1953</x><y>2121</y><w>34</w><h>22</h></coordinates>
+    <panel_attributes>ok
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1734</x><y>2167</y><w>286</w><h>22</h></coordinates>
+    <panel_attributes>markLatestSnapshotUndone(playlistId)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1124</x><y>2213</y><w>212</w><h>22</h></coordinates>
+    <panel_attributes>number of changes reverted
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>1224</x><y>2259</y><w>197</w><h>22</h></coordinates>
+    <panel_attributes>saveSession(undo record)
+bg=#FFFFFF
+transparency=0
+fg=#C05A00</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>539</x><y>2305</y><w>86</w><h>22</h></coordinates>
+    <panel_attributes>undo done
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Text</id>
+    <coordinates><x>325</x><y>2351</y><w>145</w><h>22</h></coordinates>
+    <panel_attributes>reverted Playlist
+bg=#FFFFFF
+transparency=0</panel_attributes>
+    <additional_attributes/>
   </element>
 </diagram>
