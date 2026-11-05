@@ -36,12 +36,16 @@ final class TrackTagFit {
     private int lookups;
     private boolean failed;
 
-    TrackTagFit(TagService service, Config config, List<String> planTags, Consumer<String> failures) {
+    TrackTagFit(TagService service, Config config, List<String> planTags, List<String> seedGenres,
+                Consumer<String> failures) {
         this.service = service;
         this.maxLookups = config.lastfmMaxTrackTagLookups();
         this.failures = failures;
         Set<String> wanted = new HashSet<>();
-        for (String tag : planTags) {
+        // The genres the user asked for count as goal words too, so a song tagged "soul" is not vetoed for a "soul" request.
+        List<String> goalWords = new java.util.ArrayList<>(planTags);
+        goalWords.addAll(seedGenres);
+        for (String tag : goalWords) {
             wanted.add(squash(tag));
             config.lastfmSynonyms(tag).forEach(s -> wanted.add(squash(s)));
         }
