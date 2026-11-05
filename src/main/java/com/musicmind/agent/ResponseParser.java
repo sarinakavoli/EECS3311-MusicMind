@@ -86,13 +86,19 @@ public class ResponseParser {
     }
 
     /** What a plan reply says beyond the constraints: how sure the model is, whether it stated a familiar share, the mood. */
-    public record PlanExtras(double confidence, boolean familiarStated, String mood, List<String> searchTerms) {
+    public record PlanExtras(double confidence, boolean familiarStated, String mood, List<String> searchTerms,
+                            List<String> tags) {
         public PlanExtras {
             searchTerms = searchTerms == null ? List.of() : List.copyOf(searchTerms);
+            tags = tags == null ? List.of() : List.copyOf(tags);
+        }
+
+        public PlanExtras(double confidence, boolean familiarStated, String mood, List<String> searchTerms) {
+            this(confidence, familiarStated, mood, searchTerms, List.of());
         }
 
         public PlanExtras(double confidence, boolean familiarStated, String mood) {
-            this(confidence, familiarStated, mood, List.of());
+            this(confidence, familiarStated, mood, List.of(), List.of());
         }
     }
 
@@ -105,7 +111,7 @@ public class ResponseParser {
         double confidence = o.has("confidence") && !o.get("confidence").isJsonNull()
                 ? clamp01(number(o, "confidence")) : config.planDefaultConfidence();
         boolean stated = o.has("familiarRatio") && !o.get("familiarRatio").isJsonNull();
-        return new PlanExtras(confidence, stated, text(o, "mood"), searchTerms(o));
+        return new PlanExtras(confidence, stated, text(o, "mood"), searchTerms(o), tags(o));
     }
 
     /** The search phrases of a plan reply: trimmed, without repeats (case ignored), at most the configured number. */
@@ -115,6 +121,18 @@ public class ResponseParser {
         for (String term : strings(o, "searchTerms")) {
             if (seen.add(term.toLowerCase(Locale.ROOT)) && out.size() < config.goalMaxSearchTerms()) {
                 out.add(term);
+            }
+        }
+        return out;
+    }
+
+    /** The Last.fm tags of a plan reply: trimmed, without repeats (case ignored), at most {@code lastfm.maxTags}. */
+    private List<String> tags(JsonObject o) {
+        Set<String> seen = new LinkedHashSet<>();
+        List<String> out = new ArrayList<>();
+        for (String tag : strings(o, "tags")) {
+            if (seen.add(tag.toLowerCase(Locale.ROOT)) && out.size() < config.lastfmMaxTags()) {
+                out.add(tag);
             }
         }
         return out;

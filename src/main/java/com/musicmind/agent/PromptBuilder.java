@@ -82,6 +82,10 @@ public class PromptBuilder {
                 .append(" short search phrases (two or three words) for the activity or setting the playlist is for, ")
                 .append("such as \"gym workout\" or \"study session\", or [] if the request names none; ")
                 .append("a phrase must not be a song title or an artist name, ")
+                .append("\"tags\": up to ").append(config.lastfmMaxTags())
+                .append(" short Last.fm-style music tags (one to three words, such as \"slow dance\" or \"romantic\") ")
+                .append("for the mood, genre or activity of the request, or [] if none fits; ")
+                .append("a tag must not be a song title or an artist name, ")
                 .append("\"confidence\": number from 0 to 1 for how sure you are what playlist is wanted}");
         return p.toString();
     }
