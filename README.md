@@ -81,6 +81,7 @@ persistence, and one LLM (OpenAI) behind the `LLMProvider` interface.
   the redirect URI `http://127.0.0.1:8080/callback`. A Spotify **Premium**
   account is required for Web API access.
 - An **LLM API key** (OpenAI; default model `gpt-4o`).
+- Optional: a free **Last.fm API key** (`LASTFM_API_KEY` in `.env`, from <https://www.last.fm/api/account/create>). With it, Create also uses songs Last.fm lists under tags for your goal; without it Create works as before and says tag data is off. Song tags come from Last.fm, which the app credits in its footer.
 
 ### Local configuration (keys stay local — never committed)
 ```bash

@@ -148,6 +148,7 @@ Status added Nov 4 after the frontend redesign and its read-only live check (`do
       Stage 1 in `docs/STAGE2_PLAN.md`. Say honestly in the report that tempo data is
       unavailable.
    - **Status (Nov 4):** **Done in the backend** (Nov 2): activity searches and the goal review. **Still unproven:** no playlist has been created since the fixes, so goal fit is untested on the real account. Tempo data is unavailable from Spotify.
+   - **Status (Nov 4, later):** Create now also asks Last.fm for the top songs of up to 2 tags for the goal and matches them to real Spotify tracks (title and artist must match), and library songs count as familiar only when they fit the goal. Needs `LASTFM_API_KEY` in `.env` (optional). **Still unproven with tags on:** the live check without a key (slow dance, workout, music for studying) ran the goal-fit rule only and still picked library songs found by the goal's keyword search (for example a rock band for studying); judge again once the key is set. Recorded in `docs/STAGE2_PLAN.md`.
 
 17. **"Why these?" text oversells and is cut off (Create).** It says candidates "align
     with the mood or style", but nothing checked that. The text also ends at "genr..."
