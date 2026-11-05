@@ -1145,6 +1145,52 @@ class RecommendationEngineTest {
         assertEquals(10, recs.size());
     }
 
+    // ---- Live finding: a long artist tag list must not make an artist fit every goal ----
+
+    private static final List<String> STUDYING = List.of("ambient", "classical", "instrumental", "lo-fi");
+    // MusicBrainz-style tag list of a grunge band: the seed words are far down the list.
+    private static final List<String> GRUNGE_TAGS = List.of("grunge", "alternative rock", "rock", "noise rock",
+            "acoustic rock", "sludge metal", "punk", "ambient", "experimental", "instrumental");
+
+    private static FakeMusic grungeLibrary() {
+        FakeMusic m = new FakeMusic();
+        m.top = List.of(track("g0", "grungeA"), track("g1", "grungeA"), track("g2", "grungeA"), track("g3", "grungeA"));
+        m.byGenre.put("ambient", unknownTracks("n", 20));
+        return m;
+    }
+
+    @Test
+    void create_profileGenresWithASeedWordFarDownTheList_doNotMakeALibraryTrackFit() {
+        ListeningProfile p = new ListeningProfile(new LinkedHashMap<>(Map.of("grunge", 0.9)),
+                List.of(new Artist("grungeA", "GrungeA", GRUNGE_TAGS)), List.of(), List.of(), null, Instant.EPOCH);
+        RecommendationEngine e = engine(grungeLibrary());
+
+        List<Recommendation> recs = e.recommend(p, spec(0.5), List.of(), true, STUDYING);
+
+        assertTrue(ids(recs).stream().noneMatch(id -> id.startsWith("g")), ids(recs).toString());
+    }
+
+    @Test
+    void create_cachedGenresWithASeedWordFarDownTheList_doNotMakeALibraryTrackFit() {
+        RecommendationEngine e = new RecommendationEngine(toolsFor(grungeLibrary()), config,
+                id -> id.equals("grungeA") ? Optional.of(GRUNGE_TAGS) : Optional.empty());
+
+        List<Recommendation> recs = e.recommend(goalProfile(), spec(0.5), List.of(), true, STUDYING);
+
+        assertTrue(ids(recs).stream().noneMatch(id -> id.startsWith("g")), ids(recs).toString());
+    }
+
+    @Test
+    void create_aSeedGenreAmongTheArtistsLeadingGenres_stillFits() {
+        FakeMusic m = grungeLibrary();
+        RecommendationEngine e = new RecommendationEngine(toolsFor(m), config,
+                id -> id.equals("grungeA") ? Optional.of(List.of("rock", "lo-fi", "grunge")) : Optional.empty());
+
+        List<Recommendation> recs = e.recommend(goalProfile(), spec(0.5), List.of(), true, STUDYING);
+
+        assertEquals(4, ids(recs).stream().filter(id -> id.startsWith("g")).count(), ids(recs).toString());
+    }
+
     // ---- Last.fm tag songs ----
 
     private final Config withKey = Config.of(Map.of("LASTFM_API_KEY", "test-key"));

@@ -128,6 +128,27 @@ public final class Retrieval {
         return List.copyOf(found);
     }
 
+    /**
+     * The genres that characterise a track, for the Create goal-fit check: the genre it was searched under and
+     * the first {@code leading} genres of each of its artists (profile genres, else cached MusicBrainz ones).
+     * Long artist tag lists run to dozens of tags, so a requested genre far down the list ("ambient" for a
+     * grunge band) says nothing about the artist.
+     */
+    public List<String> leadingGenres(Track track, ArtistGenreCache cache, int leading) {
+        Set<String> found = new LinkedHashSet<>();
+        RecommendationEngine.Origin origin = origins.get(track.id());
+        if (origin != null && origin.genre() != null && !origin.genre().isBlank()) {
+            found.add(origin.genre());
+        }
+        for (String artistId : track.artistIds()) {
+            List<String> own = profile.topArtists().stream().filter(a -> a.id().equals(artistId))
+                    .flatMap(a -> a.genres().stream()).toList();
+            List<String> all = own.isEmpty() ? cache.cached(artistId).orElse(List.of()) : own;
+            found.addAll(all.subList(0, Math.min(leading, all.size())));
+        }
+        return List.copyOf(found);
+    }
+
     static List<Track> keeping(List<Track> tracks, Set<String> removed) {
         return tracks.stream().filter(t -> !removed.contains(t.id())).toList();
     }

@@ -496,9 +496,9 @@ public class RecommendationEngine {
     }
 
     /**
-     * A familiar track (library, album or genre result by an artist the user knows) fits the goal when a goal source found it (keyword search or Last.fm tag song) or any
-     * genre known for its artists (the profile's, the cached MusicBrainz ones, the genre it was found under)
-     * is one of the requested genres, ignoring case.
+     * A familiar track (library, album or genre result by an artist the user knows) fits the goal when a goal source found it (keyword search or Last.fm tag song) or one of the
+     * leading genres of its artists (the profile's, else the cached MusicBrainz ones) or the genre it was
+     * found under is one of the requested genres, ignoring case.
      */
     private boolean fitsGoal(Track track, ArtistGenreCache cache) {
         if (goalSourceIds.contains(track.id())) {
@@ -506,7 +506,7 @@ public class RecommendationEngine {
         }
         Set<String> wanted = new HashSet<>();
         seedGenres.forEach(g -> wanted.add(g.toLowerCase(Locale.ROOT)));
-        return currentRetrieval.knownGenres(track, cache).stream().anyMatch(g -> wanted.contains(g.toLowerCase(Locale.ROOT)));
+        return currentRetrieval.leadingGenres(track, cache, config.createFitLeadingGenres()).stream().anyMatch(g -> wanted.contains(g.toLowerCase(Locale.ROOT)));
     }
 
     /**

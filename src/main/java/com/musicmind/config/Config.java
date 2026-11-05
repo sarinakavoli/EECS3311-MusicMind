@@ -569,6 +569,11 @@ public final class Config {
     }
 
     /** Added to the score of a song Last.fm lists under one of the goal's tags. */
+    /** How many of an artist's leading genres count when a familiar track is checked against a Create goal. */
+    public int createFitLeadingGenres() {
+        return integer("create.fitLeadingGenres");
+    }
+
     public double discoverTagBonus() {
         return Double.parseDouble(text("discover.weight.tagBonus"));
     }
