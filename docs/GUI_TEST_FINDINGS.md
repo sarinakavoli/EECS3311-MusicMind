@@ -16,7 +16,7 @@ Status added Nov 4 after the frontend redesign and its read-only live check (`do
    - **To decide before changing it:** use the three matching labels, or find another
      source for the two missing periods. Recently-played returns only the latest 50
      tracks, so it may not cover a full week.
-   - **Status (Nov 4):** **Done** (Nov 4): the Time range picker shows Past month, Past 6 months and Past year (`text.guiRange.*`). Past week and Past 3 months were not added: Spotify has no period behind them.
+   - **Status (Nov 4):** **Done** (Nov 4): the Time range picker shows Past month, Past 6 months and Past year (`text.guiRange.*`). Past 3 months was not added: Spotify has no period behind it. Past week was added later on Nov 4 from recent plays (item 34).
 
 2. **Search does not say what it searches (Search screen).** Sarina could not tell
    whether it covers artists, albums or songs.
@@ -300,7 +300,7 @@ tests, 0 failures.
   real mix, block choosers and delete. These wait for the frontend phase.
 - **Not yet proven:** whether playlists now suit their goal. Sarina needs to run Create
   on several goals. No playlist has been created since the fixes.
-- **Limits:** Past week and Past 3 months have no Spotify period. Spotify gives no tempo
+- **Limits:** Past 3 months has no Spotify period (Past week is built from recent plays, item 34). Spotify gives no tempo
   data, so goal fit depends on the AI judging titles and artists. Each Create makes up to
   three extra AI calls.
 - **The GUI must catch** the `IllegalStateException` from `blockArtist` and `blockTrack`
