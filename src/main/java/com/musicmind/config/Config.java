@@ -278,6 +278,16 @@ public final class Config {
         return integer("lastfm.maxTags");
     }
 
+    /** Most Last.fm song lookups (track.gettoptags) per Create run. */
+    public int lastfmMaxTrackTagLookups() {
+        return integer("lastfm.maxTrackTagLookups");
+    }
+
+    /** How many of a song's top Last.fm tags are kept. */
+    public int lastfmTrackTagsKept() {
+        return integer("lastfm.trackTagsKept");
+    }
+
     public int lastfmTimeoutSeconds() {
         return integer("lastfm.timeoutSeconds");
     }

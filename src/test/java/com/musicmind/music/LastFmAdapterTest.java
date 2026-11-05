@@ -150,4 +150,73 @@ class LastFmAdapterTest {
         assertFalse(c.lastfmUserAgent().toLowerCase().contains("musicbrainz"));
         assertFalse(c.lastfmUserAgent().isBlank());
     }
+
+    // ---- track.gettoptags ----
+
+    @Test
+    void trackTags_parsesNamesInOrder() {
+        body = "{\"toptags\":{\"tag\":[{\"count\":100,\"name\":\"Slow Dance\"},{\"count\":60,\"name\":\"romantic\"}]}}";
+        assertEquals(List.of("Slow Dance", "romantic"), adapter(true).trackTags("Some Band", "Some Song"));
+        assertTrue(rawQueries.get(0).contains("method=track.gettoptags"), rawQueries.get(0));
+        assertTrue(rawQueries.get(0).contains("artist=Some+Band"), rawQueries.get(0));
+        assertTrue(rawQueries.get(0).contains("track=Some+Song"), rawQueries.get(0));
+        assertTrue(rawQueries.get(0).contains("autocorrect=1"), rawQueries.get(0));
+    }
+
+    @Test
+    void trackTags_noKeyOrBlankNames_noRequest() {
+        assertTrue(adapter(false).trackTags("A", "B").isEmpty());
+        assertTrue(adapter(true).trackTags(" ", "B").isEmpty());
+        assertTrue(adapter(true).trackTags("A", null).isEmpty());
+        assertTrue(rawQueries.isEmpty());
+    }
+
+    @Test
+    void trackTags_unknownSongIsEmptyNotAnError() {
+        body = "{\"error\":6,\"message\":\"Track not found\"}";
+        assertTrue(adapter(true).trackTags("A", "B").isEmpty());
+        body = "{\"toptags\":{}}";
+        assertTrue(adapter(true).trackTags("A", "B").isEmpty());
+    }
+
+    @Test
+    void trackTags_otherErrorsAndMalformedBodiesThrowWithoutTheKey() {
+        body = "{\"error\":10,\"message\":\"Invalid API key\"}";
+        MusicServiceException e = assertThrows(MusicServiceException.class, () -> adapter(true).trackTags("A", "B"));
+        assertFalse(e.getMessage().contains("test-key"));
+        body = "nope {";
+        assertThrows(MusicServiceException.class, () -> adapter(true).trackTags("A", "B"));
+        status = 503;
+        MusicServiceException http = assertThrows(MusicServiceException.class, () -> adapter(true).trackTags("A", "B"));
+        assertFalse(http.getMessage().contains("test-key"));
+    }
+
+    @Test
+    void trackTags_singleObjectAndMalformedElements() {
+        body = "{\"toptags\":{\"tag\":{\"name\":\"only\"}}}";
+        assertEquals(List.of("only"), adapter(true).trackTags("A", "B"));
+        body = "{\"toptags\":{\"tag\":[{\"count\":1},7,{\"name\":\"ok\"},{\"name\":\" \"}]}}";
+        assertEquals(List.of("ok"), adapter(true).trackTags("A", "B"));
+    }
+
+    @Test
+    void trackTags_keepsOnlyTheConfiguredNumberOfTopTags() {
+        StringBuilder sb = new StringBuilder("{\"toptags\":{\"tag\":[");
+        for (int i = 0; i < 30; i++) sb.append(i > 0 ? "," : "").append("{\"name\":\"t").append(i).append("\"}");
+        body = sb.append("]}}").toString();
+        assertEquals(Config.of(Map.of()).lastfmTrackTagsKept(), adapter(true).trackTags("A", "B").size());
+    }
+
+    @Test
+    void trackTags_connectionFailure_messageHasNoKeyOrTitle() {
+        int port = server.getAddress().getPort();
+        server.stop(0);
+        Config config = Config.of(Map.of("LASTFM_API_KEY", "secret-key-123")).withTunables(Map.of(
+                "lastfm.apiBaseUrl", "http://127.0.0.1:" + port + "/2.0/"));
+        MusicServiceException e = assertThrows(MusicServiceException.class,
+                () -> new LastFmAdapter(config).trackTags("Band", "Secret Title"));
+        assertFalse(e.getMessage().contains("secret-key-123"));
+        assertFalse(e.getMessage().contains("Secret Title"));
+        assertFalse(String.valueOf(e.getCause()).contains("secret-key-123"));
+    }
 }
