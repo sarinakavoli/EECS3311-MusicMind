@@ -330,4 +330,29 @@ class CandidateRetrieverTest {
         assertEquals(List.of("artist:\"New1\""), music.searches, "a top artist is never searched; the rate limit ends the run");
         assertFalse(retriever.errors().isEmpty());
     }
+
+    @Test
+    void bySimilar_failedSearchIsNotCached_butAGoodOneIs() {
+        int[] calls = {0};
+        TagMusic music = new TagMusic() {
+            @Override public List<Track> search(String query, int limit) {
+                searches.add(query);
+                if (query.contains("Bad") && calls[0]++ == 0) {
+                    throw new MusicServiceException("boom");
+                }
+                return query.contains("Bad") ? List.of(by("tBad", "idBad", "Bad")) : List.of(by("tGood", "idGood", "Good"));
+            }
+        };
+        TagService lastFm = new TagService() {
+            @Override public List<TagTrack> topTracks(String tag, int limit) { return List.of(); }
+            @Override public List<String> similarArtists(String artist, int limit) { return List.of("Bad", "Good"); }
+        };
+        Map<String, List<String>> lists = new java.util.LinkedHashMap<>();
+        Map<String, List<Track>> hits = new java.util.LinkedHashMap<>();
+        for (int run = 0; run < 2; run++) {
+            new CandidateRetriever(tools(music), config, lastFm, new java.util.LinkedHashMap<>(), lists, hits)
+                    .bySimilar(List.of("Seed"), Set.of(), 10);
+        }
+        assertEquals(List.of("artist:\"Bad\"", "artist:\"Good\"", "artist:\"Bad\""), music.searches);
+    }
 }

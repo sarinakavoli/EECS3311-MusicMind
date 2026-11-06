@@ -1614,4 +1614,33 @@ class RecommendationEngineTest {
         assertTrue(lastFm.asked.isEmpty());
         assertTrue(m.searches.stream().noneMatch(q -> q.startsWith("artist:")), m.searches.toString());
     }
+
+    @Test
+    void discover_doesNotAskLastFmAboutBlockedArtists() {
+        FakeMusic m = similarMusic();
+        SimilarOnly lastFm = new SimilarOnly();
+        RecommendationEngine e = new RecommendationEngine(toolsFor(m), withKey, ArtistGenreCache.NONE, lastFm);
+        PlaylistSpec spec = new PlaylistSpec(40, true, 0.0, List.of("a1"), List.of(), "x");
+
+        e.recommend(profile(), spec, List.of(), false);
+
+        assertEquals(List.of("A2"), lastFm.asked, "a blocked top artist is not a seed");
+    }
+
+    @Test
+    void discover_repeatedRunsDoNotRepeatTheSimilarArtistSearches() {
+        FakeMusic m = similarMusic();
+        SimilarOnly lastFm = new SimilarOnly();
+        RecommendationEngine e = new RecommendationEngine(toolsFor(m), withKey, ArtistGenreCache.NONE, lastFm);
+        PlaylistSpec spec = new PlaylistSpec(40, true, 0.0, List.of(), List.of(), "x");
+
+        e.recommend(profile(), spec, List.of(), false);
+        long first = m.searches.stream().filter(q -> q.startsWith("artist:")).count();
+        List<Recommendation> again = e.recommend(profile(), spec, List.of(), false);
+
+        assertTrue(first > 0);
+        assertEquals(first, m.searches.stream().filter(q -> q.startsWith("artist:")).count(), m.searches.toString());
+        assertEquals(List.of("A1", "A2"), lastFm.asked, "Last.fm's similar lists are cached too");
+        assertFalse(again.isEmpty());
+    }
 }

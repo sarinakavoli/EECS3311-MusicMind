@@ -65,6 +65,9 @@ public class RecommendationEngine {
     // Spotify tracks matched to Last.fm songs (normalised title|artist; empty = confirmed no match), kept for this
     // engine's lifetime only so a repeated Create does not search again. In memory, never stored; the oldest go first.
     private final Map<String, Optional<Track>> matchCache;
+    // Session caches for Discover (Last.fm's similar artists per seed, Spotify's tracks per similar artist), same bound.
+    private final Map<String, List<String>> similarCache;
+    private final Map<String, List<Track>> similarTracksCache;
     private RecommendationStrategy strategy;
     // Per-run: whether the current run may pick tracks the user already has.
     private boolean allowLibraryTracks = true;
@@ -114,8 +117,18 @@ public class RecommendationEngine {
                 return size() > cacheSize;
             }
         });
+        this.similarCache = boundedMap(cacheSize);
+        this.similarTracksCache = boundedMap(cacheSize);
         this.selector = new StrategySelector(config);
         this.strategy = new BalancedStrategy(config);
+    }
+
+    private static <V> Map<String, V> boundedMap(int size) {
+        return java.util.Collections.synchronizedMap(new LinkedHashMap<>() {
+            @Override protected boolean removeEldestEntry(Map.Entry<String, V> eldest) {
+                return size() > size;
+            }
+        });
     }
 
     /** The session's Last.fm song to Spotify track matches, shared with Find Songs so one lookup serves both. */
@@ -204,7 +217,7 @@ public class RecommendationEngine {
         Objects.requireNonNull(profile, "profile");
         Objects.requireNonNull(spec, "spec");
         Map<String, Origin> found = new HashMap<>();
-        CandidateRetriever retriever = new CandidateRetriever(tools, config, tagService, matchCache);
+        CandidateRetriever retriever = new CandidateRetriever(tools, config, tagService, matchCache, similarCache, similarTracksCache);
         String range = profile.range() != null ? profile.range() : config.profileDefaultRange();
         List<Track> library = retriever.library(range);
         library.forEach(t -> found.put(t.id(), new Origin(Source.LIBRARY, null)));
@@ -225,7 +238,9 @@ public class RecommendationEngine {
         List<Track> similarFound = List.of();
         if (!allowLibraryTracks && seedGenres.isEmpty() && searchTerms.isEmpty() && tags.isEmpty()) {
             Set<String> knownArtists = new HashSet<>(profile.topArtists().stream().map(Artist::id).toList());
-            similarFound = retriever.bySimilar(profile.topArtists().stream().map(Artist::name).toList(),
+            List<String> seedNames = profile.topArtists().stream().filter(a -> !blockedSeeds.contains(a.id()))
+                    .map(Artist::name).toList();
+            similarFound = retriever.bySimilar(seedNames, profile.topArtists().stream().map(Artist::name).toList(),
                     knownArtists, config.lastfmDiscoverMaxMatches());
             similarFound.forEach(t -> found.putIfAbsent(t.id(), new Origin(Source.SIMILAR, null)));
         }
