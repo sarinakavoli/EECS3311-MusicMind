@@ -172,6 +172,9 @@ public class GuiApp extends Application {
         if (!ctx.llmConfigured()) {
             box.getChildren().add(banner(format.w("BannerLlm")));
         }
+        if (!ctx.config().lastfmConfigured()) {
+            box.getChildren().add(banner(ctx.config().tagsOffBanner()));
+        }
         Label database = banner(format.w("BannerDatabase"));
         database.visibleProperty().bind(ctx.databaseDownProperty());
         database.managedProperty().bind(database.visibleProperty());
@@ -187,9 +190,9 @@ public class GuiApp extends Application {
         return label;
     }
 
-    /** The credit Spotify's, MusicBrainz's and Last.fm's terms ask for. */
+    /** The credit Spotify's and Last.fm's terms ask for. */
     private VBox footer() {
-        VBox box = new VBox(UiParts.SPACE_XS, new Label(ctx.config().spotifyAttribution()), new Label(ctx.config().genreAttribution()),
+        VBox box = new VBox(UiParts.SPACE_XS, new Label(ctx.config().spotifyAttribution()),
                 new Label(ctx.config().lastfmAttribution()));
         box.getStyleClass().add("mm-footer");
         return box;

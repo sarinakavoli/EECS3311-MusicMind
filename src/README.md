@@ -10,7 +10,7 @@ src/
 │  │  ├─ config/       Config (settings from .env, the environment and musicmind.properties)
 │  │  ├─ music/        MusicService (Adapter) with SpotifyAdapter, OAuthTokenStore (PKCE),
 │  │  │                RetryingMusicService and GenreEnrichingMusicService (Decorators),
-│  │  │                MusicBrainzAdapter (genres), TagService and LastFmAdapter (optional song tags)
+│  │  │                GenreService, TagService and LastFmAdapter (optional artist and song tags)
 │  │  ├─ llm/          LLMProvider and OpenAiProvider
 │  │  ├─ tool/         Tool, ToolManager, SpotifyTool, MemoryTool, ToolResult
 │  │  ├─ memory/       MemoryManager, Database, repositories (Repository pattern)

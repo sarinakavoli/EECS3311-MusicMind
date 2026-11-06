@@ -96,7 +96,7 @@ public class RecommendationEngine {
         this(tools, config, ArtistGenreCache.NONE);
     }
 
-    /** @param genreCache read-only cached MusicBrainz genres, used with the profile's to tell which library songs fit a goal */
+    /** @param genreCache read-only cached Last.fm genres, used with the profile's to tell which library songs fit a goal */
     public RecommendationEngine(ToolManager tools, Config config, ArtistGenreCache genreCache) {
         this(tools, config, genreCache, TagService.NONE);
     }
@@ -531,7 +531,7 @@ public class RecommendationEngine {
      * A familiar track (library, album or genre result by an artist the user knows) fits the goal when a goal source
      * found it (keyword search or Last.fm tag song). Otherwise, when Last.fm knows the song's own tags
      * ({@link TrackTagFit}), they decide. Failing that (Last.fm off, failed, capped or
-     * not knowing the song), one of the leading genres of its artists (the profile's, else the cached MusicBrainz ones)
+     * not knowing the song), one of the leading genres of its artists (the profile's, else the cached Last.fm ones)
      * or the genre it was found under must be one of the requested genres, ignoring case.
      */
     private boolean fitsGoal(Track track, ArtistGenreCache cache) {

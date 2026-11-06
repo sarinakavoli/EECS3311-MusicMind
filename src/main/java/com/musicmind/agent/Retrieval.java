@@ -115,7 +115,7 @@ public final class Retrieval {
 
     /**
      * The genres already known for a track, with no request made: the genre it was searched under, the genres of
-     * the user's own artists in the listening profile, and the cached MusicBrainz genres of its other artists.
+     * the user's own artists in the listening profile, and the cached Last.fm genres of its other artists.
      * Empty when none is known for any of its artists.
      */
     public List<String> knownGenres(Track track, ArtistGenreCache cache) {
@@ -134,7 +134,7 @@ public final class Retrieval {
 
     /**
      * The genres that characterise a track, for the Create goal-fit check: the genre it was searched under and
-     * the first {@code leading} genres of each of its artists (profile genres, else cached MusicBrainz ones).
+     * the first {@code leading} genres of each of its artists (profile genres, else cached Last.fm ones).
      * Long artist tag lists run to dozens of tags, so a requested genre far down the list ("ambient" for a
      * grunge band) says nothing about the artist.
      */

@@ -514,7 +514,8 @@ class CliAppTest extends PostgresTestBase {
         assertEquals(CliApp.OK, built.status());
         assertTrue(built.out().contains("Building your taste profile"), built.out());
         assertTrue(built.out().contains(config.spotifyAttribution()));
-        assertTrue(built.out().contains(config.genreAttribution()));
+        assertTrue(built.out().contains(config.lastfmAttribution()), built.out());
+        assertFalse(built.out().contains("MusicBrainz"), built.out());
         assertTrue(stored.out().contains("stored profile"), stored.out());
         assertTrue(refreshed.out().contains("Building"), refreshed.out());
         assertTrue(ranged.out().contains("Time range: long"), ranged.out());

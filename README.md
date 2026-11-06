@@ -274,13 +274,13 @@ HTML for `REFRESH BEFORE SUBMISSION` to find each spot, edit it, and rebuild.
 - Music data and playlist actions go through the **Spotify Web API**, only behind the
   `MusicService` interface (Adapter pattern). Only endpoints that Development Mode apps may still
   call are used; discovery is built from your own listening data, not Spotify's retired recommender.
-- Spotify sends no artist genres to this app, so genres come from **MusicBrainz**
-  (<https://musicbrainz.org>) and are cached by artist id.
-- Optional song tags come from **Last.fm** (credited in the GUI footer and after a CLI Create). With a
+- Spotify sends no artist genres to this app, so genres are each artist's top tags from **Last.fm**
+  (junk tags dropped) and are cached by artist id.
+- Optional artist and song tags come from **Last.fm** (credited in the GUI footer and after a CLI Create). With a
   key, each Create run sends the goal's tags and up to 30 song titles with artist names to Last.fm
   only to read tags. Nothing from Last.fm or Spotify is sent to OpenAI, and no title is stored.
 - Playlist goals are interpreted by an **OpenAI** model. Prompts carry your own words, ids, counts and
-  MusicBrainz genres. They never contain Spotify track titles, artist names or album names. The
+  Last.fm genres. They never contain Spotify track titles, artist names or album names. The
   goal-fit review sends only track ids and genres, and may only name ids to remove.
 - Per the Spotify Developer Terms: no model is trained on Spotify data, Spotify content (titles,
   artist and album names) is not stored durably (only ids and MusicMind's own derived data), and

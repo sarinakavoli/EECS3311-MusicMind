@@ -92,7 +92,7 @@ public class PromptBuilder {
 
     /**
      * The goal-fit review prompt: the user's goal and, per track, only its Spotify id (an opaque identifier) and the
-     * genres MusicMind knows for it from MusicBrainz or its own data. No title, artist name or album is sent, because
+     * genres MusicMind knows for it from Last.fm or its own data. No title, artist name or album is sent, because
      * Spotify Content must not be ingested into an AI model (Spotify Developer Policy, section III item 14). The model
      * may only answer with ids from the list.
      */

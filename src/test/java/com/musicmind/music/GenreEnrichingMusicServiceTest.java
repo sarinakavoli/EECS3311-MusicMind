@@ -143,11 +143,11 @@ class GenreEnrichingMusicServiceTest extends PostgresTestBase {
         Instant start = Instant.parse("2026-01-01T00:00:00Z");
         service(delegate, genres, Clock.fixed(start, ZoneOffset.UTC)).getTopArtists("medium_term");
 
-        Instant later = start.plus(Duration.ofDays(config.musicBrainzCacheDays() + 1));
+        Instant later = start.plus(Duration.ofDays(config.lastfmCacheDays() + 1));
         service(delegate, genres, Clock.fixed(later, ZoneOffset.UTC)).getTopArtists("medium_term");
         assertEquals(2, genres.asked.size());
 
-        Instant fresh = later.plus(Duration.ofDays(config.musicBrainzCacheDays() - 1));
+        Instant fresh = later.plus(Duration.ofDays(config.lastfmCacheDays() - 1));
         service(delegate, genres, Clock.fixed(fresh, ZoneOffset.UTC)).getTopArtists("medium_term");
         assertEquals(2, genres.asked.size(), "an entry inside the expiry window is still served from cache");
     }
@@ -201,7 +201,7 @@ class GenreEnrichingMusicServiceTest extends PostgresTestBase {
     }
 
     @Test
-    void genreOrderFromMusicBrainzIsKeptSoTheLeadingGenresAreTheMostVoted() {
+    void genreOrderFromLastFmIsKeptSoTheLeadingGenresAreTheMostVoted() {
         FakeGenres genres = new FakeGenres();
         genres.byId.put("a1", Optional.of(List.of("zydeco", "ambient", "blues", "acoustic")));
         MusicService s = service(new StubMusicService(), genres);

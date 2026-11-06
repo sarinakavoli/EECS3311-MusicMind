@@ -1,6 +1,7 @@
 package com.musicmind.music;
 
 import com.musicmind.config.Config;
+import com.musicmind.domain.Artist;
 import com.musicmind.domain.TagTrack;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
@@ -12,6 +13,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -156,7 +158,7 @@ class LastFmAdapterTest {
     @Test
     void trackTags_parsesNamesInOrder() {
         body = "{\"toptags\":{\"tag\":[{\"count\":100,\"name\":\"Slow Dance\"},{\"count\":60,\"name\":\"romantic\"}]}}";
-        assertEquals(List.of("Slow Dance", "romantic"), adapter(true).trackTags("Some Band", "Some Song"));
+        assertEquals(List.of("slow dance", "romantic"), adapter(true).trackTags("Some Band", "Some Song"));
         assertTrue(rawQueries.get(0).contains("method=track.gettoptags"), rawQueries.get(0));
         assertTrue(rawQueries.get(0).contains("artist=Some+Band"), rawQueries.get(0));
         assertTrue(rawQueries.get(0).contains("track=Some+Song"), rawQueries.get(0));
@@ -218,5 +220,86 @@ class LastFmAdapterTest {
         assertFalse(e.getMessage().contains("secret-key-123"));
         assertFalse(e.getMessage().contains("Secret Title"));
         assertFalse(String.valueOf(e.getCause()).contains("secret-key-123"));
+    }
+
+    // ---- artist.gettoptags ----
+
+    private static Artist artist(String name) {
+        return new Artist("id-" + name, name, List.of());
+    }
+
+    @Test
+    void artistTags_parsedFilteredAndCapped() {
+        body = "{\"toptags\":{\"tag\":[{\"count\":100,\"name\":\"indie pop\"},{\"count\":90,\"name\":\"seen live\"},"
+                + "{\"count\":80,\"name\":\"Radiohead\"},{\"count\":70,\"name\":\"2010s\"},"
+                + "{\"count\":60,\"name\":\"chill\"},{\"count\":5,\"name\":\"rare\"}]}}";
+        assertEquals(Optional.of(List.of("indie pop", "chill")), adapter(true).lookup(artist("Radiohead")));
+        assertTrue(rawQueries.get(0).contains("method=artist.gettoptags"), rawQueries.get(0));
+        assertTrue(rawQueries.get(0).contains("artist=Radiohead"), rawQueries.get(0));
+        assertTrue(rawQueries.get(0).contains("autocorrect=1"), rawQueries.get(0));
+    }
+
+    @Test
+    void artistTags_cappedAtConfiguredCountWithoutRepeats() {
+        StringBuilder sb = new StringBuilder("{\"toptags\":{\"tag\":[{\"count\":99,\"name\":\"Rock\"},{\"count\":98,\"name\":\"rock\"}");
+        for (int i = 0; i < 20; i++) sb.append(",{\"count\":50,\"name\":\"t").append(i).append("\"}");
+        body = sb.append("]}}").toString();
+        List<String> tags = adapter(true).lookup(artist("X")).orElseThrow();
+        assertEquals(10, tags.size());
+        assertEquals("rock", tags.get(0));
+        assertEquals("t0", tags.get(1));
+    }
+
+    @Test
+    void artistTags_allJunk_presentEmpty() {
+        body = "{\"toptags\":{\"tag\":[{\"count\":100,\"name\":\"favorites\"},{\"count\":90,\"name\":\"1990\"},"
+                + "{\"count\":2,\"name\":\"jazz\"}]}}";
+        assertEquals(Optional.of(List.of()), adapter(true).lookup(artist("Someone")));
+    }
+
+    @Test
+    void artistTags_error6_presentEmpty() {
+        body = "{\"error\":6,\"message\":\"The artist you supplied could not be found\"}";
+        assertEquals(Optional.of(List.of()), adapter(true).lookup(artist("Nobody")));
+    }
+
+    @Test
+    void artistTags_http500_emptyOptional_andCooldownAfterThree() {
+        status = 500;
+        body = "boom";
+        LastFmAdapter a = adapter(true);
+        for (int i = 0; i < 3; i++) {
+            assertEquals(Optional.empty(), a.lookup(artist("A" + i)));
+        }
+        assertEquals(3, rawQueries.size());
+        assertEquals(Optional.empty(), a.lookup(artist("A3")));
+        assertEquals(3, rawQueries.size(), "no request during the cooldown");
+    }
+
+    @Test
+    void artistTags_resumeAfterCooldown() {
+        status = 500;
+        long[] now = {0};
+        Config config = Config.of(Map.of("LASTFM_API_KEY", "test-key")).withTunables(Map.of(
+                "lastfm.apiBaseUrl", "http://127.0.0.1:" + server.getAddress().getPort() + "/2.0/"));
+        LastFmAdapter a = new LastFmAdapter(config, () -> now[0]);
+        for (int i = 0; i < 3; i++) a.lookup(artist("A" + i));
+        now[0] = config.lastfmCooldownSeconds() * 1000L + 1;
+        status = 200;
+        body = "{\"toptags\":{\"tag\":[{\"count\":50,\"name\":\"jazz\"}]}}";
+        assertEquals(Optional.of(List.of("jazz")), a.lookup(artist("B")));
+    }
+
+    @Test
+    void artistTags_noKey_emptyOptionalWithoutCalling() {
+        assertEquals(Optional.empty(), adapter(false).lookup(artist("A")));
+        assertTrue(rawQueries.isEmpty());
+    }
+
+    @Test
+    void trackTags_sameJunkFilterApplies() {
+        body = "{\"toptags\":{\"tag\":[{\"count\":100,\"name\":\"Seen Live\"},{\"count\":80,\"name\":\"Some Band\"},"
+                + "{\"count\":70,\"name\":\"slow dance\"},{\"count\":3,\"name\":\"meh\"}]}}";
+        assertEquals(List.of("slow dance"), adapter(true).trackTags("Some Band", "Song"));
     }
 }

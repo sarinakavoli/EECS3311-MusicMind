@@ -101,7 +101,7 @@ class ProfileBuilderTest {
 
         assertEquals(1, p.notices().size(), p.notices().toString());
         assertTrue(p.notices().get(0).contains("4 of 6"), p.notices().get(0));
-        assertTrue(p.notices().get(0).contains("MusicBrainz"), p.notices().get(0));
+        assertTrue(p.notices().get(0).contains("Last.fm"), p.notices().get(0));
         assertTrue(p.isPartial());
     }
 

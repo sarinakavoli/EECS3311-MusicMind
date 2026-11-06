@@ -164,7 +164,7 @@ public class MusicAgentFacade {
             genreCache = genreCache == null ? ArtistGenreCache.NONE : genreCache;
         }
 
-        /** Without the MusicBrainz genre cache: the goal review then knows only search and profile genres. */
+        /** Without the Last.fm genre cache: the goal review then knows only search and profile genres. */
         public CreateSupport(MusicService music, PlaylistManager playlists, ExplanationService explainer,
                              Runnable reauthenticator) {
             this(music, playlists, explainer, reauthenticator, null);
@@ -1489,7 +1489,7 @@ public class MusicAgentFacade {
         derived.put("genreHistogram", p.genreHistogram());
         derived.put("artistIds", p.topArtists().stream().map(Artist::id).toList());
         derived.put("trackIds", p.topTracks().stream().map(Track::id).toList());
-        // Genres (from MusicBrainz) and track-artist links are derived data; they let a stored profile score like a fresh one.
+        // Genres (from Last.fm) and track-artist links are derived data; they let a stored profile score like a fresh one.
         Map<String, List<String>> artistGenres = new LinkedHashMap<>();
         p.topArtists().stream().filter(a -> !a.genres().isEmpty()).forEach(a -> artistGenres.put(a.id(), a.genres()));
         derived.put("artistGenres", artistGenres);

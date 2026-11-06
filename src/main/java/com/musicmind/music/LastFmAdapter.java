@@ -5,6 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.musicmind.config.Config;
+import com.musicmind.domain.Artist;
 import com.musicmind.domain.TagTrack;
 
 import java.io.IOException;
@@ -17,19 +18,32 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.LongSupplier;
 
 /**
- * Adapter (GoF) from Last.fm's {@code tag.gettoptracks} and {@code track.gettoptags} to {@link TagService}. With no API key it
- * returns an empty list without calling. The key is only ever in the request URL; it is never
- * logged or put into an exception message.
+ * Adapter (GoF) from Last.fm's {@code tag.gettoptracks}, {@code track.gettoptags} and {@code artist.gettoptags} to
+ * {@link TagService} (song tags) and {@link GenreService} (artist tags, which the app shows as genres). With no API key
+ * it returns an empty answer without calling. The key is only ever in the request URL; it is never
+ * logged or put into an exception message. Junk tags are dropped by {@link TagFilter}. After too many failed artist
+ * lookups in a row it stops looking for a cooldown, so a run finishes quickly during an outage.
  */
-public class LastFmAdapter implements TagService {
+public class LastFmAdapter implements GenreService, TagService {
 
     private final Config config;
     private final HttpClient http;
     private final Gson gson = new Gson();
+    private final LongSupplier clock;
+    /** Failed artist lookups in a row, and when lookups may resume after too many; guarded by {@code this}. */
+    private int consecutiveFailures;
+    private long pausedUntilMillis;
 
     public LastFmAdapter(Config config) {
+        this(config, System::currentTimeMillis);
+    }
+
+    LastFmAdapter(Config config, LongSupplier clock) {
+        this.clock = clock;
         this.config = config;
         this.http = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(config.lastfmTimeoutSeconds())).build();
@@ -53,7 +67,51 @@ public class LastFmAdapter implements TagService {
         String url = config.lastfmApiBaseUrl() + "?method=track.gettoptags&artist=" + encode(artist.strip())
                 + "&track=" + encode(title.strip()) + "&autocorrect=1&api_key=" + encode(config.lastfmApiKey())
                 + "&format=json";
-        return parseTags(fetch(url));
+        return parseTags(fetch(url), artist, config.lastfmTrackTagsKept());
+    }
+
+    /**
+     * The artist's top Last.fm tags, filtered. A present list (even empty, including "artist not found") is a real
+     * answer; an empty Optional means the lookup failed, was skipped during a cooldown, or no key is set.
+     */
+    @Override
+    public Optional<List<String>> lookup(Artist artist) {
+        String name = artist == null || artist.name() == null ? "" : artist.name().strip();
+        if (!config.lastfmConfigured()) {
+            return Optional.empty();
+        }
+        if (name.isEmpty()) {
+            return Optional.of(List.of());
+        }
+        if (paused()) {
+            return Optional.empty(); // unknown, like a failure: not cached
+        }
+        String url = config.lastfmApiBaseUrl() + "?method=artist.gettoptags&artist=" + encode(name)
+                + "&autocorrect=1&api_key=" + encode(config.lastfmApiKey()) + "&format=json";
+        try {
+            List<String> tags = parseTags(fetch(url), name, config.lastfmArtistTagsKept());
+            recordSuccess();
+            return Optional.of(tags);
+        } catch (MusicServiceException e) {
+            recordFailure();
+            return Optional.empty();
+        }
+    }
+
+    private synchronized boolean paused() {
+        return clock.getAsLong() < pausedUntilMillis;
+    }
+
+    private synchronized void recordSuccess() {
+        consecutiveFailures = 0;
+    }
+
+    /** At the failure limit lookups pause for the cooldown; one failure after it ends starts the next pause. */
+    private synchronized void recordFailure() {
+        consecutiveFailures++;
+        if (consecutiveFailures >= config.lastfmMaxConsecutiveFailures()) {
+            pausedUntilMillis = clock.getAsLong() + config.lastfmCooldownSeconds() * 1000L;
+        }
     }
 
     /** One GET; any failure becomes a {@link MusicServiceException} that names neither the URL, the key nor the song. */
@@ -80,8 +138,8 @@ public class LastFmAdapter implements TagService {
         return response.body();
     }
 
-    /** Tag names in Last.fm's order, at most {@code lastfm.trackTagsKept}; "track not found" (error 6) is an empty list. */
-    private List<String> parseTags(String body) {
+    /** Filtered tag names in Last.fm's order, at most {@code keep}; "not found" (error 6) is an empty list. */
+    private List<String> parseTags(String body, String artistName, int keep) {
         try {
             JsonElement parsed = gson.fromJson(body, JsonElement.class);
             if (parsed == null || !parsed.isJsonObject()) {
@@ -107,21 +165,7 @@ public class LastFmAdapter implements TagService {
             if (list.isJsonObject()) {
                 elements.add(list);
             }
-            List<String> out = new ArrayList<>();
-            for (JsonElement e : elements) {
-                try {
-                    String name = e.getAsJsonObject().get("name").getAsString().strip();
-                    if (!name.isEmpty()) {
-                        out.add(name);
-                    }
-                } catch (RuntimeException ignored) {
-                    // a malformed element is skipped
-                }
-                if (out.size() >= config.lastfmTrackTagsKept()) {
-                    break;
-                }
-            }
-            return out;
+            return TagFilter.clean(elements, artistName, keep, config);
         } catch (MusicServiceException e) {
             throw e;
         } catch (RuntimeException e) {

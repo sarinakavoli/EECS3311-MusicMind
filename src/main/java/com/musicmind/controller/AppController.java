@@ -49,7 +49,6 @@ import com.musicmind.memory.repository.PreferenceRepository;
 import com.musicmind.memory.repository.SessionRepository;
 import com.musicmind.music.GenreEnrichingMusicService;
 import com.musicmind.music.LastFmAdapter;
-import com.musicmind.music.MusicBrainzAdapter;
 import com.musicmind.music.MusicService;
 import com.musicmind.music.OAuthTokenStore;
 import com.musicmind.music.RetryingMusicService;
@@ -125,7 +124,7 @@ public class AppController {
     }
 
     /**
-     * @param genreCache read-only view of the cached MusicBrainz artist genres, which the goal review sends in place
+     * @param genreCache read-only view of the cached Last.fm artist genres, which the goal review sends in place
      *                   of any Spotify title or name
      */
     public AppController(MusicService music, MemoryManager memory, LLMProvider llm, Config config,
@@ -189,9 +188,10 @@ public class AppController {
         MusicService music = null;
         Runnable reauthenticator = null;
         GenreRepository genreRepository = new GenreRepository(db);
+        LastFmAdapter lastfm = new LastFmAdapter(config); // one Adapter: artist genres and song tags
         ArtistGenreCache genreCache = artistId -> {
             try {
-                return genreRepository.find(artistId, Instant.now().minus(Duration.ofDays(config.musicBrainzCacheDays())));
+                return genreRepository.find(artistId, Instant.now().minus(Duration.ofDays(config.lastfmCacheDays())));
             } catch (PersistenceException e) {
                 return Optional.empty(); // no database, no cached genres
             }
@@ -199,10 +199,10 @@ public class AppController {
         BooleanSupplier browserLoginNeeded = () -> false;
         Supplier<String> userId = () -> LOCAL_USER;
         if (config.spotifyConfigured()) {
-            // Spotify returns no artist genres to this app, so MusicBrainz supplies them (R18).
+            // Spotify returns no artist genres to this app, so Last.fm artist tags supply them (R18).
             OAuthTokenStore auth = new OAuthTokenStore(config.spotifyClientId(), config.spotifyRedirectUri());
             music = new GenreEnrichingMusicService(new RetryingMusicService(new SpotifyAdapter(auth, config), config),
-                    new MusicBrainzAdapter(config), genreRepository, config);
+                    lastfm, genreRepository, config);
             userId = music::currentUserId;
             reauthenticator = auth::login;
             browserLoginNeeded = auth::needsBrowserLogin;
@@ -214,7 +214,7 @@ public class AppController {
                 new PlaylistHistoryRepository(db, userId),
                 new CandidateRepository(db, userId));
         return new AppController(music, memory, llm, config, reauthenticator, browserLoginNeeded, genreCache,
-                new LastFmAdapter(config));
+                lastfm);
     }
 
     public boolean isSpotifyConfigured() {
@@ -242,11 +242,6 @@ public class AppController {
     /** The line both interfaces show to credit Last.fm for the song tags. */
     public String lastfmAttribution() {
         return config.lastfmAttribution();
-    }
-
-    /** The line both interfaces show to credit MusicBrainz for the genres. */
-    public String genreAttribution() {
-        return config.genreAttribution();
     }
 
     /** The time ranges Your Taste offers, most recent first (the past week, then Spotify's three). */

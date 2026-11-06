@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * PostgreSQL cache of artist genres from MusicBrainz, keyed by Spotify artist id.
+ * PostgreSQL cache of artist genres from Last.fm, keyed by Spotify artist id.
  * Genres are MusicMind derived data, so they may be stored; artist names are not.
  * An empty list is a stored "no match". The cache is shared by all users, so this
  * is deliberately not a per-user {@link Repository}.
