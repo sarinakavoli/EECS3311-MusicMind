@@ -5,16 +5,20 @@ import com.musicmind.domain.Album;
 import com.musicmind.domain.SearchQuery;
 import com.musicmind.domain.TagTrack;
 import com.musicmind.domain.Track;
+import com.musicmind.music.AuthExpiredException;
 import com.musicmind.music.MusicServiceException;
+import com.musicmind.music.RateLimitException;
 import com.musicmind.music.TagService;
 import com.musicmind.tool.ToolManager;
 import com.musicmind.tool.ToolResult;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Reads the candidate pools for F4 through the {@link ToolManager}: the user's own tracks (top,
@@ -109,6 +113,68 @@ class CandidateRetriever {
             tagServiceFailed = true; // a rate limit or expired login: no further tag is looked up this run
         }
         return match.tracks();
+    }
+
+    /**
+     * Songs by artists Last.fm lists as similar to the user's top artists (Discover only). For each of the first
+     * {@code lastfm.discoverSeedArtists} names, {@code lastfm.similarPerArtist} similar artists are read; each
+     * similar artist that is not one of the user's own gets one Spotify search {@code artist:"name"} for
+     * {@code lastfm.similarTracksPerArtist} tracks. A track is kept only when one of its artists has exactly
+     * that name (normalised) and none of its artists is in {@code knownArtistIds}. At most {@code maxSearches}
+     * searches are made; the first rate limit or expired login ends the run, and a failed Last.fm call stops
+     * asking Last.fm. Failures are recorded in {@link #errors()}.
+     */
+    List<Track> bySimilar(List<String> topArtistNames, Set<String> knownArtistIds, int maxSearches) {
+        Set<String> own = new HashSet<>();
+        topArtistNames.forEach(n -> own.add(SearchRanker.normalise(n)));
+        Map<String, Track> byId = new LinkedHashMap<>();
+        Set<String> tried = new HashSet<>();
+        int searches = 0;
+        for (String seed : topArtistNames.stream().limit(config.lastfmDiscoverSeedArtists()).toList()) {
+            List<String> similar;
+            try {
+                similar = tagService.similarArtists(seed, config.lastfmSimilarPerArtist());
+            } catch (MusicServiceException e) {
+                errors.add(e.getMessage());
+                break;
+            }
+            for (String name : similar) {
+                String wanted = SearchRanker.normalise(name);
+                if (searches >= maxSearches) {
+                    return new ArrayList<>(byId.values());
+                }
+                if (wanted.isEmpty() || own.contains(wanted) || !tried.add(wanted)) {
+                    continue;
+                }
+                searches++;
+                ToolResult result;
+                try {
+                    result = tools.execute("search", Map.of("query", "artist:\"" + name.replace("\"", " ") + "\"",
+                            "limit", config.lastfmSimilarTracksPerArtist()));
+                } catch (AuthExpiredException e) {
+                    errors.add(e.getMessage());
+                    return new ArrayList<>(byId.values());
+                }
+                if (!result.ok()) {
+                    errors.add(result.error());
+                    if (result.cause() instanceof RateLimitException || result.cause() instanceof AuthExpiredException) {
+                        return new ArrayList<>(byId.values());
+                    }
+                    continue;
+                }
+                successes++;
+                @SuppressWarnings("unchecked")
+                List<Track> hits = (List<Track>) result.payload();
+                for (Track hit : hits) {
+                    boolean exact = hit.artistNames().stream().anyMatch(n -> SearchRanker.normalise(n).equals(wanted));
+                    boolean known = hit.artistIds().stream().anyMatch(knownArtistIds::contains);
+                    if (exact && !known) {
+                        byId.putIfAbsent(hit.id(), hit);
+                    }
+                }
+            }
+        }
+        return new ArrayList<>(byId.values());
     }
 
     /** One search, {@code discover.searchLimit} tracks, de-duplicated by id. */

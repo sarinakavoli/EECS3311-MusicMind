@@ -68,6 +68,31 @@ class LastFmAdapterTest {
     }
 
     @Test
+    void similarArtists_parsesNames() {
+        body = "{\"similarartists\":{\"artist\":[{\"name\":\"Band A\",\"match\":\"1\"},{\"name\":\"Band B\"},{\"x\":1}]}}";
+        assertEquals(List.of("Band A", "Band B"), adapter(true).similarArtists("Some Band", 5));
+        assertTrue(rawQueries.get(0).contains("method=artist.getsimilar"), rawQueries.get(0));
+        assertTrue(rawQueries.get(0).contains("artist=Some+Band"), rawQueries.get(0));
+        assertTrue(rawQueries.get(0).contains("autocorrect=1"), rawQueries.get(0));
+        assertTrue(rawQueries.get(0).contains("limit=5"), rawQueries.get(0));
+    }
+
+    @Test
+    void similarArtists_error6_empty() {
+        body = "{\"error\":6,\"message\":\"The artist you supplied could not be found\"}";
+        assertTrue(adapter(true).similarArtists("Nobody", 5).isEmpty());
+        body = "{\"error\":8,\"message\":\"Operation failed\"}";
+        assertThrows(MusicServiceException.class, () -> adapter(true).similarArtists("Nobody", 5));
+    }
+
+    @Test
+    void similarArtists_noKeyOrBlank_noCall() {
+        assertTrue(adapter(false).similarArtists("A", 5).isEmpty());
+        assertTrue(adapter(true).similarArtists(" ", 5).isEmpty());
+        assertTrue(rawQueries.isEmpty());
+    }
+
+    @Test
     void topTracks_noKey_emptyWithoutCalling() {
         assertTrue(adapter(false).topTracks("study", 10).isEmpty());
         assertTrue(rawQueries.isEmpty());

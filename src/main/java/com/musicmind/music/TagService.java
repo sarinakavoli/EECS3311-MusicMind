@@ -25,4 +25,14 @@ public interface TagService {
     default List<String> trackTags(String artist, String title) {
         return List.of();
     }
+
+    /**
+     * Artists Last.fm lists as similar to the given one, most similar first (Last.fm {@code artist.getsimilar}).
+     *
+     * @return up to {@code limit} names; empty when the service is not configured or does not know the artist
+     * @throws MusicServiceException on an HTTP error or an unreadable reply
+     */
+    default List<String> similarArtists(String artistName, int limit) {
+        return List.of();
+    }
 }

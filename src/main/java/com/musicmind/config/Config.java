@@ -231,6 +231,26 @@ public final class Config {
         return integer("lastfm.findSongsMaxMatches");
     }
 
+    /** Most Spotify searches Discover makes for artists Last.fm lists as similar to the user's top artists. */
+    public int lastfmDiscoverMaxMatches() {
+        return integer("lastfm.discoverMaxMatches");
+    }
+
+    /** How many of the user's top artists Discover asks Last.fm about. */
+    public int lastfmDiscoverSeedArtists() {
+        return integer("lastfm.discoverSeedArtists");
+    }
+
+    /** Similar artists read per top artist. */
+    public int lastfmSimilarPerArtist() {
+        return integer("lastfm.similarPerArtist");
+    }
+
+    /** Spotify tracks asked for per similar artist (the search limit). */
+    public int lastfmSimilarTracksPerArtist() {
+        return integer("lastfm.similarTracksPerArtist");
+    }
+
     public int lastfmMaxTracks() {
         return integer("lastfm.maxTracks");
     }

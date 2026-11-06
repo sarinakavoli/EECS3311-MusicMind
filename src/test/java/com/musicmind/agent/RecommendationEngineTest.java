@@ -1563,4 +1563,55 @@ class RecommendationEngineTest {
             assertEquals(4, ids(recs).stream().filter(id -> id.startsWith("g")).count(), pair[0] + ": " + ids(recs));
         }
     }
+
+    // ---- Last.fm similar artists in Discover ----
+
+    private static Track by(String id, String artistId, String artistName) {
+        return new Track(id, "spotify:track:" + id, "Song " + id, 1000, false, List.of(artistId), List.of(artistName));
+    }
+
+    private static FakeMusic similarMusic() {
+        FakeMusic m = new FakeMusic();
+        m.top = List.of(track("top0", "a1"));
+        m.byGenre.put("artist:\"Neo\"", List.of(by("sim1", "neoId", "Neo")));
+        m.byGenre.put("artist:\"Blocky\"", List.of(by("sim2", "blockedId", "Blocky")));
+        m.byGenre.put("artist:\"Muted\"", List.of(by("sim3", "mutedId", "Muted")));
+        m.byGenre.put("artist:\"Lookalike\"", List.of(by("sim4", "otherId", "Someone Else")));
+        return m;
+    }
+
+    private static class SimilarOnly implements TagService {
+        final List<String> asked = new ArrayList<>();
+        @Override public List<TagTrack> topTracks(String tag, int limit) { return List.of(); }
+        @Override public List<String> similarArtists(String artist, int limit) {
+            asked.add(artist);
+            return List.of("Neo", "Blocky", "Muted", "Lookalike");
+        }
+    }
+
+    @Test
+    void discover_includesSimilarArtistTracks_respectsBlocks() {
+        FakeMusic m = similarMusic();
+        SimilarOnly lastFm = new SimilarOnly();
+        RecommendationEngine e = new RecommendationEngine(toolsFor(m), withKey, ArtistGenreCache.NONE, lastFm);
+        PlaylistSpec spec = new PlaylistSpec(40, true, 0.0, List.of("blockedId"), List.of("sim3"), "x");
+
+        List<Recommendation> recs = e.recommend(profile(), spec, List.of(), false);
+
+        assertEquals(List.of("A1", "A2"), lastFm.asked);
+        assertEquals(List.of("sim1"), ids(recs), "blocked artist, blocked song and a wrong-artist hit are dropped");
+        assertTrue(recs.get(0).reason().contains("Similar to artists you play (Last.fm)"), recs.get(0).reason());
+    }
+
+    @Test
+    void create_doesNotCallSimilar() {
+        FakeMusic m = similarMusic();
+        SimilarOnly lastFm = new SimilarOnly();
+        RecommendationEngine e = new RecommendationEngine(toolsFor(m), withKey, ArtistGenreCache.NONE, lastFm);
+
+        e.recommend(e.retrieve(profile(), spec(0.4), true, List.of(), List.of(), List.of()), spec(0.4), List.of());
+
+        assertTrue(lastFm.asked.isEmpty());
+        assertTrue(m.searches.stream().noneMatch(q -> q.startsWith("artist:")), m.searches.toString());
+    }
 }

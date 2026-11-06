@@ -52,7 +52,7 @@ public class RecommendationEngine {
     private static final String FAMILIAR_POOL = "familiar";
     private static final String NOVEL_POOL = "novel";
 
-    enum Source { LIBRARY, GENRE, ALBUM, KEYWORD, TAG }
+    enum Source { LIBRARY, GENRE, ALBUM, KEYWORD, TAG, SIMILAR }
 
     record Origin(Source source, String genre) { }
 
@@ -220,6 +220,15 @@ public class RecommendationEngine {
         List<Track> albumTracks = retriever.albumTracks(artistSeeds);
         albumTracks.forEach(t -> found.putIfAbsent(t.id(), new Origin(Source.ALBUM, null)));
 
+        // Discover (no library tracks, no goal): artists Last.fm lists as similar to the user's top artists.
+        List<Track> similarFound = List.of();
+        if (!allowLibraryTracks && seedGenres.isEmpty() && searchTerms.isEmpty() && tags.isEmpty()) {
+            Set<String> knownArtists = new HashSet<>(profile.topArtists().stream().map(Artist::id).toList());
+            similarFound = retriever.bySimilar(profile.topArtists().stream().map(Artist::name).toList(),
+                    knownArtists, config.lastfmDiscoverMaxMatches());
+            similarFound.forEach(t -> found.putIfAbsent(t.id(), new Origin(Source.SIMILAR, null)));
+        }
+
         Map<String, Track> tagFound = new LinkedHashMap<>();
         int share = tags.isEmpty() ? 0 : (config.lastfmMaxTracks() + tags.size() - 1) / tags.size();
         for (String tag : tags) {
@@ -241,6 +250,7 @@ public class RecommendationEngine {
         if (config.lastfmConfigured() && !tags.isEmpty()) {
             retrieval.trackTagFit = new TrackTagFit(tagService, config, tags, retriever.errors()::add);
         }
+        retrieval.similarTracks = similarFound;
         fetchGenres(retrieval, config.discoverInitialGenres());
         return retrieval;
     }
@@ -294,6 +304,7 @@ public class RecommendationEngine {
             PlaylistSpec working = withRatio(spec, ratio);
             List<Track> novel = new ArrayList<>(retrieval.albumTracks);
             novel.addAll(retrieval.tagTracks);
+            novel.addAll(retrieval.similarTracks);
             novel.addAll(retrieval.keywordTracks);
             genres.subList(0, Math.min(genreLimit, genres.size()))
                     .forEach(g -> novel.addAll(retrieval.genreTracks.get(g)));
@@ -672,6 +683,7 @@ public class RecommendationEngine {
                 case ALBUM -> config.wording("reasonSourceAlbum");
                 case KEYWORD -> config.wording("reasonSourceKeyword");
                 case TAG -> config.wording("reasonSourceTag");
+                case SIMILAR -> config.wording("reasonSourceSimilar");
             });
         }
         Verdict verdict = verdicts.get(track.id());

@@ -70,6 +70,65 @@ public class LastFmAdapter implements GenreService, TagService {
         return parseTags(fetch(url), artist, config.lastfmTrackTagsKept());
     }
 
+    @Override
+    public List<String> similarArtists(String artistName, int limit) {
+        if (!config.lastfmConfigured() || artistName == null || artistName.isBlank() || limit <= 0) {
+            return List.of();
+        }
+        String url = config.lastfmApiBaseUrl() + "?method=artist.getsimilar&artist=" + encode(artistName.strip())
+                + "&autocorrect=1&limit=" + limit + "&api_key=" + encode(config.lastfmApiKey()) + "&format=json";
+        return parseSimilar(fetch(url), limit);
+    }
+
+    /** Names in Last.fm's order, at most {@code limit}; "artist not found" (error 6) is an empty list. */
+    private List<String> parseSimilar(String body, int limit) {
+        try {
+            JsonElement parsed = gson.fromJson(body, JsonElement.class);
+            if (parsed == null || !parsed.isJsonObject()) {
+                throw new MusicServiceException("Last.fm reply could not be read.");
+            }
+            JsonObject root = parsed.getAsJsonObject();
+            if (root.has("error")) {
+                if (root.get("error").getAsInt() == 6) {
+                    return List.of();
+                }
+                String message = root.has("message") && root.get("message").isJsonPrimitive()
+                        ? config.truncateBody(root.get("message").getAsString()) : "";
+                throw new MusicServiceException("Last.fm reported an error (" + root.get("error").getAsString()
+                        + ") " + message);
+            }
+            JsonObject similar = root.has("similarartists") && root.get("similarartists").isJsonObject()
+                    ? root.getAsJsonObject("similarartists") : null;
+            JsonElement list = similar == null ? null : similar.get("artist");
+            if (list == null) {
+                return List.of();
+            }
+            JsonArray elements = list.isJsonArray() ? list.getAsJsonArray() : new JsonArray();
+            if (list.isJsonObject()) {
+                elements.add(list);
+            }
+            List<String> names = new ArrayList<>();
+            for (JsonElement e : elements) {
+                try {
+                    String name = e.getAsJsonObject().get("name").getAsString().strip();
+                    if (!name.isEmpty()) {
+                        names.add(name);
+                    }
+                } catch (RuntimeException ignored) {
+                    // a malformed element is skipped, not fatal
+                }
+                if (names.size() >= limit) {
+                    break;
+                }
+            }
+            return names;
+        } catch (MusicServiceException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new MusicServiceException("Last.fm reply could not be read.");
+        }
+    }
+
     /**
      * The artist's top Last.fm tags, filtered. A present list (even empty, including "artist not found") is a real
      * answer; an empty Optional means the lookup failed, was skipped during a cooldown, or no key is set.
