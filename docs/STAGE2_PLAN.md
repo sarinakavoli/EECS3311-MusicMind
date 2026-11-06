@@ -324,6 +324,17 @@ beyond Stage 1".
   would add cost and a failure path to a feature that is otherwise deterministic. Impact: F4 works
   with no LLM key; F4 is deterministic in the conformance table.
 
+- **F4: when every candidate is blocked the result is a notice, not a question (F4; Nov 6 audit)** -
+  Original: Stage 1 F4 alternative case: all candidates filtered by the blocklist "report and ask to
+  adjust". Change: `RecommendationEngine.recommend` returns no recommendations and adds the notice
+  `text.discoverAllFiltered`, which names the filters that removed the candidates (blocked artists, the
+  explicit setting) and says to change them and run discover again (`RecommendationEngine.java:352-355`).
+  No interactive prompt is shown in the CLI or the GUI. Reason: `discover` is a single read in both
+  interfaces, the fix is a setting (`prefs set`, or the Your Rules screen), and the notice already
+  says which one; an adjust-now question would need a handler like F11's for a rare case. Impact: the
+  listener changes the setting and runs discover again. The other F4 difference, no LLM-phrased
+  reasons, is the entry above.
+
 - **Your Taste: Past week, counted from recent plays (F1; Nov 4)** — Original: Your Taste offered the three Spotify periods (`short`, `medium`, `long`) and `normalizeRange` refused anything else; Trends compares the same three. Change: a fourth range `week`. Spotify has no top items for a week, so `MusicAgentFacade.analyzePastWeek` reads the new `MusicService.getRecentPlays()` (a `Play` is a track and its `played_at`, parsed by `SpotifyAdapter`, never stored), keeps the plays of the last `profile.weekDays` (7) days, ranks tracks and artists by play count (at most `profile.weekTopLimit`), and fills genres through the new `MusicService.withGenres(artists)` (`GenreEnrichingMusicService`, the same MusicBrainz lookup and cache as the other ranges). `ProfileBuilder.build` gained an overload whose information notices do not make a profile partial; the screen says "Built from your last N plays (Spotify only keeps your 50 most recent)", or that there were no plays in the last 7 days. Only derived data is stored (range `week`, ids and genres), as for other ranges. `AppController.timeRanges()` is now week, short, medium, long (Your Taste, the CLI `--range`); the new `trendRanges()` keeps Trends and `trends` to Spotify's three. `ViewFormat.rangeLabel("week")` is Past week. Reason: the owner asked for a past week twice. Impact: additive; a week built from at most 50 plays is thin and is labelled so, and it is left out of Trends because comparing it with the other periods would mix a 50-play sample with Spotify's own rankings. Nothing new is sent to OpenAI (the summary prompt takes the same profile data).
 
 ## 4. F5 playlist creation, F10 explanation and the LLM's role
@@ -457,6 +468,82 @@ beyond Stage 1".
 - **Create: familiar picks must fit by leading genres and by the song's own Last.fm tags (F5; Nov 4)** — Original: a familiar track fit the goal when any genre known for its artists was a seed genre, and the first live run showed that was far too loose: "music for studying" (ambient, classical, instrumental, lo-fi) picked 12 Nirvana songs, "slow dance" picked Billie Jean and "Pop", "workout" picked 8 songs by one rapper. Root cause (checked live with the cached genres printed): the filter did run, but MusicBrainz lists dozens of tags per artist and Nirvana's list holds "ambient" and "instrumental" far down it, Michael Jackson's holds "soul" and "r&b", so every artist matched some goal. Change: (1) `Retrieval.leadingGenres` and `create.fitLeadingGenres=3`: only an artist's first three genres (profile genres, else cached MusicBrainz) and the genre the track was searched under count in `RecommendationEngine.fitsGoal`. (2) When Last.fm is configured and the plan has tags, `TrackTagFit` asks `TagService.trackTags(artist, title)` (new default method, `LastFmAdapter` implements `track.gettoptags`, error 6 is an empty list, the key and title never appear in a message) for the song's top `lastfm.trackTagsKept=10` tags; a familiar track fits only if one of them equals, as letters and digits ignoring case, a plan tag or a synonym from `lastfm.synonyms.<key>` in `musicmind.properties` (a tag that merely contains a plan word, such as "slow", does not count). At most `lastfm.maxTrackTagLookups=30` songs are looked up per retrieval, once each (answers are kept in `Retrieval`, shared by `without`, and in memory only); after one failed lookup no more are made. When Last.fm is off, fails, is capped, or does not know the song, the leading-genre rule decides, and a failure is counted with the other read failures (`discoverReadFailed`); with no key the existing `lastfmOff` notice appears. A song with a goal source (keyword or Last.fm tag song) still fits. (3) In a Create run that has Last.fm tag songs, a genre search result whose title holds the genre word ("R&B All Night", "Ambiente") is scored down by `discover.weight.genreTitleContainsPenalty=0.6` (never below the bare-title penalty); Discover and runs without tag songs are unchanged. Reason: the owner's live test; artist genres are too coarse to separate one song from another. Impact: titles go only to Last.fm, are never stored and never sent to OpenAI; selection stays deterministic and the LLM adds nothing. Disclosure: with a Last.fm key, up to `lastfm.maxTrackTagLookups=30` song titles with artist names per Create run (plus the plan's tags) are sent to Last.fm to read their tags; nothing goes to OpenAI. Review round (Nov 4): tag and keyword songs now count as matching the goal in the "match the genres you asked for" notice; the pick order has three tiers (tag song and genre match; either; neither) before the ordinary score; zero kept familiar songs says `familiarNoneForGoal` instead of "Only 0 of N"; `CandidateRetriever.byTag` stops after the first Last.fm failure; MusicBrainz genre lists are already ordered by vote count (`MusicBrainzAdapter`) and the cache and enrichment keep that order, so "leading" means most voted. Tests: `RecommendationEngineTest` (`create_*GenresWith*`, `create_songTag*`, `create_withTagSongs_aGenreResult*`), `LastFmAdapterTest.trackTags_*`.
 - **Create: Last.fm review fixes (F5; Nov 5)** — Original: the first Last.fm tag used the whole `lastfm.maxTracks` budget; slow Last.fm could stall Create with up to 30 sequential calls; each Create repeated up to 20 Spotify searches; a non-array `tags` in the plan failed it; synonyms of every single word of a tag were added. Change: (1) `CandidateRetriever.byTag(tag, share)`: the run's tags share the budget, share = ceil(maxTracks / tags). (2) Not changed: the review also suggested letting a song's genre tags ("soul") count for a requested genre, but that would let pop hits by artists also tagged soul or r&b (Billie Jean) back into "slow dance", which the leading-genre entry above removed on purpose; a song's own tags must name the goal. (3) `lastfm.trackTagBudgetSeconds=15`: after that time from the first song lookup no more are made and the genre rule decides. (4) In-memory, session-only cache of Last.fm song to Spotify matches in `RecommendationEngine` (`lastfm.matchCacheSize=500`, oldest dropped; failed searches not cached; never stored). (5) `ResponseParser`: a string `tags` is one tag, any other non-array is ignored. (6) `Config.lastfmSynonyms` looks up the whole tag key only. Reason: code review of the Last.fm work. Impact: second tag now returns songs; Create waits at most about 15 s on song tags; repeat Creates use fewer Spotify calls; no data stored or sent to the LLM. Tests: `CandidateRetrieverTest`, `TrackTagFitTest`, `PlannerPlanTest`, `ConfigTest`, `RecommendationEngineTest`.
 
+### Nov 6 alignment audit: differences that had no entry
+
+On Nov 6 three reviewers compared Stage 1 with the code. These entries record the differences they
+found that had no Original -> Change -> Reason -> Impact entry. Code fixes from the same audit are
+commits 905213c (F10), 1d4be94 (wording keys) and 968d1aa (`verifyTracks`).
+
+- **`ResponseParser.verifyTracks` is on no live path (F3, F10; Nov 6)** -
+  Original: Stage 1 section 1.1 says `ResponseParser` rejects any track not confirmed by a real Spotify
+  result, and F3 and F10 list `verifyTracks()`. Change: the method exists with its test
+  (`ResponseParser.java:347`, `ResponseParserTest`) but nothing calls it. Until 968d1aa the facade
+  called `verifyTracks(results, results)` in `searchMusic`, which only removed duplicates; those calls
+  are gone. Reason: the model never names a track. Search sends the model's structured query to
+  Spotify and uses Spotify's own tracks; Create selects deterministically in `RecommendationEngine`;
+  Modify binds commands to listed positions and ids through `ResponseParser.forPlaylist`, and tracks to
+  add come from Spotify search (see the Command entry in section 5). There is nothing proposed by the
+  model to verify. It is kept, with a Javadoc that says so, as the guard for any future path where the
+  model names ids. Impact: the Stage 1 protection ("the model cannot introduce a track") holds
+  because the model has no such path, not because of a runtime check. `searchMusic` no longer
+  de-duplicates by id after the Spotify search (`SearchRanker.merge` still does for the merged lists;
+  Spotify search normally returns unique ids). F10 is checked by `verifyExplanation`, not
+  `verifyTracks` (see the F10 entry below).
+- **`LLMProvider.parse()` does not exist; the interface has only `complete(prompt)` (F3; Nov 6)** -
+  Original: Stage 1 F3 says "`LLMProvider.parse()` produces a `SearchQuery`". Stage 1's own
+  traceability table lists `complete()` for the same flow, and also lists `ResponseParser`. Change:
+  `LLMProvider` has one method, `complete(String): String` (`llm/LLMProvider.java`). The text is turned
+  into a `SearchQuery` by `Planner.parseSearchQuery` (R6), which calls `complete` and then
+  `ResponseParser.parseSearchQuery`. Reason: parsing a reply is `ResponseParser`'s job, so the provider
+  stays a thin seam that any model can implement and a test double can fake; one method keeps
+  `OpenAiProvider` free of feature knowledge. Impact: none outside the name; F3 behaves as the Stage 1
+  workflow describes.
+- **More components call the LLM than Stage 1's "two" (section 1.1; Nov 6)** -
+  Original: Stage 1 1.1 says the LLM is invoked by two components only, the `Planner` and the
+  `ExplanationService`. Change: it is called by five places, all through `LLMProvider.complete`:
+  `Planner` (the plan, the search text, and the wording of the F11 options in `phraseOptions`; `Planner.java:127,146,192`),
+  `ExplanationService` (`ExplanationService.java:49`), `GoalFitReviewer` (`GoalFitReviewer.java:105`),
+  `PlaylistEditor` (`PlaylistEditor.java:90`), and `MusicAgentFacade.fromLlm` for the F1 summary
+  sentence and the F2 narrative (`MusicAgentFacade.java:1524`). The first two are Stage 1's.
+  `GoalFitReviewer` has its own entry ("The LLM may remove retrieved tracks"). Reason: each added call is
+  a language task, not a decision about music: the F1 and F2 sentences are what Stage 1 F1 and F2
+  require the LLM to write, `PlaylistEditor` turns an edit instruction into commands (F6 says "LLM
+  parses"), and the review is the entry above. The facade, not `ProfileBuilder` or `TrendComparator`,
+  makes the F1 and F2 calls; those two classes stay deterministic. Impact: the "two components only"
+  sentence is no longer true as written. What still holds: no prompt carries a Spotify title, artist
+  or album name (`PromptBuilderTest` calls every `PromptBuilder.build*` method and checks), and each
+  call has a computed fallback or fails with a message. The summary and trend prompts carry genre
+  weights and counts; the review carries ids and genres; the edit prompt carries ids, the explicit
+  flag, minutes and Last.fm tags (the open policy question stays in `docs/STAGE1_CONFORMANCE.md`,
+  section 7).
+- **F10: a playlist with no stored session gets a general description and a note (F10; Nov 6, commit 905213c)** -
+  Original: Stage 1 F10 says a missing decision trace gives a generic explanation with a limitation
+  note. Until Nov 6 a playlist id with no stored session at all (one MusicMind did not create) raised
+  "No playlist or session with the id ..."; the generic text appeared only when a session existed
+  without a trace. Change: `AppController.explain` first looks for a stored session by session id or
+  playlist id and explains it as before. If there is none and the database is up, and Spotify is
+  configured, `MusicAgentFacade.explainUnrecorded` reads the playlist and returns the note
+  `text.explainNoSession` plus "N songs, about M minutes" and how many songs are by artists in the
+  saved taste profile (artist ids only), or a sentence that no profile is saved. A playlist that cannot
+  be read still gives the old "unknown id" error; with the database down it still says so. No LLM and
+  no title is involved. Reason: this is the Stage 1 alternative case, and a playlist the user made
+  elsewhere is a natural thing to ask about; a made-up reason would break F10's rule that explanations
+  use recorded facts only. Impact: the GUI "Why these?" and the CLI `explain` both call
+  `AppController.explain`, so both get it. Keys `explainNoSession`, `explainGeneral`,
+  `explainGeneralKnown`, `explainGeneralNoProfile`. The existing `explainNoTrace` text (session with no
+  trace) is unchanged. Tests: `AppControllerTest` and `ModifyPlaylistFlowTest` (no LLM call, no title).
+- **F10: an explanation covers the run that created the playlist, not later edits (F10; Nov 6)** -
+  Original: Stage 1 F10 explains "why these tracks" from the recorded decision trace of a run. Change:
+  `SessionRepository.findByPlaylist` returns the creating `CREATE_PLAYLIST` session only
+  (`SessionRepository.java:78`), so `explain` describes the tracks Create chose; a Modify session is
+  stored in the history but does not replace it (`ModifyPlaylistFlowTest.modifyIsRecordedInTheHistoryButDoesNotReplaceTheCreatingSession`).
+  Reason: a Modify records the edit, not a new ranking; replacing the creating trace would lose the
+  spec and the reasons that validation and the explanation read, and a trace for tracks the edit
+  added or kept would have to be invented. Impact: after an edit, `explain` still describes the
+  original selection; the History screen shows the edits. The F10 verifier is `verifyExplanation`
+  (it checks numbers, quoted names and genres against the trace); Stage 1's `verifyTracks()` for F10
+  was replaced by it because an explanation is prose, not a track list (also in section 5, Task 11).
+
 ## 5. F6 modify, F7 validate, F12 history and restore, and the Command pattern
 
 - **Command pattern, PlaylistManager and snapshot undo (Task 9; R10, R11, R12)**
@@ -579,6 +666,15 @@ beyond Stage 1".
     - Wording keys `deleteNotOwner`, `deleteUndoUnavailable`, `cmdDelete`, `cliDelete*`, `cliUsage.delete`, `cliDesc.delete`.
     - Screens are not changed.
     - Collaborative playlists in the user's list can be deleted too (this removes them from the user's library only).
+
+- **F7: `ValidationResult` is one flag plus the offending items per failed rule (F7; Nov 6 audit)** -
+  Original: Stage 1 F7 output is "pass/fail per rule with offending items". Change:
+  `ValidationResult(passed, violations, offending)` (`domain/ValidationResult.java:11`): one overall
+  flag, a sentence per violated rule, and `offending()` mapping each violated rule to track ids. A rule
+  that passes has no entry. The CLI `validate` prints PASS, or FAIL with each violated rule and its
+  offending ids; violations are listed in the Stage 1 rule order (`PlaylistValidatorTest`). Reason: the callers (the adjustment loops, the badges, the CLI exit status) need to know
+  whether there is any violation and what to name; a list of passing rules adds nothing for them.
+  Impact: a caller that wants to show "rule passed" must derive it from the absent entry.
 
 ## 6. Stage 1 gaps closed, search and blocking
 
@@ -733,6 +829,24 @@ beyond Stage 1".
 - **GUI fixes from the owner's Nov 5 test and the Nov 5 UI/UX review (all screens; Nov 5)** — Original: the redesigned GUI of Nov 4. Change: findings 36-39 and review items 1-12 in `docs/GUI_TEST_FINDINGS.md`: visible keyboard focus on every control; field, check-box and slider borders at 3:1 or more; only messages the app throws on purpose are shown (`ViewFormat.failure`), anything else becomes fixed friendly wording; green kept for the main action and success; Playlists puts the change box and Modify under the title and gives Delete and Block a red style; one spacing scale (`UiParts.SPACE_*`, 4/8/16/24/32); song rows keep one labelled action with Like, Not for me and Spotify as icon buttons with tooltips and accessible text; Create shows plain progress words (`ViewFormat.progress`) and white labels with caption helpers; Trends is one table of genres and artists against the periods (`ViewFormat.trendTable`) with the summary first; result messages sit under each screen's input; the "Try:" example shows only on an empty screen; Discover uses plain rows and one "Why these songs?"; five type sizes with 14px body; the Your Rules Save buttons show only when a value changed; History says "Earlier versions of your playlists". Reason: the owner's test and an accessibility and usability review (WCAG 2.4.7 focus visible, 1.4.11 non-text contrast). Impact: views, `musicmind.css`, `ViewFormat` helpers with tests and wording keys only; no feature or stored data changed apart from the blocked-song titles below.
 - **Your Rules: blocked songs shown by title (F7; Nov 5)** — Original: a blocked song was listed as "a song you blocked" because only its id is stored. Change: `AppController.trackLines(ids)` (via `MusicAgentFacade.trackLines`) reads "Title – Artist, Artist" from Spotify with `getTrack`, one call per song on the worker, for the first `gui.blockedTitlesShown` (20) songs; it stops at the first expired login, rate limit or server (5xx) error, as `previewSnapshot` does, so a failing Spotify is not asked 20 times; a song Spotify does not know is skipped, and a song not read (or Spotify not set up) is absent from the result so the view keeps the placeholder. Reason: the owner could not tell which song to unblock. Impact: additive; read for display only and held in memory, never stored or sent to the LLM.
 
+- **GUI views have no automated UI tests (all screens; Nov 6)** -
+  Original: Stage 1 names the GUI screens and says nothing about how they are tested. Change: no
+  JavaFX or TestFX test drives a view. The text and numbers a view shows are built in `ViewFormat` and
+  covered without JavaFX by `ViewFormatTest`; `ControlLockTest` covers the control lock; the logic behind
+  every button is in `AppController`, which has controller tests and which the CLI tests share; the
+  screens themselves were checked by hand (the owner's tests of Nov 2 and Nov 4 to 6, read-only
+  throwaway drivers; see `docs/GUI_TEST_FINDINGS.md` and `docs/DAILY_TEST_NOTES.md`). Reason: the views
+  hold no business logic, and a UI-driver library needs a display and another dependency in a build that
+  is meant to run with nothing installed (section 1). Impact: a wrong layout, or a button wired to the
+  wrong call, shows up only in a hand test. This is stated as a limitation in the report (1.5 and 6.4).
+- **F5 progress is a status line and F2 is one comparison table (Nov 6 audit)** -
+  Original: Stage 1 F5 shows a progress indicator; F2 shows the ranges side by side. Change: Create shows
+  the name of the current state as plain text in the dialog's status line (`CreatePlaylistDialog.java:228`,
+  `ViewFormat.progress`), not a bar. `TrendsView` shows one table with a column per range and a tick where
+  an item is in that range, plus a Change column. Reason: the states take unequal and unknown times, so a
+  percentage bar would suggest precision there is not; the table puts the ranges side by side and adds
+  the change. Impact: none for the features; the screens differ from the wording of Stage 1.
+
 ## 8. Design patterns
 
 The five patterns counted for the course are Adapter, Strategy, Command, State and Facade, as in
@@ -748,6 +862,74 @@ Stage 1. Repository and Decorator are used as well. Details by class are in
 | Facade | `MusicAgentFacade` behind `AppController` | `AppController` adds the `last*()` accessors the interfaces need. |
 | Repository | `Repository<T>` with `PreferenceRepository`, `FeedbackRepository`, `SessionRepository`, `PlaylistHistoryRepository`, `CandidateRepository`; `GenreRepository` is a cache | `CandidateRepository` and `GenreRepository` are new. |
 | Decorator | `RetryingMusicService`, `GenreEnrichingMusicService` over `MusicService` | `GenreEnrichingMusicService` is new (R18). |
+
+Differences inside the patterns that Stage 1 did not mention (Nov 6 alignment audit):
+
+- **`AgentSession` stores `planSteps`, not an `AgentPlan` (State, domain model)** -
+  Original: the Stage 1 domain model draws `AgentSession` 1 to 0..1 `AgentPlan`, and F12 says
+  `AgentPlan` is persisted. Change: `AgentSession` holds `planSteps: List<String>` (`AgentSession.java:25`),
+  set from `AgentPlan.steps()` by `PlanningState` and `Negotiator`, and stored in the `plan_steps` column
+  of `agent_session` (`Database.java:97`). `AgentPlan` (spec, steps, seed genres, search terms, tags) is a
+  run-time object that lives in `RunContext` and `Planner`; the final spec, seed genres and track ids go
+  into the session's derived data (see "F5 create flow", section 4). Reason: the session is the record
+  that is saved and listed in History, and Spotify's terms leave us only ids and our own derived data to
+  store; the plan's steps are the part a person reads, while the plan's other fields are inputs of the run
+  that the saved spec and trace already cover. Keeping an `AgentPlan` reference would make the persisted
+  record depend on a run-time class. Impact: History shows the plan steps and the result; a restart
+  cannot rebuild the `AgentPlan` object, and nothing needs to. `AgentPlan.tags` (Last.fm) is not drawn
+  in the Domain diagram's `AgentPlan` box (it shows `spec`, `seedGenres` and `searchTerms`).
+- **`AgentSession.run()` and `fail()` (State)** -
+  Original: Stage 1 `AgentSession` "delegates `handle()`" to its current state and the states set the
+  next state. Change: `run()` loops, publishing `name()` to the progress listener and calling
+  `current.handle(this)`, and each state still sets the next one. Any exception, and an expired token
+  that cannot be renewed, is turned into `FailedState` by `AgentSession.fail()` (`AgentSession.java:118`),
+  a transition made by the context, not by a state. `ValidatingState` can send the run back to
+  `SelectingState`. Reason: one place for error handling and for the expired-token resume (Task 10), so
+  no state has to repeat it. Impact: the lifecycle is as in Stage 1 plus the back edge; `domain/AgentSession`
+  imports `agent.state`, a dependency from the domain package on the agent package.
+- **Strategy: Create always uses `BalancedStrategy`; Discover chooses from the request (Strategy)** -
+  Original: Stage 1 says the strategy is chosen at run time from the request, and F5 (SD01) selects with
+  `BalancedStrategy`. Change: Discover calls `RecommendationEngine.chooseStrategy(familiarRatio)`, which
+  asks `StrategySelector` for `FamiliarStrategy`, `DiscoveryStrategy` or `BalancedStrategy`
+  (`MusicAgentFacade.java:621`), and widening raises the novelty and re-selects the strategy while there
+  are too few results. Create sets `BalancedStrategy` in `SelectingState` (`SelectingState.java:106`; it is
+  also the engine's default, `RecommendationEngine.java:123`) and keeps it: with library tracks allowed,
+  widening only reads more genres and leaves the ratio and strategy alone (`RecommendationEngine.java:328-331`,
+  and the entry "F5 widening reads genres only", section 4). The listener's familiar share still reaches
+  Create, as the `familiarRatio` of the spec that the selection and `ConstraintChecker` use. Reason:
+  Stage 1 UC06 and F5 name `BalancedStrategy` for playlists, and the user's share is more exact as a
+  number than as a choice of three classes; the user-driven choice matters for Discover, whose novelty
+  setting is the whole request. Impact: the pattern is evident in both paths, but only Discover shows
+  the run-time choice.
+- **The facade reads some Spotify data through `MusicService`, not `ToolManager` (Facade, Adapter)** -
+  Original: Stage 1 has the agent reach Spotify through `ToolManager` and `SpotifyTool`. Change: the reads
+  that feed the agent's loops go through the tools (`getTopItems`, `getSavedTracks`, `getRecentPlays`,
+  `search`, `searchArtists`, the artist, album and playlist reads that `SpotifyTool` registers). The facade
+  calls `MusicService` directly (`create.music()`) for: finding artists and tracks by name for blocking
+  (`findArtists`, `findTracks`), an artist's or track's display name (`getArtist`, `getTrack`, an artist's
+  albums), reading a playlist's items (`readItems`), listing the user's playlists (`getUserPlaylists`),
+  and handing the service to `PlaylistContext`, `PlaylistEditor`, `PlaylistManager` and the command
+  classes (`MusicAgentFacade.java:698,705,732,747,763,1174,1197,1209,1222,1353,1430`). Reason: these
+  are single, user-triggered reads and writes with their own error handling (`playlistAccess`); wrapping
+  each in a tool only to unwrap its `ToolResult` would add code without adding a check, and the commands
+  are the Command pattern's receiver, which Stage 1 draws as `MusicService`. `getArtist`, `getTrack` and
+  `getUserPlaylists` are not registered as tools. Impact: Spotify is still reached only through
+  `MusicService`, so `SpotifyAdapter` (Adapter) and the two decorators apply to every call. The
+  composition root `AppController` imports and builds the adapters, repositories and decorators
+  (`AppController.java:191-204`), so it is the Facade's client and also wiring; no view or CLI class does.
+- **No `CachingMusicService` decorator (Decorator)** -
+  Original: Stage 1 lists `CachingMusicService` as "a possible extension", bounded by Spotify's rule
+  against durable caching of content. Change: not built. What caches exist is derived data and
+  session memory: artist genres from Last.fm cached by artist id in `artist_genre`
+  (`GenreEnrichingMusicService` with `GenreRepository`, entries expire after `lastfm.cacheDays`), the
+  Last.fm-song-to-Spotify match cache in memory for the session (`TagTrackMatcher`), the song-tag
+  and similar-artist caches in memory (`SongTagReader`, `CandidateRetriever`), and the `Retrieval` object that
+  shares one Spotify read within a Create run. Reason: it was optional; Spotify Content may not be kept
+  durably, so a cache of Spotify results could only live in memory and would save only repeat reads,
+  which `Retrieval` already avoids inside a run; the slow, rate-limited lookups in this app are
+  Last.fm's, and the caches above cover them. Impact: Spotify reads are made again in each run;
+  `RetryingMusicService` handles the Development Mode rate limits. The Decorator pattern is shown by `RetryingMusicService` and
+  `GenreEnrichingMusicService`.
 
 ## 9. Weekly commit summary
 
