@@ -422,8 +422,9 @@ public class MusicAgentFacade {
 
     /**
      * F3 — the Planner structures the text (or falls back to a raw keyword query), the
-     * {@code search} tool fetches the tracks, {@link ResponseParser#verifyTracks} keeps only
-     * confirmed ones and the {@link SearchRanker} orders them. An empty result sets
+     * {@code search} tool fetches the tracks from Spotify and the {@link SearchRanker} orders them.
+     * The model never names tracks here (it only structures the query), so every track returned came from
+     * Spotify and no check against hallucinated tracks is needed on this path. An empty result sets
      * {@link #lastSearchNotice()}; a keyword fallback sets {@link #lastSearchLabel()}.
      *
      * @throws IllegalArgumentException if {@code query} is blank
@@ -520,7 +521,7 @@ public class MusicAgentFacade {
             if (result.ok()) {
                 @SuppressWarnings("unchecked")
                 List<Track> results = (List<Track>) result.payload();
-                merged = ranker.merge(typed, parser.verifyTracks(results, results), meaning, !anyMood);
+                merged = ranker.merge(typed, results, meaning, !anyMood);
             }
         }
         return merged.size() > config.searchResultLimit() ? merged.subList(0, config.searchResultLimit()) : merged;
@@ -558,7 +559,7 @@ public class MusicAgentFacade {
         }
         @SuppressWarnings("unchecked")
         List<Track> results = (List<Track>) result.payload();
-        return ranker.rank(query, parser.verifyTracks(results, results));
+        return ranker.rank(query, results);
     }
 
     /** Why the last search found nothing and what to try instead; null when it found something. */
