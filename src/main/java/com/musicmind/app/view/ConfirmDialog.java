@@ -77,7 +77,7 @@ final class ConfirmDialog {
         heading.setWrapText(true);
         // Two buttons sit side by side on the right; more (the choices of a conflict) stack, one per line.
         boolean stacked = choices.size() > 2;
-        Pane buttons = stacked ? new VBox(UiParts.GAP) : new HBox(UiParts.GAP);
+        Pane buttons = stacked ? new VBox(UiParts.SPACE_S) : new HBox(UiParts.SPACE_S);
         buttons.getStyleClass().add("mm-confirm-buttons");
         if (buttons instanceof HBox row) {
             row.setAlignment(Pos.CENTER_RIGHT);
@@ -105,7 +105,7 @@ final class ConfirmDialog {
             buttons.getChildren().add(button);
         }
         VBox.setVgrow(body, Priority.ALWAYS);
-        VBox root = new VBox(UiParts.GAP + 6, heading, body, buttons);
+        VBox root = new VBox(UiParts.SPACE_M, heading, body, buttons);
         root.getStyleClass().add("mm-confirm");
         root.setPrefWidth(WIDTH);
         root.setMaxHeight(UiParts.fitHeight(Double.MAX_VALUE, Screen.getPrimary().getVisualBounds().getHeight()));

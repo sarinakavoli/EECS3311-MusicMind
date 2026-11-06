@@ -624,6 +624,19 @@ public class AppController {
         return parsed;
     }
 
+    /**
+     * Blocked songs as a view lists them, id to "Title \u2013 Artist, Artist", read from Spotify now and never stored.
+     * Empty when Spotify is not set up; a song that cannot be read is absent, and the reading stops early when
+     * Spotify refuses (login expired, rate limit, server error), so the view shows its placeholder for the rest.
+     */
+    public Map<String, String> trackLines(List<String> trackIds) {
+        if (facade == null || trackIds == null) {
+            return new LinkedHashMap<>();
+        }
+        List<String> ids = trackIds.stream().filter(id -> id != null && !id.isBlank()).toList();
+        return ids.isEmpty() ? new LinkedHashMap<>() : facade.trackLines(ids);
+    }
+
     /** The value a view shows for a preference: blocked artists by name, which are never stored. */
     public String displayPreference(UserPreference pref) {
         if (facade == null || !pref.key().equals(PreferenceSettings.BLOCKED_ARTISTS) || pref.value().isBlank()) {

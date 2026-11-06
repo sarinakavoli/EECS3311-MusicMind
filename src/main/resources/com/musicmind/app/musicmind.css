@@ -2,6 +2,13 @@
  * MusicMind look: one dark, Spotify-style stylesheet. Palette:
  *   background #121212, panels #181818, cards #202020, hover #2a2a2a,
  *   text #ffffff, muted #b3b3b3, accent #1db954, lines #2e2e2e.
+ * Spacing scale (px): 4 / 8 / 16 / 24 / 32, the same numbers as UiParts.SPACE_XS..SPACE_XL. 4 only between a
+ * label and its caption; 8 between items in a group and in a button; 16 inside a card or section; 24 between
+ * the sections of a page. Every padding and spacing below is one of them (the exception is commented).
+ * Type scale (px), five sizes only: 26 page title; 20 section or card title; 16 a prominent line (the Trends
+ * summary, the mix line, a gate prompt); 14 body, buttons, rows and table heads (set on .root); 12 captions,
+ * chips, hints and muted meta.
+ * Green (#1db954) means only the main action of a screen and a success or chosen state.
  * Views use only the mm-* style classes below; none sets a colour in Java.
  */
 
@@ -21,7 +28,7 @@
     -fx-selection-bar-text: #ffffff;
     -fx-selection-bar-non-focused: #2a2a2a;
     -fx-box-border: #2e2e2e;
-    -fx-font-size: 13px;
+    -fx-font-size: 14px;
     -fx-background-color: #121212;
 }
 
@@ -33,7 +40,7 @@
 
 .mm-header {
     -fx-background-color: #000000;
-    -fx-padding: 12 18 12 18;
+    -fx-padding: 8 16 8 16;
     -fx-alignment: center-left;
 }
 
@@ -55,18 +62,18 @@
 
 .mm-footer {
     -fx-background-color: #000000;
-    -fx-padding: 6 18 6 18;
+    -fx-padding: 8 16 8 16;
 }
 
 .mm-footer .label {
     -fx-text-fill: #b3b3b3;
-    -fx-font-size: 11px;
+    -fx-font-size: 12px;
 }
 
 .mm-banner {
     -fx-background-color: #3a2f00;
     -fx-text-fill: #ffd866;
-    -fx-padding: 8 18 8 18;
+    -fx-padding: 8 16 8 16;
     -fx-border-color: #2e2e2e;
     -fx-border-width: 0 0 1 0;
 }
@@ -75,8 +82,8 @@
 
 .mm-menu {
     -fx-background-color: #000000;
-    -fx-padding: 14 10 14 10;
-    -fx-spacing: 2;
+    -fx-padding: 16 8 16 8;
+    -fx-spacing: 4;   /* menu entries are one tight list */
     -fx-min-width: 190;
     -fx-pref-width: 190;
 }
@@ -89,7 +96,7 @@
     -fx-border-radius: 6;
     -fx-text-fill: #b3b3b3;
     -fx-font-size: 14px;
-    -fx-padding: 9 12 9 12;
+    -fx-padding: 8 16 8 16;
     -fx-alignment: center-left;
     -fx-cursor: hand;
     -fx-max-width: infinity;
@@ -115,8 +122,8 @@
 
 .mm-page {
     -fx-background-color: #121212;
-    -fx-padding: 20 24 20 24;
-    -fx-spacing: 10;
+    -fx-padding: 24;
+    -fx-spacing: 24;
 }
 
 .mm-page-title {
@@ -131,9 +138,9 @@
 }
 
 .mm-example {
-    -fx-font-size: 13px;
+    -fx-font-size: 12px;
     -fx-font-style: italic;
-    -fx-text-fill: #1db954;
+    -fx-text-fill: #b3b3b3;
 }
 
 /* A header stays readable when the login gate disables the screen below it. */
@@ -144,9 +151,30 @@
 }
 
 .mm-heading {
-    -fx-font-size: 16px;
+    -fx-font-size: 20px;
     -fx-font-weight: bold;
     -fx-text-fill: #ffffff;
+}
+
+.mm-subhead {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #ffffff;
+}
+
+/* The one-sentence summary of Trends, the most prominent line on the page. */
+.mm-summary {
+    -fx-font-size: 16px;
+    -fx-text-fill: #ffffff;
+}
+
+/* The Change column of Trends: the words carry the meaning, the colour only backs them up. */
+.mm-trend-new {
+    -fx-text-fill: #1db954;
+}
+
+.mm-trend-dropped {
+    -fx-text-fill: #ffd866;
 }
 
 .mm-card {
@@ -154,16 +182,16 @@
     -fx-background-radius: 8;
     -fx-border-color: #2e2e2e;
     -fx-border-radius: 8;
-    -fx-padding: 12;
-    -fx-spacing: 6;
+    -fx-padding: 16;
+    -fx-spacing: 8;
 }
 
 /* A track or playlist row: highlights on hover, holds text on the left and icons on the right. */
 .mm-row {
     -fx-background-color: transparent;
     -fx-background-radius: 6;
-    -fx-padding: 8 10 8 10;
-    -fx-spacing: 12;
+    -fx-padding: 8;
+    -fx-spacing: 8;
     -fx-alignment: center-left;
 }
 
@@ -175,14 +203,26 @@
     -fx-text-fill: #b3b3b3;
 }
 
+/* A helper line under a control: 12px, muted. Under a check box it lines up with the label text. */
+.mm-caption {
+    -fx-font-size: 12px;
+    -fx-text-fill: #b3b3b3;
+}
+
+/* The check box's 16px box plus the 8px gap to its label are off the spacing scale on purpose: they are the
+ * control's own geometry, so the caption text starts under the label text. */
+.mm-check-caption {
+    -fx-padding: 0 0 0 26;
+}
+
 .mm-gate-prompt {
-    -fx-font-size: 15px;
+    -fx-font-size: 16px;
     -fx-text-fill: #b3b3b3;
     -fx-background-color: #181818;
     -fx-background-radius: 8;
     -fx-border-color: #2e2e2e;
     -fx-border-radius: 8;
-    -fx-padding: 16 20 16 20;
+    -fx-padding: 16;
 }
 
 .mm-status-error {
@@ -198,7 +238,7 @@
     -fx-border-color: #2e2e2e;
     -fx-border-radius: 999;
     -fx-text-fill: #ffffff;
-    -fx-padding: 7 16 7 16;
+    -fx-padding: 8 16 8 16;
     -fx-cursor: hand;
 }
 
@@ -217,7 +257,7 @@
     -fx-border-color: transparent;
     -fx-text-fill: #000000;
     -fx-font-weight: bold;
-    -fx-padding: 9 20 9 20;
+    -fx-padding: 8 24 8 24;
 }
 
 .mm-primary:hover,
@@ -225,7 +265,7 @@
     -fx-background-color: #1ed760;
 }
 
-/* Small round icon button (like, not for me); mm-icon-on marks one that is chosen. */
+/* Small round icon button, 32x32 (like, not for me, play in Spotify); mm-icon-on marks one that is chosen. */
 .mm-icon-button,
 .button.mm-icon-button {
     -fx-background-color: transparent;
@@ -233,10 +273,14 @@
     -fx-border-color: #2e2e2e;
     -fx-border-radius: 999;
     -fx-text-fill: #b3b3b3;
-    -fx-min-height: 30;
-    -fx-pref-height: 30;
-    -fx-padding: 0 12 0 12;
-    -fx-font-size: 12px;
+    -fx-min-width: 32;
+    -fx-pref-width: 32;
+    -fx-max-width: 32;
+    -fx-min-height: 32;
+    -fx-pref-height: 32;
+    -fx-max-height: 32;
+    -fx-padding: 0;
+    -fx-font-size: 14px;
     -fx-alignment: center;
 }
 
@@ -265,12 +309,15 @@
 
 /* ---- Inputs ------------------------------------------------------------ */
 
+/* Control boundaries (WCAG 1.4.11, 3:1): #767676 against #121212 page = 4.12, #181818 card = 3.91,
+   #202020 field fill = 3.59, #2a2a2a hover = 3.16. Used for the border of every input, the box of a
+   check box, the ring of a radio button and the slider track. */
 .text-field,
 .text-area,
 .password-field {
     -fx-background-color: #202020;
     -fx-background-radius: 999;
-    -fx-border-color: #2e2e2e;
+    -fx-border-color: #767676;
     -fx-border-radius: 999;
     -fx-text-fill: #ffffff;
     -fx-prompt-text-fill: #b3b3b3;
@@ -302,7 +349,7 @@
 .choice-box {
     -fx-background-color: #202020;
     -fx-background-radius: 999;
-    -fx-border-color: #2e2e2e;
+    -fx-border-color: #767676;
     -fx-border-radius: 999;
 }
 
@@ -321,10 +368,15 @@
     -fx-background-color: #2a2a2a;
 }
 
+.check-box {
+    -fx-text-fill: #ffffff;
+}
+
 .check-box .box,
 .radio-button .radio {
     -fx-background-color: #202020;
-    -fx-border-color: #2e2e2e;
+    -fx-border-color: #767676;
+    -fx-border-width: 1.5;
 }
 
 .radio-button .radio {
@@ -333,6 +385,7 @@
 }
 
 .radio-button:selected .radio {
+    -fx-border-color: #1db954;
     -fx-background-color: #1db954;
 }
 
@@ -349,11 +402,12 @@
 }
 
 .check-box:selected .box {
+    -fx-border-color: #1db954;
     -fx-background-color: #1db954;
 }
 
 .slider .track {
-    -fx-background-color: #2e2e2e;
+    -fx-background-color: #767676;
 }
 
 .slider .thumb {
@@ -395,8 +449,8 @@
 
 .list-cell:filled:selected .button.mm-danger {
     -fx-background-color: transparent;
-    -fx-border-color: #8a8a8a;
-    -fx-text-fill: #ffffff;
+    -fx-border-color: #e5484d;
+    -fx-text-fill: #ff6b6b;
 }
 
 .table-view .column-header-background,
@@ -463,7 +517,7 @@
 }
 
 .mm-slider-box {
-    -fx-spacing: 2;
+    -fx-spacing: 4;
     -fx-max-width: 420;
 }
 
@@ -479,7 +533,7 @@
 
 .mm-why-text {
     -fx-text-fill: #b3b3b3;
-    -fx-padding: 2 4 2 4;
+    -fx-padding: 4 8 4 8;
 }
 
 .titled-pane > .title {
@@ -518,12 +572,22 @@
     -fx-background-color: #123d22;
     -fx-text-fill: #1db954;
     -fx-background-radius: 999;
-    -fx-padding: 2 10 2 10;
+    -fx-padding: 4 8 4 8;
+    -fx-font-size: 12px;
 }
 
 .mm-badge-warn {
     -fx-background-color: #3a2f00;
     -fx-text-fill: #ffd866;
+}
+
+/* A neutral label (the kind of an activity line): grey text on #2a2a2a, 6.8:1. Green is kept for success. */
+.mm-chip {
+    -fx-font-size: 12px;
+    -fx-background-color: #2a2a2a;
+    -fx-text-fill: #b3b3b3;
+    -fx-background-radius: 999;
+    -fx-padding: 4 8 4 8;
 }
 
 /* ---- Song row (TrackRow) ------------------------------------------------ */
@@ -546,7 +610,7 @@
 
 .mm-dialog-content {
     -fx-spacing: 8;
-    -fx-padding: 4 8 8 4;
+    -fx-padding: 8;
 }
 
 .mm-dialog-scroll,
@@ -554,26 +618,28 @@
     -fx-background-color: #181818;
 }
 
-/* Delete in a playlist row: quiet until pointed at, then amber like a warning. Border and text are light
-   enough to read on the dark list without looking like the main action. */
+/* Delete (a playlist row) and Block (a song row): a red outline button, so a risky action never looks like the
+   safe ones beside it. Text #ff6b6b is the red of an error message: 6.75:1 on the page, 5.87:1 on a card, 5.17:1
+   on a hovered row (#2a2a2a); the border is the red of the solid danger button (#e5484d, 4.16:1 on a card).
+   Both stay behind a confirm dialog or a status line in Java. */
 .button.mm-danger {
     -fx-background-color: transparent;
-    -fx-border-color: #5a5a5a;
+    -fx-border-color: #e5484d;
     -fx-border-radius: 999;
     -fx-background-radius: 999;
-    -fx-text-fill: #e0e0e0;
+    -fx-text-fill: #ff6b6b;
 }
 
 .button.mm-danger:hover {
-    -fx-border-color: #e8a33d;
-    -fx-text-fill: #e8a33d;
-    -fx-background-color: transparent;
+    -fx-background-color: #3b1f21;
+    -fx-border-color: #ff6b6b;
+    -fx-text-fill: #ff8a8a;
 }
 
 .mm-section {
     -fx-background-color: #181818;
     -fx-background-radius: 8;
-    -fx-padding: 14;
+    -fx-padding: 16;
     -fx-spacing: 8;
 }
 
@@ -582,7 +648,7 @@
 }
 
 .mm-pick-box {
-    -fx-spacing: 2;
+    -fx-spacing: 4;
 }
 
 /* ---- History ------------------------------------------------------------ */
@@ -592,7 +658,7 @@
 }
 
 .mm-group-name {
-    -fx-font-size: 15px;
+    -fx-font-size: 16px;
     -fx-font-weight: bold;
     -fx-text-fill: #ffffff;
 }
@@ -600,7 +666,7 @@
 .mm-timeline-detail {
     -fx-background-color: #181818;
     -fx-background-radius: 6;
-    -fx-padding: 8 12 8 132;
+    -fx-padding: 8 16 8 136;   /* the one large left padding is an indent: it lines the detail up under the activity text (row padding 8 + "when" column 120 + gap 8) */
 }
 
 .mm-preview-scroll {
@@ -617,23 +683,23 @@
     -fx-background-color: #181818;
     -fx-border-color: #2e2e2e;
     -fx-border-width: 1;
-    -fx-padding: 22;
-    -fx-spacing: 14;
+    -fx-padding: 24;
+    -fx-spacing: 16;
 }
 
 .mm-confirm-title {
-    -fx-font-size: 18px;
+    -fx-font-size: 20px;
     -fx-font-weight: bold;
     -fx-text-fill: #ffffff;
 }
 
 .mm-confirm-message {
     -fx-text-fill: #d6d6d6;
-    -fx-font-size: 13px;
+    -fx-font-size: 14px;
 }
 
 .mm-confirm-buttons {
-    -fx-padding: 6 0 0 0;
+    -fx-padding: 8 0 0 0;
     -fx-spacing: 8;
 }
 
@@ -643,25 +709,104 @@
     -fx-border-color: transparent;
     -fx-text-fill: #ffffff;
     -fx-font-weight: bold;
-    -fx-padding: 9 20 9 20;
+    -fx-padding: 8 24 8 24;
 }
 
 .button.mm-danger-solid:hover {
     -fx-background-color: #ef5a5f;
 }
 
-/* Small "play in Spotify" button on a song row. */
-.button.mm-play-button {
-    -fx-background-color: transparent;
-    -fx-border-color: #2e2e2e;
-    -fx-text-fill: #1db954;
-    -fx-font-size: 12px;
-    -fx-padding: 0 12 0 12;
-    -fx-min-height: 30;
-    -fx-pref-height: 30;
+/* ---- Keyboard focus (WCAG 2.4.7) ----------------------------------------
+ * Every focusable control gets a 2px ring that never moves the layout: solid buttons draw it as the
+ * outer layer of their own background, outlined ones thicken the border inward (border-insets -1).
+ * White on the green primary button, green (#1db954, 7.2:1 on the page) everywhere else. */
+.button:focused {
+    -fx-background-color: #1db954, #2a2a2a;
+    -fx-background-insets: 0, 2;
+    -fx-background-radius: 999, 999;
 }
 
-.button.mm-play-button:hover {
-    -fx-background-color: #2a2a2a;
+.button.mm-primary:focused {
+    -fx-background-color: #ffffff, #1db954;
+    -fx-background-insets: 0, 2;
+}
+
+.button.mm-danger-solid:focused {
+    -fx-background-color: #ffffff, #e5484d;
+    -fx-background-insets: 0, 2;
+}
+
+.button.mm-menu-item:focused,
+.button.mm-icon-button:focused,
+.button.mm-icon-on:focused,
+.button.mm-icon-off-on:focused,
+.button.mm-danger:focused,
+.button.mm-menu-item-selected:focused {
+    -fx-background-insets: 0;
     -fx-border-color: #1db954;
+    -fx-border-width: 2;
+    -fx-border-insets: -1;
+}
+
+.button.mm-menu-item:focused {
+    -fx-background-color: #181818;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+}
+
+.button.mm-menu-item-selected:focused {
+    -fx-background-color: #2a2a2a;
+}
+
+.button.mm-icon-button:focused,
+.button.mm-danger:focused {
+    -fx-background-color: transparent;
+}
+
+.text-field:focused,
+.text-area:focused,
+.password-field:focused {
+    -fx-border-color: #1db954;
+    -fx-border-width: 2;
+    -fx-border-insets: -1;
+}
+
+.combo-box-base:focused,
+.choice-box:focused {
+    -fx-border-color: #1db954;
+    -fx-border-width: 2;
+    -fx-border-insets: -1;
+}
+
+.check-box:focused .box,
+.radio-button:focused .radio {
+    -fx-border-color: #1db954;
+    -fx-border-width: 2;
+    -fx-border-insets: -1;
+}
+
+.slider:focused .thumb {
+    -fx-background-color: #1db954, #ffffff;
+    -fx-background-insets: -3, 0;
+    -fx-background-radius: 999, 999;
+}
+
+.list-view .list-cell:focused,
+.table-row-cell:focused {
+    -fx-border-color: #1db954;
+    -fx-border-width: 2;
+    -fx-border-insets: 0;
+    -fx-border-radius: 6;
+}
+
+/* The cell inside a combo box shows its text only; the combo box itself carries the ring. */
+.combo-box .list-cell:focused,
+.combo-box-popup .list-cell:focused {
+    -fx-border-color: transparent;
+}
+
+.titled-pane:focused > .title {
+    -fx-border-color: #1db954;
+    -fx-border-width: 2;
+    -fx-border-insets: 0;
 }

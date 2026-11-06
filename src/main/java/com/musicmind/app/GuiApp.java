@@ -10,6 +10,7 @@ import com.musicmind.app.view.SearchView;
 import com.musicmind.app.view.StatusLine;
 import com.musicmind.app.view.TabView;
 import com.musicmind.app.view.TrendsView;
+import com.musicmind.app.view.UiParts;
 import com.musicmind.app.view.ViewFormat;
 import com.musicmind.config.Config;
 import com.musicmind.controller.AppController;
@@ -125,7 +126,7 @@ public class GuiApp extends Application {
         login.getStyleClass().add("mm-primary");
         login.setDisable(!ctx.spotifyConfigured());
         StatusLine status = new StatusLine();
-        status.setPadding(new Insets(0, 18, 4, 18));
+        status.setPadding(new Insets(0, UiParts.SPACE_M, UiParts.SPACE_S, UiParts.SPACE_M));
         login.setOnAction(e -> ctx.login(status, login));
         ctx.userProperty().addListener((observable, was, user) -> {
             login.setDisable(user != null || !ctx.spotifyConfigured());
@@ -141,7 +142,7 @@ public class GuiApp extends Application {
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox top = new HBox(12, names, spacer, who, login);
+        HBox top = new HBox(UiParts.SPACE_M, names, spacer, who, login);
         top.getStyleClass().add("mm-header");
         top.setAlignment(Pos.CENTER_LEFT);
         return new VBox(top, status);
@@ -188,7 +189,7 @@ public class GuiApp extends Application {
 
     /** The credit Spotify's, MusicBrainz's and Last.fm's terms ask for. */
     private VBox footer() {
-        VBox box = new VBox(2, new Label(ctx.config().spotifyAttribution()), new Label(ctx.config().genreAttribution()),
+        VBox box = new VBox(UiParts.SPACE_XS, new Label(ctx.config().spotifyAttribution()), new Label(ctx.config().genreAttribution()),
                 new Label(ctx.config().lastfmAttribution()));
         box.getStyleClass().add("mm-footer");
         return box;

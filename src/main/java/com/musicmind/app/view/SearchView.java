@@ -31,17 +31,19 @@ public final class SearchView implements TabView {
 
     private static final double LIST_HEIGHT = 220;
     private static final double MIN_LIST_HEIGHT = 48;
-    private static final double SCROLL_PADDING = 4;
+    private static final double SCROLL_PADDING = 2;
 
     private final GuiContext ctx;
     private final ViewFormat format;
     private final TextField query = new TextField();
     private final Button search;
     private final StatusLine status = new StatusLine();
-    private final VBox results = new VBox(2);
-    private final VBox candidates = new VBox(2);
-    private final Label artists = UiParts.wrapped("");
-    private final Label notices = UiParts.muted("");
+    private final VBox results = new VBox();   // rows carry their own padding
+    private final VBox candidates = new VBox();
+    /** What the last search was about ("Showing songs for the words as typed · Artists found: ..."), under the status line. */
+    private final Label summary = UiParts.collapsing(UiParts.muted(""));
+    /** The "Try: ..." line; it helps only until the first search has left results on the screen. */
+    private final Label example;
     private final Label waitingCount = UiParts.muted("");
     private final Button clear;
     private final Node root;
@@ -67,18 +69,19 @@ public final class SearchView implements TabView {
         results.getChildren().add(UiParts.muted(format.w("NoResults")));
         candidates.getChildren().add(UiParts.muted(format.w("NoCandidates")));
 
-        HBox bar = new HBox(UiParts.GAP, query, search);
+        HBox bar = new HBox(UiParts.SPACE_S, query, search);
         bar.setAlignment(Pos.CENTER_LEFT);
-        HBox resultsHeading = new HBox(UiParts.GAP, UiParts.heading(format.w("Results")), waitingCount);
+        HBox resultsHeading = new HBox(UiParts.SPACE_S, UiParts.heading(format.w("Results")), waitingCount);
         resultsHeading.setAlignment(Pos.CENTER_LEFT);
-        VBox left = new VBox(4, resultsHeading, scroll(results, false));
-        VBox right = new VBox(4, UiParts.heading(format.w("Candidates")), scroll(candidates, true), clear);
+        VBox left = new VBox(UiParts.SPACE_S, resultsHeading, scroll(results, true));
+        VBox right = new VBox(UiParts.SPACE_S, UiParts.heading(format.w("Candidates")), scroll(candidates, true), clear);
         ctx.onDataChanged(() -> {
             if (ctx.userProperty().get() != null) {
                 onLogin(ctx.userProperty().get());
             }
         });
-        VBox page = UiParts.page(format.w("Menu.search"), format.w("Desc.search"), format.w("Example.search"), bar, status, new VBox(UiParts.PAD, left, right), artists, notices);
+        example = UiParts.example(format.w("Example.search"));
+        VBox page = UiParts.page(format.w("Menu.search"), format.w("Desc.search"), example, UiParts.group(bar, status, summary), left, right);
         root = new LoginGate(ctx, page, false);
     }
 
@@ -136,10 +139,10 @@ public final class SearchView implements TabView {
             foundVerdicts = found.verdicts();
             waitingTracks = found.waiting();
             showResults();
-            artists.setText(found.artists().isEmpty() ? ""
+            summary.setText(ViewFormat.joinDetails(ViewFormat.withoutFullStop(found.label()), ViewFormat.withoutFullStop(found.notice()), found.artists().isEmpty() ? ""
                     : ctx.config().wording("cliArtistsFound") + " "
-                    + String.join(", ", format.artistNames(found.artists(), ctx.config().guiArtistsShown())));
-            notices.setText(joinLines(found.label(), found.notice()));
+                    + String.join(", ", format.artistNames(found.artists(), ctx.config().guiArtistsShown()))));
+            UiParts.show(example, false);
         }, search);
     }
 
@@ -206,9 +209,5 @@ public final class SearchView implements TabView {
         }
         box.getChildren().setAll(tracks.stream()
                 .map(t -> TrackRow.of(ctx, status, t, options, verdicts.get(t.id()))).toList());
-    }
-
-    private static String joinLines(String... lines) {
-        return String.join("\n", java.util.Arrays.stream(lines).filter(l -> l != null && !l.isBlank()).toList());
     }
 }

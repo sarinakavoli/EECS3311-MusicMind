@@ -2,29 +2,38 @@ package com.musicmind.app.view;
 
 import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.User;
+import javafx.geometry.HPos;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
-import java.util.List;
-
-/** F2: genres and artists side by side across the time ranges, what changed between them, and a short narrative. */
+/**
+ * F2: the one-sentence summary first, then one table of the top genres and artists across the time ranges
+ * (oldest to newest, a tick where the item is in that range) with a Change column saying what is new or dropped.
+ */
 public final class TrendsView implements TabView {
+
+    /** The name column and each period column are fixed, so the ticks sit next to the names, not across the card. */
+    private static final double NAME_WIDTH = 240;
+    private static final double PERIOD_WIDTH = 120;
 
     private final GuiContext ctx;
     private final ViewFormat format;
     private final Button compare;
     private final StatusLine status = new StatusLine();
-    private final HBox columns = new HBox(UiParts.PAD);
-    private final VBox changes = new VBox(2);
-    private final VBox changesCard;
-    private final Label narrative = UiParts.wrapped("");
-    private final VBox notices = new VBox(2);
+    private final Label summary = UiParts.collapsing(UiParts.wrapped(""));
+    private final GridPane table = new GridPane();
+    private final Label coverage = UiParts.collapsing(UiParts.caption(""));
+    private final VBox tableCard;
+    private final VBox notices = UiParts.collapsing(new VBox(UiParts.SPACE_S));
     private final Node root;
 
     public TrendsView(GuiContext ctx) {
@@ -34,18 +43,23 @@ public final class TrendsView implements TabView {
         compare.getStyleClass().add("mm-primary");
         compare.setDefaultButton(true);
         compare.setOnAction(e -> run());
-        changesCard = buildChangesCard();
-        HBox controls = new HBox(UiParts.GAP, compare);
+        summary.getStyleClass().add("mm-summary");
+        table.setHgap(UiParts.SPACE_M);
+        table.setVgap(UiParts.SPACE_S);
+        table.setMaxWidth(Region.USE_PREF_SIZE);   // the grid is as wide as its columns and starts at the left
+        tableCard = buildTableCard();
+        HBox controls = new HBox(UiParts.SPACE_S, compare);
         controls.setAlignment(Pos.CENTER_LEFT);
-        VBox content = UiParts.page(format.w("Menu.trends"), format.w("Desc.trends"), "", controls, status, columns, notices, changesCard, narrative);
+        VBox content = UiParts.page(format.w("Menu.trends"), format.w("Desc.trends"), "",
+                UiParts.group(controls, status), summary, notices, tableCard);
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
         root = new LoginGate(ctx, scroll, false);
         status.info(format.w("TrendsHint"));
     }
 
-    private VBox buildChangesCard() {
-        VBox card = new VBox(UiParts.GAP, UiParts.heading(format.w("TrendsOverTime")), UiParts.muted(format.w("TrendsExplain")), changes);
+    private VBox buildTableCard() {
+        VBox card = new VBox(UiParts.SPACE_M, table, UiParts.group(coverage, UiParts.caption(format.w("TrendsExplain"))));
         card.getStyleClass().add("mm-card");
         card.setVisible(false);
         card.setManaged(false);
@@ -69,7 +83,7 @@ public final class TrendsView implements TabView {
 
     @Override
     public void onLogin(User user) {
-        if (columns.getChildren().isEmpty()) {   // the hint is stale once a comparison is on screen
+        if (!tableCard.isVisible()) {   // the hint is stale once a comparison is on screen
             status.info(format.w("TrendsHint"));
         }
     }
@@ -81,31 +95,55 @@ public final class TrendsView implements TabView {
     }
 
     private void show(TrendReport report) {
-        columns.getChildren().clear();
-        List<String> ranges = ctx.config().profileRanges();
-        for (ViewFormat.TrendColumn column : format.trendColumns(report, ranges, ctx.config().guiArtistsShown(),
-                ctx.config().guiTrendGenresShown())) {
-            VBox box = new VBox(4, UiParts.heading(column.range()),
-                    UiParts.heading(format.w("Genres")),
-                    list(column.genres()), UiParts.heading(format.w("Artists")),
-                    list(column.artists()));
-            if (!column.coverage().isEmpty()) {
-                box.getChildren().add(UiParts.muted(column.coverage()));
-            }
-            box.getStyleClass().add("mm-card");
-            HBox.setHgrow(box, Priority.ALWAYS);
-            columns.getChildren().add(box);
-        }
-        changesCard.setVisible(true);
-        changesCard.setManaged(true);
-        changes.getChildren().setAll(format.trendStepLines(report).stream().map(UiParts::wrapped).toList());
+        status.info("");   // the "Press Compare..." hint has done its job
+        summary.setText(report.narrative() == null ? "" : report.narrative());
         notices.getChildren().setAll(report.gaps().stream().map(UiParts::wrapped).toList());
-        narrative.setText(report.narrative() == null ? "" : report.narrative());
+        ViewFormat.TrendTable data = format.trendTable(report, ctx.config().profileRanges(),
+                ctx.config().guiArtistsShown(), ctx.config().guiTrendGenresShown());
+        fill(data);
+        coverage.setText(data.coverage());
+        tableCard.setVisible(!data.rows().isEmpty());
+        tableCard.setManaged(tableCard.isVisible());
     }
 
-    private static VBox list(List<String> items) {
-        VBox box = new VBox(2);
-        items.forEach(item -> box.getChildren().add(new Label(item)));
-        return box;
+    /** Header row (the periods and Change), then each row: a section header spans the table, an item gets ticks. */
+    private void fill(ViewFormat.TrendTable data) {
+        table.getChildren().clear();
+        table.getColumnConstraints().clear();
+        int periods = data.periods().size();
+        ColumnConstraints label = new ColumnConstraints(NAME_WIDTH, NAME_WIDTH, NAME_WIDTH);
+        table.getColumnConstraints().add(label);
+        for (int c = 0; c <= periods; c++) {   // the periods, then Change
+            ColumnConstraints col = new ColumnConstraints(PERIOD_WIDTH, PERIOD_WIDTH, c < periods ? PERIOD_WIDTH : Double.MAX_VALUE);
+            col.setHalignment(c < periods ? HPos.CENTER : HPos.LEFT);
+            table.getColumnConstraints().add(col);
+        }
+        for (int c = 0; c < periods; c++) {
+            table.add(UiParts.subhead(data.periods().get(c)), c + 1, 0);
+        }
+        table.add(UiParts.subhead(format.w("TrendChange")), periods + 1, 0);
+        int r = 1;
+        for (ViewFormat.TrendRow row : data.rows()) {
+            if (row.header()) {
+                Label head = UiParts.subhead(row.label());
+                GridPane.setMargin(head, new Insets(UiParts.SPACE_S, 0, 0, 0));
+                table.add(head, 0, r, periods + 2, 1);
+            } else {
+                table.add(new Label(row.label()), 0, r);
+                for (int c = 0; c < periods; c++) {
+                    if (row.present().get(c)) {
+                        Label tick = new Label(format.w("TrendPresent"));
+                        tick.setAccessibleText(row.label() + ", " + data.periods().get(c));
+                        table.add(tick, c + 1, r);
+                    }
+                }
+                if (row.change() != ViewFormat.TrendChange.NONE) {
+                    Label change = new Label(row.changeText());
+                    change.getStyleClass().add(row.change() == ViewFormat.TrendChange.NEW ? "mm-trend-new" : "mm-trend-dropped");
+                    table.add(change, periods + 1, r);
+                }
+            }
+            r++;
+        }
     }
 }

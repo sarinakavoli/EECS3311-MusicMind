@@ -62,13 +62,18 @@ final class TrackRow {
 
     /** @param chosen the verdict already given to this song (shown highlighted), or null */
     static Node of(GuiContext ctx, StatusLine status, Track track, Options options, Verdict chosen) {
+        return of(ctx, status, track, options, chosen, null);
+    }
+
+    /** @param note a short muted remark added to the artist line (Discover: "New artist for you"), or null */
+    static Node of(GuiContext ctx, StatusLine status, Track track, Options options, Verdict chosen, String note) {
         ViewFormat format = ctx.format();
         Label title = new Label(track.title() + (track.isExplicit() ? "  [" + format.w("ExplicitTag") + "]" : ""));
         title.getStyleClass().add("mm-track-title");
         title.setTextOverrun(OverrunStyle.ELLIPSIS);
         title.setMaxWidth(Double.MAX_VALUE);
-        VBox text = new VBox(2, title);
-        String artists = format.artists(track);
+        VBox text = new VBox(UiParts.SPACE_XS, title);
+        String artists = ViewFormat.joinDetails(format.artists(track), note);
         if (!artists.isEmpty()) {
             Label line = new Label(artists);
             line.getStyleClass().addAll("mm-muted", "mm-track-artists");
@@ -81,36 +86,37 @@ final class TrackRow {
 
         Label length = UiParts.muted(format.duration(track.durationMs()));
         length.setMinWidth(Region.USE_PREF_SIZE);
-        HBox row = new HBox(UiParts.GAP, text, length);
+        HBox row = new HBox(UiParts.SPACE_S, text, length);
         row.getStyleClass().add("mm-row");
         row.setAlignment(Pos.CENTER_LEFT);
 
+        // Like, Not for me and Spotify are small icon buttons grouped tightly; the one main action stays a labelled button.
+        HBox icons = new HBox(UiParts.SPACE_XS);
+        icons.setAlignment(Pos.CENTER_LEFT);
         if (options.feedback()) {
-            Button like = icon(format.w("IconLabel", format.w("LikeIcon"), format.w("LikeCaption")), format.w("LikeTip"), "mm-icon-on");
-            Button notForMe = icon(format.w("IconLabel", format.w("NotForMeIcon"), format.w("NotForMeCaption")),
-                    format.w("NotForMeTip"), "mm-icon-off-on");
+            Button like = icon(format.w("LikeIcon"), format.w("LikeTip"), "mm-icon-on");
+            Button notForMe = icon(format.w("NotForMeIcon"), format.w("NotForMeTip"), "mm-icon-off-on");
             if (chosen != null) {
                 choose(chosen == Verdict.ACCEPT ? like : notForMe, chosen == Verdict.ACCEPT ? notForMe : like);
             }
             like.setOnAction(e -> send(ctx, status, track, Verdict.ACCEPT, like, notForMe));
             notForMe.setOnAction(e -> send(ctx, status, track, Verdict.REJECT, like, notForMe));
-            row.getChildren().addAll(like, notForMe);
+            icons.getChildren().addAll(like, notForMe);
         }
         if (options.play() && format.spotifyTrackUrl(track) != null) {
-            Button play = new Button(format.w("PlayButton"));
-            play.getStyleClass().add("mm-play-button");
-            play.setMinWidth(Region.USE_PREF_SIZE);
-            play.setTooltip(new Tooltip(format.w("PlayTip")));
-            play.setAccessibleText(format.w("PlayTip"));
+            Button play = icon(format.w("PlayIcon"), format.w("PlayTip"), null);
             play.setOnAction(e -> {
                 if (!ctx.openInSpotify(track)) {
                     status.error(format.w("PlayFailed", track.title()));
                 }
             });
-            row.getChildren().add(play);
+            icons.getChildren().add(play);
+        }
+        if (!icons.getChildren().isEmpty()) {
+            row.getChildren().add(icons);
         }
         action(row, format.w("AddButton"), "mm-primary", options.onAdd(), track);
-        action(row, format.w("BlockButton"), null, options.onBlock(), track);
+        action(row, format.w("BlockButton"), "mm-danger", options.onBlock(), track);
         action(row, format.w("RemoveButton"), null, options.onRemove(), track);
         return row;
     }
@@ -130,9 +136,10 @@ final class TrackRow {
 
     private static Button icon(String label, String tip, String onClass) {
         Button button = new Button(label);
-        button.getProperties().put(ON_CLASS, onClass);
+        if (onClass != null) {
+            button.getProperties().put(ON_CLASS, onClass);
+        }
         button.setAccessibleText(tip);
-        button.setMinWidth(Region.USE_PREF_SIZE);
         button.getStyleClass().add("mm-icon-button");
         button.setTooltip(new Tooltip(tip));
         return button;

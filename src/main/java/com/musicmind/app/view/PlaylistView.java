@@ -52,20 +52,23 @@ public final class PlaylistView implements TabView {
     private final ListView<PlaylistSummary> playlists = new ListView<>();
     private final Button refresh;
     private final Button create;
+    /** The latest result of the opened playlist (a change, undo, check, like or block), directly under the change box. */
     private final StatusLine status = new StatusLine();
+    /** Opening a playlist: shown above the detail, which is still hidden while it opens. */
+    private final StatusLine openStatus = new StatusLine();
     private final StatusLine listStatus = new StatusLine();
-    private final StatusLine feedbackStatus = new StatusLine();
+    private final Label example;
     private final Label title = UiParts.heading("");
-    private final FlowPane badges = new FlowPane(UiParts.GAP, UiParts.GAP);
-    private final VBox warnings = new VBox(2);
-    private final VBox tracks = new VBox(2);
-    private final VBox notices = new VBox(2);
+    private final FlowPane badges = new FlowPane(UiParts.SPACE_S, UiParts.SPACE_S);
+    private final VBox warnings = UiParts.collapsing(new VBox(UiParts.SPACE_S));
+    private final VBox tracks = new VBox();   // rows carry their own padding
+    private final VBox notices = UiParts.collapsing(new VBox(UiParts.SPACE_S));
     private final VBox why = new VBox();
     private final TextField instruction = new TextField();
     private final Button modify;
     private final Button undo;
     private final Button check;
-    private final VBox detail = new VBox(UiParts.GAP);
+    private final VBox detail = new VBox(UiParts.SPACE_M);
     private final Node root;
     private String openId;
     private boolean quietSelection;
@@ -111,26 +114,34 @@ public final class PlaylistView implements TabView {
         HBox.setHgrow(instruction, Priority.ALWAYS);
         instruction.setOnAction(e -> modify());
         modify = new Button(format.w("Modify"));
+        modify.getStyleClass().add("mm-primary");   // the main task of an opened playlist
         modify.setOnAction(e -> modify());
         undo = new Button(format.w("Undo"));
         undo.setOnAction(e -> undo());
         check = new Button(format.w("CheckPlaylist"));
+        check.setMinWidth(Region.USE_PREF_SIZE);
         check.setOnAction(e -> open(openId));
-        HBox modifyBox = new HBox(UiParts.GAP, instruction, modify, undo, check);
+        HBox modifyBox = new HBox(UiParts.SPACE_S, instruction, modify, undo);
         modifyBox.setAlignment(Pos.CENTER_LEFT);
+        // The badges say whether the playlist meets the rules; the button beside them checks it again.
+        HBox.setHgrow(badges, Priority.ALWAYS);
+        HBox rulesRow = new HBox(UiParts.SPACE_S, badges, check);
+        rulesRow.setAlignment(Pos.CENTER_LEFT);
+        rulesRow.setFillHeight(false);   // the badges centre against the button instead of hugging the top
+        VBox heading = new VBox(UiParts.SPACE_S, title, rulesRow, warnings);
 
         ScrollPane trackScroll = new ScrollPane(tracks);
         trackScroll.setFitToWidth(true);
         trackScroll.setPrefHeight(TRACK_AREA_HEIGHT);
-        detail.getChildren().addAll(title, badges, warnings, trackScroll, feedbackStatus, modifyBox, notices, why);
-        detail.setPadding(new Insets(UiParts.PAD));
+        // The change box, its result line, then the list with the notes that belong to it (songs not found on Spotify).
+        detail.getChildren().addAll(heading, UiParts.group(modifyBox, status), UiParts.group(notices, trackScroll), why);
         detail.setVisible(false);
         Label chooser = UiParts.muted(format.w("SelectPlaylist"));
-        VBox left = new VBox(UiParts.GAP, new HBox(UiParts.GAP, refresh, create), playlists, listStatus);
-        left.setPadding(new Insets(UiParts.PAD));
+        VBox left = new VBox(UiParts.SPACE_S, new HBox(UiParts.SPACE_S, refresh, create), playlists, listStatus);
+        left.setPadding(new Insets(UiParts.SPACE_M));
         VBox.setVgrow(playlists, Priority.ALWAYS);
-        VBox right = new VBox(UiParts.GAP, status, chooser, detail);
-        right.setPadding(new Insets(UiParts.PAD));
+        VBox right = new VBox(UiParts.SPACE_S, openStatus, chooser, detail);
+        right.setPadding(new Insets(UiParts.SPACE_M));
         ScrollPane rightScroll = new ScrollPane(right);
         rightScroll.setFitToWidth(true);
         chooser.visibleProperty().bind(detail.visibleProperty().not());
@@ -139,7 +150,9 @@ public final class PlaylistView implements TabView {
         SplitPane split = new SplitPane(left, rightScroll);
         split.setDividerPositions(0.38);
         VBox.setVgrow(split, Priority.ALWAYS);
-        VBox page = UiParts.page(format.w("Menu.playlists"), format.w("Desc.playlists"), format.w("Example.playlists"), split);
+        example = UiParts.example(format.w("Example.playlists"));
+        detail.visibleProperty().addListener((o, was, now) -> UiParts.show(example, !now));
+        VBox page = UiParts.page(format.w("Menu.playlists"), format.w("Desc.playlists"), example, split);
         page.setFillWidth(true);
         root = new LoginGate(ctx, page, false);
     }
@@ -212,14 +225,21 @@ public final class PlaylistView implements TabView {
     }
 
     private void open(String id) {
+        open(id, null);
+    }
+
+    /** @param message what to show under the change box once it is open (a block's result), or null */
+    private void open(String id, String message) {
         if (id == null) {
             return;
         }
+        // Re-checking the shown playlist reports under its change box; opening another one, above the hidden detail.
+        StatusLine target = detail.isVisible() && id.equals(openId) ? status : openStatus;
         if (!id.equals(openId)) {
             openId = null;   // a failed open must not leave Modify and Undo aimed at the previous playlist
             detail.setVisible(false);
         }
-        ctx.run(status, "ActionShowPlaylist", format.w("Opening"), () -> read(id, null, List.of()), this::show,
+        ctx.run(target, "ActionShowPlaylist", format.w("Opening"), () -> read(id, message, List.of()), this::show,
                 modify, undo, check, instruction);
     }
 
@@ -309,6 +329,7 @@ public final class PlaylistView implements TabView {
         showOwnCount(openId, playlist.tracks().size());
         detail.setVisible(true);
         title.setText(format.playlistTitle(playlist));
+        openStatus.info("");
         status.info(opened.change() == null ? "" : opened.change());
 
         badges.getChildren().clear();
@@ -355,20 +376,19 @@ public final class PlaylistView implements TabView {
     }
 
     private Node row(Track track, java.util.Map<String, com.musicmind.domain.Verdict> verdicts) {
-        return TrackRow.of(ctx, feedbackStatus, track, TrackRow.Options.feedbackOnly().withPlay().withBlock(this::block),
+        return TrackRow.of(ctx, status, track, TrackRow.Options.feedbackOnly().withPlay().withBlock(this::block),
                 verdicts.get(track.id()));
     }
 
     /** Blocks one song for future playlists, then checks the open playlist again so its badges show the block. */
     private void block(Track track) {
         String shownId = openId;
-        ctx.run(feedbackStatus, "ActionBlock", format.w("Blocking"), () -> {
+        ctx.run(status, "ActionBlock", format.w("Blocking"), () -> {
             ctx.controller().blockTrack(track.id());
             return track.title();
         }, title -> {
-            ctx.dataChanged();
-            open(shownId);
-            feedbackStatus.info(format.w("BlockedSongInPlaylist", title));
+            announceChange();   // the other tabs reload; this one only checks the playlist again, below
+            open(shownId, format.w("BlockedSongInPlaylist", title));   // the check that follows keeps the result on screen
         });
     }
 
@@ -380,7 +400,7 @@ public final class PlaylistView implements TabView {
         name.setMaxWidth(Double.MAX_VALUE);
         Label count = new Label(format.w("PlaylistCount", item.trackCount()));
         count.getStyleClass().addAll("mm-muted", "mm-track-artists");
-        VBox text = new VBox(2, name, count);
+        VBox text = new VBox(UiParts.SPACE_XS, name, count);
         text.setMinWidth(0);
         HBox.setHgrow(text, Priority.ALWAYS);
         Button open = new Button(format.w("OpenPlaylist"));
@@ -390,7 +410,7 @@ public final class PlaylistView implements TabView {
         delete.getStyleClass().add("mm-danger");
         delete.setMinWidth(Region.USE_PREF_SIZE);
         delete.setOnAction(e -> confirmDelete(item));
-        HBox row = new HBox(UiParts.GAP, text, open, delete);
+        HBox row = new HBox(UiParts.SPACE_S, text, open, delete);
         row.setAlignment(Pos.CENTER_LEFT);
         return row;
     }

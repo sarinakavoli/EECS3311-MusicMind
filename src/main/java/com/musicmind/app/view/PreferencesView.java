@@ -37,7 +37,8 @@ public final class PreferencesView implements TabView {
 
     /** The stored rules, read on the worker: what each control shows and the warning if the database is down. */
     private record Loaded(boolean explicitAllowed, double familiarShare, String styles,
-                          List<BlockedArtist> artists, List<String> songIds, String warning) { }
+                          List<BlockedArtist> artists, List<String> songIds, Map<String, String> songLines,
+                          String warning) { }
 
     /** Artists found for a typed name. */
     private record Matches(String typed, List<Artist> artists, Map<String, String> hints) { }
@@ -47,7 +48,13 @@ public final class PreferencesView implements TabView {
 
     private final GuiContext ctx;
     private final ViewFormat format;
+    /** Loading the rules and the database warning: page level. Each section reports its own results under its own controls. */
     private final StatusLine status = new StatusLine();
+    private final StatusLine explicitStatus = new StatusLine();
+    private final StatusLine mixStatus = new StatusLine();
+    private final StatusLine stylesStatus = new StatusLine();
+    private final StatusLine artistStatus = new StatusLine();
+    private final StatusLine songStatus = new StatusLine();
     private final ToggleGroup explicit = new ToggleGroup();
     private final RadioButton allow = new RadioButton();
     private final RadioButton block = new RadioButton();
@@ -61,14 +68,21 @@ public final class PreferencesView implements TabView {
     private final TextField artistQuery = new TextField();
     private final Button findArtist = new Button();
     private final Label artistMatches = UiParts.muted("");
-    private final VBox artistChoices = new VBox(2);
-    private final VBox blockedArtists = new VBox(2);
+    private final VBox artistChoices = new VBox();
+    private final VBox blockedArtists = new VBox();
     private final TextField songQuery = new TextField();
     private final Button findSong = new Button();
-    private final VBox songChoices = new VBox(2);
-    private final VBox blockedSongs = new VBox(2);
+    private final VBox songChoices = new VBox();
+    private final VBox blockedSongs = new VBox();
     /** Titles of songs seen in this session; Spotify content is not stored, so older blocks have none. */
     private final Map<String, String> knownTitles = new HashMap<>();
+    /** "Title - Artist" lines read live from Spotify when the screen opened; held in memory only, never stored. */
+    private final Map<String, String> songLines = new HashMap<>();
+    /** What is saved (or loaded) for each Save button; a button shows only while its control differs. */
+    private boolean savedAllowExplicit = true;
+    /** The saved familiar share (1 minus what the slider shows). */
+    private double savedShare;
+    private String savedStyles = "";
     private final Node root;
     /** True while the user has changed the explicit, mix or styles controls and not saved; a reload would overwrite them. */
     private boolean unsaved;
@@ -76,18 +90,42 @@ public final class PreferencesView implements TabView {
     public PreferencesView(GuiContext ctx) {
         this.ctx = ctx;
         this.format = ctx.format();
-        VBox page = UiParts.page(format.w("Menu.preferences"), format.w("Desc.preferences"), format.w("Example.preferences"),
+        // The "Try: ..." line helps only until a picker has shown results.
+        Label example = UiParts.example(format.w("Example.preferences"));
+        example.visibleProperty().bind(javafx.beans.binding.Bindings.isEmpty(artistChoices.getChildren())
+                .and(javafx.beans.binding.Bindings.isEmpty(songChoices.getChildren())));
+        example.managedProperty().bind(example.visibleProperty());
+        VBox page = UiParts.page(format.w("Menu.preferences"), format.w("Desc.preferences"), example,
                 status, explicitSection(), mixSection(), artistSection(), songSection(), stylesSection());
         ScrollPane scroll = new ScrollPane(page);
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        explicit.selectedToggleProperty().addListener((o, was, now) -> unsaved = true);
-        novelty.valueProperty().addListener((o, was, now) -> unsaved = true);
-        styles.textProperty().addListener((o, was, now) -> unsaved = true);
+        explicit.selectedToggleProperty().addListener((o, was, now) -> changed());
+        novelty.valueProperty().addListener((o, was, now) -> changed());
+        styles.textProperty().addListener((o, was, now) -> changed());
+        savedShare = 1 - novelty.getValue();
+        refreshSaveButtons();
         root = new LoginGate(ctx, scroll, true);
         if (!ctx.spotifyConfigured()) {
             load();
         }
+    }
+
+    private void changed() {
+        unsaved = true;
+        refreshSaveButtons();
+    }
+
+    /** Shows each Save only while its control differs from what is saved; hidden ones take no space. */
+    private void refreshSaveButtons() {
+        showIf(saveExplicit, allow.isSelected() != savedAllowExplicit);
+        showIf(saveMix, ViewFormat.shareChanged(savedShare, 1 - novelty.getValue()));
+        showIf(saveStyles, ViewFormat.isChanged(savedStyles, styles.getText()));
+    }
+
+    private static void showIf(Button button, boolean visible) {
+        button.setVisible(visible);
+        button.setManaged(visible);
     }
 
     private Node explicitSection() {
@@ -97,8 +135,8 @@ public final class PreferencesView implements TabView {
         block.setToggleGroup(explicit);
         allow.setSelected(true);
         saveExplicit.setText(format.w("Save"));
-        saveExplicit.setOnAction(e -> savePref(PreferenceSettings.EXPLICIT_POLICY, allow.isSelected() ? "allow" : "block", saveExplicit));
-        return section(format.w("ExplicitHeading"), UiParts.muted(format.w("ExplicitHint")), new HBox(UiParts.GAP, allow, block), saveExplicit);
+        saveExplicit.setOnAction(e -> savePref(PreferenceSettings.EXPLICIT_POLICY, allow.isSelected() ? "allow" : "block", saveExplicit, explicitStatus));
+        return section(format.w("ExplicitHeading"), UiParts.muted(format.w("ExplicitHint")), new HBox(UiParts.SPACE_S, allow, block), saveExplicit, explicitStatus);
     }
 
     private Node mixSection() {
@@ -114,8 +152,8 @@ public final class PreferencesView implements TabView {
         VBox slider = new VBox(novelty, ends);
         slider.getStyleClass().add("mm-slider-box");
         saveMix.setText(format.w("Save"));
-        saveMix.setOnAction(e -> savePref(PreferenceSettings.FAMILIAR_BIAS, String.valueOf(Math.round((1 - novelty.getValue()) * 100) / 100.0), saveMix));
-        return section(format.w("MixHeading"), UiParts.muted(format.w("MixRuleHint")), mixLabel, slider, saveMix);
+        saveMix.setOnAction(e -> savePref(PreferenceSettings.FAMILIAR_BIAS, String.valueOf(Math.round((1 - novelty.getValue()) * 100) / 100.0), saveMix, mixStatus));
+        return section(format.w("MixHeading"), UiParts.muted(format.w("MixRuleHint")), mixLabel, slider, saveMix, mixStatus);
     }
 
     private Node artistSection() {
@@ -125,13 +163,13 @@ public final class PreferencesView implements TabView {
         findArtist.getStyleClass().add("mm-primary");
         findArtist.setOnAction(e -> findArtists());
         artistQuery.setOnAction(e -> findArtists());
-        HBox bar = new HBox(UiParts.GAP, artistQuery, findArtist);
+        HBox bar = new HBox(UiParts.SPACE_S, artistQuery, findArtist);
         bar.setAlignment(Pos.CENTER_LEFT);
         artistMatches.setManaged(false);
         artistMatches.setVisible(false);
         blockedArtists.getChildren().add(UiParts.muted(format.w("BlockedArtistsNone")));
         return section(format.w("BlockedArtistsHeading"), UiParts.muted(format.w("BlockedArtistsHint")), bar,
-                artistMatches, artistChoices, UiParts.heading(format.w("BlockedNow")), blockedArtists);
+                artistStatus, artistMatches, artistChoices, UiParts.heading(format.w("BlockedNow")), blockedArtists);
     }
 
     private Node songSection() {
@@ -141,26 +179,26 @@ public final class PreferencesView implements TabView {
         findSong.getStyleClass().add("mm-primary");
         findSong.setOnAction(e -> findSongs());
         songQuery.setOnAction(e -> findSongs());
-        HBox bar = new HBox(UiParts.GAP, songQuery, findSong);
+        HBox bar = new HBox(UiParts.SPACE_S, songQuery, findSong);
         bar.setAlignment(Pos.CENTER_LEFT);
         blockedSongs.getChildren().add(UiParts.muted(format.w("BlockedSongsNone")));
-        return section(format.w("BlockedSongsHeading"), UiParts.muted(format.w("BlockedSongsHint")), bar, songChoices, UiParts.heading(format.w("BlockedNow")), blockedSongs);
+        return section(format.w("BlockedSongsHeading"), UiParts.muted(format.w("BlockedSongsHint")), bar, songStatus, songChoices, UiParts.heading(format.w("BlockedNow")), blockedSongs);
     }
 
     private Node stylesSection() {
         styles.setPromptText(format.w("StylesPrompt"));
         saveStyles.setText(format.w("Save"));
         saveStyles.setOnAction(e -> savePref(PreferenceSettings.PREFERRED_STYLES,
-                styles.getText() == null ? "" : styles.getText().strip(), saveStyles));
+                styles.getText() == null ? "" : styles.getText().strip(), saveStyles, stylesStatus));
         styles.setOnAction(e -> saveStyles.fire());
         HBox.setHgrow(styles, Priority.ALWAYS);
-        HBox bar = new HBox(UiParts.GAP, styles, saveStyles);
+        HBox bar = new HBox(UiParts.SPACE_S, styles, saveStyles);
         bar.setAlignment(Pos.CENTER_LEFT);
-        return section(format.w("StylesHeading"), UiParts.muted(format.w("StylesHint")), bar);
+        return section(format.w("StylesHeading"), UiParts.muted(format.w("StylesHint")), bar, stylesStatus);
     }
 
     private static VBox section(String heading, Node... children) {
-        VBox box = new VBox(UiParts.GAP, UiParts.heading(heading));
+        VBox box = new VBox(UiParts.SPACE_S, UiParts.heading(heading));
         box.getChildren().addAll(children);
         box.getStyleClass().add("mm-section");
         return box;
@@ -204,11 +242,11 @@ public final class PreferencesView implements TabView {
 
     /** Reads the stored rules on the worker and fills every control; blocked artists are looked up by name. */
     private void load() {
-        load(null);
+        load(null, status);
     }
 
     /** As {@link #load()}, then shows {@code doneMessage} (when given) once the lists are up to date. */
-    private void load(String doneMessage) {
+    private void load(String doneMessage, StatusLine doneStatus) {
         ctx.run(status, "ActionShowPrefs", format.w("Working"), () -> {
             List<UserPreference> stored = ctx.controller().getPreferences();
             PreferenceSettings settings = PreferenceSettings.from(stored);
@@ -217,22 +255,30 @@ public final class PreferencesView implements TabView {
                 String name = ctx.controller().displayPreference(new UserPreference(PreferenceSettings.BLOCKED_ARTISTS, id, false, 0));
                 artists.add(new BlockedArtist(id, format.blockedArtistName(id, name)));
             }
+            Map<String, String> lines = ctx.controller().trackLines(ViewFormat.firstN(
+                    new ArrayList<>(new TreeSet<>(settings.blockedTracks())), ctx.config().guiBlockedTitlesShown()));
             double share = settings.familiarBias().orElse(ctx.config().discoverDefaultFamiliarRatio());
             return new Loaded(settings.explicitAllowed().orElse(true), share, String.join(", ", settings.preferredStyles()),
-                    artists, new ArrayList<>(new TreeSet<>(settings.blockedTracks())), ctx.controller().memory().warning());
+                    artists, new ArrayList<>(new TreeSet<>(settings.blockedTracks())), lines, ctx.controller().memory().warning());
         }, loaded -> {
             show(loaded);
             if (doneMessage != null && loaded.warning() == null) {
-                status.info(doneMessage);
+                doneStatus.info(doneMessage);
             }
         }, locked());
     }
 
     private void show(Loaded loaded) {
+        savedAllowExplicit = loaded.explicitAllowed();
+        savedShare = loaded.familiarShare();
+        savedStyles = loaded.styles();
         (loaded.explicitAllowed() ? allow : block).setSelected(true);
         novelty.setValue(1 - loaded.familiarShare());
         styles.setText(loaded.styles());
         unsaved = false;
+        refreshSaveButtons();
+        songLines.clear();
+        songLines.putAll(loaded.songLines());
         fillBlockedArtists(loaded.artists());
         fillBlockedSongs(loaded.songIds());
         if (loaded.warning() != null) {
@@ -255,7 +301,13 @@ public final class PreferencesView implements TabView {
             return;
         }
         blockedSongs.getChildren().setAll(ids.stream()
-                .map(id -> blockedRow(format.blockedSongName(knownTitles.get(id)), () -> removeSong(id))).toList());
+                .map(id -> blockedRow(format.blockedSongName(songName(id)), () -> removeSong(id))).toList());
+    }
+
+    /** The best name known for a blocked song: this session's title, else the live line, else null. */
+    private String songName(String id) {
+        String title = knownTitles.get(id);
+        return title != null ? title : songLines.get(id);
     }
 
     private Node blockedRow(String name, Runnable remove) {
@@ -268,24 +320,31 @@ public final class PreferencesView implements TabView {
         Button button = new Button(format.w("RemoveButton"));
         button.setMinWidth(Region.USE_PREF_SIZE);
         button.setOnAction(e -> remove.run());
-        HBox row = new HBox(UiParts.GAP, label, button);
+        HBox row = new HBox(UiParts.SPACE_S, label, button);
         row.getStyleClass().add("mm-row");
         return row;
     }
 
     // ---- Explicit, mix and styles ----
 
-    private void savePref(String key, String value, Button saveButton) {
-        ctx.run(status, "ActionSavePref", format.w("Working"), () -> {
+    private void savePref(String key, String value, Button saveButton, StatusLine section) {
+        ctx.run(section, "ActionSavePref", format.w("Working"), () -> {
             UserPreference pref = ctx.controller().parsePreference(key, value);
             ctx.controller().setPreference(pref);
             return ctx.controller().memory().warning();
         }, warning -> {
             if (warning != null) {
-                status.error(ctx.config().wording("cliNotSaved").formatted(warning));
+                section.error(ctx.config().wording("cliNotSaved").formatted(warning));
             } else {
                 unsaved = false;
-                status.info(format.w(value.isBlank() ? "ClearedPref" : "SavedPref", format.w("Pref." + key)));
+                switch (key) {
+                    case PreferenceSettings.EXPLICIT_POLICY -> savedAllowExplicit = value.equals("allow");
+                    case PreferenceSettings.FAMILIAR_BIAS -> savedShare = Double.parseDouble(value);
+                    case PreferenceSettings.PREFERRED_STYLES -> savedStyles = value;
+                    default -> { }
+                }
+                refreshSaveButtons();
+                section.info(format.w(value.isBlank() ? "ClearedPref" : "SavedPref", format.w("Pref." + key)));
             }
         }, saveButton);
     }
@@ -295,10 +354,10 @@ public final class PreferencesView implements TabView {
     private void findArtists() {
         String typed = artistQuery.getText() == null ? "" : artistQuery.getText().strip();
         if (typed.isEmpty()) {
-            status.error(ctx.config().wording("prefsArtistBlank"));
+            artistStatus.error(ctx.config().wording("prefsArtistBlank"));
             return;
         }
-        ctx.run(status, "ActionFindArtists", format.w("Searching"),
+        ctx.run(artistStatus, "ActionFindArtists", format.w("Searching"),
                 () -> {
                     List<Artist> found = ctx.controller().findArtists(typed);
                     Map<String, String> hints = ctx.controller().artistHints(found.stream()
@@ -323,7 +382,7 @@ public final class PreferencesView implements TabView {
     private Node artistChoice(Artist artist, String position, String hint) {
         Label name = new Label(position.isEmpty() ? artist.name() : artist.name() + "  (" + position + ")");
         name.getStyleClass().add("mm-track-title");
-        VBox text = new VBox(2, name);
+        VBox text = new VBox(UiParts.SPACE_XS, name);
         String detail = hint != null && !hint.isBlank() ? hint
                 : artist.genres() == null ? "" : String.join(", ", artist.genres());
         if (!detail.isEmpty()) {
@@ -336,14 +395,14 @@ public final class PreferencesView implements TabView {
         Button choose = new Button(format.w("BlockButton"));
         choose.setMinWidth(Region.USE_PREF_SIZE);
         choose.setOnAction(e -> blockArtist(artist));
-        HBox row = new HBox(UiParts.GAP, text, choose);
+        HBox row = new HBox(UiParts.SPACE_S, text, choose);
         row.getStyleClass().add("mm-row");
         return row;
     }
 
     private void blockArtist(Artist artist) {
         runBlock("ActionBlock", () -> ctx.controller().blockArtist(artist.id()),
-                format.w("BlockedArtist", artist.name()), () -> {
+                format.w("BlockedArtist", artist.name()), artistStatus, () -> {
                     artistChoices.getChildren().clear();
                     artistMatches.setManaged(false);
                     artistMatches.setVisible(false);
@@ -353,7 +412,7 @@ public final class PreferencesView implements TabView {
 
     private void removeArtist(BlockedArtist artist) {
         runBlock("ActionRemoveBlock", () -> ctx.controller().unblockArtist(artist.id()),
-                format.w("RemovedBlock", artist.name()), () -> { });
+                format.w("RemovedBlock", artist.name()), artistStatus, () -> { });
     }
 
     // ---- Blocked songs ----
@@ -361,10 +420,10 @@ public final class PreferencesView implements TabView {
     private void findSongs() {
         String typed = songQuery.getText() == null ? "" : songQuery.getText().strip();
         if (typed.isEmpty()) {
-            status.error(format.w("SongBlank"));
+            songStatus.error(format.w("SongBlank"));
             return;
         }
-        ctx.run(status, "ActionFindBlockSongs", format.w("Searching"), () -> {
+        ctx.run(songStatus, "ActionFindBlockSongs", format.w("Searching"), () -> {
             List<Track> tracks = ctx.controller().findTracks(typed);
             return new Songs(tracks, ctx.controller().feedbackFor());
         }, found -> {
@@ -374,25 +433,25 @@ public final class PreferencesView implements TabView {
             }
             TrackRow.Options options = TrackRow.Options.plain().withBlock(this::blockSong);
             songChoices.getChildren().setAll(found.tracks().stream()
-                    .map(t -> TrackRow.of(ctx, status, t, options, found.verdicts().get(t.id()))).toList());
+                    .map(t -> TrackRow.of(ctx, songStatus, t, options, found.verdicts().get(t.id()))).toList());
         }, findSong);
     }
 
     private void blockSong(Track track) {
         knownTitles.put(track.id(), track.title());
         runBlock("ActionBlock", () -> ctx.controller().blockTrack(track.id()),
-                format.w("BlockedSong", track.title()), () -> songChoices.getChildren().clear());
+                format.w("BlockedSong", track.title()), songStatus, () -> songChoices.getChildren().clear());
     }
 
     private void removeSong(String id) {
-        String title = format.blockedSongName(knownTitles.get(id));
+        String title = format.blockedSongName(songName(id));
         runBlock("ActionRemoveBlock", () -> ctx.controller().unblockTrack(id),
-                format.w("RemovedBlock", title), () -> { });
+                format.w("RemovedBlock", title), songStatus, () -> { });
     }
 
     /** Runs a block or unblock on the worker, shows a plain message when it is refused, then re-reads the rules. */
-    private void runBlock(String action, Runnable change, String doneMessage, Runnable afterwards) {
-        ctx.run(status, action, format.w("Working"), () -> {
+    private void runBlock(String action, Runnable change, String doneMessage, StatusLine section, Runnable afterwards) {
+        ctx.run(section, action, format.w("Working"), () -> {
             try {
                 change.run();
                 return new String[] {null, ctx.controller().memory().warning()};
@@ -401,12 +460,12 @@ public final class PreferencesView implements TabView {
             }
         }, result -> {
             if (result[0] != null) {
-                status.error(result[0]);
+                section.error(result[0]);
             } else if (result[1] != null) {
-                status.error(ctx.config().wording("cliNotSaved").formatted(result[1]));
+                section.error(ctx.config().wording("cliNotSaved").formatted(result[1]));
             } else {
                 afterwards.run();
-                load(doneMessage);
+                load(doneMessage, section);
             }
         }, locked());
     }

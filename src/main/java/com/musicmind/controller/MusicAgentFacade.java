@@ -688,6 +688,36 @@ public class MusicAgentFacade {
         }
     }
 
+    /**
+     * "Title \u2013 Artist, Artist" for each track id, read from Spotify for display only and never stored, in the
+     * order given. An id with no readable title is absent. Like {@link #previewSnapshot}, the reading stops at the
+     * first expired login, rate limit or server (5xx) error, so a failing Spotify is not asked again for every song;
+     * any other failure (a song Spotify does not know) skips just that id.
+     */
+    public Map<String, String> trackLines(List<String> trackIds) {
+        Map<String, String> lines = new LinkedHashMap<>();
+        for (String id : trackIds) {
+            try {
+                Track t = create.music().getTrack(id);
+                if (t == null || t.title() == null || t.title().isBlank()) {
+                    continue;
+                }
+                String artists = t.artistNames() == null ? "" : t.artistNames().stream()
+                        .filter(n -> n != null && !n.isBlank()).collect(Collectors.joining(", "));
+                lines.put(id, artists.isEmpty() ? t.title() : t.title() + " \u2013 " + artists);
+            } catch (AuthExpiredException | RateLimitException e) {
+                break;
+            } catch (MusicServiceException e) {
+                if (e.statusCode() >= 500) {
+                    break;
+                }
+            } catch (RuntimeException e) {
+                // unreadable song: leave it out and carry on
+            }
+        }
+        return lines;
+    }
+
     // ---- F5 and F11 ----
 
     /** Who answers an infeasible request (F11); null means nobody, and such a request then stops with the options listed. */

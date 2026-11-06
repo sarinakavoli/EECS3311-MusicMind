@@ -652,6 +652,11 @@ public final class Config {
         return integer("gui.genresShown");
     }
 
+    /** Blocked songs whose title is looked up on Spotify when Your Rules opens; the rest keep the placeholder. */
+    public int guiBlockedTitlesShown() {
+        return integer("gui.blockedTitlesShown");
+    }
+
     /** Artists listed per list in the Profile and Trends views. */
     public int guiArtistsShown() {
         return integer("gui.artistsShown");
@@ -660,6 +665,11 @@ public final class Config {
     /** Tracks the Profile view lists. */
     public int guiTracksShown() {
         return integer("gui.tracksShown");
+    }
+
+    /** Songs of the waiting list the Create dialog shows before the list scrolls. */
+    public int guiWaitingRowsShown() {
+        return integer("gui.waitingRowsShown");
     }
 
     /** Genres listed per range in the Trends view. */
