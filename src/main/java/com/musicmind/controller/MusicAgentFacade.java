@@ -11,7 +11,7 @@ import com.musicmind.agent.ClarificationNeededException;
 import com.musicmind.agent.ConstraintChecker;
 import com.musicmind.agent.ExplanationService;
 import com.musicmind.agent.MoodGenreMap;
-import com.musicmind.agent.GenreNames;
+import com.musicmind.domain.GenreNames;
 import com.musicmind.agent.GoalFitReviewer;
 import com.musicmind.agent.InfeasibleRequestException;
 import com.musicmind.agent.NegotiationCancelledException;

@@ -6,6 +6,7 @@ import com.musicmind.agent.strategy.RecommendationStrategy;
 import com.musicmind.agent.strategy.StrategySelector;
 import com.musicmind.config.Config;
 import com.musicmind.domain.Artist;
+import com.musicmind.domain.GenreNames;
 import com.musicmind.domain.DecisionTrace;
 import com.musicmind.domain.Feedback;
 import com.musicmind.domain.ListeningProfile;

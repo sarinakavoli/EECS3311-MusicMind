@@ -1,4 +1,4 @@
-package com.musicmind.agent;
+package com.musicmind.domain;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

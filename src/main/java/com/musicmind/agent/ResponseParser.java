@@ -11,6 +11,7 @@ import com.musicmind.agent.command.ReorderCommand;
 import com.musicmind.agent.command.ReplaceTrackCommand;
 import com.musicmind.config.Config;
 import com.musicmind.domain.DecisionTrace;
+import com.musicmind.domain.GenreNames;
 import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.SearchQuery;
 import com.musicmind.domain.Track;

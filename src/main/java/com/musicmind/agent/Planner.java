@@ -2,6 +2,7 @@ package com.musicmind.agent;
 
 import com.musicmind.config.Config;
 import com.musicmind.domain.AgentPlan;
+import com.musicmind.domain.GenreNames;
 import com.musicmind.domain.AgentRequest;
 import com.musicmind.domain.FeasibilityReport;
 import com.musicmind.domain.PlaylistSpec;

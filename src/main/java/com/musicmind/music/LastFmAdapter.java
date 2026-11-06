@@ -19,14 +19,15 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 /**
  * Adapter (GoF) from Last.fm's {@code tag.gettoptracks}, {@code track.gettoptags} and {@code artist.gettoptags} to
  * {@link TagService} (song tags) and {@link GenreService} (artist tags, which the app shows as genres). With no API key
  * it returns an empty answer without calling. The key is only ever in the request URL; it is never
- * logged or put into an exception message. Junk tags are dropped by {@link TagFilter}. After too many failed artist
- * lookups in a row it stops looking for a cooldown, so a run finishes quickly during an outage.
+ * logged or put into an exception message. Junk tags are dropped by {@link TagFilter}. After too many failed
+ * Last.fm calls in a row (any method) it stops calling for a cooldown, so a run finishes quickly during an outage.
  */
 public class LastFmAdapter implements GenreService, TagService {
 
@@ -34,7 +35,7 @@ public class LastFmAdapter implements GenreService, TagService {
     private final HttpClient http;
     private final Gson gson = new Gson();
     private final LongSupplier clock;
-    /** Failed artist lookups in a row, and when lookups may resume after too many; guarded by {@code this}. */
+    /** Failed Last.fm calls in a row, and when lookups may resume after too many; guarded by {@code this}. */
     private int consecutiveFailures;
     private long pausedUntilMillis;
 
@@ -56,7 +57,7 @@ public class LastFmAdapter implements GenreService, TagService {
         }
         String url = config.lastfmApiBaseUrl() + "?method=tag.gettoptracks&tag=" + encode(tag.strip())
                 + "&limit=" + limit + "&api_key=" + encode(config.lastfmApiKey()) + "&format=json";
-        return parse(fetch(url), limit);
+        return guarded(url, body -> parse(body, limit));
     }
 
     @Override
@@ -67,7 +68,7 @@ public class LastFmAdapter implements GenreService, TagService {
         String url = config.lastfmApiBaseUrl() + "?method=track.gettoptags&artist=" + encode(artist.strip())
                 + "&track=" + encode(title.strip()) + "&autocorrect=1&api_key=" + encode(config.lastfmApiKey())
                 + "&format=json";
-        return parseTags(fetch(url), artist, config.lastfmTrackTagsKept());
+        return guarded(url, body -> parseTags(body, artist, config.lastfmTrackTagsKept()));
     }
 
     @Override
@@ -77,7 +78,7 @@ public class LastFmAdapter implements GenreService, TagService {
         }
         String url = config.lastfmApiBaseUrl() + "?method=artist.getsimilar&artist=" + encode(artistName.strip())
                 + "&autocorrect=1&limit=" + limit + "&api_key=" + encode(config.lastfmApiKey()) + "&format=json";
-        return parseSimilar(fetch(url), limit);
+        return guarded(url, body -> parseSimilar(body, limit));
     }
 
     /** Names in Last.fm's order, at most {@code limit}; "artist not found" (error 6) is an empty list. */
@@ -94,8 +95,8 @@ public class LastFmAdapter implements GenreService, TagService {
                 }
                 String message = root.has("message") && root.get("message").isJsonPrimitive()
                         ? config.truncateBody(root.get("message").getAsString()) : "";
-                throw new MusicServiceException("Last.fm reported an error (" + root.get("error").getAsString()
-                        + ") " + message);
+                throw new ReportedError(root.get("error").getAsInt(), "Last.fm reported an error ("
+                        + root.get("error").getAsString() + ") " + message);
             }
             JsonObject similar = root.has("similarartists") && root.get("similarartists").isJsonObject()
                     ? root.getAsJsonObject("similarartists") : null;
@@ -142,18 +143,47 @@ public class LastFmAdapter implements GenreService, TagService {
         if (name.isEmpty()) {
             return Optional.of(List.of());
         }
-        if (paused()) {
-            return Optional.empty(); // unknown, like a failure: not cached
-        }
         String url = config.lastfmApiBaseUrl() + "?method=artist.gettoptags&artist=" + encode(name)
                 + "&autocorrect=1&api_key=" + encode(config.lastfmApiKey()) + "&format=json";
         try {
-            List<String> tags = parseTags(fetch(url), name, config.lastfmArtistTagsKept());
+            return Optional.of(guarded(url, body -> parseTags(body, name, config.lastfmArtistTagsKept())));
+        } catch (MusicServiceException e) {
+            return Optional.empty(); // unknown, like a failure (or a cooldown): not cached
+        }
+    }
+
+    /**
+     * One guarded call for every method: during a cooldown nothing is requested; a failure counts toward the limit
+     * (a Last.fm "not found" report does not), a success resets the count.
+     */
+    private <T> T guarded(String url, Function<String, T> parser) {
+        if (paused()) {
+            throw new MusicServiceException("Last.fm is paused after repeated failures.");
+        }
+        try {
+            T result = parser.apply(fetch(url));
             recordSuccess();
-            return Optional.of(tags);
+            return result;
+        } catch (ReportedError e) {
+            if (e.code == 6) {
+                recordSuccess();
+            } else {
+                recordFailure();
+            }
+            throw e;
         } catch (MusicServiceException e) {
             recordFailure();
-            return Optional.empty();
+            throw e;
+        }
+    }
+
+    /** Last.fm answered with its own error code (as opposed to a transport or format failure). */
+    private static final class ReportedError extends MusicServiceException {
+        private final int code;
+
+        ReportedError(int code, String message) {
+            super(message);
+            this.code = code;
         }
     }
 
@@ -211,8 +241,8 @@ public class LastFmAdapter implements GenreService, TagService {
                 }
                 String message = root.has("message") && root.get("message").isJsonPrimitive()
                         ? config.truncateBody(root.get("message").getAsString()) : "";
-                throw new MusicServiceException("Last.fm reported an error (" + root.get("error").getAsString()
-                        + ") " + message);
+                throw new ReportedError(root.get("error").getAsInt(), "Last.fm reported an error ("
+                        + root.get("error").getAsString() + ") " + message);
             }
             JsonObject top = root.has("toptags") && root.get("toptags").isJsonObject()
                     ? root.getAsJsonObject("toptags") : null;
@@ -242,8 +272,8 @@ public class LastFmAdapter implements GenreService, TagService {
             if (root.has("error")) {
                 String message = root.has("message") && root.get("message").isJsonPrimitive()
                         ? config.truncateBody(root.get("message").getAsString()) : "";
-                throw new MusicServiceException("Last.fm reported an error (" + root.get("error").getAsString()
-                        + ") " + message);
+                throw new ReportedError(root.get("error").getAsInt(), "Last.fm reported an error ("
+                        + root.get("error").getAsString() + ") " + message);
             }
             JsonObject tracks = root.has("tracks") && root.get("tracks").isJsonObject()
                     ? root.getAsJsonObject("tracks") : null;

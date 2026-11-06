@@ -2,6 +2,7 @@ package com.musicmind.agent;
 
 import com.musicmind.agent.command.AddItemsCommand;
 import com.musicmind.agent.command.PlaylistCommand;
+import com.musicmind.domain.GenreNames;
 import com.musicmind.agent.command.ReplaceTrackCommand;
 import com.musicmind.config.Config;
 import com.musicmind.domain.SongTags;

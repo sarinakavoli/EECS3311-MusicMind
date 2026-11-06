@@ -1,4 +1,4 @@
-package com.musicmind.agent;
+package com.musicmind.domain;
 
 import org.junit.jupiter.api.Test;
 

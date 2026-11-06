@@ -327,4 +327,30 @@ class LastFmAdapterTest {
                 + "{\"count\":70,\"name\":\"slow dance\"},{\"count\":3,\"name\":\"meh\"}]}}";
         assertEquals(List.of("slow dance"), adapter(true).trackTags("Some Band", "Song"));
     }
+
+    @Test
+    void cooldownCoversEveryMethod() {
+        status = 500;
+        body = "boom";
+        LastFmAdapter a = adapter(true);
+        for (int i = 0; i < 3; i++) {
+            assertThrows(MusicServiceException.class, () -> a.trackTags("A", "B"));
+        }
+        assertEquals(3, rawQueries.size());
+        assertThrows(MusicServiceException.class, () -> a.topTracks("study", 10));
+        assertThrows(MusicServiceException.class, () -> a.similarArtists("A", 5));
+        assertThrows(MusicServiceException.class, () -> a.trackTags("A", "B"));
+        assertEquals(Optional.empty(), a.lookup(artist("Z")));
+        assertEquals(3, rawQueries.size(), "no request during the cooldown, for any method");
+    }
+
+    @Test
+    void notFoundReportsDoNotStartACooldown() {
+        body = "{\"error\":6,\"message\":\"Tag not found\"}";
+        LastFmAdapter a = adapter(true);
+        for (int i = 0; i < 4; i++) {
+            assertThrows(MusicServiceException.class, () -> a.topTracks("zzz", 10));
+        }
+        assertEquals(4, rawQueries.size());
+    }
 }
