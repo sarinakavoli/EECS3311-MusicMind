@@ -1371,7 +1371,7 @@ builds from</panel_attributes>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>3150</x><y>2571</y><w>300</w><h>94</h></coordinates>
+    <coordinates><x>3150</x><y>2571</y><w>300</w><h>130</h></coordinates>
     <panel_attributes>&lt;&lt;interface&gt;&gt;
 TagService
 --
@@ -1398,7 +1398,7 @@ bg=#FFE9A8</panel_attributes>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>3150</x><y>2890</y><w>300</w><h>94</h></coordinates>
+    <coordinates><x>3150</x><y>2935</y><w>300</w><h>94</h></coordinates>
     <panel_attributes>SongTagReader
 --
  
@@ -1407,5 +1407,25 @@ bg=#FFE9A8</panel_attributes>
 song tags, else artist tags (Modify)
 bg=#FFE9A8</panel_attributes>
     <additional_attributes/>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>3063</x><y>2636</y><w>87</w><h>154</h></coordinates>
+    <panel_attributes>lt=&lt;&lt;.</panel_attributes>
+    <additional_attributes>87;0;0;154</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>3300</x><y>2701</y><w>10</w><h>34</h></coordinates>
+    <panel_attributes>lt=&lt;.
+uses</panel_attributes>
+    <additional_attributes>0;0;0;34</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates><x>3450</x><y>2636</y><w>50</w><h>376</h></coordinates>
+    <panel_attributes>lt=&lt;.
+uses</panel_attributes>
+    <additional_attributes>0;24;50;24;50;376;0;376</additional_attributes>
   </element>
 </diagram>
