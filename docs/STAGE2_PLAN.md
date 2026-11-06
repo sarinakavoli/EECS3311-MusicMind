@@ -1,17 +1,22 @@
 # Stage 2: Plan, Status and Changes from Stage 1
 
-**Window:** Oct 20 to Nov 10, 2026. **Due:** Nov 10, 2026. **Last updated:** Nov 5, 2026.
+**Window:** Oct 20 to Nov 10, 2026. **Due:** Nov 10, 2026. **Last updated:** Nov 6, 2026.
 
 This file records two things: where Stage 2 stands, and every difference between the
 Stage 1 design and the code, each as **Original -> Change -> Reason -> Impact**. Feature by
 feature status is in `docs/STAGE1_CONFORMANCE.md`; the binding plan and the rulings
 R1 to R20 are in `docs/STAGE2_IMPLEMENTATION_PLAN.md`.
 
-## Status on Nov 5
+## Status on Nov 6
 
 - All twelve Stage 1 features (F1 to F12) are implemented behind the shared `AppController`
-  and reachable from the CLI and the GUI. `./gradlew build` passes with 1037 tests and no
-  database server or keys (the count after the Last.fm-everywhere work).
+  and reachable from the CLI and the GUI. `./gradlew build` passes with 1039 tests and no
+  database server or keys.
+- Code state: `main` holds pull requests #1 to #7 (the GUI redesign is #4, the Last.fm work #6 and #7).
+  The branch `stage2-alignment` adds the Nov 6 fixes from the Stage 1 alignment audit on top of
+  `main`: F10 now describes a playlist with no stored session, user-visible sentences moved into
+  `musicmind.properties`, and the no-op `verifyTracks` calls removed (see section 4, "Nov 6 alignment
+  audit"). The documents were corrected in the same branch.
 - What was tested against the real Spotify and OpenAI accounts, and what was not, is listed in
   `docs/DAILY_TEST_NOTES.md`. Nothing in this file claims more than that file says.
 - The GUI is merged into `main` with pull request #4: the dark Spotify-like redesign with a
@@ -19,21 +24,23 @@ R1 to R20 are in `docs/STAGE2_IMPLEMENTATION_PLAN.md`.
   also has a Past week range, and Create only keeps familiar songs that fit the goal and uses
   Last.fm tags (`LASTFM_API_KEY`: optional but recommended; without it MusicMind shows no genres or tags and the tag features are off). The Nov 5 code review of the Last.fm work
   applied five fixes and rejected one suggestion (see section 4).
-- Genres and tags now all come from Last.fm; MusicBrainz is removed (see the Nov 5 Last.fm entry in section 4). The owner ran it on her real Spotify, OpenAI and Last.fm accounts on Nov 6 and reported it worked (see `docs/DAILY_TEST_NOTES.md`); 1037 unit tests also pass.
-- Not done yet: the Stage 2 Implementation Report (PDF or Word, named `stage2-report`), the
-  UML diagrams for `TrackTagFit`, `TrackRow` and `ConfirmDialog` (the rest were updated on Nov 5), and the
-  feature demonstration videos.
+- Genres and tags now all come from Last.fm; MusicBrainz is removed (see the Nov 5 Last.fm entry in section 4). The owner ran it on her real Spotify, OpenAI and Last.fm accounts on Nov 6 and reported it worked (see `docs/DAILY_TEST_NOTES.md`); 1039 unit tests also pass.
+- Done: the Stage 2 Implementation Report (`docs/report/stage2-report.html` and `.pdf`) and the
+  updated UML in `docs/diagrams/`. Not drawn: `TrackTagFit`, `TrackRow` and `ConfirmDialog` (see
+  `docs/diagrams/README.md`). Not done yet: the feature demonstration videos, the report's cost
+  figures and video links (placeholders for the owner).
 
 ## Commit cadence (at least 5 meaningful code commits per period, Toronto time)
 
 A code commit here means a commit that changes files under `src/` or the build files.
-Counts come from `git log` with `TZ=America/Toronto`; Period 3 was counted on Nov 5.
+Counts come from `git log --no-merges` with `TZ=America/Toronto`, limited to `src build.gradle settings.gradle`;
+Period 3 was counted on Nov 6 (Toronto is UTC-4 until Nov 1 and UTC-5 after).
 
 | Period | Dates | Required | Code commits | Status |
 |---|---|---|---|---|
 | 1 | Oct 20-26 | 5 | 0 | Missed. The single 5-point deduction already applies. |
 | 2 | Oct 27-Nov 2 | 5 | 147 (Oct 30: 23, Oct 31: 28, Nov 1: 55, Nov 2: 41) | Met. |
-| 3 | Nov 3-9 | 5 | 51 so far (Nov 3: 2, Nov 4: 42, Nov 5: 7) | Met. Documentation-only commits do not count. |
+| 3 | Nov 3-9 | 5 | 80 so far (Nov 3: 3, Nov 4: 42, Nov 5: 29, Nov 6: 6) | Met. Documentation-only commits and merges do not count. |
 
 Commits that start Period 2 (links for the report): see "Weekly commit summary" at the end of
 this file.
@@ -59,8 +66,9 @@ this file.
   of the new GUI still to be made.
 - [ ] **Goal-fit proof.** Create several playlists (workout, study, road trip) on the real account
   to see whether the goal review improves them. Not yet run since the fixes.
-- [ ] **Report, UML and videos (Nov 8 to 9).** `stage2-report` with the seven required sections,
-  updated UML, a demonstration video per feature.
+- [x] **Report and UML (Nov 3 to 6).** `stage2-report` with the seven required sections and the
+  updated UML were written on Nov 3 and refreshed on Nov 5 and Nov 6.
+- [ ] **Videos (Nov 8 to 9).** A demonstration video per feature, then the links and costs in the report.
 - [ ] **Submit (Nov 10).** Check the repository is public, the build runs, the links open, and no
   secrets are committed.
 
@@ -107,19 +115,25 @@ entry "Last.fm replaces MusicBrainz" in section 4.
   in section 7.
 - **Settings in `musicmind.properties` read through `Config` (Constraint 10)** -
   Original: Stage 1 names no configuration. Change: every tunable (retry counts, tolerances, score
-  weights, page sizes, caps), the OpenAI URL and default model, and every user-facing sentence are
+  weights, page sizes, caps), the OpenAI URL and default model, and the user-visible sentences of the app (what the facade,
+  controller, profile builder, trend comparator, validator and CLI say) are
   keys in `src/main/resources/musicmind.properties`, read through `Config` (loaded as UTF-8).
   Secrets and per-machine values (`SPOTIFY_CLIENT_ID`, `SPOTIFY_REDIRECT_URI`, `LLM_API_KEY`,
-  `LLM_MODEL`, `DATABASE_*`) come from `.env` or the environment. The mood-to-genre map is
+  `LLM_MODEL`, `LASTFM_API_KEY`, `DATABASE_*`) come from `.env` or the environment. The mood-to-genre map is
   `mood-genres.json`. Reason: Stage 2 says hard-coded demonstration responses do not count as
   functionality, and numbers and wording should be changed without editing code. Impact: no key,
   id or canned result is in `src/main`; `ConfigTest` covers placeholders and the default model.
+  Exception since Nov 6 (commit 1d4be94 moved the last user-visible sentences into keys): the
+  developer-facing text of the Spotify, Last.fm and OAuth adapters' exceptions, the persistence
+  exceptions, `ResponseParser`'s `ParseException` messages, and the invariant messages of
+  `MoodGenreMap`, `ToolManager` and the command classes stays in code, and so do the prompts built
+  by `PromptBuilder` (they are sent to the model, not shown to the user).
 - **Authorization Code with PKCE (public client)** -
   Original: Stage 1 names PKCE and a git-ignored `.env`. Change: only `SPOTIFY_CLIENT_ID` is needed
   (no client secret); the redirect URI is `http://127.0.0.1:8080/callback`; the refresh token is
   kept in `.spotify-tokens.json` (git-ignored). Reason: there is no server to hold a secret.
-  Impact: `.env.example` lists the client id, redirect URI, LLM key and model, and the three
-  database settings.
+  Impact: `.env.example` lists the client id, redirect URI, LLM key and model, the Last.fm key
+  (`LASTFM_API_KEY`, empty by default) and the three database settings.
 - **The LLM is OpenAI, behind `LLMProvider`** -
   Original: Stage 1 names `LLMProvider` and a mock. Change: `OpenAiProvider` (default model `gpt-4o`,
   chosen by `LLM_MODEL` or `llm.defaultModel`) is the only provider the app builds; `MockLLMProvider`
@@ -749,14 +763,15 @@ Dates are Toronto time. Links use the public repository
   [`515e8d9`](https://github.com/sarinakavoli/EECS3311-MusicMind/commit/515e8d9) Strategy classes.
   Later work (the adapter, F1 to F12, the GUI and the backend fixes) is in the same range;
   `git log --since=2026-10-27 --until=2026-11-03 -- src build.gradle` lists all of it.
-- **Period 3 (Nov 3-9):** 51 code commits by Nov 5 (the redesign, Past week, goal fit and Last.fm
-  tags); the list is `git log --since=2026-11-03 -- src build.gradle`.
+- **Period 3 (Nov 3-9):** 80 code commits by Nov 6 (Nov 3: 3, Nov 4: 42, Nov 5: 29, Nov 6: 6; the
+  redesign, Past week, goal fit, Last.fm tags and the alignment fixes). The list is
+  `TZ=America/Toronto git log --no-merges --since="2026-11-03 00:00 -0500" -- src build.gradle settings.gradle`.
 
 ## 10. Open items
 
 - Retake the report screenshots of the redesigned GUI after the owner's test, and record the videos.
 - Live proof that the goal review improves playlists; `delete` has not been run live.
-- `stage2-report`, updated UML, and the demonstration videos.
+- The demonstration videos, and the report's video links and cost figures.
 - Search by description ("mellow alternative for studying") is still weak, because Spotify's
   text search matches title words and this app has no mood data.
 - The genre signal depends on Last.fm; some artists have no tags there (and with no `LASTFM_API_KEY` none do), so trends and discovery report partial coverage.
