@@ -43,7 +43,7 @@ bg=#FFE9A8</panel_attributes>
   <element>
     <id>UMLClass</id>
     <coordinates><x>1300</x><y>40</y><w>200</w><h>40</h></coordinates>
-    <panel_attributes>MusicBrainzAdapter
+    <panel_attributes>LastFmAdapter (GenreService)
 bg=#FFE9A8</panel_attributes>
     <additional_attributes/>
   </element>
@@ -487,7 +487,7 @@ fg=#C05A00</panel_attributes>
   <element>
     <id>Text</id>
     <coordinates><x>1123</x><y>905</y><w>338</w><h>22</h></coordinates>
-    <panel_attributes>lookup(artist)  (MusicBrainz, rate limited)
+    <panel_attributes>lookup(artist)  (Last.fm tags, cached)
 bg=#FFFFFF
 transparency=0
 fg=#C05A00</panel_attributes>
@@ -555,7 +555,7 @@ fg=#C05A00</panel_attributes>
   <element>
     <id>Text</id>
     <coordinates><x>1068</x><y>1273</y><w>449</w><h>22</h></coordinates>
-    <panel_attributes>ListeningProfile (genre histogram from MusicBrainz genres)
+    <panel_attributes>ListeningProfile (genre histogram from Last.fm tags)
 bg=#FFFFFF
 transparency=0</panel_attributes>
     <additional_attributes/>

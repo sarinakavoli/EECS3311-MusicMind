@@ -742,7 +742,7 @@ transparency=0</panel_attributes>
   <element>
     <id>Text</id>
     <coordinates><x>2231</x><y>739</y><w>656</w><h>22</h></coordinates>
-    <panel_attributes>Spotify reads (RetryingMusicService backs off on 429; genres from MusicBrainz, cached)
+    <panel_attributes>Spotify reads (RetryingMusicService backs off on 429; genres from Last.fm, cached)
 bg=#FFFFFF
 transparency=0</panel_attributes>
     <additional_attributes/>
@@ -767,7 +767,7 @@ fg=#C05A00</panel_attributes>
   <element>
     <id>Text</id>
     <coordinates><x>937</x><y>877</y><w>515</w><h>22</h></coordinates>
-    <panel_attributes>review(goal, tracks, genres)  - track ids + MusicBrainz genres only
+    <panel_attributes>review(goal, tracks, genres)  - track ids + Last.fm tags only
 bg=#FFFFFF
 transparency=0
 fg=#C05A00</panel_attributes>

@@ -630,12 +630,14 @@ bg=#FFE9A8</panel_attributes>
   </element>
   <element>
     <id>UMLClass</id>
-    <coordinates><x>2723</x><y>2735</y><w>300</w><h>78</h></coordinates>
-    <panel_attributes>MusicBrainzAdapter
+    <coordinates><x>2723</x><y>2735</y><w>340</w><h>110</h></coordinates>
+    <panel_attributes>LastFmAdapter
 --
  
 --
 +lookup(artist): Optional&lt;List&lt;String&gt;&gt;
++topTracks(tag, limit), trackTags(artist, title)
++similarArtists(artist, limit)
 bg=#FFE9A8</panel_attributes>
     <additional_attributes/>
   </element>
@@ -1366,5 +1368,44 @@ creates</panel_attributes>
     <panel_attributes>lt=&lt;.
 builds from</panel_attributes>
     <additional_attributes>0;40;0;0</additional_attributes>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>3150</x><y>2571</y><w>300</w><h>94</h></coordinates>
+    <panel_attributes>&lt;&lt;interface&gt;&gt;
+TagService
+--
+ 
+--
++topTracks(tag, limit)
++trackTags(artist, title)
++similarArtists(artist, limit)
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>3150</x><y>2735</y><w>300</w><h>110</h></coordinates>
+    <panel_attributes>TagTrackMatcher
+--
+ 
+--
++match(wanted, maxSearches): Match
+Last.fm song -&gt; Spotify track
+(exact title + artist, cached)
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>UMLClass</id>
+    <coordinates><x>3150</x><y>2890</y><w>300</w><h>94</h></coordinates>
+    <panel_attributes>SongTagReader
+--
+ 
+--
++read(tracks): Map&lt;String, SongTags&gt;
+song tags, else artist tags (Modify)
+bg=#FFE9A8</panel_attributes>
+    <additional_attributes/>
   </element>
 </diagram>
