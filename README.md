@@ -120,7 +120,7 @@ Open `.env` in an editor and fill in your own values:
 | `DATABASE_URL` | `jdbc:postgresql://localhost:5432/musicmind` |
 | `DATABASE_USER` | `musicmind` |
 | `DATABASE_PASSWORD` | The password you chose above |
-| `LASTFM_API_KEY` | Optional. A free Last.fm key (<https://www.last.fm/api/account/create>); leave empty to skip song tags |
+| `LASTFM_API_KEY` | Recommended. A free Last.fm key (<https://www.last.fm/api/account/create>); it is the only source of genres and tags, so without it artists have no genres |
 
 `.env` is git-ignored; only `.env.example`, which holds placeholders, is committed. The app reads
 `.env` from the folder you start it in, so run the commands below from the project folder. After you
@@ -199,7 +199,7 @@ problem and some changes to choose from (F11). Choosing nothing cancels without 
 |---------|--------------|
 | No Spotify Client ID | The app starts, and every feature that needs Spotify says so. |
 | No `LLM_API_KEY` | Features that need the model say so. F1 summary, F2 narrative and F3 search use a computed fallback, labelled as such. |
-| No `LASTFM_API_KEY` | Create works as before without Last.fm song tags and says that tag data is off. |
+| No `LASTFM_API_KEY` | The app runs, but there are no genres or tags: Your Taste, Trends, Discover, Find Songs, Create and Modify work without them, and one banner (GUI) or line (CLI) says tag data is off. |
 | PostgreSQL not running | The app keeps running with safe default preferences and shows a warning; history and saved data are unavailable. |
 
 ## Troubleshooting
@@ -275,10 +275,16 @@ HTML for `REFRESH BEFORE SUBMISSION` to find each spot, edit it, and rebuild.
   `MusicService` interface (Adapter pattern). Only endpoints that Development Mode apps may still
   call are used; discovery is built from your own listening data, not Spotify's retired recommender.
 - Spotify sends no artist genres to this app, so genres are each artist's top tags from **Last.fm**
-  (junk tags dropped) and are cached by artist id.
-- Optional artist and song tags come from **Last.fm** (credited in the GUI footer and after a CLI Create). With a
-  key, each Create run sends the goal's tags and up to 30 song titles with artist names to Last.fm
-  only to read tags. Nothing from Last.fm or Spotify is sent to OpenAI, and no title is stored.
+  (junk tags dropped) and are cached by artist id. MusicBrainz is no longer used. We chose Last.fm
+  because it has tags for artists and songs, including moods and activities, which the features need,
+  and one source keeps the vocabulary the same on every screen. All tags are treated alike, so a mood
+  tag such as "chill" can appear under Top genres.
+- Last.fm tags also drive Find Songs (top songs of the matching tags), Discover (songs by artists
+  Last.fm lists as similar to your top artists), Create and Modify (each song's tags go into the edit
+  prompt). Last.fm is credited in the GUI footer. With a key, artist names and song titles are sent to
+  Last.fm only to read tags. Spotify titles and names are never sent to OpenAI, and no title is stored;
+  Last.fm tags are not Spotify content, so they may be cached and sent to OpenAI.
+- These Last.fm changes have been unit tested but not yet run against the real accounts.
 - Playlist goals are interpreted by an **OpenAI** model. Prompts carry your own words, ids, counts and
   Last.fm genres. They never contain Spotify track titles, artist names or album names. The
   goal-fit review sends only track ids and genres, and may only name ids to remove.
