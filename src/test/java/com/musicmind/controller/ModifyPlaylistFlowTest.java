@@ -1001,6 +1001,25 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
     }
 
     @Test
+    void explainForAPlaylistWithNoStoredSessionGivesTheLimitationNoteAndAGeneralDescription() {
+        Music music = new Music();
+        put(music, "np", t("a", false, "x"), t("b", false, "y"));
+        java.util.concurrent.atomic.AtomicInteger llmCalls = new java.util.concurrent.atomic.AtomicInteger();
+        AppController c = controller(music, p -> {
+            llmCalls.incrementAndGet();
+            return "unused";
+        });
+
+        String text = c.explain("np");
+
+        assertTrue(text.startsWith(config.wording("explainNoSession")), text);
+        assertTrue(text.contains(String.format(config.wording("explainGeneral"), 2, 6)), text);
+        assertTrue(text.contains(config.wording("explainGeneralNoProfile")), text);
+        assertFalse(text.contains("Title a"));
+        assertEquals(0, llmCalls.get());
+    }
+
+    @Test
     void explainWithTheDatabaseDownSaysTheRecordIsUnavailable() {
         AppController c = controller(new Music(), null, deadMemory());
         IllegalStateException e = assertThrows(IllegalStateException.class, () -> c.explain("p"));

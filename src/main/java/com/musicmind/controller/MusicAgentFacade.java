@@ -1313,6 +1313,28 @@ public class MusicAgentFacade {
         return create.explainer().explain(session);
     }
 
+    /**
+     * F10 for a playlist with no stored session: a general description computed from the playlist as Spotify holds
+     * it (song count, length) and the stored taste profile (how many songs are by artists in it, ids only), after
+     * a note that the reasons are unknown. No LLM call is made and no title or name is sent anywhere.
+     *
+     * @throws PlaylistChangeException if the playlist cannot be read
+     */
+    public String explainUnrecorded(String playlistId, User user) {
+        List<Track> tracks = readItems(requirePlaylistId(playlistId));
+        StringBuilder text = new StringBuilder(config.wording("explainNoSession")).append(' ')
+                .append(String.format(config.wording("explainGeneral"), tracks.size(),
+                        Math.round(tracks.stream().mapToInt(Track::durationMs).sum() / 60000.0)));
+        Optional<ListeningProfile> profile = lastProfile(user);
+        if (profile.isEmpty() || profile.get().isEmpty()) {
+            return text.append(' ').append(config.wording("explainGeneralNoProfile")).toString();
+        }
+        Set<String> known = profile.get().knownArtistIds();
+        long familiar = tracks.stream().filter(t -> t.artistIds().stream().anyMatch(known::contains)).count();
+        return text.append(' ').append(String.format(config.wording("explainGeneralKnown"),
+                familiar, tracks.size() - familiar)).toString();
+    }
+
     // ---- F12 ----
 
     /**
