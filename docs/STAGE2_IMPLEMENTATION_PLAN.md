@@ -245,7 +245,7 @@ JavaFX views over `AppController` only, using background workers: login; **Profi
 
 Tests: formatting helpers. Launch `./gradlew run` for 15s and confirm no crash, reported in the task report.
 
-### Task 18: Genre metadata from MusicBrainz
+### Task 18: Genre metadata from MusicBrainz (superseded on Nov 5: Last.fm is now the source, see STAGE2_PLAN.md)
 
 Run before Task 9. Spotify returns no `genres` for this app (R18), so F1, F2, F4 and F5 have no genre signal.
 
