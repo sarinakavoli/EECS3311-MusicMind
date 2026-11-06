@@ -15,7 +15,7 @@ import java.util.function.LongSupplier;
 /**
  * Reads Last.fm's tags for the songs of a playlist so Modify can judge mood or style. Looks up at most
  * {@code lastfm.maxTrackTagLookups} songs, in playlist order, within {@code lastfm.trackTagBudgetSeconds} of the
- * first lookup, and stops after the first failure. A song without tags of its own gets the cached tags of its
+ * first lookup, and stops after the first failure. Songs already answered earlier in the session are not asked again. A song without tags of its own gets the cached tags of its
  * first artist that has some; otherwise it has none. Artist names and titles go only to Last.fm; nothing is stored.
  */
 public final class SongTagReader {
@@ -26,8 +26,19 @@ public final class SongTagReader {
     private final int kept;
     private final long budgetNanos;
     private final LongSupplier nanos;
+    private final Map<String, List<String>> sessionTags;
 
     public SongTagReader(TagService service, ArtistGenreCache artistTags, Config config, LongSupplier nanos) {
+        this(service, artistTags, config, nanos, new LinkedHashMap<>());
+    }
+
+    /**
+     * @param sessionTags the session's memory of each song's own tags by track id (a real answer, even an empty one,
+     *                    is kept; a failure never is). A song in it costs no lookup and does not count toward the cap.
+     */
+    public SongTagReader(TagService service, ArtistGenreCache artistTags, Config config, LongSupplier nanos,
+                         Map<String, List<String>> sessionTags) {
+        this.sessionTags = sessionTags;
         this.service = service;
         this.artistTags = artistTags;
         this.maxLookups = config.lastfmMaxTrackTagLookups();
@@ -44,7 +55,10 @@ public final class SongTagReader {
         boolean stopped = false;
         for (Track track : tracks) {
             List<String> own = List.of();
-            if (!stopped && lookups < maxLookups && !track.artistNames().isEmpty() && track.title() != null) {
+            List<String> remembered = sessionTags.get(track.id());
+            if (remembered != null) {
+                own = remembered;
+            } else if (!stopped && lookups < maxLookups && !track.artistNames().isEmpty() && track.title() != null) {
                 long now = nanos.getAsLong();
                 if (lookups == 0) {
                     startedAt = now;
@@ -56,6 +70,7 @@ public final class SongTagReader {
                     try {
                         own = service.trackTags(track.artistNames().get(0), track.title()).stream()
                                 .limit(kept).toList();
+                        sessionTags.put(track.id(), own);
                     } catch (MusicServiceException e) {
                         stopped = true;
                     }

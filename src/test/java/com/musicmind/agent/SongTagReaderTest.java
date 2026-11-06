@@ -100,4 +100,27 @@ class SongTagReaderTest {
         assertEquals(config.lastfmTrackTagsKept(), read.get("id1").tags().size());
         assertTrue(read.get("id1").tags().get(0).equals("t0"));
     }
+
+    @Test
+    void sessionMemory_skipsKnownSongs_withoutCountingThem_andNeverKeepsFailures() {
+        List<String> asked = new ArrayList<>();
+        Map<String, List<String>> memory = new java.util.HashMap<>();
+        memory.put("id1", List.of("sad"));
+        List<Track> tracks = IntStream.rangeClosed(1, 32).mapToObj(SongTagReaderTest::song).toList();
+
+        Map<String, SongTags> read = new SongTagReader(service(asked, List.of("calm")), id -> Optional.empty(), config,
+                System::nanoTime, memory).read(tracks);
+
+        assertEquals(30, asked.size(), "the remembered song does not count toward the cap");
+        assertEquals(new SongTags(List.of("sad"), SongTags.Kind.SONG), read.get("id1"));
+        assertEquals(31, memory.size());
+
+        TagService failing = new TagService() {
+            @Override public List<TagTrack> topTracks(String tag, int limit) { return List.of(); }
+            @Override public List<String> trackTags(String artist, String title) { throw new MusicServiceException("x"); }
+        };
+        Map<String, List<String>> fresh = new java.util.HashMap<>();
+        new SongTagReader(failing, id -> Optional.empty(), config, System::nanoTime, fresh).read(tracks);
+        assertTrue(fresh.isEmpty());
+    }
 }

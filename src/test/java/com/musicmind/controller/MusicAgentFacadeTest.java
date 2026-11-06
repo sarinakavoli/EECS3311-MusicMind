@@ -738,6 +738,63 @@ class MusicAgentFacadeTest extends PostgresTestBase {
     }
 
     @Test
+    void search_withAFilter_noTagSongs() {
+        int[] calls = {0};
+        com.musicmind.music.TagService lastFm = (tag, limit) -> { calls[0]++; return List.of(); };
+        LLMProvider llm = p -> "{\"keywords\":\"songs\",\"genre\":\"\",\"filters\":{\"artist\":\"X\"},\"confidence\":0.9}";
+
+        facade(new FakeMusic(), llm, lastFm).searchMusic("mellow songs by X");
+
+        assertEquals(0, calls[0]);
+    }
+
+    @Test
+    void search_namingAnArtist_noTagSongs() {
+        FakeMusic music = new FakeMusic() {
+            @Override public List<com.musicmind.domain.Artist> searchArtists(String query, int limit) {
+                return List.of(new com.musicmind.domain.Artist("d1", "Drake", List.of()));
+            }
+        };
+        int[] calls = {0};
+        com.musicmind.music.TagService lastFm = (tag, limit) -> { calls[0]++; return List.of(); };
+        LLMProvider llm = p -> "{\"keywords\":\"Drake\",\"genre\":\"hip hop\",\"filters\":{},\"confidence\":0.9}";
+
+        facade(music, llm, lastFm).searchMusic("Drake hip hop");
+
+        assertEquals(0, calls[0]);
+    }
+
+    @Test
+    void search_matchingErrors_addTheReadFailedSentence() {
+        FakeMusic music = new FakeMusic() {
+            @Override public List<Track> search(String query, int limit) {
+                super.search(query, limit);
+                if (query.startsWith("track:")) throw new com.musicmind.music.RateLimitException("slow down", 5);
+                return List.of(by("o1", "Other Song", "Someone"));
+            }
+        };
+        com.musicmind.music.TagService lastFm = (tag, limit) -> List.of(new com.musicmind.domain.TagTrack("Song One", "Band One"));
+        LLMProvider llm = p -> "{\"keywords\":\"songs for studying\",\"genre\":\"\",\"filters\":{},\"confidence\":0.9}";
+        MusicAgentFacade f = facade(music, llm, lastFm);
+
+        f.searchMusic("mellow songs for studying");
+
+        assertEquals(String.format(config.wording("discoverReadFailed"), 1), f.lastSearchNotice());
+    }
+
+    @Test
+    void search_noResultsAndLastfmDown_bothSentencesKept() {
+        com.musicmind.music.TagService down = (tag, limit) -> { throw new com.musicmind.music.MusicServiceException("Last.fm returned HTTP 500."); };
+        LLMProvider llm = p -> "{\"keywords\":\"songs\",\"genre\":\"\",\"filters\":{},\"confidence\":0.9}";
+        MusicAgentFacade f = facade(new FakeMusic(), llm, down);
+
+        f.searchMusic("mellow songs");
+
+        assertTrue(f.lastSearchNotice().contains(config.wording("lastfmSearchFailed")), f.lastSearchNotice());
+        assertTrue(f.lastSearchNotice().contains(String.format(config.searchNoResultsTemplate(), "mellow songs")), f.lastSearchNotice());
+    }
+
+    @Test
     void search_plainTitle_noLastfmCall() {
         FakeMusic music = new FakeMusic();
         int[] calls = {0};

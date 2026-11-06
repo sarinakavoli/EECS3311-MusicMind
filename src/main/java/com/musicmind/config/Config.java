@@ -255,6 +255,11 @@ public final class Config {
         return integer("lastfm.maxTracks");
     }
 
+    /** Most songs whose own Last.fm tags Modify keeps in memory for the session. */
+    public int lastfmSongTagCacheSize() {
+        return integer("lastfm.songTagCacheSize");
+    }
+
     /** Most Last.fm song to Spotify track matches kept in memory for the session. */
     public int lastfmMatchCacheSize() {
         return integer("lastfm.matchCacheSize");

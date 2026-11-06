@@ -143,6 +143,7 @@ public class MusicAgentFacade {
     private volatile NegotiationHandler negotiationHandler;
     private volatile Consumer<String> progressListener;
     private volatile AgentSession lastSession;
+    private final Map<String, List<String>> songTagCache;
     private volatile String lastSearchNotice;
     private volatile String lastSearchLabel;
     private volatile List<Artist> lastSearchArtists = List.of();
@@ -187,6 +188,12 @@ public class MusicAgentFacade {
                             TrendComparator trendComparator, PromptBuilder prompts, LLMProvider llm,
                             Config config, Planner planner, ResponseParser parser, SearchRanker ranker,
                             RecommendationEngine engine, Supplier<String> currentUserId, CreateSupport create) {
+        int tagCacheSize = config.lastfmSongTagCacheSize();
+        this.songTagCache = java.util.Collections.synchronizedMap(new LinkedHashMap<>() {
+            @Override protected boolean removeEldestEntry(Map.Entry<String, List<String>> eldest) {
+                return size() > tagCacheSize;
+            }
+        });
         this.tools = tools;
         this.memory = memory;
         this.profileBuilder = profileBuilder;
@@ -441,21 +448,26 @@ public class MusicAgentFacade {
             ranked = runSearch(new SearchQuery(keywords, null, Map.of(), parsed.confidence()));
         }
         ranked = withTypedWords(query.strip(), parsed, ranked);
-        ranked = withTagSongs(query.strip(), parsed, ranked);
+        List<Artist> named = artistsNamedIn(query);
+        if (parsed.filters().isEmpty() && named.isEmpty()) {
+            ranked = withTagSongs(query.strip(), parsed, ranked);
+        }
         if (ranked.isEmpty()) {
             String hint = suggestRelaxedQuery(parsed)
                     .map(q -> String.format(config.searchRelaxedHintTemplate(), q))
                     .orElse(config.searchNoRelaxedHint());
-            lastSearchNotice = String.format(config.searchNoResultsTemplate(), query.strip()) + " " + hint;
+            String sentence = String.format(config.searchNoResultsTemplate(), query.strip()) + " " + hint;
+            lastSearchNotice = lastSearchNotice == null ? sentence : sentence + " " + lastSearchNotice;
         }
-        lastSearchArtists = artistsNamedIn(query);
+        lastSearchArtists = named;
         return ranked;
     }
 
     /**
      * For a mood or genre search, the songs Last.fm lists under that tag (the parsed genre, else the first typed
      * mood word) that Spotify has are put first, de-duplicated by id. Without a Last.fm key, with no mood or
-     * genre, or when Last.fm fails, the results are as they were; a failure adds one sentence to the notice.
+     * genre, with a filter or an artist named in the query (those would push real matches out), or when Last.fm
+     * fails, the results are as they were; a failure adds one sentence to the notice.
      */
     private List<Track> withTagSongs(String typed, SearchQuery parsed, List<Track> ranked) {
         String tag = parsed.genre() != null && !parsed.genre().isBlank() ? parsed.genre().strip()
@@ -476,7 +488,12 @@ public class MusicAgentFacade {
         if (songs.isEmpty()) {
             return ranked;
         }
-        List<Track> matched = new TagTrackMatcher(tools, engine.matchCache()).match(songs, max).tracks();
+        TagTrackMatcher.Match match = new TagTrackMatcher(tools, engine.matchCache()).match(songs, max);
+        if (match.stopped() || !match.errors().isEmpty()) {
+            String sentence = String.format(config.wording("discoverReadFailed"), Math.max(1, match.errors().size()));
+            lastSearchNotice = lastSearchNotice == null ? sentence : lastSearchNotice + " " + sentence;
+        }
+        List<Track> matched = match.tracks();
         Map<String, Track> byId = new LinkedHashMap<>();
         matched.forEach(t -> byId.putIfAbsent(t.id(), t));
         ranked.forEach(t -> byId.putIfAbsent(t.id(), t));
@@ -892,6 +909,10 @@ public class MusicAgentFacade {
             updated = new Playlist(id, current.name(), afterCommands(current.tracks(), plan.commands()));
             notices.add(config.wording("modifyReadBackFailed"));
         }
+        long untagged = songTags.values().stream().filter(t -> t.kind() == SongTags.Kind.NONE).count();
+        if (untagged > 0) {
+            notices.add(String.format(config.wording("modifyUntaggedSongs"), untagged));
+        }
         addWarning(notices);
         lastModifyNotices = List.copyOf(notices);
         return updated;
@@ -908,13 +929,14 @@ public class MusicAgentFacade {
 
     /**
      * Last.fm tags for the playlist's songs, only when a Last.fm key is configured; otherwise empty and the edit prompt
-     * is as before. Read once per edit (the replans reuse it); held in memory only.
+     * is as before. Read once per edit (the replans reuse it); a playlist too long for the edit prompt is not read at
+     * all. Songs answered earlier in the session come from the in-memory {@link #songTagCache}; nothing is stored.
      */
     private Map<String, SongTags> songTagsFor(Playlist current) {
-        if (!config.lastfmConfigured()) {
+        if (!config.lastfmConfigured() || current.tracks().size() > config.editMaxPromptTracks()) {
             return Map.of();
         }
-        return new SongTagReader(create.tagService(), create.genreCache(), config, System::nanoTime)
+        return new SongTagReader(create.tagService(), create.genreCache(), config, System::nanoTime, songTagCache)
                 .read(current.tracks());
     }
 

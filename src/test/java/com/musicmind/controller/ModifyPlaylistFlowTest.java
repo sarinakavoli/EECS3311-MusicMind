@@ -176,6 +176,76 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
         assertEquals(List.of("a", "c"), updated.tracks().stream().map(Track::id).toList());
     }
 
+    private Music taggedPlaylist() {
+        Music music = new Music();
+        music.playlists.put("p", new ArrayList<>(List.of(
+                new Track("a", "spotify:track:a", "Title a", 180_000, false, List.of("x"), List.of("Singer A")),
+                new Track("b", "spotify:track:b", "Title b", 180_000, false, List.of("x"), List.of("Singer B")),
+                new Track("c", "spotify:track:c", "Title c", 180_000, false, List.of("x"), List.of("Singer C")))));
+        return music;
+    }
+
+    private static com.musicmind.music.TagService counting(List<String> asked, java.util.function.Function<String, List<String>> tags) {
+        return new com.musicmind.music.TagService() {
+            @Override public List<com.musicmind.domain.TagTrack> topTracks(String tag, int limit) { return List.of(); }
+            @Override public List<String> trackTags(String artist, String title) {
+                asked.add(title);
+                return tags.apply(title);
+            }
+        };
+    }
+
+    private AppController withLastFm(Music music, com.musicmind.music.TagService lastFm, Map<String, String> tunables) {
+        AppController c = new AppController(music, memory(db), editReply("{\"commands\":[{\"type\":\"remove\",\"track\":\"2\"}]}"),
+                Config.of(Map.of("LASTFM_API_KEY", "test-key")).withTunables(tunables),
+                null, () -> false, com.musicmind.agent.ArtistGenreCache.NONE, lastFm);
+        c.login();
+        return c;
+    }
+
+    @Test
+    void secondEditOfTheSamePlaylistAsksLastFmNothing() {
+        List<String> asked = new ArrayList<>();
+        AppController c = withLastFm(taggedPlaylist(), counting(asked, t -> List.of("sad")), Map.of());
+
+        c.modifyPlaylist("p", "remove the second");
+        int afterFirst = asked.size();
+        c.modifyPlaylist("p", "remove the second");
+
+        assertEquals(3, afterFirst);
+        assertEquals(afterFirst, asked.size(), "the songs' tags are remembered for the session");
+    }
+
+    @Test
+    void songsWithoutTagsAreCountedInANotice() {
+        List<String> asked = new ArrayList<>();
+        AppController c = withLastFm(taggedPlaylist(), counting(asked, t -> t.equals("Title a") ? List.of("sad") : List.of()), Map.of());
+
+        c.modifyPlaylist("p", "remove the second");
+
+        assertTrue(c.lastModifyNotices().contains(String.format(config.wording("modifyUntaggedSongs"), 2)),
+                c.lastModifyNotices().toString());
+    }
+
+    @Test
+    void allSongsTagged_noUntaggedNotice() {
+        AppController c = withLastFm(taggedPlaylist(), counting(new ArrayList<>(), t -> List.of("sad")), Map.of());
+
+        c.modifyPlaylist("p", "remove the second");
+
+        assertTrue(c.lastModifyNotices().stream().noneMatch(n -> n.contains("no Last.fm tags")), c.lastModifyNotices().toString());
+    }
+
+    @Test
+    void aPlaylistTooLongForTheEditPromptMakesNoLastFmCalls() {
+        List<String> asked = new ArrayList<>();
+        AppController c = withLastFm(taggedPlaylist(), counting(asked, t -> List.of("sad")), Map.of("edit.maxPromptTracks", "2"));
+
+        assertThrows(IllegalArgumentException.class, () -> c.modifyPlaylist("p", "remove the second"));
+
+        assertTrue(asked.isEmpty(), asked.toString());
+    }
+
     @Test
     void modifyWithoutLastfmKey_promptHasNoTags() {
         Music music = new Music();
