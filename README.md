@@ -284,7 +284,7 @@ HTML for `REFRESH BEFORE SUBMISSION` to find each spot, edit it, and rebuild.
   prompt). Last.fm is credited in the GUI footer. With a key, artist names and song titles are sent to
   Last.fm only to read tags. Spotify titles and names are never sent to OpenAI, and no title is stored;
   Last.fm tags are not Spotify content, so they may be cached and sent to OpenAI.
-- These Last.fm changes have been unit tested but not yet run against the real accounts.
+- These Last.fm changes have been unit tested, and on Nov 6 the owner ran them on her real Spotify, OpenAI and Last.fm accounts and reported it worked.
 - Playlist goals are interpreted by an **OpenAI** model. Prompts carry your own words, ids, counts and
   Last.fm genres. They never contain Spotify track titles, artist names or album names. The
   goal-fit review sends only track ids and genres, and may only name ids to remove.

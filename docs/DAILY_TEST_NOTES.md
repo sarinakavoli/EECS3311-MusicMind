@@ -505,3 +505,14 @@ Blocking an artist on Preferences affects later Discover and Create runs, so cle
 **Build:** `./gradlew build --rerun-tasks --no-build-cache`: 888 tests, 0 failures.
 
 **Still open:** goal fit of created playlists (not tried since Nov 2); searches by description (finding 25); the Stage 2 report, updated UML and demo videos.
+
+## Fri Nov 6: the owner's test of the Last.fm build
+
+Sarina ran the Last.fm-everywhere build (branch `stage2-lastfm`, PR #7) against her real Spotify, OpenAI and Last.fm accounts and reported it worked ("I did the test and it was alright"). The test covered:
+
+- Your Taste: genres from Last.fm tags.
+- Find Songs: the mood search "mellow songs for studying", with tag songs first.
+- Discover: songs from similar artists.
+- Create: "slow dance" (no Billie Jean).
+- Modify: "remove the sad songs", with the note about untagged songs.
+- The footer credits Spotify and Last.fm only.
