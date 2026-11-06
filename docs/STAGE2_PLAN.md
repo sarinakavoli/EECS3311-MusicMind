@@ -17,11 +17,11 @@ R1 to R20 are in `docs/STAGE2_IMPLEMENTATION_PLAN.md`.
 - The GUI is merged into `main` with pull request #4: the dark Spotify-like redesign with a
   left-hand menu, one shared song row, a confirm dialog, and every screen restyled. Your Taste
   also has a Past week range, and Create only keeps familiar songs that fit the goal and uses
-  Last.fm song tags (optional `LASTFM_API_KEY`). The Nov 5 code review of the Last.fm work
+  Last.fm tags (`LASTFM_API_KEY`: optional but recommended; without it MusicMind shows no genres or tags and the tag features are off). The Nov 5 code review of the Last.fm work
   applied five fixes and rejected one suggestion (see section 4).
 - Genres and tags now all come from Last.fm; MusicBrainz is removed (see the Nov 5 Last.fm entry in section 4). That change has not been run against the real Spotify, Last.fm and OpenAI accounts yet; only the unit tests (1020) have run.
 - Not done yet: the Stage 2 Implementation Report (PDF or Word, named `stage2-report`), the
-  updated UML diagrams (`docs/diagrams/uxf` still holds the Stage 1 versions), and the
+  UML diagrams for `TrackTagFit`, `TrackRow` and `ConfirmDialog` (the rest were updated on Nov 5), and the
   feature demonstration videos.
 
 ## Commit cadence (at least 5 meaningful code commits per period, Toronto time)

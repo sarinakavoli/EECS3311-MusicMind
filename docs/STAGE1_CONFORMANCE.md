@@ -209,7 +209,7 @@ All of this runs through `controller/AppController` and `controller/MusicAgentFa
     or, with Last.fm configured, one of the song's own top tags (`TagService.trackTags`,
     `TrackTagFit`) equals a plan tag or a `lastfm.synonyms.<key>` entry. Too few fits are filled with
     new goal songs and a notice. Discover (F4) is unchanged.
-  - **Last.fm tag songs (Nov 4-5, optional).** The plan carries up to `lastfm.maxTags` short tags
+  - **Last.fm tag songs (Nov 4-5; key optional but recommended; without it MusicMind shows no genres or tags and the tag features are off).** The plan carries up to `lastfm.maxTags` short tags
     (`AgentPlan.tags`). `TagService` (implemented by `music/LastFmAdapter`, an Adapter) gives the top
     songs for a tag; `CandidateRetriever.byTag` looks each up on Spotify and keeps it only when the title
     and an artist name both match. Tag songs join the new-music pool with a score bonus. Limits:
@@ -464,7 +464,7 @@ in Stage 1. Repository and Decorator are used as well and are not counted.
 | 12 | Gradle 9.1, JavaFX 21.0.13, run scripts (R15) | Portability and a macOS 26 crash | section 1 of the plan |
 | 13 | GUI redesign: dark theme, left-hand menu, plain names (Your Taste, Find Songs, Your Rules), shared song row, confirm dialog, Delete in the GUI | The owner's test of Nov 2 found the GUI hard to understand | section 7 of the plan |
 | 14 | F1 Past week range from recent plays; left out of Trends | Asked for twice; Spotify has no weekly top items | section 3 of the plan |
-| 15 | F5: familiar songs must fit the goal (leading genres, the song's own Last.fm tags); Last.fm tag songs matched to Spotify (optional key) | Live Create runs gave songs that did not fit | section 4 of the plan |
+| 15 | F5: familiar songs must fit the goal (leading genres, the song's own Last.fm tags); Last.fm tag songs matched to Spotify (key optional but recommended; without it MusicMind shows no genres or tags and the tag features are off) | Live Create runs gave songs that did not fit | section 4 of the plan |
 | 13 | Settings and wording in `musicmind.properties` | Stage 2 rejects hard-coded demonstration content | section 1 of the plan |
 | 14 | Search ranks typed words first; weights 0.9 / 0.1 | Live results put stock-music titles first | sections 3 and 6 of the plan |
 
@@ -478,7 +478,7 @@ Each is small and exists so that a Stage 1 class keeps one job. Full entries are
 
 - **Agent:** `CandidatePool` (familiar and novel tracks for the feasibility check), `Retrieval`
   (one Spotify read shared by every re-selection), `CandidateRetriever` (reads pools from Spotify),
-  `GoalFitReviewer` (the removal-only review), `TrackGenres` (the genres MusicMind already knows for a
+  `GoalFitReviewer` (the removal-only review), `TagTrackMatcher` (Last.fm song to Spotify track), `SongTagReader` (tags for Modify's prompt), `TrackGenres` (the genres MusicMind already knows for a
   track, so the review needs no title) and `ArtistGenreCache` (read-only view of cached Last.fm tags), `MoodGenreMap` (curated mood to genre data),
   `SearchRanker`, `TrendComparator`, `PreferenceSettings` (preferences as F4 and F5 use them),
   `PlaylistEditor` (edit instruction to commands), `PlaylistContext`, `CommandSpec` (an edit
@@ -494,7 +494,7 @@ Each is small and exists so that a Stage 1 class keeps one job. Full entries are
 - **Domain values:** `TopItems`, `TrendReport`, `RangeChange`, `SearchQuery`, `FeasibilityReport`,
   `Relaxation`, `DecisionTrace`, `PlaylistSummary`, `SnapshotInfo`.
 - **Music:** `GenreEnrichingMusicService`, `GenreService`, `TagService`,
-  `LastFmAdapter`, `TagTrackMatcher`, `SongTagReader`, `TrackList` (a
+  `LastFmAdapter`, `TrackList` (a
   list that knows it was cut short), `MusicServiceException`, `AuthExpiredException`,
   `RateLimitException`.
 - **Memory and tools:** `Database`, `PersistenceException`, `CandidateRepository`,
@@ -516,7 +516,7 @@ Each is small and exists so that a Stage 1 class keeps one job. Full entries are
 - The updated UML diagrams are in `docs/diagrams/` (`.uxf` sources, PNGs in `docs/diagrams/png/`, the Stage 1 PNGs in `docs/diagrams/png/stage1/`; the README there lists what changed). The Stage 2 report is `docs/report/stage2-report.pdf` (source `stage2-report.html`).
 - The GUI items in `docs/GUI_TEST_FINDINGS.md` are done except the goal review on Find Songs
   results (searches by description). Screenshots of the redesign will be retaken after the owner's
-  test; the UML in `docs/diagrams/` does not show `TagService`, `LastFmAdapter`, `TrackTagFit`,
+  test; the UML in `docs/diagrams/` shows the Last.fm classes but does not show `TrackTagFit`,
   `TrackRow` or `ConfirmDialog`.
 - **Open policy question (F6 edit prompt).** The edit prompt sends the model each track's id, explicit
   flag and length in minutes (Spotify metadata, not titles or names), because Stage 1 F6 needs
