@@ -698,6 +698,57 @@ class MusicAgentFacadeTest extends PostgresTestBase {
         assertNull(f.lastSearchNotice());
     }
 
+    private MusicAgentFacade facade(FakeMusic music, LLMProvider llm, com.musicmind.music.TagService tagService) {
+        MemoryManager memory = memory();
+        ToolManager tools = tools(music, memory, new ArrayList<>());
+        ProfileBuilder builder = new ProfileBuilder(config);
+        PromptBuilder prompts = new PromptBuilder(config);
+        return new MusicAgentFacade(tools, memory, builder, new TrendComparator(builder, config),
+                prompts, llm, config, new Planner(llm, prompts, new ResponseParser(config), config),
+                new ResponseParser(config), new SearchRanker(config),
+                new com.musicmind.agent.RecommendationEngine(tools, config), currentUser::get,
+                new MusicAgentFacade.CreateSupport(music,
+                        new com.musicmind.agent.command.PlaylistManager(config, music, memory),
+                        new com.musicmind.agent.ExplanationService(llm, prompts, new ResponseParser(config), config),
+                        null, com.musicmind.agent.ArtistGenreCache.NONE, tagService));
+    }
+
+    @Test
+    void search_moodQuery_tagSongsFirst() {
+        FakeMusic music = new FakeMusic() {
+            @Override public List<Track> search(String query, int limit) {
+                super.search(query, limit);
+                if (query.equals("track:\"Song One\" artist:\"Band One\"")) return List.of(by("l1", "Song One", "Band One"));
+                if (query.equals("track:\"Song Two\" artist:\"Band Two\"")) return List.of(by("l2", "Song Two", "Band Two"));
+                return List.of(by("o1", "Other Song", "Someone"));
+            }
+        };
+        List<String> asked = new ArrayList<>();
+        com.musicmind.music.TagService lastFm = (tag, limit) -> {
+            asked.add(tag + ":" + limit);
+            return List.of(new com.musicmind.domain.TagTrack("Song One", "Band One"),
+                    new com.musicmind.domain.TagTrack("Song Two", "Band Two"));
+        };
+        LLMProvider llm = p -> "{\"keywords\":\"songs for studying\",\"genre\":\"\",\"filters\":{},\"confidence\":0.9}";
+
+        List<Track> found = facade(music, llm, lastFm).searchMusic("mellow songs for studying");
+
+        assertEquals(List.of("mellow:10"), asked);
+        assertEquals(List.of("l1", "l2"), found.stream().limit(2).map(Track::id).toList());
+    }
+
+    @Test
+    void search_plainTitle_noLastfmCall() {
+        FakeMusic music = new FakeMusic();
+        int[] calls = {0};
+        com.musicmind.music.TagService lastFm = (tag, limit) -> { calls[0]++; return List.of(); };
+        LLMProvider llm = p -> "{\"keywords\":\"american girls\",\"genre\":\"\",\"filters\":{},\"confidence\":0.9}";
+
+        facade(music, llm, lastFm).searchMusic("american girls");
+
+        assertEquals(0, calls[0]);
+    }
+
     private static Track by(String id, String title, String artist) {
         return new Track(id, "spotify:track:" + id, title, 1000, false, List.of(), List.of(artist));
     }

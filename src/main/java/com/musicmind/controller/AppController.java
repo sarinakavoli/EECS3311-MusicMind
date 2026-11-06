@@ -162,7 +162,7 @@ public class AppController {
                     new RecommendationEngine(tools, config, genreCache, tagService),
                     () -> currentUser == null ? null : currentUser.id(),
                     new MusicAgentFacade.CreateSupport(music, new PlaylistManager(config, music, memory),
-                            explainer, reauthenticator, genreCache));
+                            explainer, reauthenticator, genreCache, tagService));
         }
     }
 

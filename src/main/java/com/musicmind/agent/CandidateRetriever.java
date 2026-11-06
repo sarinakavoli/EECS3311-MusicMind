@@ -33,7 +33,7 @@ class CandidateRetriever {
     private int successes;
     // Spotify lookups made for Last.fm songs in this run, against lastfm.maxTracks.
     private int tagLookups;
-    // Set by the first failed Last.fm call: no further tag is tried this run, so a down Last.fm costs one timeout.
+    // Set by the first failed Last.fm call or a stopped Spotify match: no further tag is tried this run.
     private boolean tagServiceFailed;
 
     CandidateRetriever(ToolManager tools, Config config) {
@@ -88,7 +88,6 @@ class CandidateRetriever {
      * {@code lastfm.maxTracks} budget instead of the first one taking it all.
      */
     List<Track> byTag(String tag, int share) {
-        Map<String, Track> byId = new LinkedHashMap<>();
         int room = Math.min(share, config.lastfmMaxTracks() - tagLookups);
         if (room <= 0 || tagServiceFailed) {
             return List.of();
@@ -101,50 +100,15 @@ class CandidateRetriever {
             errors.add(e.getMessage());
             return List.of();
         }
-        int used = 0;
-        for (TagTrack wanted : listed) {
-            if (used >= room || tagLookups >= config.lastfmMaxTracks()) {
-                break;
-            }
-            used++;
-            tagLookups++;
-            Optional<Track> match = lookup(wanted);
-            match.ifPresent(hit -> byId.putIfAbsent(hit.id(), hit));
+        int asked = Math.min(room, listed.size());
+        tagLookups += asked;
+        TagTrackMatcher.Match match = new TagTrackMatcher(tools, matchCache).match(listed, asked);
+        errors.addAll(match.errors());
+        successes += match.searched();
+        if (match.stopped()) {
+            tagServiceFailed = true; // a rate limit or expired login: no further tag is looked up this run
         }
-        return new ArrayList<>(byId.values());
-    }
-
-    /** The Spotify track for a Last.fm song: from the session cache, else one search; a failed search is not cached. */
-    private Optional<Track> lookup(TagTrack wanted) {
-        String key = SearchRanker.normalise(wanted.title()) + "|" + SearchRanker.normalise(wanted.artist());
-        Optional<Track> cached = matchCache.get(key);
-        if (cached != null) {
-            return cached;
-        }
-        String query = "track:\"" + wanted.title().replace("\"", " ") + "\" artist:\""
-                + wanted.artist().replace("\"", " ") + "\"";
-        ToolResult result = tools.execute("search", Map.of("query", query, "limit", 1));
-        if (!result.ok()) {
-            errors.add(result.error());
-            return Optional.empty();
-        }
-        successes++;
-        @SuppressWarnings("unchecked")
-        List<Track> hits = (List<Track>) result.payload();
-        Optional<Track> match = hits.stream().filter(hit -> matches(wanted, hit)).findFirst();
-        matchCache.put(key, match);
-        return match;
-    }
-
-    private static boolean matches(TagTrack wanted, Track hit) {
-        String title = SearchRanker.normalise(wanted.title());
-        String artist = SearchRanker.normalise(wanted.artist());
-        if (title.isEmpty() || artist.isEmpty() || hit.title() == null) {
-            return false;
-        }
-        boolean titleOk = SearchRanker.normalise(hit.title()).equals(title)
-                || SearchRanker.normalise(hit.title().replaceAll("\\([^)]*\\)|\\[[^]]*]| - .*$", "")).equals(title);
-        return titleOk && hit.artistNames().stream().anyMatch(n -> SearchRanker.normalise(n).equals(artist));
+        return match.tracks();
     }
 
     /** One search, {@code discover.searchLimit} tracks, de-duplicated by id. */

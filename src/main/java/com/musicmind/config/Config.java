@@ -226,6 +226,11 @@ public final class Config {
         return text("lastfm.apiBaseUrl");
     }
 
+    /** Most Last.fm songs Find Songs looks up on Spotify per search (one Spotify search each). */
+    public int lastfmFindSongsMaxMatches() {
+        return integer("lastfm.findSongsMaxMatches");
+    }
+
     public int lastfmMaxTracks() {
         return integer("lastfm.maxTracks");
     }

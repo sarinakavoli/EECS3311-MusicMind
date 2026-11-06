@@ -117,6 +117,11 @@ public class RecommendationEngine {
         this.strategy = new BalancedStrategy(config);
     }
 
+    /** The session's Last.fm song to Spotify track matches, shared with Find Songs so one lookup serves both. */
+    public Map<String, Optional<Track>> matchCache() {
+        return matchCache;
+    }
+
     public synchronized void setStrategy(RecommendationStrategy strategy) {
         this.strategy = Objects.requireNonNull(strategy, "strategy");
     }
