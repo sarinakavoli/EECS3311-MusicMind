@@ -3,6 +3,8 @@ package com.musicmind.memory.repository;
 import com.musicmind.memory.PostgresTestBase;
 import org.junit.jupiter.api.Test;
 
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -50,5 +52,32 @@ class GenreRepositoryTest extends PostgresTestBase {
         repo.save("a1", List.of("rock"), T0.plusSeconds(60));
 
         assertEquals(Optional.of(List.of("rock")), repo.find("a1", T0));
+    }
+
+    @Test
+    void saveThenFind_roundTripsLastfmTags() {
+        GenreRepository repo = new GenreRepository(db);
+        repo.save("a1", List.of("shoegaze", "dream pop"), T0);
+
+        assertEquals(Optional.of(List.of("shoegaze", "dream pop")), repo.find("a1", T0));
+    }
+
+    @Test
+    void oldMusicBrainzRowsAreNeverRead() throws SQLException {
+        try (Statement st = db.connection().createStatement()) {
+            st.execute("DROP TABLE artist_genre");
+            st.execute("CREATE TABLE artist_genre (artist_id TEXT PRIMARY KEY, genres TEXT NOT NULL, "
+                    + "fetched_at TIMESTAMPTZ NOT NULL)");
+            st.execute("INSERT INTO artist_genre VALUES ('old', '[\"jazz\"]', now())");
+        }
+        db.close();
+        db.init();
+
+        assertEquals(Optional.empty(), new GenreRepository(db).find("old", T0));
+        try (Statement st = db.connection().createStatement();
+             java.sql.ResultSet rs = st.executeQuery("SELECT count(*) FROM artist_genre")) {
+            rs.next();
+            assertEquals(0, rs.getInt(1));
+        }
     }
 }

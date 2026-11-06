@@ -17,7 +17,7 @@ import java.util.Set;
  * Checks retrieved tracks against the playlist goal with the LLM, because Spotify gives this app no tempo
  * or energy data to judge fit. The model is shown, per track, only its Spotify id and the genres MusicMind
  * already knows for it (the genre it was searched under, the genres of the user's own artists, and cached
- * MusicBrainz genres; no request is made for the review). It is never shown a title, artist name or album,
+ * Last.fm genres; no request is made for the review). It is never shown a title, artist name or album,
  * because Spotify Content must not be ingested into an AI model (Spotify Developer Policy, section III item 14).
  * It may only answer with the ids to take out: it never names or adds a track, and the final selection stays
  * deterministic.
@@ -50,7 +50,7 @@ public class GoalFitReviewer {
         this(llm, prompts, parser, config, ArtistGenreCache.NONE);
     }
 
-    /** @param cache read-only cache of MusicBrainz artist genres, consulted for artists the profile has no genres for */
+    /** @param cache read-only cache of Last.fm artist genres, consulted for artists the profile has no genres for */
     public GoalFitReviewer(LLMProvider llm, PromptBuilder prompts, ResponseParser parser, Config config,
                            ArtistGenreCache cache) {
         this.cache = Objects.requireNonNull(cache, "cache");

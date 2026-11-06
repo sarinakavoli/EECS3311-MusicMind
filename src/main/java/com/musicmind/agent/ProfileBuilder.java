@@ -17,7 +17,7 @@ import java.util.Map;
  * aggregated from the user's top artists, weighted by rank so that the artists
  * played most influence the profile more, then normalised into a histogram.
  * (Spotify does not expose a genre on tracks, so artists are the source of genre
- * signal, and the genres themselves come from MusicBrainz.) The aggregation is deterministic; the LLM never touches it.
+ * signal, and the genres themselves come from Last.fm.) The aggregation is deterministic; the LLM never touches it.
  */
 public class ProfileBuilder {
 

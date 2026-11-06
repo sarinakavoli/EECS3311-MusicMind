@@ -96,6 +96,9 @@ public class CliApp {
 
     /** Runs one command, or starts the interactive session when there is none. */
     public int run(String[] args) {
+        if (!config.lastfmConfigured()) {
+            out.println(config.tagsOffBanner());
+        }
         if (args.length == 0) {
             return interactive();
         }
@@ -945,7 +948,7 @@ public class CliApp {
         out.println(w("Summary", profile.summary()));
         out.println();
         out.println(c.spotifyAttribution());
-        out.println(c.genreAttribution());
+        out.println(c.lastfmAttribution());
     }
 
     private void printTrends(TrendReport report) {
@@ -983,7 +986,7 @@ public class CliApp {
         out.println(report.narrative());
         out.println();
         out.println(c.spotifyAttribution());
-        out.println(c.genreAttribution());
+        out.println(c.lastfmAttribution());
     }
 
     private void printList(String label, List<String> items) {

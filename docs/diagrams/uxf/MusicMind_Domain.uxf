@@ -192,7 +192,7 @@ bg=#CFE8FF</panel_attributes>
 --
 -id: String
 -name: String
--genres: List&lt;String&gt;  (from MusicBrainz, R18)</panel_attributes>
+-genres: List&lt;String&gt;  (from Last.fm tags)</panel_attributes>
     <additional_attributes/>
   </element>
   <element>

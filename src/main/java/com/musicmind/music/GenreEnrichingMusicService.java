@@ -41,7 +41,7 @@ public class GenreEnrichingMusicService implements MusicService {
         this.delegate = delegate;
         this.genres = genres;
         this.cache = cache;
-        this.cacheLife = Duration.ofDays(config.musicBrainzCacheDays());
+        this.cacheLife = Duration.ofDays(config.lastfmCacheDays());
         this.clock = clock;
     }
 

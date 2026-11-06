@@ -150,8 +150,27 @@ class ConfigTest {
     }
 
     @Test
-    void genreAttributionCreditsMusicBrainz() {
-        assertTrue(Config.of(Map.of()).genreAttribution().contains("MusicBrainz"));
+    void noMusicBrainzKeysLeft() throws java.io.IOException {
+        java.util.Properties props = new java.util.Properties();
+        try (java.io.InputStream in = Config.class.getResourceAsStream("/musicmind.properties")) {
+            props.load(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
+        }
+        assertTrue(props.stringPropertyNames().stream().noneMatch(k -> k.toLowerCase().contains("musicbrainz")),
+                props.stringPropertyNames().toString());
+        assertFalse(props.stringPropertyNames().contains("text.genreAttribution"));
+    }
+
+    @Test
+    void lastfmTagTunablesAndBanner() {
+        Config c = Config.of(Map.of());
+        assertEquals(10, c.lastfmMinTagCount());
+        assertEquals(10, c.lastfmArtistTagsKept());
+        assertEquals(30, c.lastfmCacheDays());
+        assertEquals(3, c.lastfmMaxConsecutiveFailures());
+        assertEquals(300, c.lastfmCooldownSeconds());
+        assertTrue(c.lastfmTagBlocklist().containsAll(java.util.Set.of("seen live", "favorites", "under 2000 listeners")));
+        assertEquals("Song and artist tags from Last.fm are off (no LASTFM_API_KEY), so genres are unknown.",
+                c.tagsOffBanner());
     }
 
     @Test

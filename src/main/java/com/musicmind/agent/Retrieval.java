@@ -46,6 +46,8 @@ public final class Retrieval {
     final List<String> tags;
     /** Last.fm's tags for the familiar songs themselves; null when the run has no tags or Last.fm is off. */
     TrackTagFit trackTagFit;
+    /** Discover only: Spotify tracks by artists Last.fm lists as similar to the user's top artists. */
+    List<Track> similarTracks = List.of();
 
     Retrieval(ListeningProfile profile, boolean allowLibraryTracks, Set<String> seedGenres,
               CandidateRetriever retriever, List<Track> library, Set<String> libraryIds,
@@ -110,12 +112,13 @@ public final class Retrieval {
                 keeping(albumTracks, removed), genres, byGenre, origins, keeping(keywordTracks, removed), Set.copyOf(removed),
                 searchTerms, goalSourceIds, keeping(tagTracks, removed), tags);
         copy.trackTagFit = trackTagFit; // the same lookups and answers
+        copy.similarTracks = keeping(similarTracks, removed);
         return copy;
     }
 
     /**
      * The genres already known for a track, with no request made: the genre it was searched under, the genres of
-     * the user's own artists in the listening profile, and the cached MusicBrainz genres of its other artists.
+     * the user's own artists in the listening profile, and the cached Last.fm genres of its other artists.
      * Empty when none is known for any of its artists.
      */
     public List<String> knownGenres(Track track, ArtistGenreCache cache) {
@@ -134,7 +137,7 @@ public final class Retrieval {
 
     /**
      * The genres that characterise a track, for the Create goal-fit check: the genre it was searched under and
-     * the first {@code leading} genres of each of its artists (profile genres, else cached MusicBrainz ones).
+     * the first {@code leading} genres of each of its artists (profile genres, else cached Last.fm ones).
      * Long artist tag lists run to dozens of tags, so a requested genre far down the list ("ambient" for a
      * grunge band) says nothing about the artist.
      */

@@ -150,7 +150,7 @@ brew services start postgresql@17
 
 **Not verified live:**
 - `prefs` and `feedback` have not been checked on your account yet.
-- Update (Oct 31): Spotify sends no genres to this app, so they now come from MusicBrainz. `profile`, `trends`, `search` and `discover` have since run live. Expect a notice saying how many of your top artists had genre data.
+- Update (Oct 31): Spotify sends no genres to this app, so they came from MusicBrainz (from Nov 5 they come from Last.fm; no key means no genres). `profile`, `trends`, `search` and `discover` have since run live. Expect a notice saying how many of your top artists had genre data.
 - A very short `discover` list, or one with widening notices, depends on what Spotify returns for your account. Tell me if it looks wrong.
 - The GUI was only kept compiling. Its screens for these features arrive with Task 13.
 - `create`, `modify`, `validate`, `explain` and `history` still print "implemented in a later phase". They arrive on Sunday.
@@ -435,7 +435,7 @@ Start the app from the project folder. PostgreSQL must be running.
 ./gradlew run
 ```
 
-**Expected:** a window titled MusicMind with seven tabs: Profile, Trends, Search, Discover, Playlists, Preferences, History. Opening it does not contact Spotify or open a browser. The footer credits Spotify and MusicBrainz. Each tab says to log in first.
+**Expected:** a window titled MusicMind with seven tabs: Profile, Trends, Search, Discover, Playlists, Preferences, History. Opening it does not contact Spotify or open a browser. The footer credits Spotify and Last.fm (MusicBrainz before Nov 5). Each tab says to log in first.
 
 ### Read-only checks
 
@@ -505,3 +505,14 @@ Blocking an artist on Preferences affects later Discover and Create runs, so cle
 **Build:** `./gradlew build --rerun-tasks --no-build-cache`: 888 tests, 0 failures.
 
 **Still open:** goal fit of created playlists (not tried since Nov 2); searches by description (finding 25); the Stage 2 report, updated UML and demo videos.
+
+## Fri Nov 6: the owner's test of the Last.fm build
+
+Sarina ran the Last.fm-everywhere build (branch `stage2-lastfm`, PR #7) against her real Spotify, OpenAI and Last.fm accounts and reported it worked ("I did the test and it was alright"). The test covered:
+
+- Your Taste: genres from Last.fm tags.
+- Find Songs: the mood search "mellow songs for studying", with tag songs first.
+- Discover: songs from similar artists.
+- Create: "slow dance" (no Billie Jean).
+- Modify: "remove the sad songs", with the note about untagged songs.
+- The footer credits Spotify and Last.fm only.

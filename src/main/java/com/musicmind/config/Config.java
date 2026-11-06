@@ -213,55 +213,7 @@ public final class Config {
         return integer("spotify.maxWaitSeconds");
     }
 
-    // ---- MusicBrainz (genre metadata) ----
-
-    public String musicBrainzBaseUrl() {
-        return text("musicbrainz.baseUrl");
-    }
-
-    public String musicBrainzUserAgent() {
-        return text("musicbrainz.userAgent");
-    }
-
-    public long musicBrainzMinIntervalMillis() {
-        return Long.parseLong(text("musicbrainz.minIntervalMillis"));
-    }
-
-    public int musicBrainzMinScore() {
-        return integer("musicbrainz.minScore");
-    }
-
-    public int musicBrainzResultLimit() {
-        return integer("musicbrainz.resultLimit");
-    }
-
-    public int musicBrainzRetryWaitSeconds() {
-        return integer("musicbrainz.retryWaitSeconds");
-    }
-
-    public int musicBrainzMaxWaitSeconds() {
-        return integer("musicbrainz.maxWaitSeconds");
-    }
-
-    public int musicBrainzTimeoutSeconds() {
-        return integer("musicbrainz.timeoutSeconds");
-    }
-
-    public int musicBrainzCacheDays() {
-        return integer("musicbrainz.cacheDays");
-    }
-
-    /** Failed lookups in a row after which MusicBrainz lookups pause. */
-    public int musicBrainzMaxConsecutiveFailures() {
-        return integer("musicbrainz.maxConsecutiveFailures");
-    }
-
-    /** How long, in seconds, lookups pause after too many failures in a row. */
-    public int musicBrainzCooldownSeconds() {
-        return integer("musicbrainz.cooldownSeconds");
-    }
-
-    // ---- Last.fm (song tags) ----
+    // ---- Last.fm (artist and song tags) ----
     public String lastfmApiKey() {
         return get("LASTFM_API_KEY");
     }
@@ -274,8 +226,38 @@ public final class Config {
         return text("lastfm.apiBaseUrl");
     }
 
+    /** Most Last.fm songs Find Songs looks up on Spotify per search (one Spotify search each). */
+    public int lastfmFindSongsMaxMatches() {
+        return integer("lastfm.findSongsMaxMatches");
+    }
+
+    /** Most Spotify searches Discover makes for artists Last.fm lists as similar to the user's top artists. */
+    public int lastfmDiscoverMaxMatches() {
+        return integer("lastfm.discoverMaxMatches");
+    }
+
+    /** How many of the user's top artists Discover asks Last.fm about. */
+    public int lastfmDiscoverSeedArtists() {
+        return integer("lastfm.discoverSeedArtists");
+    }
+
+    /** Similar artists read per top artist. */
+    public int lastfmSimilarPerArtist() {
+        return integer("lastfm.similarPerArtist");
+    }
+
+    /** Spotify tracks asked for per similar artist (the search limit). */
+    public int lastfmSimilarTracksPerArtist() {
+        return integer("lastfm.similarTracksPerArtist");
+    }
+
     public int lastfmMaxTracks() {
         return integer("lastfm.maxTracks");
+    }
+
+    /** Most songs whose own Last.fm tags Modify keeps in memory for the session. */
+    public int lastfmSongTagCacheSize() {
+        return integer("lastfm.songTagCacheSize");
     }
 
     /** Most Last.fm song to Spotify track matches kept in memory for the session. */
@@ -322,6 +304,39 @@ public final class Config {
         return integer("lastfm.trackTagsKept");
     }
 
+    /** Tags with fewer votes than this are dropped as noise. */
+    public int lastfmMinTagCount() {
+        return integer("lastfm.minTagCount");
+    }
+
+    /** Tags that carry no information about the music (lower case). */
+    public Set<String> lastfmTagBlocklist() {
+        Set<String> out = new LinkedHashSet<>();
+        Arrays.stream(text("lastfm.tagBlocklist").split(",")).map(v -> v.trim().toLowerCase(Locale.ROOT))
+                .filter(v -> !v.isEmpty()).forEach(out::add);
+        return Set.copyOf(out);
+    }
+
+    /** How many of an artist's Last.fm tags are kept as its genres. */
+    public int lastfmArtistTagsKept() {
+        return integer("lastfm.artistTagsKept");
+    }
+
+    /** Cached artist tags (including "none") are fetched again after this many days. */
+    public int lastfmCacheDays() {
+        return integer("lastfm.cacheDays");
+    }
+
+    /** Failed artist lookups in a row after which they pause. */
+    public int lastfmMaxConsecutiveFailures() {
+        return integer("lastfm.maxConsecutiveFailures");
+    }
+
+    /** How long, in seconds, artist lookups pause after too many failures in a row. */
+    public int lastfmCooldownSeconds() {
+        return integer("lastfm.cooldownSeconds");
+    }
+
     public int lastfmTimeoutSeconds() {
         return integer("lastfm.timeoutSeconds");
     }
@@ -339,9 +354,9 @@ public final class Config {
         return text("text.lastfmOff");
     }
 
-    /** Credits MusicBrainz as the genre source; shown wherever genres are shown. */
-    public String genreAttribution() {
-        return text("text.genreAttribution");
+    /** Banner for the missing Last.fm key. */
+    public String tagsOffBanner() {
+        return text("text.tagsOffBanner");
     }
 
     /** Maximum characters of a raw HTTP response body to include in an error message. */

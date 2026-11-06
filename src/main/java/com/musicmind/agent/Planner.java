@@ -2,6 +2,7 @@ package com.musicmind.agent;
 
 import com.musicmind.config.Config;
 import com.musicmind.domain.AgentPlan;
+import com.musicmind.domain.GenreNames;
 import com.musicmind.domain.AgentRequest;
 import com.musicmind.domain.FeasibilityReport;
 import com.musicmind.domain.PlaylistSpec;
@@ -15,6 +16,7 @@ import com.musicmind.llm.ParseException;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -90,10 +92,11 @@ public class Planner {
         List<String> blockedTracks = flags == null ? List.of() : flags.blockedTracks();
         PlaylistSpec spec = prefs.applyTo(new PlaylistSpec(minutes, explicit, ratio, blocked, blockedTracks, name));
 
-        Set<String> seeds = new LinkedHashSet<>();
-        moods.genresFor(parsed.extras().mood()).forEach(g -> seeds.add(g.toLowerCase(Locale.ROOT)));
-        seeds.addAll(prefs.preferredStyles());
-        List<String> seedGenres = seeds.stream().limit(config.planMaxSeedGenres()).toList();
+        // One entry per genre however it is spelled ("hip hop" and "hip-hop"); the first spelling is kept.
+        Map<String, String> seeds = new LinkedHashMap<>();
+        moods.genresFor(parsed.extras().mood()).forEach(g -> seeds.putIfAbsent(GenreNames.canonical(g), g.toLowerCase(Locale.ROOT)));
+        prefs.preferredStyles().forEach(g -> seeds.putIfAbsent(GenreNames.canonical(g), g));
+        List<String> seedGenres = seeds.values().stream().limit(config.planMaxSeedGenres()).toList();
         return new AgentPlan(spec, List.of(config.wording("planSteps").split("\\|")), Instant.now(), seedGenres,
                 parsed.extras().searchTerms(), parsed.extras().tags());
     }
@@ -220,7 +223,7 @@ public class Planner {
         for (String g : genres) {
             if (genre == null || genre.isBlank()) {
                 genre = g;
-            } else if (!kept.stream().anyMatch(k -> k.equalsIgnoreCase(g)) && !genre.equalsIgnoreCase(g)) {
+            } else if (!kept.stream().anyMatch(k -> GenreNames.canonical(k).equals(GenreNames.canonical(g))) && !GenreNames.canonical(genre).equals(GenreNames.canonical(g))) {
                 kept.add(g);
             }
         }

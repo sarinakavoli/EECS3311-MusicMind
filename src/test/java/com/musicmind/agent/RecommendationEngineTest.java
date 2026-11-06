@@ -1551,4 +1551,96 @@ class RecommendationEngineTest {
 
         assertTrue(ids(recs).contains("both"), ids(recs).toString());
     }
+
+    @Test
+    void create_seedGenreSpelledDifferentlyFromTheArtistsTag_stillFits() {
+        for (String[] pair : new String[][] {{"r&b", "rnb"}, {"hip hop", "hip-hop"}}) {
+            RecommendationEngine e = new RecommendationEngine(toolsFor(grungeLibrary()), config,
+                    id -> id.equals("grungeA") ? Optional.of(List.of(pair[1])) : Optional.empty());
+
+            List<Recommendation> recs = e.recommend(goalProfile(), spec(0.5), List.of(), true, List.of(pair[0]));
+
+            assertEquals(4, ids(recs).stream().filter(id -> id.startsWith("g")).count(), pair[0] + ": " + ids(recs));
+        }
+    }
+
+    // ---- Last.fm similar artists in Discover ----
+
+    private static Track by(String id, String artistId, String artistName) {
+        return new Track(id, "spotify:track:" + id, "Song " + id, 1000, false, List.of(artistId), List.of(artistName));
+    }
+
+    private static FakeMusic similarMusic() {
+        FakeMusic m = new FakeMusic();
+        m.top = List.of(track("top0", "a1"));
+        m.byGenre.put("artist:\"Neo\"", List.of(by("sim1", "neoId", "Neo")));
+        m.byGenre.put("artist:\"Blocky\"", List.of(by("sim2", "blockedId", "Blocky")));
+        m.byGenre.put("artist:\"Muted\"", List.of(by("sim3", "mutedId", "Muted")));
+        m.byGenre.put("artist:\"Lookalike\"", List.of(by("sim4", "otherId", "Someone Else")));
+        return m;
+    }
+
+    private static class SimilarOnly implements TagService {
+        final List<String> asked = new ArrayList<>();
+        @Override public List<TagTrack> topTracks(String tag, int limit) { return List.of(); }
+        @Override public List<String> similarArtists(String artist, int limit) {
+            asked.add(artist);
+            return List.of("Neo", "Blocky", "Muted", "Lookalike");
+        }
+    }
+
+    @Test
+    void discover_includesSimilarArtistTracks_respectsBlocks() {
+        FakeMusic m = similarMusic();
+        SimilarOnly lastFm = new SimilarOnly();
+        RecommendationEngine e = new RecommendationEngine(toolsFor(m), withKey, ArtistGenreCache.NONE, lastFm);
+        PlaylistSpec spec = new PlaylistSpec(40, true, 0.0, List.of("blockedId"), List.of("sim3"), "x");
+
+        List<Recommendation> recs = e.recommend(profile(), spec, List.of(), false);
+
+        assertEquals(List.of("A1", "A2"), lastFm.asked);
+        assertEquals(List.of("sim1"), ids(recs), "blocked artist, blocked song and a wrong-artist hit are dropped");
+        assertTrue(recs.get(0).reason().contains("similar to artists you play (Last.fm)"), recs.get(0).reason());
+    }
+
+    @Test
+    void create_doesNotCallSimilar() {
+        FakeMusic m = similarMusic();
+        SimilarOnly lastFm = new SimilarOnly();
+        RecommendationEngine e = new RecommendationEngine(toolsFor(m), withKey, ArtistGenreCache.NONE, lastFm);
+
+        e.recommend(e.retrieve(profile(), spec(0.4), true, List.of(), List.of(), List.of()), spec(0.4), List.of());
+
+        assertTrue(lastFm.asked.isEmpty());
+        assertTrue(m.searches.stream().noneMatch(q -> q.startsWith("artist:")), m.searches.toString());
+    }
+
+    @Test
+    void discover_doesNotAskLastFmAboutBlockedArtists() {
+        FakeMusic m = similarMusic();
+        SimilarOnly lastFm = new SimilarOnly();
+        RecommendationEngine e = new RecommendationEngine(toolsFor(m), withKey, ArtistGenreCache.NONE, lastFm);
+        PlaylistSpec spec = new PlaylistSpec(40, true, 0.0, List.of("a1"), List.of(), "x");
+
+        e.recommend(profile(), spec, List.of(), false);
+
+        assertEquals(List.of("A2"), lastFm.asked, "a blocked top artist is not a seed");
+    }
+
+    @Test
+    void discover_repeatedRunsDoNotRepeatTheSimilarArtistSearches() {
+        FakeMusic m = similarMusic();
+        SimilarOnly lastFm = new SimilarOnly();
+        RecommendationEngine e = new RecommendationEngine(toolsFor(m), withKey, ArtistGenreCache.NONE, lastFm);
+        PlaylistSpec spec = new PlaylistSpec(40, true, 0.0, List.of(), List.of(), "x");
+
+        e.recommend(profile(), spec, List.of(), false);
+        long first = m.searches.stream().filter(q -> q.startsWith("artist:")).count();
+        List<Recommendation> again = e.recommend(profile(), spec, List.of(), false);
+
+        assertTrue(first > 0);
+        assertEquals(first, m.searches.stream().filter(q -> q.startsWith("artist:")).count(), m.searches.toString());
+        assertEquals(List.of("A1", "A2"), lastFm.asked, "Last.fm's similar lists are cached too");
+        assertFalse(again.isEmpty());
+    }
 }

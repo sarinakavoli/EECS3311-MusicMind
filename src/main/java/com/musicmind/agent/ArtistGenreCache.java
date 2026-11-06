@@ -3,7 +3,7 @@ package com.musicmind.agent;
 import java.util.List;
 import java.util.Optional;
 
-/** Read-only view of the cached MusicBrainz genres of an artist, by Spotify artist id. Never makes a request. */
+/** Read-only view of the cached Last.fm genres of an artist, by Spotify artist id. Never makes a request. */
 @FunctionalInterface
 public interface ArtistGenreCache {
 

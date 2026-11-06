@@ -136,6 +136,23 @@ class PromptBuilderTest {
     }
 
     @Test
+    void editPrompt_listsTagsAndKind_noTitles() {
+        Map<String, com.musicmind.domain.SongTags> tags = Map.of(
+                "idA", new com.musicmind.domain.SongTags(List.of("sad", "mellow"), com.musicmind.domain.SongTags.Kind.SONG),
+                "idB", new com.musicmind.domain.SongTags(List.of("rock"), com.musicmind.domain.SongTags.Kind.ARTIST),
+                "idC", new com.musicmind.domain.SongTags(List.of(), com.musicmind.domain.SongTags.Kind.NONE));
+
+        String p = builder.buildEditPrompt("remove the sad ones", editContext("idA", "idB", "idC"), tags);
+
+        assertTrue(p.contains("1: idA, clean, 3.0 min, song tags: sad, mellow"), p);
+        assertTrue(p.contains("2: idB, explicit, 3.0 min, artist tags: rock"), p);
+        assertTrue(p.contains("3: idC, clean, 3.0 min, no tags"), p);
+        assertTrue(p.contains("never guess for a song with no tags"), p);
+        assertFalse(p.contains("Title"), p);
+        assertFalse(builder.buildEditPrompt("x", editContext("idA")).contains("tags"));
+    }
+
+    @Test
     void searchEditAndOptionsPromptsCarryTheirInputs() {
         assertTrue(builder.buildSearchPrompt("sad 90s songs").contains("sad 90s songs"));
         String prompt = builder.buildSearchPrompt("sad 90s songs");
@@ -247,7 +264,9 @@ class PromptBuilderTest {
                 "buildSummaryPrompt", () -> builder.buildSummaryPrompt(profile),
                 "buildTrendPrompt", () -> builder.buildTrendPrompt(trend),
                 "buildSearchPrompt", () -> builder.buildSearchPrompt("jazz"),
-                "buildEditPrompt", () -> builder.buildEditPrompt("remove the second", playlist),
+                "buildEditPrompt", () -> builder.buildEditPrompt("remove the second", playlist,
+                        Map.of("t1", new com.musicmind.domain.SongTags(List.of("sad"), com.musicmind.domain.SongTags.Kind.SONG),
+                                "t2", new com.musicmind.domain.SongTags(List.of(), com.musicmind.domain.SongTags.Kind.NONE))),
                 "buildOptionsPrompt", () -> builder.buildOptionsPrompt(
                         new FeasibilityReport(false, List.of("too short"), List.of("allow more explicit"))));
 

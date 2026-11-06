@@ -14,7 +14,7 @@ How to read it:
   listed under it), or *Added* (not in Stage 1).
 - **Live** says what `docs/DAILY_TEST_NOTES.md` records as run against the real accounts. Anything
   not named there was only tested with stand-in Spotify and LLM servers and an embedded
-  PostgreSQL. The automated suite is 995 tests in 54 test classes; `./gradlew test` on the merged
+  PostgreSQL. The automated suite is 1037 tests in 57 test classes; `./gradlew test` on the merged
   branch (Nov 5) passed all of them, using no keys and no database server.
 - The GUI is the dark redesign merged on Nov 4 (pull request #4): a left-hand menu of seven screens
   (Your Taste, Trends, Find Songs, Discover, Playlists, Your Rules, History), one shared song row
@@ -58,14 +58,14 @@ All of this runs through `controller/AppController` and `controller/MusicAgentFa
 - **Deterministic or AI:** hybrid. Genre counts and rankings are computed; the LLM writes only the
   summary sentence. With no key or a failed call the summary is computed and labelled
   "[computed from your listening data, not AI-written]".
-- **Differences:** genres come from MusicBrainz, not Spotify (R18); the profile is stored through
+- **Differences:** genres come from Last.fm tags, not Spotify (R18; MusicBrainz until Nov 5); the profile is stored through
   `saveSession` as ids and counts (R4); `profile` shows the stored profile and `--refresh`
   rebuilds (R5); `--range week|short|medium|long` was added; a library larger than
   `spotify.maxSavedTracks` marks the profile as partial; genre coverage is reported.
   **Past week (Nov 4):** Spotify has no top items for a week, so `MusicAgentFacade.analyzePastWeek`
   reads `MusicService.getRecentPlays()` (at most the 50 most recent plays), keeps the last
   `profile.weekDays` (7) days, ranks tracks and artists by play count and fills genres through
-  `MusicService.withGenres` (the same MusicBrainz lookup and cache). The screen says "Built from your
+  `MusicService.withGenres` (the same Last.fm lookup and cache). The screen says "Built from your
   last N plays (Spotify only keeps your 50 most recent)". Only derived ids and genres are stored,
   never the play times. `AppController.timeRanges()` lists week, short, medium, long;
   `trendRanges()` keeps Trends to Spotify's three, because a 50-play sample would not compare fairly.
@@ -74,7 +74,7 @@ All of this runs through `controller/AppController` and `controller/MusicAgentFa
 - **Tests:** `agent/ProfileBuilderTest`, `controller/MusicAgentFacadeTest`
   (`analyzeTasteFollowsTheSd03InteractionOrder`, `littleHistoryGivesAPartialProfileWithANoticeAndStillSavesIt`,
   `withNoLlmTheSummaryIsComputedFromGenresAndLabelled`), `controller/AppControllerTest`,
-  `music/GenreEnrichingMusicServiceTest`, `music/MusicBrainzAdapterTest`,
+  `music/GenreEnrichingMusicServiceTest`, `music/LastFmAdapterTest`,
   `music/RetryingMusicServiceTest`, `music/SpotifyAdapterTest`, `memory/repository/SessionRepositoryTest`,
   `cli/CliAppTest`, `app/view/ViewFormatTest`.
 - **GUI:** `app/view/ProfileView` (the Your Taste screen): a time-range choice (Past week, Past month,
@@ -192,7 +192,7 @@ All of this runs through `controller/AppController` and `controller/MusicAgentFa
     to **remove** and never names or adds a track. Since Nov 3 (Spotify Developer Policy, section
     III item 14: no ingesting Spotify Content into an AI model) the prompt carries only each
     track's id and the genres known for it (from the search that found it, the user's profile, or
-    cached MusicBrainz genres). It holds no title, artist name or album name. A track with no
+    cached Last.fm tags). It holds no title, artist name or album name. A track with no
     known genre is not sent and is kept. A test checks that no `PromptBuilder` prompt contains a
     title or artist name. The call comes from `RetrievingState` and `SelectingState`. The reason
     for the review is Sarina's live test, which produced unsuitable songs for a "workout"
@@ -209,7 +209,7 @@ All of this runs through `controller/AppController` and `controller/MusicAgentFa
     or, with Last.fm configured, one of the song's own top tags (`TagService.trackTags`,
     `TrackTagFit`) equals a plan tag or a `lastfm.synonyms.<key>` entry. Too few fits are filled with
     new goal songs and a notice. Discover (F4) is unchanged.
-  - **Last.fm tag songs (Nov 4-5, optional).** The plan carries up to `lastfm.maxTags` short tags
+  - **Last.fm tag songs (Nov 4-5; key optional but recommended; without it MusicMind shows no genres or tags and the tag features are off).** The plan carries up to `lastfm.maxTags` short tags
     (`AgentPlan.tags`). `TagService` (implemented by `music/LastFmAdapter`, an Adapter) gives the top
     songs for a tag; `CandidateRetriever.byTag` looks each up on Spotify and keeps it only when the title
     and an artist name both match. Tag songs join the new-music pool with a score bonus. Limits:
@@ -242,7 +242,7 @@ All of this runs through `controller/AppController` and `controller/MusicAgentFa
   were added in response and are covered by `agent/RecommendationEngineTest`
   (`create_*`), `agent/CandidateRetrieverTest` (`byTag_*`), `agent/TrackTagFitTest`,
   `agent/PlannerPlanTest`, `music/LastFmAdapterTest`, `controller/CreatePlaylistFlowTest`
-  and `config/ConfigTest`. A read-only live check with a Last.fm key on Nov 4 (planning, retrieval and selection only, no playlist created) found no off-goal familiar songs for "slow dance" and no Nirvana for "music for studying" (mostly lo-fi and ambient, a few weak tag picks); "workout" still picked several songs by one hip-hop artist, because Last.fm has no tags for them and hip hop is a workout genre. The final ranking tiers and the Nov 5 review fixes have not yet been checked live.
+  and `config/ConfigTest`. A read-only live check with a Last.fm key on Nov 4 (planning, retrieval and selection only, no playlist created) found no off-goal familiar songs for "slow dance" and no Nirvana for "music for studying" (mostly lo-fi and ambient, a few weak tag picks); "workout" still picked several songs by one hip-hop artist, because Last.fm has no tags for them and hip hop is a workout genre. On Nov 6 the owner ran the Last.fm build, including the Nov 5 review fixes, on her real accounts and reported it worked (see `docs/DAILY_TEST_NOTES.md`).
 
 ### F6 Natural-Language Playlist Modification (UC07, SD02)
 
@@ -438,7 +438,7 @@ in Stage 1. Repository and Decorator are used as well and are not counted.
 
 | Pattern | Problem it solves | Participants | Matches Stage 1? |
 |---|---|---|---|
-| Adapter | The core must not depend on the Spotify, MusicBrainz or OpenAI wire formats. | `MusicService` / `SpotifyAdapter` (HTTP, PKCE through `OAuthTokenStore`); `GenreService` / `MusicBrainzAdapter`; `TagService` / `LastFmAdapter`; `LLMProvider` / `OpenAiProvider` | Yes. The MusicBrainz adapter (R18) and the Last.fm adapter (optional song tags for F5) are new. |
+| Adapter | The core must not depend on the Spotify, Last.fm or OpenAI wire formats. | `MusicService` / `SpotifyAdapter` (HTTP, PKCE through `OAuthTokenStore`); `GenreService` and `TagService` / `LastFmAdapter`; `LLMProvider` / `OpenAiProvider` | Yes. The Last.fm adapter is new: genres for every feature (R18, MusicBrainz until Nov 5) and tags for Find Songs, Create, Discover and Modify. `TagTrackMatcher` and `SongTagReader` support it. |
 | Strategy | F4 and F5 need different mixes of familiar and new music, chosen at run time. | `RecommendationStrategy`, `AbstractRecommendationStrategy`, `FamiliarStrategy`, `DiscoveryStrategy`, `BalancedStrategy`; context `RecommendationEngine.setStrategy`; chosen by `StrategySelector` | Yes. `bindProfile` added (R7). |
 | Command | F6 and F12 need reversible, composable playlist changes. | `PlaylistCommand` (`execute`, `undo`), `CreatePlaylistCommand`, `AddItemsCommand`, `RemoveTrackCommand`, `ReplaceTrackCommand`, `ReorderCommand`, plus `BatchCommand`, `RestoreSnapshotCommand`, `DeletePlaylistCommand`; invoker `PlaylistManager` with its `history` Deque | Yes. Three commands added; undo also works from snapshots across runs (R10). |
 | State | A create run moves through ordered phases with a different action and failure handling in each. | `SessionState` (`handle`, `name`), `IdleState`, `PlanningState`, `RetrievingState`, `SelectingState`, `ValidatingState`, `ExecutingState`, `DoneState`, `FailedState`; context `AgentSession` (`setState`, `getState`, `run`) | Yes. Shared run data lives in `RunContext` and `RunServices`. |
@@ -451,10 +451,10 @@ in Stage 1. Repository and Decorator are used as well and are not counted.
 | # | Difference | Reason | Where |
 |---|---|---|---|
 | 1 | R1 to R17 additive members (see section 2 of the plan) | Stage 1 left types or behaviour unspecified | `STAGE2_PLAN.md` section 2 |
-| 2 | R18: genres from MusicBrainz | Spotify returns no genres to this app | section 2 |
+| 2 | R18: genres from Last.fm (MusicBrainz until Nov 5) | Spotify returns no genres to this app | section 2 |
 | 3 | R19: genre sent as a plain keyword | `genre:` filter returned 0 to 1 tracks in live tests | section 2 |
 | 4 | R20: supporting classes (section 6 below) | Keep Stage 1 classes focused | this file |
-| 5 | LLM may remove retrieved tracks; it sees ids and MusicBrainz genres only, no titles or names | Unsuitable workout songs in live testing; no audio features; Spotify policy | `STAGE2_PLAN.md` section 4 |
+| 5 | LLM may remove retrieved tracks; it sees ids and Last.fm genres only, no titles or names | Unsuitable workout songs in live testing; no audio features; Spotify policy | `STAGE2_PLAN.md` section 4 |
 | 6 | F4 never calls the LLM | Stage 1 made it optional; computed reasons are enough | `STAGE2_PLAN.md` section 3 |
 | 7 | Stored candidates, optional per run | Candidates forced into a workout playlist | `STAGE2_PLAN.md` section 4 |
 | 8 | Blocks in force now judge every playlist | A block stands for the user's current wishes | section 6 of the plan |
@@ -464,7 +464,7 @@ in Stage 1. Repository and Decorator are used as well and are not counted.
 | 12 | Gradle 9.1, JavaFX 21.0.13, run scripts (R15) | Portability and a macOS 26 crash | section 1 of the plan |
 | 13 | GUI redesign: dark theme, left-hand menu, plain names (Your Taste, Find Songs, Your Rules), shared song row, confirm dialog, Delete in the GUI | The owner's test of Nov 2 found the GUI hard to understand | section 7 of the plan |
 | 14 | F1 Past week range from recent plays; left out of Trends | Asked for twice; Spotify has no weekly top items | section 3 of the plan |
-| 15 | F5: familiar songs must fit the goal (leading genres, the song's own Last.fm tags); Last.fm tag songs matched to Spotify (optional key) | Live Create runs gave songs that did not fit | section 4 of the plan |
+| 15 | F5: familiar songs must fit the goal (leading genres, the song's own Last.fm tags); Last.fm tag songs matched to Spotify (key optional but recommended; without it MusicMind shows no genres or tags and the tag features are off) | Live Create runs gave songs that did not fit | section 4 of the plan |
 | 13 | Settings and wording in `musicmind.properties` | Stage 2 rejects hard-coded demonstration content | section 1 of the plan |
 | 14 | Search ranks typed words first; weights 0.9 / 0.1 | Live results put stock-music titles first | sections 3 and 6 of the plan |
 
@@ -478,8 +478,8 @@ Each is small and exists so that a Stage 1 class keeps one job. Full entries are
 
 - **Agent:** `CandidatePool` (familiar and novel tracks for the feasibility check), `Retrieval`
   (one Spotify read shared by every re-selection), `CandidateRetriever` (reads pools from Spotify),
-  `GoalFitReviewer` (the removal-only review), `TrackGenres` (the genres MusicMind already knows for a
-  track, so the review needs no title) and `ArtistGenreCache` (read-only view of cached MusicBrainz genres), `MoodGenreMap` (curated mood to genre data),
+  `GoalFitReviewer` (the removal-only review), `TagTrackMatcher` (Last.fm song to Spotify track), `SongTagReader` (tags for Modify's prompt), `TrackGenres` (the genres MusicMind already knows for a
+  track, so the review needs no title) and `ArtistGenreCache` (read-only view of cached Last.fm tags), `MoodGenreMap` (curated mood to genre data),
   `SearchRanker`, `TrendComparator`, `PreferenceSettings` (preferences as F4 and F5 use them),
   `PlaylistEditor` (edit instruction to commands), `PlaylistContext`, `CommandSpec` (an edit
   before it is bound to real tracks), `NegotiationHandler` (the F11 choice), and the exceptions
@@ -493,7 +493,7 @@ Each is small and exists so that a Stage 1 class keeps one job. Full entries are
 - **Controller:** `PlaylistTargets` (a playlist's target length over time).
 - **Domain values:** `TopItems`, `TrendReport`, `RangeChange`, `SearchQuery`, `FeasibilityReport`,
   `Relaxation`, `DecisionTrace`, `PlaylistSummary`, `SnapshotInfo`.
-- **Music:** `GenreEnrichingMusicService`, `GenreService`, `MusicBrainzAdapter`, `TagService`,
+- **Music:** `GenreEnrichingMusicService`, `GenreService`, `TagService`,
   `LastFmAdapter`, `TrackList` (a
   list that knows it was cut short), `MusicServiceException`, `AuthExpiredException`,
   `RateLimitException`.
@@ -512,11 +512,11 @@ Each is small and exists so that a Stage 1 class keeps one job. Full entries are
 - F11 against a real conflict, `delete`, recreate from a deleted playlist, and the GUI's Undo,
   Restore (confirming), like / not-for-me, Save and candidate buttons pressed by a person; the
   Delete button; the Past week range on the real account.
-- Searches by description, and genre data for artists MusicBrainz does not know.
+- Searches by description, and genre data for artists Last.fm does not know.
 - The updated UML diagrams are in `docs/diagrams/` (`.uxf` sources, PNGs in `docs/diagrams/png/`, the Stage 1 PNGs in `docs/diagrams/png/stage1/`; the README there lists what changed). The Stage 2 report is `docs/report/stage2-report.pdf` (source `stage2-report.html`).
 - The GUI items in `docs/GUI_TEST_FINDINGS.md` are done except the goal review on Find Songs
   results (searches by description). Screenshots of the redesign will be retaken after the owner's
-  test; the UML in `docs/diagrams/` does not show `TagService`, `LastFmAdapter`, `TrackTagFit`,
+  test; the UML in `docs/diagrams/` shows the Last.fm classes but does not show `TrackTagFit`,
   `TrackRow` or `ConfirmDialog`.
 - **Open policy question (F6 edit prompt).** The edit prompt sends the model each track's id, explicit
   flag and length in minutes (Spotify metadata, not titles or names), because Stage 1 F6 needs

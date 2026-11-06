@@ -13,7 +13,7 @@ Spotify Web API. EECS3311 Software Design course project (individual). Stage 1
 - **Java 17**, **JavaFX** (GUI), a **CLI**, **PostgreSQL** (JDBC) for persistence, and one
   **LLM** (`OpenAiProvider`) behind the `LLMProvider` interface. Build tool: **Gradle 9.1** (wrapper committed).
 - `./gradlew` runs on JDK 17–25; a Java 17 toolchain is downloaded automatically if missing.
-- Spotify returns no artist genres to this app, so genres come from MusicBrainz through
+- Spotify returns no artist genres to this app, so genres come from Last.fm tags through
   `GenreEnrichingMusicService` (R18 in `docs/STAGE2_IMPLEMENTATION_PLAN.md`).
 
 ## Commands
@@ -30,7 +30,7 @@ Tests need no keys: Spotify is a local `HttpServer`, PostgreSQL is an embedded b
 ## Package map (`src/main/java/com/musicmind/`)
 - `domain/` — entities (Track, Playlist, PlaylistSpec, ListeningProfile, AgentSession, …)
 - `music/` — `MusicService`, `SpotifyAdapter`, `OAuthTokenStore`, `RetryingMusicService`,
-  `GenreEnrichingMusicService`, `MusicBrainzAdapter`
+  `GenreEnrichingMusicService`, `LastFmAdapter`
 - `llm/` — `LLMProvider`, `OpenAiProvider` (`MockLLMProvider` is test-only)
 - `agent/` — planning, recommendation, parsing and validation classes
 - `agent/strategy/`, `agent/command/`, `agent/state/` — Strategy, Command and State patterns
@@ -66,7 +66,7 @@ The LLM never names or adds a track. Since Nov 2 it may return ids of already re
 remove (`GoalFitReviewer`); selection stays deterministic. Keep this true and recorded
 (`docs/STAGE2_PLAN.md` section 4).
 No prompt may contain Spotify titles, artist names or album names (Spotify Developer Policy,
-section III item 14). Prompts carry ids, counts, the user's own words and MusicBrainz genres; a
+section III item 14). Prompts carry ids, counts, the user's own words and Last.fm genres; a
 guard test over `PromptBuilder` enforces it.
 
 ## Current status

@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CandidateRetrieverTest {
@@ -271,5 +272,87 @@ class CandidateRetrieverTest {
 
         assertEquals(1, calls[0]);
         assertEquals(1, retriever.errors().size());
+    }
+
+    // ---- Last.fm similar artists ----
+
+    private static Track by(String id, String artistId, String artistName) {
+        return new Track(id, "spotify:track:" + id, "Song " + id, 1000, false, List.of(artistId), List.of(artistName));
+    }
+
+    @Test
+    void bySimilar_keepsOnlyExactNewArtists_andCapsSearches() {
+        TagMusic music = new TagMusic();
+        // Every similar name s<seed><n>; the Spotify answer is a track by exactly that artist, except two.
+        TagService lastFm = new TagService() {
+            @Override public List<TagTrack> topTracks(String tag, int limit) { return List.of(); }
+            @Override public List<String> similarArtists(String artist, int limit) {
+                assertEquals(5, limit);
+                return List.of(artist + "1", artist + "2", artist + "3", artist + "4", artist + "5");
+            }
+        };
+        for (String seed : List.of("A", "B", "C", "D")) {
+            for (int n = 1; n <= 5; n++) {
+                String name = seed + n;
+                music.answers.put("artist:\"" + name + "\"", List.of(by("t" + name, "id" + name, name)));
+            }
+        }
+        music.answers.put("artist:\"A2\"", List.of(by("tWrong", "idW", "Someone Else")));
+        music.answers.put("artist:\"A3\"", List.of(by("tKnown", "known1", "A3")));
+
+        List<Track> found = new CandidateRetriever(tools(music), config, lastFm)
+                .bySimilar(List.of("A", "B", "C", "D"), Set.of("known1"), 10);
+
+        assertEquals(10, music.searches.size(), music.searches.toString());
+        assertTrue(music.limits.stream().allMatch(l -> l == 3), music.limits.toString());
+        assertTrue(music.searches.stream().noneMatch(q -> q.contains("D")), "only the first 3 seeds are used");
+        assertEquals(List.of("tA1", "tA4", "tA5", "tB1", "tB2", "tB3", "tB4", "tB5"),
+                found.stream().map(Track::id).toList()); // A2 wrong artist and A3 known artist dropped; C never searched
+    }
+
+    @Test
+    void bySimilar_stopsAtTheFirstRateLimit_andSkipsTheTopArtistsThemselves() {
+        TagMusic music = new TagMusic() {
+            @Override public List<Track> search(String query, int limit) {
+                searches.add(query);
+                throw new com.musicmind.music.RateLimitException("slow down", 5);
+            }
+        };
+        TagService lastFm = new TagService() {
+            @Override public List<TagTrack> topTracks(String tag, int limit) { return List.of(); }
+            @Override public List<String> similarArtists(String artist, int limit) { return List.of("Mine", "New1", "New2"); }
+        };
+        CandidateRetriever retriever = new CandidateRetriever(tools(music), config, lastFm);
+
+        List<Track> found = retriever.bySimilar(List.of("Mine", "Other"), Set.of(), 10);
+
+        assertTrue(found.isEmpty());
+        assertEquals(List.of("artist:\"New1\""), music.searches, "a top artist is never searched; the rate limit ends the run");
+        assertFalse(retriever.errors().isEmpty());
+    }
+
+    @Test
+    void bySimilar_failedSearchIsNotCached_butAGoodOneIs() {
+        int[] calls = {0};
+        TagMusic music = new TagMusic() {
+            @Override public List<Track> search(String query, int limit) {
+                searches.add(query);
+                if (query.contains("Bad") && calls[0]++ == 0) {
+                    throw new MusicServiceException("boom");
+                }
+                return query.contains("Bad") ? List.of(by("tBad", "idBad", "Bad")) : List.of(by("tGood", "idGood", "Good"));
+            }
+        };
+        TagService lastFm = new TagService() {
+            @Override public List<TagTrack> topTracks(String tag, int limit) { return List.of(); }
+            @Override public List<String> similarArtists(String artist, int limit) { return List.of("Bad", "Good"); }
+        };
+        Map<String, List<String>> lists = new java.util.LinkedHashMap<>();
+        Map<String, List<Track>> hits = new java.util.LinkedHashMap<>();
+        for (int run = 0; run < 2; run++) {
+            new CandidateRetriever(tools(music), config, lastFm, new java.util.LinkedHashMap<>(), lists, hits)
+                    .bySimilar(List.of("Seed"), Set.of(), 10);
+        }
+        assertEquals(List.of("artist:\"Bad\"", "artist:\"Good\"", "artist:\"Bad\""), music.searches);
     }
 }

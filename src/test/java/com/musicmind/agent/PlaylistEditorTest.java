@@ -55,6 +55,16 @@ class PlaylistEditorTest {
     }
 
     @Test
+    void theTagsGivenToPlanReachThePrompt() {
+        editor(p -> "{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"}]}").plan(
+                playlist(track("a", "x"), track("b", "y")), "drop the sad one", Map.of(),
+                Map.of("a", new com.musicmind.domain.SongTags(List.of("sad"), com.musicmind.domain.SongTags.Kind.SONG)));
+
+        assertTrue(prompts.get(0).contains("1: a, clean, 3.0 min, song tags: sad"), prompts.get(0));
+        assertTrue(prompts.get(0).contains("2: b, clean, 3.0 min, no tags"), prompts.get(0));
+    }
+
+    @Test
     void withoutAnLlmEditingSaysSoInsteadOfGuessing() {
         IllegalStateException e = assertThrows(IllegalStateException.class,
                 () -> editor(null).plan(playlist(track("a", "x")), "drop it", Map.of()));
@@ -137,5 +147,16 @@ class PlaylistEditorTest {
         assertFalse(plan.approximate());
         List<PlaylistCommand> commands = plan.commands();
         assertEquals(1, commands.size());
+    }
+
+    @Test
+    void aMoodEditKeepsATrackWhoseArtistGenreIsAnotherSpellingOfAMoodGenre() {
+        music.searchResults.put("r&b", List.of(track("n1", "z")));
+        music.searchResults.put("soul", List.of(track("n2", "z")));
+        PlaylistEditor.EditPlan plan = editor(p -> "{\"commands\":[],\"mood\":\"romantic\"}").plan(
+                playlist(track("a", "rockArtist"), track("b", "rnbArtist")), "make it romantic",
+                Map.of("rockArtist", List.of("rock"), "rnbArtist", List.of("rnb")));
+        assertEquals(1, plan.commands().size(), "the rnb track fits r&b, only the rock track is replaced");
+        assertInstanceOf(ReplaceTrackCommand.class, plan.commands().get(0));
     }
 }

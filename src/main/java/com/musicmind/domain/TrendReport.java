@@ -38,7 +38,7 @@ public record TrendReport(Map<String, List<Artist>> artistsByRange,
         return artistsByRange.getOrDefault(range, List.of()).size();
     }
 
-    /** How many of the range's artists have genre data (MusicBrainz lists many artists without any). */
+    /** How many of the range's artists have genre data (Last.fm lists many artists without any). */
     public int artistsWithGenres(String range) {
         return (int) artistsByRange.getOrDefault(range, List.of()).stream().filter(a -> !a.genres().isEmpty()).count();
     }

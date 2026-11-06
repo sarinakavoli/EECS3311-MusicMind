@@ -5,16 +5,20 @@ import com.musicmind.domain.Album;
 import com.musicmind.domain.SearchQuery;
 import com.musicmind.domain.TagTrack;
 import com.musicmind.domain.Track;
+import com.musicmind.music.AuthExpiredException;
 import com.musicmind.music.MusicServiceException;
+import com.musicmind.music.RateLimitException;
 import com.musicmind.music.TagService;
 import com.musicmind.tool.ToolManager;
 import com.musicmind.tool.ToolResult;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Reads the candidate pools for F4 through the {@link ToolManager}: the user's own tracks (top,
@@ -29,11 +33,14 @@ class CandidateRetriever {
     private final TagService tagService;
     // Session cache of Last.fm song -> Spotify track (empty = confirmed no match); a failed search is never put in.
     private final Map<String, Optional<Track>> matchCache;
+    // Session caches for Discover: Last.fm's similar list per seed, and Spotify's answer per similar artist; a failure is never put in.
+    private final Map<String, List<String>> similarCache;
+    private final Map<String, List<Track>> similarTracksCache;
     private final List<String> errors = new ArrayList<>();
     private int successes;
     // Spotify lookups made for Last.fm songs in this run, against lastfm.maxTracks.
     private int tagLookups;
-    // Set by the first failed Last.fm call: no further tag is tried this run, so a down Last.fm costs one timeout.
+    // Set by the first failed Last.fm call or a stopped Spotify match: no further tag is tried this run.
     private boolean tagServiceFailed;
 
     CandidateRetriever(ToolManager tools, Config config) {
@@ -45,6 +52,13 @@ class CandidateRetriever {
     }
 
     CandidateRetriever(ToolManager tools, Config config, TagService tagService, Map<String, Optional<Track>> matchCache) {
+        this(tools, config, tagService, matchCache, new LinkedHashMap<>(), new LinkedHashMap<>());
+    }
+
+    CandidateRetriever(ToolManager tools, Config config, TagService tagService, Map<String, Optional<Track>> matchCache,
+                       Map<String, List<String>> similarCache, Map<String, List<Track>> similarTracksCache) {
+        this.similarCache = similarCache;
+        this.similarTracksCache = similarTracksCache;
         this.matchCache = matchCache;
         this.tools = tools;
         this.config = config;
@@ -88,7 +102,6 @@ class CandidateRetriever {
      * {@code lastfm.maxTracks} budget instead of the first one taking it all.
      */
     List<Track> byTag(String tag, int share) {
-        Map<String, Track> byId = new LinkedHashMap<>();
         int room = Math.min(share, config.lastfmMaxTracks() - tagLookups);
         if (room <= 0 || tagServiceFailed) {
             return List.of();
@@ -101,50 +114,94 @@ class CandidateRetriever {
             errors.add(e.getMessage());
             return List.of();
         }
-        int used = 0;
-        for (TagTrack wanted : listed) {
-            if (used >= room || tagLookups >= config.lastfmMaxTracks()) {
-                break;
+        int asked = Math.min(room, listed.size());
+        tagLookups += asked;
+        TagTrackMatcher.Match match = new TagTrackMatcher(tools, matchCache).match(listed, asked);
+        errors.addAll(match.errors());
+        successes += match.searched();
+        if (match.stopped()) {
+            tagServiceFailed = true; // a rate limit or expired login: no further tag is looked up this run
+        }
+        return match.tracks();
+    }
+
+    /**
+     * Songs by artists Last.fm lists as similar to the user's top artists (Discover only). For each of the first
+     * {@code lastfm.discoverSeedArtists} names, {@code lastfm.similarPerArtist} similar artists are read; each
+     * similar artist that is not one of the user's own gets one Spotify search {@code artist:"name"} for
+     * {@code lastfm.similarTracksPerArtist} tracks. A track is kept only when one of its artists has exactly
+     * that name (normalised) and none of its artists is in {@code knownArtistIds}. At most {@code maxSearches}
+     * searches are made; the first rate limit or expired login ends the run, and a failed Last.fm call stops
+     * asking Last.fm. Failures are recorded in {@link #errors()}.
+     */
+    List<Track> bySimilar(List<String> topArtistNames, Set<String> knownArtistIds, int maxSearches) {
+        return bySimilar(topArtistNames, topArtistNames, knownArtistIds, maxSearches);
+    }
+
+    /**
+     * As above, but {@code seedNames} (the top artists to ask Last.fm about, e.g. without blocked ones) can be fewer
+     * than {@code ownNames} (every top artist, none of whom is searched).
+     */
+    List<Track> bySimilar(List<String> seedNames, List<String> ownNames, Set<String> knownArtistIds, int maxSearches) {
+        List<String> topArtistNames = seedNames;
+        Set<String> own = new HashSet<>();
+        ownNames.forEach(n -> own.add(SearchRanker.normalise(n)));
+        Map<String, Track> byId = new LinkedHashMap<>();
+        Set<String> tried = new HashSet<>();
+        int searches = 0;
+        for (String seed : topArtistNames.stream().limit(config.lastfmDiscoverSeedArtists()).toList()) {
+            List<String> similar = similarCache.get(SearchRanker.normalise(seed));
+            if (similar == null) {
+                try {
+                    similar = tagService.similarArtists(seed, config.lastfmSimilarPerArtist());
+                } catch (MusicServiceException e) {
+                    errors.add(e.getMessage());
+                    break;
+                }
+                similarCache.put(SearchRanker.normalise(seed), similar);
             }
-            used++;
-            tagLookups++;
-            Optional<Track> match = lookup(wanted);
-            match.ifPresent(hit -> byId.putIfAbsent(hit.id(), hit));
+            for (String name : similar) {
+                String wanted = SearchRanker.normalise(name);
+                if (searches >= maxSearches) {
+                    return new ArrayList<>(byId.values());
+                }
+                if (wanted.isEmpty() || own.contains(wanted) || !tried.add(wanted)) {
+                    continue;
+                }
+                searches++;
+                List<Track> hits = similarTracksCache.get(wanted);
+                if (hits == null) {
+                    ToolResult result;
+                    try {
+                        result = tools.execute("search", Map.of("query", "artist:\"" + name.replace("\"", " ") + "\"",
+                                "limit", config.lastfmSimilarTracksPerArtist()));
+                    } catch (AuthExpiredException e) {
+                        errors.add(e.getMessage());
+                        return new ArrayList<>(byId.values());
+                    }
+                    if (!result.ok()) {
+                        errors.add(result.error());
+                        if (result.cause() instanceof RateLimitException || result.cause() instanceof AuthExpiredException) {
+                            return new ArrayList<>(byId.values());
+                        }
+                        continue;
+                    }
+                    @SuppressWarnings("unchecked")
+                    List<Track> answer = (List<Track>) result.payload();
+                    hits = List.copyOf(answer);
+                    similarTracksCache.put(wanted, hits);
+                }
+                successes++;
+                for (Track hit : hits) {
+                    boolean exact = hit.artistNames().stream().anyMatch(n -> SearchRanker.normalise(n).equals(wanted));
+                    boolean known = hit.artistIds().stream().anyMatch(knownArtistIds::contains);
+                    if (exact && !known) {
+                        byId.putIfAbsent(hit.id(), hit);
+                    }
+                }
+            }
         }
         return new ArrayList<>(byId.values());
-    }
-
-    /** The Spotify track for a Last.fm song: from the session cache, else one search; a failed search is not cached. */
-    private Optional<Track> lookup(TagTrack wanted) {
-        String key = SearchRanker.normalise(wanted.title()) + "|" + SearchRanker.normalise(wanted.artist());
-        Optional<Track> cached = matchCache.get(key);
-        if (cached != null) {
-            return cached;
-        }
-        String query = "track:\"" + wanted.title().replace("\"", " ") + "\" artist:\""
-                + wanted.artist().replace("\"", " ") + "\"";
-        ToolResult result = tools.execute("search", Map.of("query", query, "limit", 1));
-        if (!result.ok()) {
-            errors.add(result.error());
-            return Optional.empty();
-        }
-        successes++;
-        @SuppressWarnings("unchecked")
-        List<Track> hits = (List<Track>) result.payload();
-        Optional<Track> match = hits.stream().filter(hit -> matches(wanted, hit)).findFirst();
-        matchCache.put(key, match);
-        return match;
-    }
-
-    private static boolean matches(TagTrack wanted, Track hit) {
-        String title = SearchRanker.normalise(wanted.title());
-        String artist = SearchRanker.normalise(wanted.artist());
-        if (title.isEmpty() || artist.isEmpty() || hit.title() == null) {
-            return false;
-        }
-        boolean titleOk = SearchRanker.normalise(hit.title()).equals(title)
-                || SearchRanker.normalise(hit.title().replaceAll("\\([^)]*\\)|\\[[^]]*]| - .*$", "")).equals(title);
-        return titleOk && hit.artistNames().stream().anyMatch(n -> SearchRanker.normalise(n).equals(artist));
     }
 
     /** One search, {@code discover.searchLimit} tracks, de-duplicated by id. */

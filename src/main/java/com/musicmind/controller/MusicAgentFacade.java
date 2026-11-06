@@ -11,6 +11,7 @@ import com.musicmind.agent.ClarificationNeededException;
 import com.musicmind.agent.ConstraintChecker;
 import com.musicmind.agent.ExplanationService;
 import com.musicmind.agent.MoodGenreMap;
+import com.musicmind.domain.GenreNames;
 import com.musicmind.agent.GoalFitReviewer;
 import com.musicmind.agent.InfeasibleRequestException;
 import com.musicmind.agent.NegotiationCancelledException;
@@ -22,9 +23,11 @@ import com.musicmind.agent.PlaylistValidator;
 import com.musicmind.agent.PreferenceSettings;
 import com.musicmind.agent.ProfileBuilder;
 import com.musicmind.agent.PromptBuilder;
+import com.musicmind.agent.SongTagReader;
 import com.musicmind.agent.RecommendationEngine;
 import com.musicmind.agent.ResponseParser;
 import com.musicmind.agent.SearchRanker;
+import com.musicmind.agent.TagTrackMatcher;
 import com.musicmind.agent.TrendComparator;
 import com.musicmind.agent.command.CreatePlaylistCommand;
 import com.musicmind.agent.command.PlaylistChangeException;
@@ -53,6 +56,7 @@ import com.musicmind.domain.RequestKind;
 import com.musicmind.domain.SearchQuery;
 import com.musicmind.domain.TopItems;
 import com.musicmind.domain.SnapshotPreview;
+import com.musicmind.domain.SongTags;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.Album;
@@ -67,6 +71,7 @@ import com.musicmind.music.AuthExpiredException;
 import com.musicmind.music.MusicService;
 import com.musicmind.music.RateLimitException;
 import com.musicmind.music.MusicServiceException;
+import com.musicmind.music.TagService;
 import com.musicmind.music.TrackList;
 import com.musicmind.tool.ToolManager;
 import com.musicmind.tool.ToolResult;
@@ -138,6 +143,7 @@ public class MusicAgentFacade {
     private volatile NegotiationHandler negotiationHandler;
     private volatile Consumer<String> progressListener;
     private volatile AgentSession lastSession;
+    private final Map<String, List<String>> songTagCache;
     private volatile String lastSearchNotice;
     private volatile String lastSearchLabel;
     private volatile List<Artist> lastSearchArtists = List.of();
@@ -159,12 +165,19 @@ public class MusicAgentFacade {
      * may be null, in which case an expired token ends the run).
      */
     public record CreateSupport(MusicService music, PlaylistManager playlists, ExplanationService explainer,
-                                Runnable reauthenticator, ArtistGenreCache genreCache) {
+                                Runnable reauthenticator, ArtistGenreCache genreCache, TagService tagService) {
         public CreateSupport {
             genreCache = genreCache == null ? ArtistGenreCache.NONE : genreCache;
+            tagService = tagService == null ? TagService.NONE : tagService;
         }
 
-        /** Without the MusicBrainz genre cache: the goal review then knows only search and profile genres. */
+        /** Without Last.fm songs for a tag: Find Songs then uses Spotify only. */
+        public CreateSupport(MusicService music, PlaylistManager playlists, ExplanationService explainer,
+                             Runnable reauthenticator, ArtistGenreCache genreCache) {
+            this(music, playlists, explainer, reauthenticator, genreCache, null);
+        }
+
+        /** Without the Last.fm genre cache: the goal review then knows only search and profile genres. */
         public CreateSupport(MusicService music, PlaylistManager playlists, ExplanationService explainer,
                              Runnable reauthenticator) {
             this(music, playlists, explainer, reauthenticator, null);
@@ -175,6 +188,12 @@ public class MusicAgentFacade {
                             TrendComparator trendComparator, PromptBuilder prompts, LLMProvider llm,
                             Config config, Planner planner, ResponseParser parser, SearchRanker ranker,
                             RecommendationEngine engine, Supplier<String> currentUserId, CreateSupport create) {
+        int tagCacheSize = config.lastfmSongTagCacheSize();
+        this.songTagCache = java.util.Collections.synchronizedMap(new LinkedHashMap<>() {
+            @Override protected boolean removeEldestEntry(Map.Entry<String, List<String>> eldest) {
+                return size() > tagCacheSize;
+            }
+        });
         this.tools = tools;
         this.memory = memory;
         this.profileBuilder = profileBuilder;
@@ -429,14 +448,57 @@ public class MusicAgentFacade {
             ranked = runSearch(new SearchQuery(keywords, null, Map.of(), parsed.confidence()));
         }
         ranked = withTypedWords(query.strip(), parsed, ranked);
+        List<Artist> named = artistsNamedIn(query);
+        if (parsed.filters().isEmpty() && named.isEmpty()) {
+            ranked = withTagSongs(query.strip(), parsed, ranked);
+        }
         if (ranked.isEmpty()) {
             String hint = suggestRelaxedQuery(parsed)
                     .map(q -> String.format(config.searchRelaxedHintTemplate(), q))
                     .orElse(config.searchNoRelaxedHint());
-            lastSearchNotice = String.format(config.searchNoResultsTemplate(), query.strip()) + " " + hint;
+            String sentence = String.format(config.searchNoResultsTemplate(), query.strip()) + " " + hint;
+            lastSearchNotice = lastSearchNotice == null ? sentence : sentence + " " + lastSearchNotice;
         }
-        lastSearchArtists = artistsNamedIn(query);
+        lastSearchArtists = named;
         return ranked;
+    }
+
+    /**
+     * For a mood or genre search, the songs Last.fm lists under that tag (the parsed genre, else the first typed
+     * mood word) that Spotify has are put first, de-duplicated by id. Without a Last.fm key, with no mood or
+     * genre, with a filter or an artist named in the query (those would push real matches out), or when Last.fm
+     * fails, the results are as they were; a failure adds one sentence to the notice.
+     */
+    private List<Track> withTagSongs(String typed, SearchQuery parsed, List<Track> ranked) {
+        String tag = parsed.genre() != null && !parsed.genre().isBlank() ? parsed.genre().strip()
+                : Arrays.stream(typed.split("\\s+")).map(w -> w.replaceAll("[^\\p{L}\\p{N}]", ""))
+                        .filter(w -> !moods.genresFor(w).isEmpty()).findFirst().orElse(null);
+        if (tag == null) {
+            return ranked;
+        }
+        int max = config.lastfmFindSongsMaxMatches();
+        List<com.musicmind.domain.TagTrack> songs;
+        try {
+            songs = create.tagService().topTracks(GenreNames.canonical(tag), max);
+        } catch (MusicServiceException e) {
+            String sentence = config.wording("lastfmSearchFailed");
+            lastSearchNotice = lastSearchNotice == null ? sentence : lastSearchNotice + " " + sentence;
+            return ranked;
+        }
+        if (songs.isEmpty()) {
+            return ranked;
+        }
+        TagTrackMatcher.Match match = new TagTrackMatcher(tools, engine.matchCache()).match(songs, max);
+        if (match.stopped() || !match.errors().isEmpty()) {
+            String sentence = String.format(config.wording("discoverReadFailed"), Math.max(1, match.errors().size()));
+            lastSearchNotice = lastSearchNotice == null ? sentence : lastSearchNotice + " " + sentence;
+        }
+        List<Track> matched = match.tracks();
+        Map<String, Track> byId = new LinkedHashMap<>();
+        matched.forEach(t -> byId.putIfAbsent(t.id(), t));
+        ranked.forEach(t -> byId.putIfAbsent(t.id(), t));
+        List<Track> merged = new ArrayList<>(byId.values());
+        return merged.size() > config.searchResultLimit() ? merged.subList(0, config.searchResultLimit()) : merged;
     }
 
     /**
@@ -808,15 +870,16 @@ public class MusicAgentFacade {
         requireComplete(items);
         Playlist current = named(id, items);
         PlaylistSpec stored = specFor(userId, id).spec();
+        Map<String, SongTags> songTags = songTagsFor(current);
         PlaylistEditor.EditPlan plan;
         try {
             plan = editor.plan(new PlaylistContext(id, current.tracks(), create.music(), stored), instruction.strip(),
-                    knownArtistGenres(userId));
+                    knownArtistGenres(userId), songTags);
         } catch (MusicServiceException e) {
             throw playlistAccess(e);
         }
         List<String> notices = new ArrayList<>();
-        plan = replanWhileViolating(current, plan, instruction.strip(), stored, userId);
+        plan = replanWhileViolating(current, plan, instruction.strip(), stored, userId, songTags);
         plan = negotiateEdit(current, plan, notices, stored);
         int snapshotId;
         try {
@@ -846,6 +909,10 @@ public class MusicAgentFacade {
             updated = new Playlist(id, current.name(), afterCommands(current.tracks(), plan.commands()));
             notices.add(config.wording("modifyReadBackFailed"));
         }
+        long untagged = songTags.values().stream().filter(t -> t.kind() == SongTags.Kind.NONE).count();
+        if (untagged > 0) {
+            notices.add(String.format(config.wording("modifyUntaggedSongs"), untagged));
+        }
         addWarning(notices);
         lastModifyNotices = List.copyOf(notices);
         return updated;
@@ -858,6 +925,19 @@ public class MusicAgentFacade {
         } catch (PlaylistChangeException | MusicServiceException e) {
             return Optional.empty();
         }
+    }
+
+    /**
+     * Last.fm tags for the playlist's songs, only when a Last.fm key is configured; otherwise empty and the edit prompt
+     * is as before. Read once per edit (the replans reuse it); a playlist too long for the edit prompt is not read at
+     * all. Songs answered earlier in the session come from the in-memory {@link #songTagCache}; nothing is stored.
+     */
+    private Map<String, SongTags> songTagsFor(Playlist current) {
+        if (!config.lastfmConfigured() || current.tracks().size() > config.editMaxPromptTracks()) {
+            return Map.of();
+        }
+        return new SongTagReader(create.tagService(), create.genreCache(), config, System::nanoTime, songTagCache)
+                .read(current.tracks());
     }
 
     private static List<Track> afterCommands(List<Track> tracks, List<PlaylistCommand> commands) {
@@ -899,7 +979,8 @@ public class MusicAgentFacade {
      * goes to {@link #negotiateEdit}.
      */
     private PlaylistEditor.EditPlan replanWhileViolating(Playlist current, PlaylistEditor.EditPlan plan,
-                                                         String instruction, PlaylistSpec editSpec, String userId) {
+                                                         String instruction, PlaylistSpec editSpec, String userId,
+                                                         Map<String, SongTags> songTags) {
         ConstraintChecker checker = new ConstraintChecker(config);
         for (int attempt = 0; attempt < config.planMaxValidationRetries(); attempt++) {
             List<Track> after = afterCommands(current.tracks(), plan.commands());
@@ -911,7 +992,7 @@ public class MusicAgentFacade {
             PlaylistEditor.EditPlan next;
             try {
                 next = editor.plan(new PlaylistContext(current.spotifyId(), current.tracks(), create.music(), editSpec),
-                        instruction + "\n" + hint, knownArtistGenres(userId));
+                        instruction + "\n" + hint, knownArtistGenres(userId), songTags);
             } catch (MusicServiceException e) {
                 throw playlistAccess(e);
             } catch (LLMException | ClarificationNeededException e) {
@@ -1489,7 +1570,7 @@ public class MusicAgentFacade {
         derived.put("genreHistogram", p.genreHistogram());
         derived.put("artistIds", p.topArtists().stream().map(Artist::id).toList());
         derived.put("trackIds", p.topTracks().stream().map(Track::id).toList());
-        // Genres (from MusicBrainz) and track-artist links are derived data; they let a stored profile score like a fresh one.
+        // Genres (from Last.fm) and track-artist links are derived data; they let a stored profile score like a fresh one.
         Map<String, List<String>> artistGenres = new LinkedHashMap<>();
         p.topArtists().stream().filter(a -> !a.genres().isEmpty()).forEach(a -> artistGenres.put(a.id(), a.genres()));
         derived.put("artistGenres", artistGenres);

@@ -5,6 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.musicmind.config.Config;
+import com.musicmind.domain.Artist;
 import com.musicmind.domain.TagTrack;
 
 import java.io.IOException;
@@ -17,19 +18,33 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 /**
- * Adapter (GoF) from Last.fm's {@code tag.gettoptracks} and {@code track.gettoptags} to {@link TagService}. With no API key it
- * returns an empty list without calling. The key is only ever in the request URL; it is never
- * logged or put into an exception message.
+ * Adapter (GoF) from Last.fm's {@code tag.gettoptracks}, {@code track.gettoptags} and {@code artist.gettoptags} to
+ * {@link TagService} (song tags) and {@link GenreService} (artist tags, which the app shows as genres). With no API key
+ * it returns an empty answer without calling. The key is only ever in the request URL; it is never
+ * logged or put into an exception message. Junk tags are dropped by {@link TagFilter}. After too many failed
+ * Last.fm calls in a row (any method) it stops calling for a cooldown, so a run finishes quickly during an outage.
  */
-public class LastFmAdapter implements TagService {
+public class LastFmAdapter implements GenreService, TagService {
 
     private final Config config;
     private final HttpClient http;
     private final Gson gson = new Gson();
+    private final LongSupplier clock;
+    /** Failed Last.fm calls in a row, and when lookups may resume after too many; guarded by {@code this}. */
+    private int consecutiveFailures;
+    private long pausedUntilMillis;
 
     public LastFmAdapter(Config config) {
+        this(config, System::currentTimeMillis);
+    }
+
+    LastFmAdapter(Config config, LongSupplier clock) {
+        this.clock = clock;
         this.config = config;
         this.http = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(config.lastfmTimeoutSeconds())).build();
@@ -42,7 +57,7 @@ public class LastFmAdapter implements TagService {
         }
         String url = config.lastfmApiBaseUrl() + "?method=tag.gettoptracks&tag=" + encode(tag.strip())
                 + "&limit=" + limit + "&api_key=" + encode(config.lastfmApiKey()) + "&format=json";
-        return parse(fetch(url), limit);
+        return guarded(url, body -> parse(body, limit));
     }
 
     @Override
@@ -53,7 +68,139 @@ public class LastFmAdapter implements TagService {
         String url = config.lastfmApiBaseUrl() + "?method=track.gettoptags&artist=" + encode(artist.strip())
                 + "&track=" + encode(title.strip()) + "&autocorrect=1&api_key=" + encode(config.lastfmApiKey())
                 + "&format=json";
-        return parseTags(fetch(url));
+        return guarded(url, body -> parseTags(body, artist, config.lastfmTrackTagsKept()));
+    }
+
+    @Override
+    public List<String> similarArtists(String artistName, int limit) {
+        if (!config.lastfmConfigured() || artistName == null || artistName.isBlank() || limit <= 0) {
+            return List.of();
+        }
+        String url = config.lastfmApiBaseUrl() + "?method=artist.getsimilar&artist=" + encode(artistName.strip())
+                + "&autocorrect=1&limit=" + limit + "&api_key=" + encode(config.lastfmApiKey()) + "&format=json";
+        return guarded(url, body -> parseSimilar(body, limit));
+    }
+
+    /** Names in Last.fm's order, at most {@code limit}; "artist not found" (error 6) is an empty list. */
+    private List<String> parseSimilar(String body, int limit) {
+        try {
+            JsonElement parsed = gson.fromJson(body, JsonElement.class);
+            if (parsed == null || !parsed.isJsonObject()) {
+                throw new MusicServiceException("Last.fm reply could not be read.");
+            }
+            JsonObject root = parsed.getAsJsonObject();
+            if (root.has("error")) {
+                if (root.get("error").getAsInt() == 6) {
+                    return List.of();
+                }
+                String message = root.has("message") && root.get("message").isJsonPrimitive()
+                        ? config.truncateBody(root.get("message").getAsString()) : "";
+                throw new ReportedError(root.get("error").getAsInt(), "Last.fm reported an error ("
+                        + root.get("error").getAsString() + ") " + message);
+            }
+            JsonObject similar = root.has("similarartists") && root.get("similarartists").isJsonObject()
+                    ? root.getAsJsonObject("similarartists") : null;
+            JsonElement list = similar == null ? null : similar.get("artist");
+            if (list == null) {
+                return List.of();
+            }
+            JsonArray elements = list.isJsonArray() ? list.getAsJsonArray() : new JsonArray();
+            if (list.isJsonObject()) {
+                elements.add(list);
+            }
+            List<String> names = new ArrayList<>();
+            for (JsonElement e : elements) {
+                try {
+                    String name = e.getAsJsonObject().get("name").getAsString().strip();
+                    if (!name.isEmpty()) {
+                        names.add(name);
+                    }
+                } catch (RuntimeException ignored) {
+                    // a malformed element is skipped, not fatal
+                }
+                if (names.size() >= limit) {
+                    break;
+                }
+            }
+            return names;
+        } catch (MusicServiceException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new MusicServiceException("Last.fm reply could not be read.");
+        }
+    }
+
+    /**
+     * The artist's top Last.fm tags, filtered. A present list (even empty, including "artist not found") is a real
+     * answer; an empty Optional means the lookup failed, was skipped during a cooldown, or no key is set.
+     */
+    @Override
+    public Optional<List<String>> lookup(Artist artist) {
+        String name = artist == null || artist.name() == null ? "" : artist.name().strip();
+        if (!config.lastfmConfigured()) {
+            return Optional.empty();
+        }
+        if (name.isEmpty()) {
+            return Optional.of(List.of());
+        }
+        String url = config.lastfmApiBaseUrl() + "?method=artist.gettoptags&artist=" + encode(name)
+                + "&autocorrect=1&api_key=" + encode(config.lastfmApiKey()) + "&format=json";
+        try {
+            return Optional.of(guarded(url, body -> parseTags(body, name, config.lastfmArtistTagsKept())));
+        } catch (MusicServiceException e) {
+            return Optional.empty(); // unknown, like a failure (or a cooldown): not cached
+        }
+    }
+
+    /**
+     * One guarded call for every method: during a cooldown nothing is requested; a failure counts toward the limit
+     * (a Last.fm "not found" report does not), a success resets the count.
+     */
+    private <T> T guarded(String url, Function<String, T> parser) {
+        if (paused()) {
+            throw new MusicServiceException("Last.fm is paused after repeated failures.");
+        }
+        try {
+            T result = parser.apply(fetch(url));
+            recordSuccess();
+            return result;
+        } catch (ReportedError e) {
+            if (e.code == 6) {
+                recordSuccess();
+            } else {
+                recordFailure();
+            }
+            throw e;
+        } catch (MusicServiceException e) {
+            recordFailure();
+            throw e;
+        }
+    }
+
+    /** Last.fm answered with its own error code (as opposed to a transport or format failure). */
+    private static final class ReportedError extends MusicServiceException {
+        private final int code;
+
+        ReportedError(int code, String message) {
+            super(message);
+            this.code = code;
+        }
+    }
+
+    private synchronized boolean paused() {
+        return clock.getAsLong() < pausedUntilMillis;
+    }
+
+    private synchronized void recordSuccess() {
+        consecutiveFailures = 0;
+    }
+
+    /** At the failure limit lookups pause for the cooldown; one failure after it ends starts the next pause. */
+    private synchronized void recordFailure() {
+        consecutiveFailures++;
+        if (consecutiveFailures >= config.lastfmMaxConsecutiveFailures()) {
+            pausedUntilMillis = clock.getAsLong() + config.lastfmCooldownSeconds() * 1000L;
+        }
     }
 
     /** One GET; any failure becomes a {@link MusicServiceException} that names neither the URL, the key nor the song. */
@@ -80,8 +227,8 @@ public class LastFmAdapter implements TagService {
         return response.body();
     }
 
-    /** Tag names in Last.fm's order, at most {@code lastfm.trackTagsKept}; "track not found" (error 6) is an empty list. */
-    private List<String> parseTags(String body) {
+    /** Filtered tag names in Last.fm's order, at most {@code keep}; "not found" (error 6) is an empty list. */
+    private List<String> parseTags(String body, String artistName, int keep) {
         try {
             JsonElement parsed = gson.fromJson(body, JsonElement.class);
             if (parsed == null || !parsed.isJsonObject()) {
@@ -94,8 +241,8 @@ public class LastFmAdapter implements TagService {
                 }
                 String message = root.has("message") && root.get("message").isJsonPrimitive()
                         ? config.truncateBody(root.get("message").getAsString()) : "";
-                throw new MusicServiceException("Last.fm reported an error (" + root.get("error").getAsString()
-                        + ") " + message);
+                throw new ReportedError(root.get("error").getAsInt(), "Last.fm reported an error ("
+                        + root.get("error").getAsString() + ") " + message);
             }
             JsonObject top = root.has("toptags") && root.get("toptags").isJsonObject()
                     ? root.getAsJsonObject("toptags") : null;
@@ -107,21 +254,7 @@ public class LastFmAdapter implements TagService {
             if (list.isJsonObject()) {
                 elements.add(list);
             }
-            List<String> out = new ArrayList<>();
-            for (JsonElement e : elements) {
-                try {
-                    String name = e.getAsJsonObject().get("name").getAsString().strip();
-                    if (!name.isEmpty()) {
-                        out.add(name);
-                    }
-                } catch (RuntimeException ignored) {
-                    // a malformed element is skipped
-                }
-                if (out.size() >= config.lastfmTrackTagsKept()) {
-                    break;
-                }
-            }
-            return out;
+            return TagFilter.clean(elements, artistName, keep, config);
         } catch (MusicServiceException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -139,8 +272,8 @@ public class LastFmAdapter implements TagService {
             if (root.has("error")) {
                 String message = root.has("message") && root.get("message").isJsonPrimitive()
                         ? config.truncateBody(root.get("message").getAsString()) : "";
-                throw new MusicServiceException("Last.fm reported an error (" + root.get("error").getAsString()
-                        + ") " + message);
+                throw new ReportedError(root.get("error").getAsInt(), "Last.fm reported an error ("
+                        + root.get("error").getAsString() + ") " + message);
             }
             JsonObject tracks = root.has("tracks") && root.get("tracks").isJsonObject()
                     ? root.getAsJsonObject("tracks") : null;

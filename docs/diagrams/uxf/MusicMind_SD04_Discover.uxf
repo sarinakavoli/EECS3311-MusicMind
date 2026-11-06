@@ -363,7 +363,7 @@ transparency=0</panel_attributes>
   <element>
     <id>Text</id>
     <coordinates><x>1453</x><y>671</y><w>323</w><h>22</h></coordinates>
-    <panel_attributes>Spotify reads (retry; MusicBrainz genres)
+    <panel_attributes>Spotify reads (retry; Last.fm tags and similar artists (TagService))
 bg=#FFFFFF
 transparency=0</panel_attributes>
     <additional_attributes/>

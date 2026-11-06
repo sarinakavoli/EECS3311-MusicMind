@@ -144,6 +144,125 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
         assertTrue(c.lastModifyNotices().isEmpty(), c.lastModifyNotices().toString());
     }
 
+    @Test
+    void removeSadSongs_usesTags() {
+        Music music = new Music();
+        music.playlists.put("p", new ArrayList<>(List.of(
+                new Track("a", "spotify:track:a", "Title a", 180_000, false, List.of("x"), List.of("Singer A")),
+                new Track("b", "spotify:track:b", "Title b", 180_000, false, List.of("x"), List.of("Singer B")),
+                new Track("c", "spotify:track:c", "Title c", 180_000, false, List.of("x"), List.of("Singer C")))));
+        List<String> prompts = new ArrayList<>();
+        LLMProvider llm = prompt -> {
+            if (prompt.startsWith("MUSICMIND_TASK: EDIT")) {
+                prompts.add(prompt);
+                return "{\"commands\":[{\"type\":\"remove\",\"track\":\"2\"}]}";
+            }
+            return "Both came from your own data.";
+        };
+        com.musicmind.music.TagService lastFm = new com.musicmind.music.TagService() {
+            @Override public List<com.musicmind.domain.TagTrack> topTracks(String tag, int limit) { return List.of(); }
+            @Override public List<String> trackTags(String artist, String title) {
+                return title.equals("Title b") ? List.of("sad", "mellow") : List.of("upbeat");
+            }
+        };
+        AppController c = new AppController(music, memory(db), llm, Config.of(Map.of("LASTFM_API_KEY", "test-key")),
+                null, () -> false, com.musicmind.agent.ArtistGenreCache.NONE, lastFm);
+        c.login();
+
+        Playlist updated = c.modifyPlaylist("p", "remove the sad songs");
+
+        assertTrue(prompts.get(0).contains("2: b, clean, 3.0 min, song tags: sad, mellow"), prompts.get(0));
+        assertFalse(prompts.get(0).contains("Singer") || prompts.get(0).contains("Title"), prompts.get(0));
+        assertEquals(List.of("a", "c"), updated.tracks().stream().map(Track::id).toList());
+    }
+
+    private Music taggedPlaylist() {
+        Music music = new Music();
+        music.playlists.put("p", new ArrayList<>(List.of(
+                new Track("a", "spotify:track:a", "Title a", 180_000, false, List.of("x"), List.of("Singer A")),
+                new Track("b", "spotify:track:b", "Title b", 180_000, false, List.of("x"), List.of("Singer B")),
+                new Track("c", "spotify:track:c", "Title c", 180_000, false, List.of("x"), List.of("Singer C")))));
+        return music;
+    }
+
+    private static com.musicmind.music.TagService counting(List<String> asked, java.util.function.Function<String, List<String>> tags) {
+        return new com.musicmind.music.TagService() {
+            @Override public List<com.musicmind.domain.TagTrack> topTracks(String tag, int limit) { return List.of(); }
+            @Override public List<String> trackTags(String artist, String title) {
+                asked.add(title);
+                return tags.apply(title);
+            }
+        };
+    }
+
+    private AppController withLastFm(Music music, com.musicmind.music.TagService lastFm, Map<String, String> tunables) {
+        AppController c = new AppController(music, memory(db), editReply("{\"commands\":[{\"type\":\"remove\",\"track\":\"2\"}]}"),
+                Config.of(Map.of("LASTFM_API_KEY", "test-key")).withTunables(tunables),
+                null, () -> false, com.musicmind.agent.ArtistGenreCache.NONE, lastFm);
+        c.login();
+        return c;
+    }
+
+    @Test
+    void secondEditOfTheSamePlaylistAsksLastFmNothing() {
+        List<String> asked = new ArrayList<>();
+        AppController c = withLastFm(taggedPlaylist(), counting(asked, t -> List.of("sad")), Map.of());
+
+        c.modifyPlaylist("p", "remove the second");
+        int afterFirst = asked.size();
+        c.modifyPlaylist("p", "remove the second");
+
+        assertEquals(3, afterFirst);
+        assertEquals(afterFirst, asked.size(), "the songs' tags are remembered for the session");
+    }
+
+    @Test
+    void songsWithoutTagsAreCountedInANotice() {
+        List<String> asked = new ArrayList<>();
+        AppController c = withLastFm(taggedPlaylist(), counting(asked, t -> t.equals("Title a") ? List.of("sad") : List.of()), Map.of());
+
+        c.modifyPlaylist("p", "remove the second");
+
+        assertTrue(c.lastModifyNotices().contains(String.format(config.wording("modifyUntaggedSongs"), 2)),
+                c.lastModifyNotices().toString());
+    }
+
+    @Test
+    void allSongsTagged_noUntaggedNotice() {
+        AppController c = withLastFm(taggedPlaylist(), counting(new ArrayList<>(), t -> List.of("sad")), Map.of());
+
+        c.modifyPlaylist("p", "remove the second");
+
+        assertTrue(c.lastModifyNotices().stream().noneMatch(n -> n.contains("no Last.fm tags")), c.lastModifyNotices().toString());
+    }
+
+    @Test
+    void aPlaylistTooLongForTheEditPromptMakesNoLastFmCalls() {
+        List<String> asked = new ArrayList<>();
+        AppController c = withLastFm(taggedPlaylist(), counting(asked, t -> List.of("sad")), Map.of("edit.maxPromptTracks", "2"));
+
+        assertThrows(IllegalArgumentException.class, () -> c.modifyPlaylist("p", "remove the second"));
+
+        assertTrue(asked.isEmpty(), asked.toString());
+    }
+
+    @Test
+    void modifyWithoutLastfmKey_promptHasNoTags() {
+        Music music = new Music();
+        put(music, "p", t("a", false, "x"), t("b", false, "x"));
+        List<String> prompts = new ArrayList<>();
+        LLMProvider llm = prompt -> {
+            if (prompt.startsWith("MUSICMIND_TASK: EDIT")) {
+                prompts.add(prompt);
+                return "{\"commands\":[{\"type\":\"remove\",\"track\":\"2\"}]}";
+            }
+            return "ok";
+        };
+        controller(music, llm).modifyPlaylist("p", "remove the second");
+
+        assertFalse(prompts.get(0).contains("tags"), prompts.get(0));
+    }
+
     // ---- F11 during modify ----
 
     private static final String REMOVE_ALL_THREE = "{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"},"

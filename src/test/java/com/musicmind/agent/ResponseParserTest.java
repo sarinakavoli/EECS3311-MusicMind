@@ -248,4 +248,19 @@ class ResponseParserTest {
         assertThrows(ParseException.class,
                 () -> parser.verifyExplanation("[t1] is \"Blue in Green\", a classic.", GENRE_TRACE));
     }
+
+    @Test
+    void genreGuardCatchesEverySpellingOfAGenreNotInTheTrace() {
+        assertThrows(ParseException.class, () -> parser.verifyExplanation("Soulful [t1] r&b picks.", GENRE_TRACE));
+        assertThrows(ParseException.class, () -> parser.verifyExplanation("Soulful [t1] rnb picks.", GENRE_TRACE));
+        assertThrows(ParseException.class, () -> parser.verifyExplanation("Some [t1] hip-hop picks.", GENRE_TRACE));
+    }
+
+    @Test
+    void genreGuardAcceptsAnotherSpellingOfAGenreThatIsInTheTrace() {
+        DecisionTrace trace = new DecisionTrace("DiscoveryStrategy", Map.of("t1", "found by searching your \"rnb\" genre"),
+                List.of("no duplicate tracks"));
+        String text = "[t1] came from your R&B genre.";
+        assertEquals(text, parser.verifyExplanation(text, trace));
+    }
 }

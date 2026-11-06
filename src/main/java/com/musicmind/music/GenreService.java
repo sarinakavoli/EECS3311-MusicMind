@@ -8,7 +8,7 @@ import java.util.Optional;
 /**
  * Adapter target for artist genre metadata, independent of any provider.
  * Spotify returns no genres to this app, so a second source supplies them
- * ({@link MusicBrainzAdapter}).
+ * (Last.fm artist tags, {@link LastFmAdapter}).
  */
 public interface GenreService {
 

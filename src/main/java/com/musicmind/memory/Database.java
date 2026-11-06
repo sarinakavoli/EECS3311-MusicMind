@@ -123,6 +123,9 @@ public class Database implements AutoCloseable {
                         genres     TEXT NOT NULL,
                         fetched_at TIMESTAMPTZ NOT NULL
                     )""");
+            // Older installs cached MusicBrainz genres; only Last.fm tags are kept, so drop the rest.
+            st.execute("ALTER TABLE artist_genre ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'musicbrainz'");
+            st.execute("DELETE FROM artist_genre WHERE source <> 'lastfm'");
         }
     }
 
