@@ -1600,7 +1600,7 @@ class RecommendationEngineTest {
 
         assertEquals(List.of("A1", "A2"), lastFm.asked);
         assertEquals(List.of("sim1"), ids(recs), "blocked artist, blocked song and a wrong-artist hit are dropped");
-        assertTrue(recs.get(0).reason().contains("Similar to artists you play (Last.fm)"), recs.get(0).reason());
+        assertTrue(recs.get(0).reason().contains("similar to artists you play (Last.fm)"), recs.get(0).reason());
     }
 
     @Test
