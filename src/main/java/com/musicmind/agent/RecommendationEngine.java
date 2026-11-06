@@ -550,8 +550,8 @@ public class RecommendationEngine {
             }
         }
         Set<String> wanted = new HashSet<>();
-        seedGenres.forEach(g -> wanted.add(g.toLowerCase(Locale.ROOT)));
-        return currentRetrieval.leadingGenres(track, cache, config.createFitLeadingGenres()).stream().anyMatch(g -> wanted.contains(g.toLowerCase(Locale.ROOT)));
+        seedGenres.forEach(g -> wanted.add(GenreNames.canonical(g)));
+        return currentRetrieval.leadingGenres(track, cache, config.createFitLeadingGenres()).stream().anyMatch(g -> wanted.contains(GenreNames.canonical(g)));
     }
 
     /**
@@ -572,8 +572,10 @@ public class RecommendationEngine {
             return true;
         }
         // Only an artist's leading genre (first in its ordered list) counts: any tag would overstate the match.
+        Set<String> wanted = new HashSet<>();
+        seedGenres.forEach(g -> wanted.add(GenreNames.canonical(g)));
         return profile.topArtists().stream().filter(a -> track.artistIds().contains(a.id()))
-                .anyMatch(a -> !a.genres().isEmpty() && seedGenres.contains(a.genres().get(0)));
+                .anyMatch(a -> !a.genres().isEmpty() && wanted.contains(GenreNames.canonical(a.genres().get(0))));
     }
 
     // ---- scoring inputs ----

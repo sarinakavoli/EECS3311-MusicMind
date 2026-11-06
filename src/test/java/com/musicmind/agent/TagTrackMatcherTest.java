@@ -84,4 +84,22 @@ class TagTrackMatcherTest {
         assertTrue(music.searches.isEmpty(), "a hit costs no search and still uses one of the maxSearches");
         assertEquals(List.of("c1"), match.tracks().stream().map(Track::id).toList());
     }
+
+    @Test
+    void stopsAtExpiredLogin_laterSongsNotSearched() {
+        Music music = new Music() {
+            @Override public List<Track> search(String query, int limit) {
+                searches.add(query);
+                throw new com.musicmind.music.AuthExpiredException("login expired");
+            }
+        };
+
+        TagTrackMatcher.Match match = new TagTrackMatcher(tools(music), new LinkedHashMap<>()).match(
+                List.of(new TagTrack("One", "A"), new TagTrack("Two", "A")), 10);
+
+        assertEquals(1, music.searches.size());
+        assertTrue(match.stopped());
+        assertTrue(match.tracks().isEmpty());
+        assertEquals(1, match.errors().size());
+    }
 }

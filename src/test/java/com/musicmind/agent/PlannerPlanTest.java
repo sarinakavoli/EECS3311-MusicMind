@@ -227,4 +227,18 @@ class PlannerPlanTest {
         Relaxation chosen = new Relaxation(Relaxation.Kind.ALLOW_EXPLICIT, 1, "x");
         assertEquals(List.of("study"), planner(p -> PLAN).regenerate(plan, chosen).tags());
     }
+
+    @Test
+    void seedsAreDeduplicatedByGenreNotBySpelling() {
+        Config wide = config.withTunables(Map.of("plan.maxSeedGenres", "20"));
+        Planner p = new Planner(q -> PLAN.replace("\"mood\":\"chill\"", "\"mood\":\"workout\""),
+                new PromptBuilder(wide), new ResponseParser(wide), wide);
+        UserPreference styles = new UserPreference("preferredStyles", "hip-hop,jazz", false, 0.5);
+
+        List<String> seeds = p.plan(request("x", null), List.of(styles)).seedGenres();
+
+        assertEquals(1, seeds.stream().filter(g -> GenreNames.canonical(g).equals("hip-hop")).count(), seeds.toString());
+        assertEquals("hip hop", seeds.get(seeds.indexOf("hip hop")), "the first spelling is kept");
+        assertTrue(seeds.contains("jazz"));
+    }
 }

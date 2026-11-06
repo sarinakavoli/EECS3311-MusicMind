@@ -138,4 +138,15 @@ class PlaylistEditorTest {
         List<PlaylistCommand> commands = plan.commands();
         assertEquals(1, commands.size());
     }
+
+    @Test
+    void aMoodEditKeepsATrackWhoseArtistGenreIsAnotherSpellingOfAMoodGenre() {
+        music.searchResults.put("r&b", List.of(track("n1", "z")));
+        music.searchResults.put("soul", List.of(track("n2", "z")));
+        PlaylistEditor.EditPlan plan = editor(p -> "{\"commands\":[],\"mood\":\"romantic\"}").plan(
+                playlist(track("a", "rockArtist"), track("b", "rnbArtist")), "make it romantic",
+                Map.of("rockArtist", List.of("rock"), "rnbArtist", List.of("rnb")));
+        assertEquals(1, plan.commands().size(), "the rnb track fits r&b, only the rock track is replaced");
+        assertInstanceOf(ReplaceTrackCommand.class, plan.commands().get(0));
+    }
 }

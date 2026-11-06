@@ -11,6 +11,7 @@ import com.musicmind.agent.ClarificationNeededException;
 import com.musicmind.agent.ConstraintChecker;
 import com.musicmind.agent.ExplanationService;
 import com.musicmind.agent.MoodGenreMap;
+import com.musicmind.agent.GenreNames;
 import com.musicmind.agent.GoalFitReviewer;
 import com.musicmind.agent.InfeasibleRequestException;
 import com.musicmind.agent.NegotiationCancelledException;
@@ -464,7 +465,7 @@ public class MusicAgentFacade {
         int max = config.lastfmFindSongsMaxMatches();
         List<com.musicmind.domain.TagTrack> songs;
         try {
-            songs = create.tagService().topTracks(tag, max);
+            songs = create.tagService().topTracks(GenreNames.canonical(tag), max);
         } catch (MusicServiceException e) {
             String sentence = config.wording("lastfmSearchFailed");
             lastSearchNotice = lastSearchNotice == null ? sentence : lastSearchNotice + " " + sentence;

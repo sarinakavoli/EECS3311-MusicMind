@@ -749,6 +749,36 @@ class MusicAgentFacadeTest extends PostgresTestBase {
         assertEquals(0, calls[0]);
     }
 
+    @Test
+    void search_lastfmFails_noticeAddedAndNormalResultsReturned() {
+        FakeMusic music = new FakeMusic() {
+            @Override public List<Track> search(String query, int limit) {
+                super.search(query, limit);
+                return List.of(by("o1", "Other Song", "Someone"));
+            }
+        };
+        com.musicmind.music.TagService down = (tag, limit) -> { throw new com.musicmind.music.MusicServiceException("Last.fm returned HTTP 500."); };
+        LLMProvider llm = p -> "{\"keywords\":\"songs\",\"genre\":\"\",\"filters\":{},\"confidence\":0.9}";
+        MusicAgentFacade f = facade(music, llm, down);
+
+        List<Track> found = f.searchMusic("mellow songs");
+
+        assertEquals(List.of("o1"), found.stream().map(Track::id).toList());
+        assertEquals(config.wording("lastfmSearchFailed"), f.lastSearchNotice());
+    }
+
+    @Test
+    void search_genreSentToLastfmInItsCanonicalForm() {
+        FakeMusic music = new FakeMusic();
+        List<String> asked = new ArrayList<>();
+        com.musicmind.music.TagService lastFm = (tag, limit) -> { asked.add(tag); return List.of(); };
+        LLMProvider llm = p -> "{\"keywords\":\"\",\"genre\":\"r&b\",\"filters\":{},\"confidence\":0.9}";
+
+        facade(music, llm, lastFm).searchMusic("some r&b");
+
+        assertEquals(List.of("rnb"), asked);
+    }
+
     private static Track by(String id, String title, String artist) {
         return new Track(id, "spotify:track:" + id, title, 1000, false, List.of(), List.of(artist));
     }

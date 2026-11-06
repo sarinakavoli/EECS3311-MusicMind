@@ -476,8 +476,12 @@ public class ResponseParser {
     private void checkGenres(String text, String facts) {
         String lower = text.toLowerCase(Locale.ROOT);
         for (String genre : knownGenres) {
-            Pattern word = Pattern.compile("(?<![\\p{L}\\p{N}])" + Pattern.quote(genre) + "(?![\\p{L}\\p{N}])");
-            if (word.matcher(lower).find() && !word.matcher(facts).find()) {
+            // Every spelling of a genre counts as the same genre: "R&B" in the text needs "rnb" or "r&b" in the trace.
+            List<Pattern> spellings = GenreNames.variants(genre).stream()
+                    .map(v -> Pattern.compile("(?<![\\p{L}\\p{N}])" + Pattern.quote(v) + "(?![\\p{L}\\p{N}])")).toList();
+            boolean mentioned = spellings.stream().anyMatch(p -> p.matcher(lower).find());
+            boolean inTrace = spellings.stream().anyMatch(p -> p.matcher(facts).find());
+            if (mentioned && !inTrace) {
                 throw new ParseException("The explanation mentions the genre '" + genre
                         + "', which is not in the decision trace");
             }

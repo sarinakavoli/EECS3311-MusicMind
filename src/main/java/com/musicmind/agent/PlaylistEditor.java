@@ -115,7 +115,7 @@ public class PlaylistEditor {
             throw new ClarificationNeededException(String.format(config.wording("modifyUnknownMood"), mood));
         }
         Set<String> fitting = new LinkedHashSet<>();
-        genres.forEach(g -> fitting.add(g.toLowerCase(Locale.ROOT)));
+        genres.forEach(g -> fitting.add(GenreNames.canonical(g)));
         Set<String> taken = new LinkedHashSet<>();
         playlist.tracks().forEach(t -> taken.add(t.id()));
 
@@ -157,7 +157,7 @@ public class PlaylistEditor {
                 return false;
             }
             for (String g : known) {
-                if (fitting.contains(g.toLowerCase(Locale.ROOT))) {
+                if (fitting.contains(GenreNames.canonical(g))) {
                     return false;
                 }
             }

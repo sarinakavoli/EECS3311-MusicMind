@@ -1551,4 +1551,16 @@ class RecommendationEngineTest {
 
         assertTrue(ids(recs).contains("both"), ids(recs).toString());
     }
+
+    @Test
+    void create_seedGenreSpelledDifferentlyFromTheArtistsTag_stillFits() {
+        for (String[] pair : new String[][] {{"r&b", "rnb"}, {"hip hop", "hip-hop"}}) {
+            RecommendationEngine e = new RecommendationEngine(toolsFor(grungeLibrary()), config,
+                    id -> id.equals("grungeA") ? Optional.of(List.of(pair[1])) : Optional.empty());
+
+            List<Recommendation> recs = e.recommend(goalProfile(), spec(0.5), List.of(), true, List.of(pair[0]));
+
+            assertEquals(4, ids(recs).stream().filter(id -> id.startsWith("g")).count(), pair[0] + ": " + ids(recs));
+        }
+    }
 }
