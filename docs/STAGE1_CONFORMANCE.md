@@ -14,7 +14,7 @@ How to read it:
   listed under it), or *Added* (not in Stage 1).
 - **Live** says what `docs/DAILY_TEST_NOTES.md` records as run against the real accounts. Anything
   not named there was only tested with stand-in Spotify and LLM servers and an embedded
-  PostgreSQL. The automated suite is 995 tests in 54 test classes; `./gradlew test` on the merged
+  PostgreSQL. The automated suite is 1037 tests in 57 test classes; `./gradlew test` on the merged
   branch (Nov 5) passed all of them, using no keys and no database server.
 - The GUI is the dark redesign merged on Nov 4 (pull request #4): a left-hand menu of seven screens
   (Your Taste, Trends, Find Songs, Discover, Playlists, Your Rules, History), one shared song row

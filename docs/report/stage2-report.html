@@ -64,7 +64,7 @@
     <tr><th>Report written</th><td>November 3, 2026; refreshed November 5, 2026 after pull request #4 was merged (Stage 2 is due November 10, 2026)</td></tr>
     <!-- REFRESH BEFORE SUBMISSION -->
     <tr><th>Code state described</th><td>Branch <code>stage2-docs</code>, which is <code>main</code> (including the merged GUI pull request #4) plus the documentation. This documentation branch is not yet merged into <code>main</code> as of November 5.</td></tr>
-    <tr><th>Automated tests</th><td>1020 passing (<code>./gradlew test</code> on the merged branch, November 5), with no API keys and no database server.</td></tr>
+    <tr><th>Automated tests</th><td>1037 passing (<code>./gradlew test</code> on the merged branch, November 5), with no API keys and no database server.</td></tr>
   </table>
 
   <div class="note">
@@ -168,7 +168,7 @@
     <li><strong>Open policy question (F6 edit prompt).</strong> The prompt that turns an edit instruction into commands sends the model each track's id, explicit flag and length in minutes (no titles or names), because edits such as "15 minutes shorter" or "remove explicit" need them. Whether this counts as Spotify Content under the policy is unresolved and is for the author to decide.</li>
     <li><strong>Commit schedule.</strong> Period 1 (October 20-26) has no code commits and missed its minimum; the single 5-point deduction therefore applies (Section 6).</li>
         <!-- REFRESH BEFORE SUBMISSION -->
-        <li><strong>Remaining work at the time of writing:</strong> for Stage 2, demonstration videos (links are placeholders in Section 7), cost figures (Section 5), merging the documentation pull request, retaking the GUI screenshots and a final hand test of the redesigned GUI. The Stage 2 instructions say the full deterministic testing and KUMA agent validation "remain part of Stage 3"; Stage 2 already has 1020 automated deterministic tests (Section 6.2).</li>
+        <li><strong>Remaining work at the time of writing:</strong> for Stage 2, demonstration videos (links are placeholders in Section 7), cost figures (Section 5), merging the documentation pull request, retaking the GUI screenshots and a final hand test of the redesigned GUI. The Stage 2 instructions say the full deterministic testing and KUMA agent validation "remain part of Stage 3"; Stage 2 already has 1037 automated deterministic tests (Section 6.2).</li>
   </ul>
 </section>
 
@@ -670,7 +670,7 @@
     <tr><td>Nov 3</td><td>Task 14: documentation; updated UML; this report</td><td>Rewrote the plan and conformance documents, README, updated the UML sources and PNGs, wrote this report and its build script.</td><td>Task rules: say only what was tested live; supplies costs and video links.</td><td>Documents match the code as of this commit.</td></tr>
     <tr><td>Nov 4</td><td>Frontend redesign; Past week; Create goal fit; Last.fm tags</td><td>Redesigned the GUI task by task (dark stylesheet, left menu, <code>TrackRow</code>, <code>ConfirmDialog</code>, plain wording); built the Past week range from recent plays; made familiar songs fit the goal; added <code>TagService</code> and <code>LastFmAdapter</code> and matched tag songs to Spotify; per-song tags and leading genres after a live finding.</td><td>Approved the design; tested the screens and Create runs by hand and reported what was wrong (Nirvana in a study playlist, Billie Jean in slow dance).</td><td>Pull request #4 prepared.</td></tr>
     <tr><td>Nov 5</td><td>Code review of the Last.fm work; PR #4 merged; docs refreshed</td><td>Reviewed the Last.fm code; applied five fixes (shared tag budget, 15 s budget, session-only match cache, string <code>tags</code>, whole-tag synonyms); rejected one suggestion; refreshed this report and the other documents.</td><td>Decided to reject the suggestion that would let Billie Jean back into slow dance; merged pull request #4.</td><td>995 tests passing; documentation matches the merged code.</td></tr>
-    <tr><td>Nov 5</td><td>Last.fm replaces MusicBrainz; tags in Find Songs, Discover, Modify</td><td>Built <code>LastFmAdapter</code> behind <code>GenreService</code> and <code>TagService</code>, the junk-tag filter, <code>TagTrackMatcher</code>, similar-artist retrieval and <code>SongTagReader</code> from a design and a plan; updated the documents and UML.</td><td>Chose Last.fm as the one source, full replacement with no fallback, and all tags treated alike.</td><td>1020 tests passing; not yet run against the real accounts.</td></tr>
+    <tr><td>Nov 5</td><td>Last.fm replaces MusicBrainz; tags in Find Songs, Discover, Modify</td><td>Built <code>LastFmAdapter</code> behind <code>GenreService</code> and <code>TagService</code>, the junk-tag filter, <code>TagTrackMatcher</code>, similar-artist retrieval and <code>SongTagReader</code> from a design and a plan; updated the documents and UML.</td><td>Chose Last.fm as the one source, full replacement with no fallback, and all tags treated alike.</td><td>1037 tests passing; not yet run against the real accounts.</td></tr>
   </table>
 
   <h3>5.3 Representative interactions</h3>
@@ -744,7 +744,7 @@
 
   <h3>6.2 Checks performed</h3>
   <ul>
-    <li><strong>Automated tests: 1020 passing</strong> (JUnit 5), run with <code>./gradlew test</code> on the merged documentation branch on November 5 with no keys and no database server. Spotify is a local <code>HttpServer</code> in the tests, PostgreSQL is an embedded binary, and the LLM is <code>MockLLMProvider</code> under <code>src/test</code>.</li>
+    <li><strong>Automated tests: 1037 passing</strong> (JUnit 5), run with <code>./gradlew test</code> on the merged documentation branch on November 5 with no keys and no database server. Spotify is a local <code>HttpServer</code> in the tests, PostgreSQL is an embedded binary, and the LLM is <code>MockLLMProvider</code> under <code>src/test</code>.</li>
     <li><strong>Test first and independent review.</strong> Each task was built test first and then reviewed by a separate agent; the larger pull requests (#1, #2, #4) had a further whole-PR code review. Defects were reproduced with a test before they were fixed.</li>
     <li><strong>Prompt guard.</strong> <code>PromptBuilderTest</code> calls every <code>PromptBuilder.build*</code> method by reflection and asserts that no prompt contains a Spotify track title or artist name.</li>
     <li><strong>Behaviour tests per feature</strong> are named in <code>docs/STAGE1_CONFORMANCE.md</code> (for example <code>CreatePlaylistFlowTest</code>, <code>ModifyPlaylistFlowTest</code>, <code>PlaylistValidatorTest</code>, <code>SpotifyAdapterTest</code>, <code>CliAppTest</code>, <code>ViewFormatTest</code>).</li>
