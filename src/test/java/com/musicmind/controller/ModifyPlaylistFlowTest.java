@@ -144,6 +144,55 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
         assertTrue(c.lastModifyNotices().isEmpty(), c.lastModifyNotices().toString());
     }
 
+    @Test
+    void removeSadSongs_usesTags() {
+        Music music = new Music();
+        music.playlists.put("p", new ArrayList<>(List.of(
+                new Track("a", "spotify:track:a", "Title a", 180_000, false, List.of("x"), List.of("Singer A")),
+                new Track("b", "spotify:track:b", "Title b", 180_000, false, List.of("x"), List.of("Singer B")),
+                new Track("c", "spotify:track:c", "Title c", 180_000, false, List.of("x"), List.of("Singer C")))));
+        List<String> prompts = new ArrayList<>();
+        LLMProvider llm = prompt -> {
+            if (prompt.startsWith("MUSICMIND_TASK: EDIT")) {
+                prompts.add(prompt);
+                return "{\"commands\":[{\"type\":\"remove\",\"track\":\"2\"}]}";
+            }
+            return "Both came from your own data.";
+        };
+        com.musicmind.music.TagService lastFm = new com.musicmind.music.TagService() {
+            @Override public List<com.musicmind.domain.TagTrack> topTracks(String tag, int limit) { return List.of(); }
+            @Override public List<String> trackTags(String artist, String title) {
+                return title.equals("Title b") ? List.of("sad", "mellow") : List.of("upbeat");
+            }
+        };
+        AppController c = new AppController(music, memory(db), llm, Config.of(Map.of("LASTFM_API_KEY", "test-key")),
+                null, () -> false, com.musicmind.agent.ArtistGenreCache.NONE, lastFm);
+        c.login();
+
+        Playlist updated = c.modifyPlaylist("p", "remove the sad songs");
+
+        assertTrue(prompts.get(0).contains("2: b, clean, 3.0 min, song tags: sad, mellow"), prompts.get(0));
+        assertFalse(prompts.get(0).contains("Singer") || prompts.get(0).contains("Title"), prompts.get(0));
+        assertEquals(List.of("a", "c"), updated.tracks().stream().map(Track::id).toList());
+    }
+
+    @Test
+    void modifyWithoutLastfmKey_promptHasNoTags() {
+        Music music = new Music();
+        put(music, "p", t("a", false, "x"), t("b", false, "x"));
+        List<String> prompts = new ArrayList<>();
+        LLMProvider llm = prompt -> {
+            if (prompt.startsWith("MUSICMIND_TASK: EDIT")) {
+                prompts.add(prompt);
+                return "{\"commands\":[{\"type\":\"remove\",\"track\":\"2\"}]}";
+            }
+            return "ok";
+        };
+        controller(music, llm).modifyPlaylist("p", "remove the second");
+
+        assertFalse(prompts.get(0).contains("tags"), prompts.get(0));
+    }
+
     // ---- F11 during modify ----
 
     private static final String REMOVE_ALL_THREE = "{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"},"

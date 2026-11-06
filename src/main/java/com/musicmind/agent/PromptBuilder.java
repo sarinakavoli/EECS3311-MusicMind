@@ -7,6 +7,7 @@ import com.musicmind.domain.FeasibilityReport;
 import com.musicmind.domain.ListeningProfile;
 import com.musicmind.domain.PlaylistSpec;
 import com.musicmind.domain.RangeChange;
+import com.musicmind.domain.SongTags;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 
@@ -189,6 +190,14 @@ public class PromptBuilder {
      * model can act on "remove explicit" or "15 minutes shorter" without being given any titles or names.
      */
     public String buildEditPrompt(String instruction, PlaylistContext playlist) {
+        return buildEditPrompt(instruction, playlist, Map.of());
+    }
+
+    /**
+     * As above, and when {@code tags} is not empty each track line also carries the Last.fm tags of the song (or
+     * of its artist) or says there are none. Tags are keyed by track id; still no titles or names.
+     */
+    public String buildEditPrompt(String instruction, PlaylistContext playlist, Map<String, SongTags> tags) {
         if (playlist.tracks().size() > config.editMaxPromptTracks()) {
             throw new IllegalArgumentException(String.format(config.wording("modifyTooLong"), config.editMaxPromptTracks()));
         }
@@ -197,14 +206,28 @@ public class PromptBuilder {
                 .append("If the instruction is ambiguous, choose the smallest change that fits it. ")
                 .append("If it only asks for a feeling (calmer, more upbeat) that no command can express, ")
                 .append("leave the commands empty and set the mood. If you cannot tell what is wanted, ")
-                .append("leave the commands empty and ask one short question.\n")
-                .append("Instruction: ").append(instruction).append('\n')
+                .append("leave the commands empty and ask one short question.\n");
+        if (!tags.isEmpty()) {
+            p.append("Use the tags to judge mood or style; change only songs whose tags show the quality asked for; ")
+                    .append("never guess for a song with no tags.\n");
+        }
+        p.append("Instruction: ").append(instruction).append('\n')
                 .append("Tracks (position: id, explicit?, minutes):\n");
         List<Track> tracks = playlist.tracks();
         IntStream.range(0, tracks.size()).forEach(i -> {
             Track t = tracks.get(i);
             p.append(i + 1).append(": ").append(t.id()).append(t.isExplicit() ? ", explicit, " : ", clean, ")
-                    .append(Math.round(t.durationMs() / 6000.0) / 10.0).append(" min\n");
+                    .append(Math.round(t.durationMs() / 6000.0) / 10.0).append(" min");
+            if (!tags.isEmpty()) {
+                SongTags st = tags.getOrDefault(t.id(), new SongTags(List.of(), SongTags.Kind.NONE));
+                if (st.kind() == SongTags.Kind.NONE || st.tags().isEmpty()) {
+                    p.append(", no tags");
+                } else {
+                    p.append(st.kind() == SongTags.Kind.SONG ? ", song tags: " : ", artist tags: ")
+                            .append(String.join(", ", st.tags()));
+                }
+            }
+            p.append('\n');
         });
         p.append("Reply with JSON only: {\"commands\": [{\"type\": \"remove\"|\"add\"|\"replace\"|\"reorder\", ")
                 .append("\"track\": position or id (remove, replace, reorder), ")

@@ -23,6 +23,7 @@ import com.musicmind.agent.PlaylistValidator;
 import com.musicmind.agent.PreferenceSettings;
 import com.musicmind.agent.ProfileBuilder;
 import com.musicmind.agent.PromptBuilder;
+import com.musicmind.agent.SongTagReader;
 import com.musicmind.agent.RecommendationEngine;
 import com.musicmind.agent.ResponseParser;
 import com.musicmind.agent.SearchRanker;
@@ -55,6 +56,7 @@ import com.musicmind.domain.RequestKind;
 import com.musicmind.domain.SearchQuery;
 import com.musicmind.domain.TopItems;
 import com.musicmind.domain.SnapshotPreview;
+import com.musicmind.domain.SongTags;
 import com.musicmind.domain.Track;
 import com.musicmind.domain.TrendReport;
 import com.musicmind.domain.Album;
@@ -851,15 +853,16 @@ public class MusicAgentFacade {
         requireComplete(items);
         Playlist current = named(id, items);
         PlaylistSpec stored = specFor(userId, id).spec();
+        Map<String, SongTags> songTags = songTagsFor(current);
         PlaylistEditor.EditPlan plan;
         try {
             plan = editor.plan(new PlaylistContext(id, current.tracks(), create.music(), stored), instruction.strip(),
-                    knownArtistGenres(userId));
+                    knownArtistGenres(userId), songTags);
         } catch (MusicServiceException e) {
             throw playlistAccess(e);
         }
         List<String> notices = new ArrayList<>();
-        plan = replanWhileViolating(current, plan, instruction.strip(), stored, userId);
+        plan = replanWhileViolating(current, plan, instruction.strip(), stored, userId, songTags);
         plan = negotiateEdit(current, plan, notices, stored);
         int snapshotId;
         try {
@@ -903,6 +906,18 @@ public class MusicAgentFacade {
         }
     }
 
+    /**
+     * Last.fm tags for the playlist's songs, only when a Last.fm key is configured; otherwise empty and the edit prompt
+     * is as before. Read once per edit (the replans reuse it); held in memory only.
+     */
+    private Map<String, SongTags> songTagsFor(Playlist current) {
+        if (!config.lastfmConfigured()) {
+            return Map.of();
+        }
+        return new SongTagReader(create.tagService(), create.genreCache(), config, System::nanoTime)
+                .read(current.tracks());
+    }
+
     private static List<Track> afterCommands(List<Track> tracks, List<PlaylistCommand> commands) {
         List<Track> after = tracks;
         for (PlaylistCommand command : commands) {
@@ -942,7 +957,8 @@ public class MusicAgentFacade {
      * goes to {@link #negotiateEdit}.
      */
     private PlaylistEditor.EditPlan replanWhileViolating(Playlist current, PlaylistEditor.EditPlan plan,
-                                                         String instruction, PlaylistSpec editSpec, String userId) {
+                                                         String instruction, PlaylistSpec editSpec, String userId,
+                                                         Map<String, SongTags> songTags) {
         ConstraintChecker checker = new ConstraintChecker(config);
         for (int attempt = 0; attempt < config.planMaxValidationRetries(); attempt++) {
             List<Track> after = afterCommands(current.tracks(), plan.commands());
@@ -954,7 +970,7 @@ public class MusicAgentFacade {
             PlaylistEditor.EditPlan next;
             try {
                 next = editor.plan(new PlaylistContext(current.spotifyId(), current.tracks(), create.music(), editSpec),
-                        instruction + "\n" + hint, knownArtistGenres(userId));
+                        instruction + "\n" + hint, knownArtistGenres(userId), songTags);
             } catch (MusicServiceException e) {
                 throw playlistAccess(e);
             } catch (LLMException | ClarificationNeededException e) {

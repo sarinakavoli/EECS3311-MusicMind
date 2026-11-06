@@ -4,6 +4,7 @@ import com.musicmind.agent.command.AddItemsCommand;
 import com.musicmind.agent.command.PlaylistCommand;
 import com.musicmind.agent.command.ReplaceTrackCommand;
 import com.musicmind.config.Config;
+import com.musicmind.domain.SongTags;
 import com.musicmind.domain.Track;
 import com.musicmind.llm.LLMException;
 import com.musicmind.llm.LLMProvider;
@@ -76,10 +77,16 @@ public class PlaylistEditor {
      * @throws ClarificationNeededException if the instruction cannot be turned into a change
      */
     public EditPlan plan(PlaylistContext playlist, String instruction, Map<String, List<String>> artistGenres) {
+        return plan(playlist, instruction, artistGenres, Map.of());
+    }
+
+    /** As above; {@code songTags} (by track id, may be empty) go into the prompt as the songs' Last.fm tags. */
+    public EditPlan plan(PlaylistContext playlist, String instruction, Map<String, List<String>> artistGenres,
+                         Map<String, SongTags> songTags) {
         requireLlm();
         String reply;
         try {
-            reply = llm.complete(prompts.buildEditPrompt(instruction, playlist));
+            reply = llm.complete(prompts.buildEditPrompt(instruction, playlist, songTags));
         } catch (LLMException e) {
             throw new LLMException(config.wording("modifyLlmFailed"), e);
         }

@@ -55,6 +55,16 @@ class PlaylistEditorTest {
     }
 
     @Test
+    void theTagsGivenToPlanReachThePrompt() {
+        editor(p -> "{\"commands\":[{\"type\":\"remove\",\"track\":\"1\"}]}").plan(
+                playlist(track("a", "x"), track("b", "y")), "drop the sad one", Map.of(),
+                Map.of("a", new com.musicmind.domain.SongTags(List.of("sad"), com.musicmind.domain.SongTags.Kind.SONG)));
+
+        assertTrue(prompts.get(0).contains("1: a, clean, 3.0 min, song tags: sad"), prompts.get(0));
+        assertTrue(prompts.get(0).contains("2: b, clean, 3.0 min, no tags"), prompts.get(0));
+    }
+
+    @Test
     void withoutAnLlmEditingSaysSoInsteadOfGuessing() {
         IllegalStateException e = assertThrows(IllegalStateException.class,
                 () -> editor(null).plan(playlist(track("a", "x")), "drop it", Map.of()));
