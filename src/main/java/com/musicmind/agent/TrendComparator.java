@@ -48,12 +48,11 @@ public class TrendComparator {
             if (fetchErrors.containsKey(range)) {
                 gaps.add(String.format(config.wording("trendRangeFailed"), range));
             } else if (artists.isEmpty()) {
-                gaps.add("No top artists for the " + range + " range.");
+                gaps.add(String.format(config.wording("trendNoArtists"), range));
             } else {
                 populated.add(range);
                 if (artists.size() < minItems) {
-                    gaps.add("The " + range + " range is incomplete: only " + artists.size()
-                            + " top artists (at least " + minItems + " expected).");
+                    gaps.add(String.format(config.wording("trendIncomplete"), range, artists.size(), minItems));
                 }
             }
         });
@@ -63,7 +62,7 @@ public class TrendComparator {
         List<String> addedArtists = List.of();
         List<String> droppedArtists = List.of();
         if (populated.size() < 2) {
-            gaps.add("Not enough ranges with data to compare.");
+            gaps.add(config.wording("trendNotEnoughRanges"));
         } else {
             String newest = populated.get(0);
             String oldest = populated.get(populated.size() - 1);

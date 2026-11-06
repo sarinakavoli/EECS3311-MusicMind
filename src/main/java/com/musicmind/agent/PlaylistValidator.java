@@ -67,7 +67,7 @@ public class PlaylistValidator {
         if (spec != null && !spec.allowExplicit()) {
             List<String> explicit = tracks.stream().filter(Track::isExplicit).map(Track::id).toList();
             if (!explicit.isEmpty()) {
-                violations.add(explicit.size() + " explicit track(s) present but explicit content is not allowed");
+                violations.add(String.format(config.wording("validateExplicit"), explicit.size()));
                 offending.put(RULE_EXPLICIT, explicit);
             }
         }
@@ -79,15 +79,14 @@ public class PlaylistValidator {
             if (!seen.add(t.id())) duplicates.add(t.id());
         }
         if (!duplicates.isEmpty()) {
-            violations.add(duplicates.size() + " duplicate track(s): " + duplicates);
+            violations.add(String.format(config.wording("validateDuplicates"), duplicates.size(), duplicates));
             offending.put(RULE_DUPLICATES, List.copyOf(duplicates));
         }
 
         // Rule 3: target duration within tolerance
         if (spec != null && durationStatus(tracks, spec) != DurationStatus.WITHIN) {
             long actualMs = tracks.stream().mapToLong(Track::durationMs).sum();
-            violations.add(String.format(
-                    "total duration %d min is outside the target of %d min (±%d%%)",
+            violations.add(String.format(config.wording("validateDuration"),
                     actualMs / 60_000, spec.targetMinutes(), (int) (durationTolerance * 100)));
             offending.put(RULE_DURATION, List.of());
         }
@@ -98,7 +97,7 @@ public class PlaylistValidator {
             for (Track t : tracks) {
                 for (String artistId : t.artistIds()) {
                     if (spec.isBlocked(artistId)) {
-                        violations.add("blocked artist present on track " + t.id() + ": " + artistId);
+                        violations.add(String.format(config.wording("validateBlockedArtist"), t.id(), artistId));
                         blocked.add(t.id());
                         break;
                     }

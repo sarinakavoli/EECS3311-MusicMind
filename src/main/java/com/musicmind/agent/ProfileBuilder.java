@@ -54,8 +54,7 @@ public class ProfileBuilder {
             notices.add(String.format(config.wording("genrePartial"), withGenres, artists.size()));
         }
         if (artists.size() < minItems || tracks.size() < minItems) {
-            notices.add("Little listening history: " + artists.size() + " top artists and " + tracks.size()
-                    + " top tracks found, and a full profile needs at least " + minItems + " of each.");
+            notices.add(String.format(config.wording("profileLittleHistory"), artists.size(), tracks.size(), minItems));
         }
         boolean partial = !notices.isEmpty();
         notices.addAll(infoNotices);

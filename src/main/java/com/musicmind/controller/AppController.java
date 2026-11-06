@@ -804,7 +804,7 @@ public class AppController {
     public void recordFeedback(String trackId, Verdict verdict) {
         String id = requireTrackId(trackId);
         if (verdict == null) {
-            throw new IllegalArgumentException("Choose accept or reject.");
+            throw new IllegalArgumentException(config.wording("feedbackVerdictMissing"));
         }
         memory.saveFeedback(new Feedback(id, verdict, Instant.now()));
     }
@@ -852,7 +852,7 @@ public class AppController {
      */
     public String requireTrackId(String trackId) {
         if (trackId == null || trackId.isBlank()) {
-            throw new IllegalArgumentException("Give the id of the track.");
+            throw new IllegalArgumentException(config.wording("feedbackTrackIdBlank"));
         }
         String id = trackId.strip();
         if (!config.feedbackTrackIdPattern().matcher(id).matches()) {
@@ -877,8 +877,7 @@ public class AppController {
 
     private void requireSpotify() {
         if (facade == null) {
-            throw new IllegalStateException(
-                    "Spotify is not configured. Copy .env.example to .env and set SPOTIFY_CLIENT_ID.");
+            throw new IllegalStateException(config.wording("spotifyNotConfigured"));
         }
     }
 }

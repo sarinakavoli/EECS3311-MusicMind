@@ -244,7 +244,7 @@ public class CliApp {
         } catch (IllegalArgumentException e) {
             return usage("profile", e.getMessage());
         } catch (RuntimeException e) {
-            return failure("build your profile", e);
+            return failure(config.wording("cliActionBuildYourProfile"), e);
         }
     }
 
@@ -259,7 +259,7 @@ public class CliApp {
             printTrends(controller().analyzeTrends(user));
             return OK;
         } catch (RuntimeException e) {
-            return failure("compare your listening", e);
+            return failure(config.wording("cliActionCompareYourListening"), e);
         }
     }
 
@@ -296,7 +296,7 @@ public class CliApp {
             out.println(c.spotifyAttribution());
             return OK;
         } catch (RuntimeException e) {
-            return failure("search", e);
+            return failure(config.wording("cliActionSearch"), e);
         }
     }
 
@@ -343,7 +343,7 @@ public class CliApp {
         } catch (IllegalArgumentException e) {
             return usage("candidates", e.getMessage());
         } catch (RuntimeException e) {
-            return failure("change your candidates", e);
+            return failure(config.wording("cliActionChangeYourCandidates"), e);
         }
     }
 
@@ -387,7 +387,7 @@ public class CliApp {
         } catch (IllegalArgumentException e) {
             return usage("discover", e.getMessage());
         } catch (RuntimeException e) {
-            return failure("find recommendations", e);
+            return failure(config.wording("cliActionFindRecommendations"), e);
         }
     }
 
@@ -450,7 +450,7 @@ public class CliApp {
             out.println(c.lastfmAttribution());
             return OK;
         } catch (RuntimeException e) {
-            return failure("create the playlist", e);
+            return failure(config.wording("cliActionCreateThePlaylist"), e);
         }
     }
 
@@ -532,7 +532,7 @@ public class CliApp {
         } catch (IllegalArgumentException e) {
             return usage("prefs", e.getMessage());
         } catch (RuntimeException e) {
-            return failure("use preferences", e);
+            return failure(config.wording("cliActionUsePreferences"), e);
         }
     }
 
@@ -566,7 +566,7 @@ public class CliApp {
         } catch (IllegalArgumentException e) {
             return usage("feedback", e.getMessage());
         } catch (RuntimeException e) {
-            return failure("record your feedback", e);
+            return failure(config.wording("cliActionRecordYourFeedback"), e);
         }
     }
 
@@ -581,7 +581,7 @@ public class CliApp {
             playlists.forEach(p -> out.println("  " + w("PlaylistLine", p.name(), p.id(), p.trackCount())));
             return OK;
         } catch (RuntimeException e) {
-            return failure("list your playlists", e);
+            return failure(config.wording("cliActionListYourPlaylists"), e);
         }
     }
 
@@ -605,7 +605,7 @@ public class CliApp {
             out.println(controller().spotifyAttribution());
             return OK;
         } catch (RuntimeException e) {
-            return failure("show the playlist", e);
+            return failure(config.wording("cliActionShowThePlaylist"), e);
         }
     }
 
@@ -627,7 +627,7 @@ public class CliApp {
             out.println(c.spotifyAttribution());
             return OK;
         } catch (RuntimeException e) {
-            return failure("modify the playlist", e);
+            return failure(config.wording("cliActionModifyThePlaylist"), e);
         }
     }
 
@@ -644,7 +644,7 @@ public class CliApp {
             out.println(w("Undone"));
             return OK;
         } catch (RuntimeException e) {
-            return failure("undo", e);
+            return failure(config.wording("cliActionUndo"), e);
         }
     }
 
@@ -673,7 +673,7 @@ public class CliApp {
             });
             return FAILED;
         } catch (RuntimeException e) {
-            return failure("validate the playlist", e);
+            return failure(config.wording("cliActionValidateThePlaylist"), e);
         }
     }
 
@@ -689,7 +689,7 @@ public class CliApp {
             out.println(controller().explain(rest[0]));
             return OK;
         } catch (RuntimeException e) {
-            return failure("explain the playlist", e);
+            return failure(config.wording("cliActionExplainThePlaylist"), e);
         }
     }
 
@@ -729,7 +729,7 @@ public class CliApp {
             printMemoryWarning(w("HistoryIncomplete"));
             return OK;
         } catch (RuntimeException e) {
-            return failure("show the history", e);
+            return failure(config.wording("cliActionShowTheHistory"), e);
         }
     }
 
@@ -786,10 +786,10 @@ public class CliApp {
                 out.println(w("Recreated", created.name(), created.spotifyId(), created.tracks().size()));
                 return OK;
             } catch (RuntimeException failure) {
-                return failure("recreate the playlist", failure);
+                return failure(config.wording("cliActionRecreateThePlaylist"), failure);
             }
         } catch (RuntimeException e) {
-            return failure("restore the playlist", e);
+            return failure(config.wording("cliActionRestoreThePlaylist"), e);
         }
     }
 
@@ -820,7 +820,7 @@ public class CliApp {
             out.println(w("Deleted", own.name(), own.id(), snapshotId, snapshotId));
             return OK;
         } catch (RuntimeException e) {
-            return failure("delete the playlist", e);
+            return failure(config.wording("cliActionDeleteThePlaylist"), e);
         }
     }
 
@@ -862,7 +862,7 @@ public class CliApp {
         try {
             return c.login();
         } catch (RuntimeException e) {
-            failure("log in to Spotify", e);
+            failure(config.wording("cliActionLogInToSpotify"), e);
             return null;
         }
     }
