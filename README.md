@@ -81,7 +81,7 @@ cd EECS3311-MusicMind
 
 The first build downloads Gradle 9.1, the libraries (JavaFX 21, the PostgreSQL driver, Gson,
 dotenv-java, JUnit) and the embedded PostgreSQL binaries the tests use. It takes a few minutes.
-A passing build ends with `BUILD SUCCESSFUL` and runs the unit tests (846 of them) with no keys and
+A passing build ends with `BUILD SUCCESSFUL` and runs the unit tests (1039 of them) with no keys and
 no database server.
 
 ## Set up PostgreSQL

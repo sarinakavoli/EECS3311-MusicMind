@@ -404,8 +404,7 @@ public class MusicAgentFacade {
         TrendReport report = trendComparator.compare(byRange, errors);
         long populated = byRange.values().stream().filter(artists -> !artists.isEmpty()).count();
         if (populated < 2) {
-            return report.withNarrative("There is not enough data in more than one time range "
-                    + "to describe a change in your taste.");
+            return report.withNarrative(config.wording("trendNotEnoughData"));
         }
         String narrative = fromLlm(prompts.buildTrendPrompt(report));
         if (narrative == null) {
@@ -423,8 +422,9 @@ public class MusicAgentFacade {
 
     /**
      * F3 — the Planner structures the text (or falls back to a raw keyword query), the
-     * {@code search} tool fetches the tracks, {@link ResponseParser#verifyTracks} keeps only
-     * confirmed ones and the {@link SearchRanker} orders them. An empty result sets
+     * {@code search} tool fetches the tracks from Spotify and the {@link SearchRanker} orders them.
+     * The model never names tracks here (it only structures the query), so every track returned came from
+     * Spotify and no check against hallucinated tracks is needed on this path. An empty result sets
      * {@link #lastSearchNotice()}; a keyword fallback sets {@link #lastSearchLabel()}.
      *
      * @throws IllegalArgumentException if {@code query} is blank
@@ -432,7 +432,7 @@ public class MusicAgentFacade {
      */
     public List<Track> searchMusic(String query) {
         if (query == null || query.isBlank()) {
-            throw new IllegalArgumentException("Type something to search for.");
+            throw new IllegalArgumentException(config.wording("searchBlank"));
         }
         lastSearchNotice = null;
         lastSearchLabel = null;
@@ -521,7 +521,7 @@ public class MusicAgentFacade {
             if (result.ok()) {
                 @SuppressWarnings("unchecked")
                 List<Track> results = (List<Track>) result.payload();
-                merged = ranker.merge(typed, parser.verifyTracks(results, results), meaning, !anyMood);
+                merged = ranker.merge(typed, results, meaning, !anyMood);
             }
         }
         return merged.size() > config.searchResultLimit() ? merged.subList(0, config.searchResultLimit()) : merged;
@@ -559,7 +559,7 @@ public class MusicAgentFacade {
         }
         @SuppressWarnings("unchecked")
         List<Track> results = (List<Track>) result.payload();
-        return ranker.rank(query, parser.verifyTracks(results, results));
+        return ranker.rank(query, results);
     }
 
     /** Why the last search found nothing and what to try instead; null when it found something. */
@@ -603,7 +603,7 @@ public class MusicAgentFacade {
         Objects.requireNonNull(spec, "spec");
         String userId = currentUserId.get();
         if (userId == null) {
-            throw new IllegalStateException("Log in before asking for recommendations.");
+            throw new IllegalStateException(config.wording("loginFirst"));
         }
         lastDiscoverNotices = List.of();
         lastDecisionTrace = null;
@@ -1313,6 +1313,28 @@ public class MusicAgentFacade {
         return create.explainer().explain(session);
     }
 
+    /**
+     * F10 for a playlist with no stored session: a general description computed from the playlist as Spotify holds
+     * it (song count, length) and the stored taste profile (how many songs are by artists in it, ids only), after
+     * a note that the reasons are unknown. No LLM call is made and no title or name is sent anywhere.
+     *
+     * @throws PlaylistChangeException if the playlist cannot be read
+     */
+    public String explainUnrecorded(String playlistId, User user) {
+        List<Track> tracks = readItems(requirePlaylistId(playlistId));
+        StringBuilder text = new StringBuilder(config.wording("explainNoSession")).append(' ')
+                .append(String.format(config.wording("explainGeneral"), tracks.size(),
+                        Math.round(tracks.stream().mapToInt(Track::durationMs).sum() / 60000.0)));
+        Optional<ListeningProfile> profile = lastProfile(user);
+        if (profile.isEmpty() || profile.get().isEmpty()) {
+            return text.append(' ').append(config.wording("explainGeneralNoProfile")).toString();
+        }
+        Set<String> known = profile.get().knownArtistIds();
+        long familiar = tracks.stream().filter(t -> t.artistIds().stream().anyMatch(known::contains)).count();
+        return text.append(' ').append(String.format(config.wording("explainGeneralKnown"),
+                familiar, tracks.size() - familiar)).toString();
+    }
+
     // ---- F12 ----
 
     /**
@@ -1484,7 +1506,7 @@ public class MusicAgentFacade {
     private ListeningProfile withSummary(ListeningProfile p) {
         String summary;
         if (p.isEmpty()) {
-            summary = "Not enough listening history yet to describe your taste.";
+            summary = config.wording("summaryNoHistory");
         } else {
             String fromLlm = fromLlm(prompts.buildSummaryPrompt(p));
             summary = fromLlm != null ? fromLlm : fallbackSummary(p);
@@ -1510,8 +1532,8 @@ public class MusicAgentFacade {
         String genres = p.rankedGenres(config.profileFallbackGenres()).stream()
                 .map(Map.Entry::getKey).collect(Collectors.joining(", "));
         String text = genres.isEmpty()
-                ? "Your top genres could not be worked out from your Spotify data."
-                : "Your taste leans toward " + genres + ".";
+                ? config.wording("summaryNoGenres")
+                : String.format(config.wording("summaryLeansToward"), genres);
         return text + " " + config.computedLabel();
     }
 
@@ -1523,24 +1545,20 @@ public class MusicAgentFacade {
         if (partial) {
             // Genre data is missing for many artists, so a genre "change" may be missing data: say so, claim nothing.
             sb.append(String.format(config.wording("trendCoveragePartial"), report.coverageSummary(config.profileRanges()))).append(' ');
-            sb.append("Genres found only in your ").append(newest).append("-term data: ")
-                    .append(report.addedGenres().isEmpty() ? "none" : limited(report.addedGenres()))
-                    .append("; only in your ").append(oldest).append("-term data: ")
-                    .append(report.droppedGenres().isEmpty() ? "none" : limited(report.droppedGenres())).append('.');
+            sb.append(String.format(config.wording("narrativePartialGenres"), newest,
+                    report.addedGenres().isEmpty() ? config.wording("narrativeNone") : limited(report.addedGenres()), oldest,
+                    report.droppedGenres().isEmpty() ? config.wording("narrativeNone") : limited(report.droppedGenres())));
         } else {
-            sb.append("Compared with your ").append(oldest).append("-term listening, ")
-                    .append("your ").append(newest).append("-term listening has ");
-            sb.append(report.addedGenres().isEmpty() ? "no newly prominent genres"
-                    : "newly prominent genres: " + limited(report.addedGenres()));
-            sb.append(" and ");
-            sb.append(report.droppedGenres().isEmpty() ? "no faded genres"
-                    : "faded genres: " + limited(report.droppedGenres()));
-            sb.append('.');
+            sb.append(String.format(config.wording("narrativeCompared"), oldest, newest,
+                    report.addedGenres().isEmpty() ? config.wording("narrativeNoAdded")
+                            : String.format(config.wording("narrativeAdded"), limited(report.addedGenres())),
+                    report.droppedGenres().isEmpty() ? config.wording("narrativeNoDropped")
+                            : String.format(config.wording("narrativeDropped"), limited(report.droppedGenres()))));
         }
-        sb.append(' ').append(report.addedArtistIds().size()).append(" artists are new and ")
-                .append(report.droppedArtistIds().size()).append(" have faded.");
+        sb.append(' ').append(String.format(config.wording("narrativeArtists"),
+                report.addedArtistIds().size(), report.droppedArtistIds().size()));
         if (!report.gaps().isEmpty() && !partial) {
-            sb.append(" Some data was missing or incomplete.");
+            sb.append(' ').append(config.wording("narrativeGaps"));
         }
         return sb.append(' ').append(config.computedLabel()).toString();
     }

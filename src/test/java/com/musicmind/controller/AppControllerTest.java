@@ -88,6 +88,26 @@ class AppControllerTest extends PostgresTestBase {
     }
 
     @Test
+    void explainOfAPlaylistWithNoSessionCountsSongsByArtistsInTheSavedProfile() {
+        Music music = new Music() {
+            @Override public List<Track> getPlaylistItems(String id) {
+                return List.of(new Track("n1", "spotify:track:n1", "Secret title", 60_000, false, List.of("indie0")),
+                        new Track("n2", "spotify:track:n2", "Other title", 60_000, false, List.of("stranger")));
+            }
+        };
+        AppController c = controller(music);
+        User u = c.login();
+        c.analyzeTaste(u, "long");
+
+        String text = c.explain("some-playlist");
+
+        assertTrue(text.startsWith(config.wording("explainNoSession")), text);
+        assertTrue(text.contains(String.format(config.wording("explainGeneral"), 2, 2)), text);
+        assertTrue(text.contains(String.format(config.wording("explainGeneralKnown"), 1, 1)), text);
+        assertFalse(text.contains("Secret title"));
+    }
+
+    @Test
     void loginReturnsTheSpotifyUserAndCurrentUserRemembersIt() {
         AppController c = controller(new Music());
         assertNull(c.currentUser(), "nobody is logged in yet");

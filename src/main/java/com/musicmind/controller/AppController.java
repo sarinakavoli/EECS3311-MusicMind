@@ -529,12 +529,28 @@ public class AppController {
      * F10 — why a playlist's tracks were chosen, from the decision trace stored with the run that created it.
      *
      * @param id a session id or a playlist id
-     * @throws IllegalArgumentException if nothing stored matches the id
+     * A playlist with no stored session gets a general description and a note that the reasons are unknown,
+     * computed without the LLM (see {@link MusicAgentFacade#explainUnrecorded}).
+     *
+     * @throws IllegalArgumentException if nothing stored matches the id and no such playlist can be read
      * @throws IllegalStateException if the stored record cannot be reached
-     * (reads stored data only: no Spotify sign-in is needed beyond what the data store itself uses)
+     * (a stored session is explained from stored data only; Spotify is read only for a playlist with no session)
      */
     public String explain(String id) {
-        return explainer.explain(getSession(id));
+        AgentSession session = storedSession(id);
+        if (session != null) {
+            return explainer.explain(session);
+        }
+        failIfMemoryDown();
+        if (facade != null) {
+            try {
+                signInIfNeeded();
+                return facade.explainUnrecorded(id, currentUser);
+            } catch (PlaylistChangeException | IllegalArgumentException e) {
+                // not readable as a playlist either: reported as unknown below
+            }
+        }
+        throw new IllegalArgumentException(String.format(config.wording("explainUnknown"), id));
     }
 
     /**
@@ -545,17 +561,23 @@ public class AppController {
      * @throws IllegalStateException if the stored record cannot be reached
      */
     public AgentSession getSession(String id) {
-        AgentSession session = memory.findSession(id);
+        AgentSession session = storedSession(id);
         if (session == null) {
-            session = memory.findSessionByPlaylist(id);
-        }
-        if (session == null) {
-            if (memory.warning() != null) {
-                throw new IllegalStateException(config.wording("explainDbDown"));
-            }
+            failIfMemoryDown();
             throw new IllegalArgumentException(String.format(config.wording("explainUnknown"), id));
         }
         return session;
+    }
+
+    private AgentSession storedSession(String id) {
+        AgentSession session = memory.findSession(id);
+        return session != null ? session : memory.findSessionByPlaylist(id);
+    }
+
+    private void failIfMemoryDown() {
+        if (memory.warning() != null) {
+            throw new IllegalStateException(config.wording("explainDbDown"));
+        }
     }
 
     // ---- F12 ----
@@ -782,7 +804,7 @@ public class AppController {
     public void recordFeedback(String trackId, Verdict verdict) {
         String id = requireTrackId(trackId);
         if (verdict == null) {
-            throw new IllegalArgumentException("Choose accept or reject.");
+            throw new IllegalArgumentException(config.wording("feedbackVerdictMissing"));
         }
         memory.saveFeedback(new Feedback(id, verdict, Instant.now()));
     }
@@ -830,7 +852,7 @@ public class AppController {
      */
     public String requireTrackId(String trackId) {
         if (trackId == null || trackId.isBlank()) {
-            throw new IllegalArgumentException("Give the id of the track.");
+            throw new IllegalArgumentException(config.wording("feedbackTrackIdBlank"));
         }
         String id = trackId.strip();
         if (!config.feedbackTrackIdPattern().matcher(id).matches()) {
@@ -855,8 +877,7 @@ public class AppController {
 
     private void requireSpotify() {
         if (facade == null) {
-            throw new IllegalStateException(
-                    "Spotify is not configured. Copy .env.example to .env and set SPOTIFY_CLIENT_ID.");
+            throw new IllegalStateException(config.wording("spotifyNotConfigured"));
         }
     }
 }

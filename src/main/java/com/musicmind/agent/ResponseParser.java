@@ -339,7 +339,11 @@ public class ResponseParser {
         return t;
     }
 
-    /** Keeps, in order and without duplicates, only the proposed tracks that Spotify results confirm by id. */
+    /**
+     * Keeps, in order and without duplicates, only the proposed tracks that Spotify results confirm by id.
+     * The guard for any path where the model proposes tracks by id. No current path does (search sends the model's
+     * structured query to Spotify and uses Spotify's tracks directly), so nothing calls it today.
+     */
     public List<Track> verifyTracks(List<Track> tracks, List<Track> results) {
         if (tracks == null || results == null) {
             return List.of();

@@ -14,8 +14,8 @@ How to read it:
   listed under it), or *Added* (not in Stage 1).
 - **Live** says what `docs/DAILY_TEST_NOTES.md` records as run against the real accounts. Anything
   not named there was only tested with stand-in Spotify and LLM servers and an embedded
-  PostgreSQL. The automated suite is 1037 tests in 57 test classes; `./gradlew test` on the merged
-  branch (Nov 5) passed all of them, using no keys and no database server.
+  PostgreSQL. The automated suite is 1039 tests in 57 test classes; `./gradlew test` on the
+  `stage2-alignment` branch (Nov 6, `main` plus the audit fixes) passed all of them, using no keys and no database server.
 - The GUI is the dark redesign merged on Nov 4 (pull request #4): a left-hand menu of seven screens
   (Your Taste, Trends, Find Songs, Discover, Playlists, Your Rules, History), one shared song row
   (`TrackRow`), a Create dialog, a confirm dialog (`ConfirmDialog`) and the conflict dialog. The
@@ -112,7 +112,8 @@ All of this runs through `controller/AppController` and `controller/MusicAgentFa
 - **Flow:** `AppController.searchMusic(query)` -> `MusicAgentFacade.searchMusic` ->
   `Planner.parseSearchQuery` (`PromptBuilder.buildSearchPrompt`, `ResponseParser.parseSearchQuery`)
   -> `SearchQuery.toSpotifyQuery()` -> `ToolManager` tool `search` / `searchArtists` ->
-  `ResponseParser.verifyTracks` -> `SearchRanker.rank` and `SearchRanker.merge`. The words as typed
+  `SearchRanker.rank` and `SearchRanker.merge` (`ResponseParser.verifyTracks` is not on this path
+  since Nov 6: the model names no track, see section 5, row 17). The words as typed
   are searched too and merged in. Candidates: `AppController.addCandidate/removeCandidate/clearCandidates/getCandidates`
   -> `MemoryManager` -> `memory/repository/CandidateRepository` (ids only).
 - **Deterministic or AI:** hybrid. The LLM only turns the text into a `SearchQuery`; searching and
@@ -152,7 +153,7 @@ All of this runs through `controller/AppController` and `controller/MusicAgentFa
   notices; `discover --novelty` is validated; saved tracks are read up to a cap and the cut is
   reported; tracks titled only with a genre word rank lower.
 - **Error cases handled:** too few candidates widens the genre set or lowers the novelty and says
-  so; everything blocked is reported; a failed artist read is a notice with a count.
+  so; everything blocked is reported as a notice, not as a question (section 5, row 21); a failed artist read is a notice with a count.
 - **Tests:** `agent/RecommendationEngineTest`, `agent/strategy/StrategyTest`,
   `agent/strategy/StrategySelectorTest`, `agent/CandidateRetrieverTest`,
   `agent/PreferenceSettingsTest`, `controller/AppControllerDiscoverTest`.
@@ -276,13 +277,15 @@ All of this runs through `controller/AppController` and `controller/MusicAgentFa
 ### F7 Playlist Constraint Validation (UC08)
 
 - **Flow:** `AppController.validatePlaylist(id)` -> `MusicAgentFacade.validatePlaylist` ->
-  `PlaylistValidator.validate(tracks, spec)` -> `domain/ValidationResult` (pass or fail per rule,
-  `offending()` ids). Rules: explicit content, duplicates by id, target duration within tolerance,
+  `PlaylistValidator.validate(tracks, spec)` -> `domain/ValidationResult` (pass or fail overall,
+  a sentence per violated rule, `offending()` ids per violated rule). Rules: explicit content, duplicates by id, target duration within tolerance,
   blocked artists, blocked tracks, minimum and maximum length (`playlist.minTracks/maxTracks`).
 - **Deterministic or AI:** deterministic. No LLM.
 - **Differences:** blocked tracks were added (Stage 1 lists "artists/tracks" but only artists
   existed); a playlist is judged against the blocks in force now, not those saved at creation, and
-  against the newest recorded target length; the note says which rules were used.
+  against the newest recorded target length; the note says which rules were used. `ValidationResult`
+  is one overall flag plus `offending()` for the violated rules only; a passing rule has no entry
+  (section 5, row 22).
 - **Tests:** `agent/PlaylistValidatorTest` (13), `controller/ModifyPlaylistFlowTest`
   (`validateUsesTheSpecSavedWithTheCreatingSessionAndListsOffendingTracks`,
   `validateAppliesATrackBlockedAfterThePlaylistWasCreated`), `app/view/ViewFormatTest` (badges),
@@ -340,15 +343,21 @@ All of this runs through `controller/AppController` and `controller/MusicAgentFa
   -> `LLMProvider.complete` -> `ResponseParser.verifyExplanation` rejects text that adds numbers,
   quoted names, genres or preference claims the trace does not record. A rejected or missing LLM
   text is replaced by a computed sentence labelled as such; a missing trace gives a general
-  note.
+  note. A playlist id with no stored session gives `MusicAgentFacade.explainUnrecorded`: a note that
+  MusicMind did not create the playlist, its song count and minutes, and how many songs are by artists
+  in the saved profile (no LLM, no titles; since Nov 6, commit 905213c).
 - **Deterministic or AI:** AI, with a checked fallback.
 - **Differences:** titles are shown from the run (display only, never stored); the trace also
   records the genres the goal asked for; the prompt forbids saying that a track fits a mood unless
-  its own reason says so.
+  its own reason says so. The check is `verifyExplanation`, not Stage 1's `verifyTracks()`. An
+  explanation covers the run that created the playlist, not later edits (section 5, row 20).
 - **Tests:** `agent/ExplanationServiceTest`, `agent/ResponseParserTest`, `agent/PromptBuilderTest`,
   `agent/PromptRoundTripTest`, `controller/ModifyPlaylistFlowTest`
   (`explainReadsTheStoredTraceByPlaylistIdOrSessionIdEvenInANewRun`,
-  `explainWithoutATraceGivesTheGeneralExplanationAndAnUnknownIdIsReported`),
+  `explainWithoutATraceGivesTheGeneralExplanationAndAnUnknownIdIsReported`,
+  `explainForAPlaylistWithNoStoredSessionGivesTheLimitationNoteAndAGeneralDescription`,
+  `modifyIsRecordedInTheHistoryButDoesNotReplaceTheCreatingSession`), `controller/AppControllerTest`
+  (`explainOfAPlaylistWithNoSessionCountsSongsByArtistsInTheSavedProfile`),
   `controller/CreatePlaylistFlowTest` (`theStoredTraceLetsALaterRunExplainThePlaylistFromRecordedFactsOnly`).
 - **GUI:** `app/view/WhyExpander`, labelled "Why these?", on playlists and recommendations.
 - **Live:** `explain` ran live on Nov 1.
@@ -428,6 +437,10 @@ name (checked by search over `src/main`). The differences in shape are:
   `lastProfile`, `lastSession` and the other accessors listed in `docs/STAGE2_PLAN.md`.
 - `Planner.parseGoal(text)` stays the plan parser; `parseSearchQuery(text)` is new (R6).
 - `AgentRequest` gained `constraints` (R8) and `useCandidates`.
+- `LLMProvider` has `complete(prompt)` only; Stage 1's `parse()` does not exist (row 18).
+  `ResponseParser.verifyTracks` exists but nothing calls it (row 17).
+- `AgentSession` has `planSteps` (strings) instead of an `AgentPlan` (row 23); `ValidationResult`
+  lists violated rules only (row 22).
 - `DecisionTrace` gained `requestedGenres`; `TrendReport` and `ListeningProfile` gained fields
   for coverage and the saved-track cap.
 
@@ -439,12 +452,12 @@ in Stage 1. Repository and Decorator are used as well and are not counted.
 | Pattern | Problem it solves | Participants | Matches Stage 1? |
 |---|---|---|---|
 | Adapter | The core must not depend on the Spotify, Last.fm or OpenAI wire formats. | `MusicService` / `SpotifyAdapter` (HTTP, PKCE through `OAuthTokenStore`); `GenreService` and `TagService` / `LastFmAdapter`; `LLMProvider` / `OpenAiProvider` | Yes. The Last.fm adapter is new: genres for every feature (R18, MusicBrainz until Nov 5) and tags for Find Songs, Create, Discover and Modify. `TagTrackMatcher` and `SongTagReader` support it. |
-| Strategy | F4 and F5 need different mixes of familiar and new music, chosen at run time. | `RecommendationStrategy`, `AbstractRecommendationStrategy`, `FamiliarStrategy`, `DiscoveryStrategy`, `BalancedStrategy`; context `RecommendationEngine.setStrategy`; chosen by `StrategySelector` | Yes. `bindProfile` added (R7). |
+| Strategy | F4 and F5 need different mixes of familiar and new music, chosen at run time. | `RecommendationStrategy`, `AbstractRecommendationStrategy`, `FamiliarStrategy`, `DiscoveryStrategy`, `BalancedStrategy`; context `RecommendationEngine.setStrategy`; chosen by `StrategySelector` | Yes. `bindProfile` added (R7). Create always uses `BalancedStrategy`; only Discover chooses from the request (row 24). |
 | Command | F6 and F12 need reversible, composable playlist changes. | `PlaylistCommand` (`execute`, `undo`), `CreatePlaylistCommand`, `AddItemsCommand`, `RemoveTrackCommand`, `ReplaceTrackCommand`, `ReorderCommand`, plus `BatchCommand`, `RestoreSnapshotCommand`, `DeletePlaylistCommand`; invoker `PlaylistManager` with its `history` Deque | Yes. Three commands added; undo also works from snapshots across runs (R10). |
-| State | A create run moves through ordered phases with a different action and failure handling in each. | `SessionState` (`handle`, `name`), `IdleState`, `PlanningState`, `RetrievingState`, `SelectingState`, `ValidatingState`, `ExecutingState`, `DoneState`, `FailedState`; context `AgentSession` (`setState`, `getState`, `run`) | Yes. Shared run data lives in `RunContext` and `RunServices`. |
-| Facade | The GUI and CLI need one simple entry point over many collaborators. | `MusicAgentFacade` behind `AppController` | Yes. |
+| State | A create run moves through ordered phases with a different action and failure handling in each. | `SessionState` (`handle`, `name`), `IdleState`, `PlanningState`, `RetrievingState`, `SelectingState`, `ValidatingState`, `ExecutingState`, `DoneState`, `FailedState`; context `AgentSession` (`setState`, `getState`, `run`) | Yes. Shared run data lives in `RunContext` and `RunServices`. `AgentSession.run()` calls `handle()` in a loop and `fail()` sets `FailedState` (row 23). |
+| Facade | The GUI and CLI need one simple entry point over many collaborators. | `MusicAgentFacade` behind `AppController` | Yes. Some Spotify reads go from the facade to `MusicService` directly, not through `ToolManager` (row 25). |
 | Repository | Persistence details stay out of the agent. | `Repository<T>`, `PreferenceRepository`, `FeedbackRepository`, `SessionRepository`, `PlaylistHistoryRepository`, `CandidateRepository`, behind `MemoryManager`; `GenreRepository` caches genres | Yes. `CandidateRepository` and `GenreRepository` are new. |
-| Decorator | Retry and genre lookup wrap the music service without changing it. | `RetryingMusicService` (`delegate`, `withBackoff`), `GenreEnrichingMusicService` over `MusicService` | `GenreEnrichingMusicService` is new (R18). |
+| Decorator | Retry and genre lookup wrap the music service without changing it. | `RetryingMusicService` (`delegate`, `withBackoff`), `GenreEnrichingMusicService` over `MusicService` | `GenreEnrichingMusicService` is new (R18). `CachingMusicService`, optional in Stage 1, was not built (row 26). |
 
 ## 5. Differences from Stage 1
 
@@ -465,11 +478,23 @@ in Stage 1. Repository and Decorator are used as well and are not counted.
 | 13 | GUI redesign: dark theme, left-hand menu, plain names (Your Taste, Find Songs, Your Rules), shared song row, confirm dialog, Delete in the GUI | The owner's test of Nov 2 found the GUI hard to understand | section 7 of the plan |
 | 14 | F1 Past week range from recent plays; left out of Trends | Asked for twice; Spotify has no weekly top items | section 3 of the plan |
 | 15 | F5: familiar songs must fit the goal (leading genres, the song's own Last.fm tags); Last.fm tag songs matched to Spotify (key optional but recommended; without it MusicMind shows no genres or tags and the tag features are off) | Live Create runs gave songs that did not fit | section 4 of the plan |
-| 13 | Settings and wording in `musicmind.properties` | Stage 2 rejects hard-coded demonstration content | section 1 of the plan |
-| 14 | Search ranks typed words first; weights 0.9 / 0.1 | Live results put stock-music titles first | sections 3 and 6 of the plan |
+| 16 | Settings and wording in `musicmind.properties` (user-visible app text since Nov 6; developer-facing exception text and prompts stay in code) | Stage 2 rejects hard-coded demonstration content | section 1 of the plan |
+| 17 | `ResponseParser.verifyTracks` is on no live path | The model names no track: search uses Spotify's own tracks, Create selects deterministically, Modify binds commands to listed positions and ids. Kept as the guard for any future path where the model names ids | section 4 of the plan |
+| 18 | `LLMProvider` has `complete(prompt)` only, no `parse()` | Stage 1 lists both; parsing a reply is `ResponseParser`'s job | section 4 of the plan |
+| 19 | The LLM is called by `Planner`, `ExplanationService`, `GoalFitReviewer`, `PlaylistEditor` and the facade (F1 summary, F2 narrative), not two components | Each is a language task; none receives a Spotify title or name | section 4 of the plan |
+| 20 | F10: a playlist with no stored session gets a general description and a note; an explanation covers the creating run only; the check is `verifyExplanation` | Stage 1 alternative case; later edits record no new ranking | section 4 of the plan |
+| 21 | F4: every candidate blocked gives a notice, not a question | `discover` is one read; the notice names the setting to change | section 3 of the plan |
+| 22 | F7: `ValidationResult` lists violated rules only | Callers need whether anything failed and what to name | section 5 of the plan |
+| 23 | `AgentSession` stores `planSteps`, not an `AgentPlan`; `run()` drives the states and `fail()` sets `FailedState` | The saved session is the record; one place for error handling | section 8 of the plan |
+| 24 | Create always uses `BalancedStrategy`; Discover chooses a strategy from the request | Stage 1 names Balanced for playlists | section 8 of the plan |
+| 25 | The facade reads some Spotify data through `MusicService` directly, not `ToolManager` | Single user-triggered reads; still behind the Adapter | section 8 of the plan |
+| 26 | No `CachingMusicService` (optional in Stage 1) | Last.fm genres are cached by artist id and session caches cover the rest | section 8 of the plan |
+| 27 | Search ranks typed words first; weights 0.9 / 0.1 | Live results put stock-music titles first | sections 3 and 6 of the plan |
+| 28 | GUI has no automated UI tests; F5 progress is a status line; F2 is one table | See the plan | section 7 of the plan |
 
 The GUI is unchanged in scope from Stage 1 and is now the dark redesign of Nov 4 (row 13); see
-section 7 of the plan.
+section 7 of the plan. Rows 17 to 26 and 28 were added on Nov 6 after the alignment audit; the reasons are
+written out as Original, Change, Reason, Impact in the sections of the plan named in the last column.
 
 ## 6. Classes beyond Stage 1 (R20)
 
@@ -507,6 +532,8 @@ Each is small and exists so that a Stage 1 class keeps one job. Full entries are
 
 ## 7. Not verified, or known to be weak
 
+- No automated tests drive the GUI views. `ViewFormatTest`, `ControlLockTest` and the controller tests
+  cover what a view shows and calls; the screens were checked by hand (section 5, row 28).
 - Goal fit of created playlists with the Nov 4-5 rules (leading genres, Last.fm song tags): not
   judged live with a Last.fm key yet.
 - F11 against a real conflict, `delete`, recreate from a deleted playlist, and the GUI's Undo,
