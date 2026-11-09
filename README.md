@@ -66,8 +66,24 @@ Run `help` for the full list.
      no client secret to copy.
    - Under **User management** in the app's settings, add the Spotify account you will log in with
      (a Development Mode app only allows listed users).
-4. **An OpenAI API key** with some credit (the default model is `gpt-4o`). Without a key the app
-   still runs; features that need the model say so, and F1, F2 and F3 use labelled fallbacks.
+4. **An OpenAI API key** with some credit (the default model is `gpt-4o`):
+   - Sign in at <https://platform.openai.com>, add a payment method or credit under **Billing**
+     (a few US dollars is enough for testing).
+   - Open <https://platform.openai.com/api-keys>, choose **Create new secret key**, and copy it
+     (it starts with `sk-`; it is shown only once).
+   - Without a key the app still runs; features that need the model say so, and F1, F2 and F3 use
+     labelled fallbacks.
+5. **A free Last.fm API key** (recommended; it is MusicMind's only source of genres and tags):
+   - Sign in or create a free account at <https://www.last.fm>.
+   - Open <https://www.last.fm/api/account/create>, fill in an application name (any name, for
+     example "MusicMind grading") and a short description; the callback URL can stay empty.
+   - Copy the **API key** shown on the next page. The **shared secret** is not used; do not put it
+     anywhere.
+   - Without a key the app still runs, but artists have no genres and the tag features are off.
+
+**Grader note.** No real key is in this repository: `.env` is git-ignored and only `.env.example`
+(the exact format, with placeholders) is committed. Use your own Spotify app, OpenAI key and Last.fm
+key as described above, then follow "Local configuration" below.
 
 You do not need to install Gradle. The wrapper (`./gradlew`) does it.
 
