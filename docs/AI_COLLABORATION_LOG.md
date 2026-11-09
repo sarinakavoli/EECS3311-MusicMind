@@ -12,8 +12,7 @@ credentials.
 | Claude Code subagents | Claude Sonnet 5.5 | Implementing each task test first (`ProfileBuilder`, `TrendComparator`, `RecommendationEngine`, the create flow and state classes, the Command classes and `PlaylistManager`, the CLI, the GUI views, the backend fixes, the documentation) and independent review of each task |
 | OpenAI API (the app's own `LLMProvider`) | `gpt-4o` | Runs inside MusicMind, not a development tool: goal and search parsing, summaries, option wording, explanations, goal-fit review |
 
-If you used another tool for Stage 1 or for part of Stage 2 (for example a chat assistant), add a
-row here with its model and what it was used for. The report needs every major tool.
+No other AI tool was used in Stage 2.
 
 ## Cost
 
