@@ -22,13 +22,13 @@ each total is cache reads (the same context re-read each step), which cost far l
 
 | Tool | Model | Total tokens (input / output) | Money cost | Where to read it |
 |---|---|---|---|---|
-| Claude Code | Opus 5.5 | 555.2 M total (1.15 M output; 540 M cache reads); plus 14.8 M on Opus 4.8 earlier | CAD 31 (one month of Sarina's Claude subscription, covers both Claude rows) | Claude usage page or the plan's billing page |
-| Claude Code subagents | Sonnet 5.5 | 392.8 M total (2.75 M output; 374.6 M cache reads); plus 0.36 M on Haiku 5.5 | Included in the CAD 31 | Same page |
+| Claude Code | Opus 5.5 | 555.2 M total (1.15 M output; 540 M cache reads); plus 14.8 M on Opus 4.8 earlier | Claude subscription, CA$31.64 per month, used about three weeks for Stage 2; covers both Claude rows; no extra usage charges | Claude usage page or the plan's billing page |
+| Claude Code subagents | Sonnet 5.5 | 392.8 M total (2.75 M output; 374.6 M cache reads); plus 0.36 M on Haiku 5.5 | Included in the subscription | Same page |
 | OpenAI API (inside the app) | gpt-4o | 101,386 tokens, 171 requests | USD 0.41 of the USD 10 credit paid | platform.openai.com, usage page |
 
 - Sarina paid USD 10 of OpenAI credit for the app's own LLM calls during testing.
 - The Spotify Web API (development app) and the Last.fm API (free key) are free.
-- Claude Code ran under Sarina's own Claude subscription: CAD 31 for the month.
+- Claude Code ran under Sarina's own Claude subscription: CA$31.64 per month, no extra usage charges.
 
 ## Collaboration entries
 
