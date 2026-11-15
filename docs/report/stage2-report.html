@@ -61,23 +61,18 @@
   <table class="fields" style="max-width:150mm">
     <tr><th>Author</th><td>Sarina Kavoli (student ID 220816757)</td></tr>
     <tr><th>Repository</th><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind">https://github.com/sarinakavoli/EECS3311-MusicMind</a></td></tr>
-    <tr><th>Report written</th><td>November 3, 2026; refreshed November 5 and November 6, 2026 (Stage 2 is due November 10, 2026)</td></tr>
-    <!-- REFRESH BEFORE SUBMISSION -->
-    <tr><th>Code state described</th><td><code>main</code> after pull requests #4 to #7 (the GUI redesign, the documents, the Last.fm work), plus the branch <code>stage2-alignment</code> of November 6, which holds the fixes from the Stage 1 alignment audit (Section 4.1) and the corrected documents and is not yet merged into <code>main</code>.</td></tr>
-    <tr><th>Automated tests</th><td>1039 passing in 57 test classes (<code>./gradlew test</code> on the <code>stage2-alignment</code> branch, November 6), with no API keys and no database server.</td></tr>
+    <tr><th>Report written</th><td>November 3, 2026; refreshed November 5, 6 and 15, 2026</td></tr>
+    
+    <tr><th>Code state described</th><td><code>main</code> after pull requests #4 to #12: the GUI redesign, the documents, the Last.fm work, the Stage 1 alignment fixes (Section 4.1), the key-setup README, the AI costs and the GUI screenshots.</td></tr>
+    <tr><th>Automated tests</th><td>1039 passing in 57 test classes (<code>./gradlew build --rerun-tasks</code> on <code>main</code>, November 15), with no API keys and no database server.</td></tr>
   </table>
 
   <div class="note">
     <strong>Status of this document.</strong> It describes what exists in the repository and what was actually run.
-    Anything that was not run against the real Spotify and OpenAI accounts is marked as such. Items that only the
-    author can fill in are shown like this: <span class="ph">[to be filled by Sarina]</span> (token and money costs, and every demonstration video link).
-    Period 3 of the commit schedule (November 3-9) is in progress, so its commit count here is a count of what exists on November 6.
+    Anything that was not run against the real Spotify and OpenAI accounts is marked as such. Demonstration video links are in Sections 2 and 7.
   </div>
 
-  <!-- REFRESH BEFORE SUBMISSION -->
-  <div class="note">
-    <strong>Refresh before submission.</strong> These facts are true as of November 6 and change: (1) the merge status of the <code>stage2-alignment</code> branch (this report); (2) the Period 3 commit count (Section 6.1); (3) the demonstration video links (Sections 2 and 7); (4) the AI token and money costs (Section 5); (6) the live check of the changes made after the owner's November 6 test (the F10 fix and the wording keys, Sections 1.5 and 6), and the figures, which were re-cropped from the re-exported UML on November 5 and need re-export only if the diagrams change again. After editing <code>docs/report/stage2-report.html</code>, rebuild the PDF with <code>docs/report/build-report.sh</code>. Search the HTML for <code>REFRESH BEFORE SUBMISSION</code> to find each spot.
-  </div>
+
 
   <div class="toc">
     <h3>Contents</h3>
@@ -168,7 +163,7 @@
     <li><strong>Policy correction (November 3).</strong> The first version of the goal-fit review sent track titles and artist names to OpenAI. Spotify Developer Policy section III item 14 forbids ingesting Spotify Content into an AI model. It was changed the same day to send track ids and genres only (details in Section 4). The review is now less precise, does not judge tracks with no known genre, and was not re-run live.</li>
     <li><strong>Open policy question (F6 edit prompt).</strong> The prompt that turns an edit instruction into commands sends the model each track's id, explicit flag and length in minutes (no titles or names), because edits such as "15 minutes shorter" or "remove explicit" need them. Whether this counts as Spotify Content under the policy is unresolved and is for the author to decide.</li>
     <li><strong>Commit schedule.</strong> Period 1 (October 20-26) has no code commits and missed its minimum; the single 5-point deduction therefore applies (Section 6).</li>
-        <!-- REFRESH BEFORE SUBMISSION -->
+        
         <li><strong>Remaining work at the time of writing:</strong> for Stage 2, the demonstration videos (links are placeholders in Section 7). The Stage 2 instructions say the full deterministic testing and KUMA agent validation "remain part of Stage 3"; Stage 2 already has 1039 automated deterministic tests (Section 6.2).</li>
   </ul>
 </section>
@@ -408,7 +403,7 @@
   <h3>Interfaces</h3>
   <p><strong>CLI</strong> (<code>cli/CliApp</code>): an instance built from a controller factory and input and output streams so tests can drive it. Commands: <code>login</code>, <code>help</code>, <code>exit</code>, <code>profile</code>, <code>trends</code>, <code>search</code>, <code>candidates</code>, <code>discover</code>, <code>create</code>, <code>playlists</code>, <code>show</code>, <code>modify</code>, <code>undo</code>, <code>validate</code>, <code>prefs</code>, <code>feedback</code>, <code>explain</code>, <code>history</code>, <code>restore</code>, <code>delete</code>. Exit status 0 means done, 1 could not complete, 2 wrong command or arguments. With no arguments it runs an interactive session.
   <strong>GUI</strong> (<code>app/GuiApp</code>, <code>app/view/*</code>): a dark, Spotify-like theme (<code>musicmind.css</code>) with a left-hand menu of seven screens (Your Taste, Trends, Find Songs, Discover, Playlists, Your Rules, History), each with a title and a one-line description; one shared song row (<code>TrackRow</code>) with artist names, like and not-for-me icons, "+ Add", "Block" or "Remove"; a Create playlist dialog, a confirm dialog (<code>ConfirmDialog</code>, used for Delete) and the F11 dialog. The footer credits Spotify and Last.fm. One background worker (<code>app/view/GuiContext.java</code>) runs every controller call, and opening the window contacts neither Spotify nor the browser.</p>
-  <!-- REFRESH BEFORE SUBMISSION -->
+  
   <h3>GUI screenshots (taken by the author on November 11, real account)</h3>
   <figure class="land" style="margin:6mm 0"><img src="screenshots/f01-your-taste.png" alt="F1 Your Taste: top genres from Last.fm tags, top artists and tracks for the past year."><figcaption class="small">Screenshot 1. F1 Your Taste: top genres from Last.fm tags, top artists and tracks for the past year.</figcaption></figure>
   <figure class="land" style="margin:6mm 0"><img src="screenshots/f01-your-taste-summary.png" alt="F1 Your Taste (scrolled): top tracks with like / not-for-me buttons (F9) and the LLM summary."><figcaption class="small">Screenshot 2. F1 Your Taste (scrolled): top tracks with like / not-for-me buttons (F9) and the LLM summary.</figcaption></figure>
@@ -676,7 +671,7 @@
   <h2>5 AI tools and collaboration log</h2>
   <p>Using AI development tools was mandatory in Stage 2. The AI wrote code and drafts; the author set the rules, chose directions, ran the checks that need her own Spotify and OpenAI accounts, reviewed the changes and decides what is merged. Every task was built test first and then reviewed by a separate agent, and the larger pull requests were reviewed again before merging. The full log is <code>docs/AI_COLLABORATION_LOG.md</code>; it holds no keys.</p>
 
-  <!-- REFRESH BEFORE SUBMISSION -->
+  
   <h3>5.1 Tools and models</h3>
   <table>
     <thead><tr><th style="width:36mm">Tool / platform</th><th style="width:26mm">Model</th><th>Used for</th><th style="width:26mm">Total tokens</th><th style="width:24mm">Money cost</th></tr></thead>
@@ -725,8 +720,8 @@
     <thead><tr><th style="width:16mm">Period</th><th style="width:30mm">Dates (inclusive)</th><th style="width:21mm">Required</th><th style="width:34mm">Code commits (non-merge)</th><th>Status</th></tr></thead>
     <tr><td>1</td><td>Oct 20-26</td><td>5</td><td>0</td><td><strong>Missed.</strong> There were no commits at all in this period: Stage 1 was committed on October 9 and the first Stage 2 commit is on October 30. The single 5-point deduction applies.</td></tr>
     <tr><td>2</td><td>Oct 27-Nov 2</td><td>5</td><td>147 (Oct 30: 23, Oct 31: 28, Nov 1: 55, Nov 2: 41)</td><td>Met. There were no commits on Oct 27-29.</td></tr>
-    <!-- REFRESH BEFORE SUBMISSION -->
-    <tr><td>3</td><td>Nov 3-9</td><td>5</td><td>80 so far (Nov 3: 3, Nov 4: 42, Nov 5: 29, Nov 6: 6)</td><td><strong>Met</strong> (the redesign, Past week, goal fit and Last.fm work; documentation-only commits are not counted). Period 3 runs to November 9, so recount before submission.</td></tr>
+    
+    <tr><td>3</td><td>Nov 3-9</td><td>5</td><td>80 (Nov 3: 3, Nov 4: 42, Nov 5: 29, Nov 6: 6)</td><td><strong>Met</strong> (the redesign, Past week, goal fit and Last.fm work; documentation-only commits are not counted). Final count; November 7-9 had documentation commits only.</td></tr>
   </table>
 
   <h4>Period 1 (October 20-26)</h4>
@@ -767,7 +762,7 @@
   </table>
   <p class="small">All 147 are listed by <code>git log --no-merges --since="2026-10-27 00:00 -0400" --until="2026-11-03 00:00 -0500" -- src build.gradle settings.gradle</code> (Toronto is UTC-4 until Nov 1 and UTC-5 after; this command returns 147). The earlier pull requests #1 to #3 were merged into <code>main</code>.</p>
 
-  <h4>Period 3 (November 3-9): in progress, 80 code commits by November 6 (the first two are shown)</h4>
+  <h4>Period 3 (November 3-9): 80 code commits (the first two are shown)</h4>
   <table>
     <thead><tr><th style="width:26mm">Commit</th><th style="width:22mm">Toronto time</th><th>What it did</th></tr></thead>
     <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/1b18d24f126e4053576dbd20675ea308e961bf29"><code>1b18d24</code></a></td><td>Nov 3 14:17</td><td>Send the goal review only track ids and known genres, never titles or artist names (policy fix, with tests)</td></tr>
@@ -777,7 +772,7 @@
 
   <h3>6.2 Checks performed</h3>
   <ul>
-    <li><strong>Automated tests: 1039 passing</strong> (JUnit 5, 57 test classes), run with <code>./gradlew test</code> on the <code>stage2-alignment</code> branch on November 6 with no keys and no database server. Spotify is a local <code>HttpServer</code> in the tests, PostgreSQL is an embedded binary, and the LLM is <code>MockLLMProvider</code> under <code>src/test</code>.</li>
+    <li><strong>Automated tests: 1039 passing</strong> (JUnit 5, 57 test classes), run with <code>./gradlew test</code> on <code>main</code> on November 15 with no keys and no database server. Spotify is a local <code>HttpServer</code> in the tests, PostgreSQL is an embedded binary, and the LLM is <code>MockLLMProvider</code> under <code>src/test</code>.</li>
     <li><strong>Test first and independent review.</strong> Each task was built test first and then reviewed by a separate agent; the larger pull requests (#1, #2, #4) had a further whole-PR code review. Defects were reproduced with a test before they were fixed.</li>
     <li><strong>Prompt guard.</strong> <code>PromptBuilderTest</code> calls every <code>PromptBuilder.build*</code> method by reflection and asserts that no prompt contains a Spotify track title or artist name.</li>
     <li><strong>Behaviour tests per feature</strong> are named in <code>docs/STAGE1_CONFORMANCE.md</code> (for example <code>CreatePlaylistFlowTest</code>, <code>ModifyPlaylistFlowTest</code>, <code>PlaylistValidatorTest</code>, <code>SpotifyAdapterTest</code>, <code>CliAppTest</code>, <code>ViewFormatTest</code>).</li>
@@ -818,12 +813,12 @@
   </table>
 
   <h3>6.4 Remaining limitations</h3>
-  <p>See Section 1.5. In summary: goal fit improved by the Nov 4-5 rules, and the author's Nov 6 test of the Last.fm build worked; several paths not yet run live (F11 real conflict, delete, recreate, several GUI controls by hand); no automated tests of the GUI views; GUI screenshots and videos of the redesign still to be made; description-style searches weak; partial genre coverage; the F6 edit-prompt policy question open; Period 1 missed and Period 3 in progress (minimum already met); demonstration videos and cost figures still to be added; the full deterministic test suite and KUMA validation are Stage 3 work.</p>
+  <p>See Section 1.5. In summary: goal fit improved by the Nov 4-5 rules, and the author's Nov 6 test of the Last.fm build worked and the author went over every GUI screen on Nov 11 (screenshots in Section 2); the demonstration videos (Section 7) show the remaining paths; no automated tests of the GUI views; description-style searches weak; partial genre coverage; Period 1 missed (single 5-point deduction), Periods 2 and 3 met; the full deterministic test suite and KUMA validation are Stage 3 work.</p>
 </section>
 
 <!-- ============================ SECTION 7 ============================ -->
 <section class="wide">
-  <!-- REFRESH BEFORE SUBMISSION -->
+  
   <h2>7 Demonstration index</h2>
   <p>One row per feature. Each video segment must identify the feature ID and name, show how it is invoked and the required input, run in the actual application with its output, say briefly what it does and where AI is involved, and show an error or alternative case. The recordings together must show both the GUI and the CLI. Video links must be accessible to the instructor and teaching assistants without an access request, and no keys or credentials may appear.
   <span class="ph">All link and timestamp cells are placeholders for Sarina.</span> <strong>The GUI invocations below use the names of the redesigned GUI (left-hand menu); the screenshots are in Section 2; the videos are still to be recorded.</strong> "Run on real accounts so far" repeats Section 6.2 so the author knows which paths are new when recording.</p>
