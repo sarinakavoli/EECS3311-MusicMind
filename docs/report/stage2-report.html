@@ -762,11 +762,19 @@
   </table>
   <p class="small">All 147 are listed by <code>git log --no-merges --since="2026-10-27 00:00 -0400" --until="2026-11-03 00:00 -0500" -- src build.gradle settings.gradle</code> (Toronto is UTC-4 until Nov 1 and UTC-5 after; this command returns 147). The earlier pull requests #1 to #3 were merged into <code>main</code>.</p>
 
-  <h4>Period 3 (November 3-9): 80 code commits (the first two are shown)</h4>
+  <h4>Period 3 (November 3-9): 80 code commits; a representative selection of ten</h4>
   <table>
     <thead><tr><th style="width:26mm">Commit</th><th style="width:22mm">Toronto time</th><th>What it did</th></tr></thead>
     <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/1b18d24f126e4053576dbd20675ea308e961bf29"><code>1b18d24</code></a></td><td>Nov 3 14:17</td><td>Send the goal review only track ids and known genres, never titles or artist names (policy fix, with tests)</td></tr>
     <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/4211b8b3db3bca85c69dbb4dbf9a312109f29ab5"><code>4211b8b</code></a></td><td>Nov 3 14:20</td><td>Make the prompt-leak guard test reflect over every build method; tidy imports</td></tr>
+      <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/a34258377105c19beb081e5051e357734a544adb"><code>a342583</code></a></td><td>Nov 4 11:48</td><td>GUI redesign: dark theme, left menu, page titles and descriptions</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/e966accce2b2d4923a7d4cdaca213527542441db"><code>e966acc</code></a></td><td>Nov 4 12:24</td><td>GUI: playlist length as hours and minutes (parseHoursMinutes)</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/9dc3593f2df30d95b78429944b524e59b230482f"><code>9dc3593</code></a></td><td>Nov 4 18:54</td><td>Your Taste: Past week built from the last 7 days of recent plays</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/e124bc7f21d3e60e4491040b9f4beba02b1f69a7"><code>e124bc7</code></a></td><td>Nov 4 19:44</td><td>Create goal fit: only an artist&#x27;s leading genres count</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/d5cd864fc4ebdde63331f4b2a8d217ae4163ea56"><code>d5cd864</code></a></td><td>Nov 5 08:50</td><td>Cache Last.fm song to Spotify matches for the session</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/502bc5a4372dd5b6b6e3c611cdafaad9daca1f59"><code>502bc5a</code></a></td><td>Nov 5 16:18</td><td>Show only error messages the app threw on purpose</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/96b1a534e833036b6d484399bb9dd25507c753e3"><code>96b1a53</code></a></td><td>Nov 5 23:30</td><td>Last.fm artist tags replace MusicBrainz genres behind GenreService</td></tr>
+    <tr><td><a href="https://github.com/sarinakavoli/EECS3311-MusicMind/commit/2fc89bda9156ce4b4c41bb3c32da60ffdaf5dffd"><code>2fc89bd</code></a></td><td>Nov 6 00:06</td><td>Discover: session caches for similar artists; blocked artists are not seeds</td></tr>
   </table>
   <p>The other commits on November 3 are documentation and diagram work (the plan, the conformance table, the README, the AI log, the updated UML sources and PNGs, the diagram README) plus one merge, and do not count toward the minimum. The 80 code commits so far are the GUI redesign, the Past week range, the goal-fit rules and the Last.fm work (Nov 3 to 5 and the early hours of Nov 6, in <code>main</code> through pull requests #4 to #7), then the three alignment fixes of November 6 on the <code>stage2-alignment</code> branch (<code>905213c</code>, <code>1d4be94</code>, <code>968d1aa</code>). The minimum of 5 is already met. The count is reproduced by <code>TZ=America/Toronto git log --no-merges --since="2026-11-03 00:00 -0500" -- src build.gradle settings.gradle</code>. This section will be recounted before submission.</p>
 
