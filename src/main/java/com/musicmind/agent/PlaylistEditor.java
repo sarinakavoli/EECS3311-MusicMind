@@ -2,6 +2,7 @@ package com.musicmind.agent;
 
 import com.musicmind.agent.command.AddItemsCommand;
 import com.musicmind.agent.command.PlaylistCommand;
+import com.musicmind.agent.command.RemoveTrackCommand;
 import com.musicmind.domain.GenreNames;
 import com.musicmind.agent.command.ReplaceTrackCommand;
 import com.musicmind.config.Config;
@@ -18,6 +19,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Turns an edit instruction into {@link PlaylistCommand}s (F6). The LLM reads the instruction against the
@@ -85,6 +88,10 @@ public class PlaylistEditor {
     public EditPlan plan(PlaylistContext playlist, String instruction, Map<String, List<String>> artistGenres,
                          Map<String, SongTags> songTags) {
         requireLlm();
+        EditPlan byName = removalByName(playlist, instruction);
+        if (byName != null) {
+            return byName;
+        }
         String reply;
         try {
             reply = llm.complete(prompts.buildEditPrompt(instruction, playlist, songTags));
@@ -108,6 +115,67 @@ public class PlaylistEditor {
             throw unclear(instruction);
         }
         return moodEdit(playlist, extras.mood(), artistGenres);
+    }
+
+    private static final Pattern REMOVAL = Pattern.compile(
+            "^\\s*(?:remove|delete|drop|take out|get rid of)\\s+((?:(?:all|the|songs by|tracks by|song|track|everything by)\\s+)*)(.+)$",
+            Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    private static final Pattern NAME_SPLIT = Pattern.compile("\\s*,\\s*(?:and\\s+)?|\\s+and\\s+", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * A plain "remove Madonna" or "remove Come Clean": matched here against the artists and titles of the
+     * tracks, so no name ever goes to the model. Null unless every named part matches at least one track.
+     */
+    private EditPlan removalByName(PlaylistContext playlist, String instruction) {
+        if (instruction == null) {
+            return null;
+        }
+        Matcher m = REMOVAL.matcher(instruction);
+        if (!m.matches()) {
+            return null;
+        }
+        String rest = m.group(2).replaceAll("^[\\s\"'\u2018\u2019\u201c\u201d]+|[\\s,.!?;:\"'\u2018\u2019\u201c\u201d]+$", "");
+        if (rest.isEmpty()) {
+            return null;
+        }
+        Set<Track> matched = new LinkedHashSet<>(namedTracks(playlist, rest));
+        if (matched.isEmpty()) {
+            for (String part : NAME_SPLIT.split(rest)) {
+                String name = part.replaceAll("^[\\s\"'\u2018\u2019\u201c\u201d]+|[\\s,.!?;:\"'\u2018\u2019\u201c\u201d]+$", "");
+                List<Track> found = name.isEmpty() ? List.of() : namedTracks(playlist, name);
+                if (found.isEmpty()) {
+                    return null;
+                }
+                matched.addAll(found);
+            }
+        }
+        if (matched.isEmpty()) {
+            return null;
+        }
+        List<PlaylistCommand> commands = new ArrayList<>();
+        for (Track t : matched) {
+            commands.add(new RemoveTrackCommand(config, playlist.music(), playlist.playlistId(), t));
+        }
+        return new EditPlan(commands, false, "");
+    }
+
+    /** Tracks with an artist or a title (also without a " - ..." or "(...)" tail) equal to the name. */
+    private static List<Track> namedTracks(PlaylistContext playlist, String name) {
+        String wanted = SearchRanker.normalise(name);
+        List<Track> found = new ArrayList<>();
+        if (wanted.isEmpty()) {
+            return found;
+        }
+        for (Track t : playlist.tracks()) {
+            boolean hit = t.artistNames().stream().anyMatch(a -> SearchRanker.normalise(a).equals(wanted));
+            String title = t.title() == null ? "" : t.title();
+            String bare = title.replaceAll("\\s*\\(.*$", "").replaceAll("\\s+-\\s.*$", "");
+            hit = hit || SearchRanker.normalise(title).equals(wanted) || SearchRanker.normalise(bare).equals(wanted);
+            if (hit) {
+                found.add(t);
+            }
+        }
+        return found;
     }
 
     /** @throws IllegalStateException if there is no LLM, so callers can stop before reading anything */

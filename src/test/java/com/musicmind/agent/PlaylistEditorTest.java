@@ -64,6 +64,62 @@ class PlaylistEditorTest {
         assertTrue(prompts.get(0).contains("2: b, clean, 3.0 min, no tags"), prompts.get(0));
     }
 
+    private static Track titled(String id, String title, String artist) {
+        return new Track(id, "spotify:track:" + id, title, 180_000, false, List.of("a-" + id), List.of(artist));
+    }
+
+    private PlaylistContext namedPlaylist() {
+        return playlist(titled("m1", "Vogue", "Madonna"), titled("m2", "Frozen (Radio Edit)", "Madonna"),
+                titled("p1", "Come Clean", "Paramore"), titled("o1", "Other", "Someone"));
+    }
+
+    private static final String LLM_ANSWER = "{\"commands\":[{\"type\":\"remove\",\"track\":\"4\"}]}";
+
+    @Test
+    void removingAnArtistByNameIsDoneLocallyWithoutTheModel() {
+        PlaylistContext pl = playlist(titled("m1", "Vogue", "Madonna"), titled("o1", "Other", "Someone"));
+        PlaylistEditor.EditPlan plan = editor(p -> LLM_ANSWER).plan(pl, "remove Madonna,", Map.of());
+        assertEquals(1, plan.commands().size());
+        assertInstanceOf(RemoveTrackCommand.class, plan.commands().get(0));
+        assertTrue(plan.commands().get(0).describe().contains("Vogue"), plan.commands().get(0).describe());
+        assertTrue(prompts.isEmpty());
+    }
+
+    @Test
+    void removeAllSongsByAnArtistRemovesEveryTrackOfTheirs() {
+        PlaylistEditor.EditPlan plan = editor(p -> LLM_ANSWER).plan(namedPlaylist(), "Remove all songs by Madonna", Map.of());
+        assertEquals(2, plan.commands().size());
+        assertTrue(prompts.isEmpty());
+    }
+
+    @Test
+    void removingByTitleMatchesTheTitleWithOrWithoutItsTail() {
+        PlaylistEditor.EditPlan plan = editor(p -> LLM_ANSWER).plan(namedPlaylist(), "remove Come Clean", Map.of());
+        assertEquals(1, plan.commands().size());
+        assertTrue(plan.commands().get(0).describe().contains("Come Clean"));
+        PlaylistEditor.EditPlan tail = editor(p -> LLM_ANSWER).plan(namedPlaylist(), "delete \"Frozen\"", Map.of());
+        assertEquals(1, tail.commands().size());
+        assertTrue(prompts.isEmpty());
+    }
+
+    @Test
+    void severalNamesAreAllRemoved() {
+        PlaylistEditor.EditPlan plan = editor(p -> LLM_ANSWER).plan(namedPlaylist(), "remove Madonna and Paramore", Map.of());
+        assertEquals(3, plan.commands().size());
+        assertTrue(prompts.isEmpty());
+    }
+
+    @Test
+    void anUnknownNameOrADescriptionFallsThroughToTheModel() {
+        PlaylistEditor.EditPlan unknown = editor(p -> LLM_ANSWER).plan(namedPlaylist(), "remove Unknown Artist", Map.of());
+        assertEquals(1, unknown.commands().size());
+        assertEquals(1, prompts.size());
+        editor(p -> LLM_ANSWER).plan(namedPlaylist(), "remove the sad songs", Map.of());
+        assertEquals(2, prompts.size());
+        editor(p -> LLM_ANSWER).plan(namedPlaylist(), "remove Madonna and Nobody", Map.of());
+        assertEquals(3, prompts.size());
+    }
+
     @Test
     void withoutAnLlmEditingSaysSoInsteadOfGuessing() {
         IllegalStateException e = assertThrows(IllegalStateException.class,
