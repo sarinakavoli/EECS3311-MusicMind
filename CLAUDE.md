@@ -70,7 +70,7 @@ section III item 14). Prompts carry ids, counts, the user's own words and Last.f
 guard test over `PromptBuilder` enforces it.
 
 ## Current status
-All twelve features plus Delete are implemented (CLI and GUI) and merged into `main`; 1039 tests
+All twelve features plus Delete are implemented (CLI and GUI) and merged into `main`; 1050 tests
 pass. The Stage 2 report (`docs/report/stage2-report.pdf`), the updated UML, the AI costs and the
-GUI screenshots are done. Open: the demonstration video links (report Sections 2 and 7). What was tried against the real accounts is in
+GUI screenshots and the demonstration video (linked in report Sections 2 and 7) are done. What was tried against the real accounts is in
 `docs/DAILY_TEST_NOTES.md`; status by feature is in `docs/STAGE1_CONFORMANCE.md`.

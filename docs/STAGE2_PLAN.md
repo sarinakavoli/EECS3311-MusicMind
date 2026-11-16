@@ -10,7 +10,7 @@ R1 to R20 are in `docs/STAGE2_IMPLEMENTATION_PLAN.md`.
 ## Status on Nov 6
 
 - All twelve Stage 1 features (F1 to F12) are implemented behind the shared `AppController`
-  and reachable from the CLI and the GUI. `./gradlew build` passes with 1039 tests and no
+  and reachable from the CLI and the GUI. `./gradlew build` passes with 1050 tests and no
   database server or keys.
 - Code state: `main` holds pull requests #1 to #7 (the GUI redesign is #4, the Last.fm work #6 and #7).
   The branch `stage2-alignment` adds the Nov 6 fixes from the Stage 1 alignment audit on top of
