@@ -314,7 +314,8 @@ public final class HistoryView implements TabView {
             try {
                 Playlist restored = ctx.controller().restore(version.id());
                 return new Outcome(ctx.controller().lastRestoreChanged()
-                        ? format.w("Restored", restored.name(), restored.tracks().size())
+                        ? format.w(ctx.controller().lastRestoreRefollowed() ? "RestoredRefollowed" : "Restored",
+                                restored.name(), restored.tracks().size())
                         : format.w("RestoredUnchanged", restored.name()), null);
             } catch (PlaylistMissingException e) {
                 handOver = true;

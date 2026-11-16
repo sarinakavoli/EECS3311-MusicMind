@@ -292,6 +292,11 @@ public class SpotifyAdapter implements MusicService {
     }
 
     @Override
+    public void followPlaylist(String playlistId) {
+        send("PUT", "/playlists/" + enc(playlistId) + "/followers", "{\"public\": false}");
+    }
+
+    @Override
     public String currentUserId() {
         loadMe();
         return cachedUserId;

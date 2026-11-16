@@ -155,6 +155,7 @@ public class MusicAgentFacade {
     private final PlaylistValidator playlistValidator;
     private volatile String lastChangeSummary = "";
     private volatile boolean lastRestoreChanged;
+    private volatile boolean lastRestoreRefollowed;
     private volatile List<String> lastModifyNotices = List.of();
     private volatile String lastValidationNote;
     private volatile int lastValidationTargetMinutes;
@@ -1346,8 +1347,23 @@ public class MusicAgentFacade {
      */
     public synchronized Playlist restore(int snapshotId) {
         lastRestoreChanged = false;
+        lastRestoreRefollowed = false;
         Playlist snapshot = loadSnapshot(snapshotId);
         String id = snapshot.spotifyId();
+        boolean refollow = !inLibrary(id);
+        if (refollow) {
+            // Delete only unfollows: the playlist still exists on Spotify, but is not listed until followed again.
+            try {
+                create.music().followPlaylist(id);
+            } catch (MusicServiceException e) {
+                if (e.statusCode() == 404) {
+                    throw new PlaylistMissingException(snapshotId,
+                            String.format(config.wording("restoreMissing"), snapshotId), e);
+                }
+                throw playlistAccess(e);
+            }
+            lastRestoreRefollowed = true;
+        }
         List<Track> now;
         try {
             now = create.music().getPlaylistItems(id);
@@ -1364,7 +1380,9 @@ public class MusicAgentFacade {
         }
         int saved;
         try {
-            saved = create.playlists().restoreFrom(new Playlist(id, snapshot.name(), now), snapshotId);
+            // A playlist that was only just followed again and reads back empty has no content worth a version.
+            saved = create.playlists().restoreFrom(new Playlist(id, snapshot.name(), now), snapshotId,
+                    !(refollow && now.isEmpty()));
         } catch (MusicServiceException e) {
             throw playlistAccess(e);
         }
@@ -1437,6 +1455,20 @@ public class MusicAgentFacade {
             shown.add(full == null ? track : full);
         }
         return new SnapshotPreview(shown, saved.size() - limit, stopped);
+    }
+
+    /** Whether the last {@link #restore} put a deleted playlist back in the user's library first. */
+    public boolean lastRestoreRefollowed() {
+        return lastRestoreRefollowed;
+    }
+
+    /** Whether the playlist is in the user's library; false for one that was deleted (unfollowed). */
+    private boolean inLibrary(String playlistId) {
+        try {
+            return create.music().getUserPlaylists().stream().anyMatch(p -> p.id().equals(playlistId));
+        } catch (MusicServiceException e) {
+            throw playlistAccess(e);
+        }
     }
 
     /** Whether the last {@link #restore} changed the playlist; false when it already matched the saved version. */

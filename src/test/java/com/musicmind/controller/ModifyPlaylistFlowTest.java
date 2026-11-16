@@ -1415,6 +1415,7 @@ class ModifyPlaylistFlowTest extends PostgresTestBase {
         put(music, "p", t("a", false, "x"), t("b", false, "x"));
         AppController c = controller(music, null);
         int snapshot = memory(db).saveSnapshot(new Playlist("p", "Mix", music.getPlaylistItems("p")));
+        music.userPlaylists.add(new com.musicmind.domain.PlaylistSummary("p", "Mix", 2));   // still in the library
         music.calls.clear();
 
         c.restore(snapshot);

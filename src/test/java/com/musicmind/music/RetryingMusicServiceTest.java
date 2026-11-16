@@ -189,6 +189,22 @@ class RetryingMusicServiceTest {
     }
 
     @Test
+    void followPlaylistIsRetriedLikeTheOtherCalls() {
+        int[] calls = {0};
+        MusicService flaky = new StubMusicService() {
+            @Override public void followPlaylist(String playlistId) {
+                if (++calls[0] == 1) {
+                    throw new RateLimitException("429", 1);
+                }
+            }
+        };
+
+        new RetryingMusicService(flaky, retries(3), s -> { }).followPlaylist("pl1");
+
+        assertEquals(2, calls[0]);
+    }
+
+    @Test
     void wrapsEveryMethodIncludingUnfollowPlaylist() {
         int[] calls = {0};
         MusicService flaky = new StubMusicService() {
