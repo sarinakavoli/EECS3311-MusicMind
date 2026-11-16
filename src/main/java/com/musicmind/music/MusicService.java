@@ -68,6 +68,12 @@ public interface MusicService {
     void unfollowPlaylist(String playlistId);
 
     /**
+     * Puts a playlist back in the user's library (the reverse of {@link #unfollowPlaylist}). Unfollowing one's own
+     * playlist leaves it on Spotify, so this is how a deleted playlist is brought back.
+     */
+    void followPlaylist(String playlistId);
+
+    /**
      * The playlists the user owns or collaborates on. Spotify lets an app read the items of those only,
      * so followed playlists are left out.
      */

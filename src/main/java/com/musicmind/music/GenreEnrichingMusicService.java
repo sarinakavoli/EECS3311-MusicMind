@@ -161,6 +161,11 @@ public class GenreEnrichingMusicService implements MusicService {
     }
 
     @Override
+    public void followPlaylist(String playlistId) {
+        delegate.followPlaylist(playlistId);
+    }
+
+    @Override
     public List<PlaylistSummary> getUserPlaylists() {
         return delegate.getUserPlaylists();
     }

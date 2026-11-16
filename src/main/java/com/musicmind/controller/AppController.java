@@ -612,7 +612,12 @@ public class AppController {
         return facade.previewSnapshot(snapshotId);
     }
 
-    /** Whether the last {@link #restore} changed the playlist; false when it already matched the saved version. */
+    /** Whether the last {@link #restore} first put a deleted playlist back in the user's library. */
+    public boolean lastRestoreRefollowed() {
+        return facade.lastRestoreRefollowed();
+    }
+
+    /** Whether the last {@link #restore} changed the playlist; see {@link MusicAgentFacade#lastRestoreChanged()}. */
     public boolean lastRestoreChanged() {
         return facade.lastRestoreChanged();
     }

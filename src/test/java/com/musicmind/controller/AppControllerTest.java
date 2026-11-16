@@ -528,19 +528,50 @@ class AppControllerTest extends PostgresTestBase {
             return owned.stream().map(id -> new PlaylistSummary(id, "Mix " + id, held.get(id).size())).toList();
         }
         @Override public List<Track> getPlaylistItems(String id) {
+            if (unfollowed.containsKey(id)) {
+                return List.copyOf(unfollowed.get(id));
+            }
             if (!held.containsKey(id)) {
                 throw new MusicServiceException("gone", 404);
             }
             return List.copyOf(held.get(id));
         }
-        @Override public void unfollowPlaylist(String id) { calls.add("unfollow " + id); held.remove(id); owned.remove(id); }
+        @Override public void unfollowPlaylist(String id) {
+            calls.add("unfollow " + id);
+            List<Track> items = held.remove(id);
+            owned.remove(id);
+            if (keepOnUnfollow) {
+                unfollowed.put(id, items);
+            }
+        }
+        /** Spotify keeps an unfollowed playlist and still serves its items; following lists it again. */
+        final Map<String, List<Track>> unfollowed = new LinkedHashMap<>();
+        void unfollowKeepingItems() { keepOnUnfollow = true; }
+        boolean keepOnUnfollow;
+        @Override public void followPlaylist(String id) {
+            calls.add("follow " + id);
+            if (!unfollowed.containsKey(id)) {
+                throw new MusicServiceException("gone", 404);
+            }
+            held.put(id, unfollowed.remove(id));
+            owned.add(id);
+        }
         @Override public Playlist createPlaylist(String userId, String name) {
             String id = "new" + next++;
             held.put(id, new ArrayList<>());
             owned.add(id);
             return new Playlist(id, name, List.of());
         }
+        @Override public void removeItems(String id, List<String> uris) {
+            if (!held.containsKey(id)) {
+                throw new MusicServiceException("Spotify API error (HTTP 403) on DELETE /playlists/" + id, 403);
+            }
+            held.get(id).removeIf(t -> uris.contains(t.uri()));
+        }
         @Override public void addItems(String id, List<String> uris) {
+            if (!held.containsKey(id)) {
+                throw new MusicServiceException("Spotify API error (HTTP 403) on POST /playlists/" + id, 403);
+            }
             uris.forEach(u -> held.get(id).add(track(u.substring(u.lastIndexOf(':') + 1))));
         }
     }
@@ -592,6 +623,71 @@ class AppControllerTest extends PostgresTestBase {
         Playlist back = c.recreateFromSnapshot(snapshotId);
         assertEquals("Mix p", back.name());
         assertEquals(List.of("a", "b", "c"), music.held.get(back.spotifyId()).stream().map(Track::id).toList());
+    }
+
+    @Test
+    void restoreOfADeletedPlaylistFollowsItAgainAndListsItAgain() {
+        PlaylistMusic music = new PlaylistMusic();
+        music.keepOnUnfollow = true;
+        music.own("p", "a", "b", "c");
+        AppController c = controller(music);
+        c.login();
+        int snapshotId = c.deletePlaylist("p");
+        assertTrue(music.getUserPlaylists().isEmpty());
+
+        Playlist restored = c.restore(snapshotId);
+
+        assertEquals(List.of("unfollow p", "follow p"), music.calls);
+        assertEquals(List.of("p"), music.getUserPlaylists().stream().map(PlaylistSummary::id).toList());
+        assertEquals(3, restored.tracks().size());
+        assertTrue(c.lastRestoreRefollowed());
+    }
+
+    @Test
+    void restoreOfADeletedPlaylistWritesOnlyAfterFollowingItAgain() {
+        PlaylistMusic music = new PlaylistMusic();
+        music.keepOnUnfollow = true;   // writes to an unfollowed playlist are refused, as on Spotify
+        music.own("p", "a", "b", "c");
+        AppController c = controller(music);
+        c.login();
+        int snapshotId = c.deletePlaylist("p");
+        music.unfollowed.get("p").remove(0);   // what Spotify serves now differs, so the restore must write
+
+        Playlist restored = c.restore(snapshotId);   // used to fail with "put back as it was before the restore"
+
+        assertEquals(List.of("a", "b", "c"), restored.tracks().stream().map(Track::id).toList());
+        assertEquals(List.of("unfollow p", "follow p"), music.calls);
+    }
+
+    @Test
+    void restoreOfADeletedPlaylistDoesNotSaveAnEmptyCurrentVersion() {
+        PlaylistMusic music = new PlaylistMusic();
+        music.keepOnUnfollow = true;
+        music.own("p", "a", "b", "c", "d");
+        AppController c = controller(music);
+        c.login();
+        int snapshotId = c.deletePlaylist("p");
+        music.unfollowed.get("p").clear();   // Spotify served nothing for the unfollowed playlist
+
+        Playlist restored = c.restore(snapshotId);
+
+        assertEquals(4, restored.tracks().size());
+        assertEquals(1, c.memory().loadSnapshotSummaries("sp-user").size(), "no misleading 0-song version");
+    }
+
+    @Test
+    void restoreOfAPlaylistStillInTheLibraryDoesNotFollowIt() {
+        PlaylistMusic music = new PlaylistMusic();
+        music.own("p", "a", "b");
+        AppController c = controller(music);
+        c.login();
+        int snapshotId = c.deletePlaylist("p");
+        music.own("p", "a", "b");   // back in the library
+
+        c.restore(snapshotId);
+
+        assertEquals(List.of("unfollow p"), music.calls);
+        assertFalse(c.lastRestoreRefollowed());
     }
 
     @Test

@@ -771,7 +771,8 @@ public class CliApp {
         try {
             Playlist restored = c.restore(snapshotId);
             if (c.lastRestoreChanged()) {
-                out.println(w("Restored", restored.name(), restored.spotifyId(), restored.tracks().size(), restored.spotifyId()));
+                out.println(w(c.lastRestoreRefollowed() ? "RestoredRefollowed" : "Restored", restored.name(),
+                        restored.spotifyId(), restored.tracks().size(), restored.spotifyId()));
             } else {
                 out.println(w("RestoredUnchanged", restored.name(), restored.spotifyId()));
             }

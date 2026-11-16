@@ -108,6 +108,11 @@ public class FakeMusicService extends StubMusicService {
         playlists.remove(playlistId);
     }
 
+    /** Like Spotify, following puts a playlist that still exists back in the library; one that is gone stays gone. */
+    @Override public void followPlaylist(String playlistId) {
+        record("follow " + playlistId);
+    }
+
     @Override public List<Track> search(String query, int limit) {
         calls.add("search " + query + " " + limit);
         return searchResults.getOrDefault(query, List.of());

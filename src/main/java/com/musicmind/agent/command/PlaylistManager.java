@@ -82,12 +82,23 @@ public class PlaylistManager {
      * @return the id of the snapshot taken first
      */
     public int restoreFrom(Playlist current, int snapshotId) {
+        return restoreFrom(current, snapshotId, true);
+    }
+
+    /**
+     * As {@link #restoreFrom(Playlist, int)}, but with {@code saveCurrent} false the playlist's current content is
+     * not saved (it is empty or unreadable, so a version of it would only mislead), and the snapshot being
+     * restored is returned in place of a new one.
+     */
+    public int restoreFrom(Playlist current, int snapshotId, boolean saveCurrent) {
         Playlist snapshot = load(snapshotId);
-        int saved = snapshotBeforeModify(current);
+        int saved = saveCurrent ? snapshotBeforeModify(current) : snapshotId;
         try {
             run(snapshot);
         } catch (RuntimeException e) {
-            memory.markLatestSnapshotUndone(current.spotifyId());
+            if (saveCurrent) {
+                memory.markLatestSnapshotUndone(current.spotifyId());
+            }
             throw e;
         }
         return saved;

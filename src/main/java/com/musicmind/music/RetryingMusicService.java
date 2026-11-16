@@ -220,6 +220,11 @@ public class RetryingMusicService implements MusicService {
     }
 
     @Override
+    public void followPlaylist(String playlistId) {
+        withBackoff(() -> delegate.followPlaylist(playlistId));
+    }
+
+    @Override
     public List<PlaylistSummary> getUserPlaylists() {
         return withBackoff(delegate::getUserPlaylists);
     }

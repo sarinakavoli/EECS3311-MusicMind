@@ -567,6 +567,18 @@ class SpotifyAdapterTest {
         assertEquals("uris=spotify:playlist:pl1", decodedQuery(req));
     }
 
+    @Test
+    void followPlaylistPutsItBackInTheLibraryAsPrivate() {
+        api.respond(r -> Reply.status(200));
+
+        adapter.followPlaylist("pl1");
+
+        Req req = api.requests.get(0);
+        assertEquals("PUT", req.method());
+        assertEquals("/v1/playlists/pl1/followers", req.path());
+        assertEquals(false, json(req.body()).get("public").getAsBoolean());
+    }
+
     // ---- errors and tokens ----
 
     @Test
