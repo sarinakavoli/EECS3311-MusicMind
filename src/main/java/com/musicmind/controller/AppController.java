@@ -168,10 +168,20 @@ public class AppController {
 
     /** Build a controller from the local {@code .env} configuration. */
     public static AppController create() {
+        return create(true);
+    }
+
+    /**
+     * Build a controller from the local {@code .env} configuration.
+     *
+     * @param useLlm {@code false} runs with no LLM provider at all, even when a key is configured, so the
+     *               labelled fallbacks apply (the CLI's {@code --llm none})
+     */
+    public static AppController create(boolean useLlm) {
         Config config = Config.load();
 
-        // No key means no provider (R17): features with a documented fallback label it.
-        LLMProvider llm = config.llmConfigured()
+        // No key (or --llm none) means no provider (R17): features with a documented fallback label it.
+        LLMProvider llm = useLlm && config.llmConfigured()
                 ? new OpenAiProvider(config.llmApiKey(), config.llmModel())
                 : null;
 
