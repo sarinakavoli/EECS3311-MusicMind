@@ -1,0 +1,6 @@
+# A write task: it creates a new playlist on your Spotify account (and then lists your playlists).
+# Run it with:  java -jar build/libs/musicmind-cli.jar --input examples/task-create.txt
+# If the request cannot be met as stated, MusicMind asks what to relax; put the number of your answer on the
+# next line of this file (for example 1), and it is read as that answer. No line means cancel.
+create "30 minutes of upbeat songs for a morning run" --minutes 30 --no-explicit --name "Morning Run Test"
+playlists

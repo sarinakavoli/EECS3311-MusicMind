@@ -96,3 +96,24 @@ tasks.register('runCli', JavaExec) {
     mainClass = 'com.musicmind.cli.CliApp'
     standardInput = System.in
 }
+
+// `java -jar build/libs/musicmind-cli.jar --input examples/task.txt`: a standalone command-line jar with every
+// dependency inside it. JavaFX is left out because the CLI never touches it (the GUI uses bin/musicmind-gui).
+tasks.register('cliJar', Jar) {
+    group = 'build'
+    description = 'Builds build/libs/musicmind-cli.jar, a runnable jar of the command-line interface.'
+    archiveFileName = 'musicmind-cli.jar'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes 'Main-Class': 'com.musicmind.cli.CliApp'
+    }
+    from(sourceSets.main.output)
+    from({
+        configurations.runtimeClasspath.filter { !it.name.startsWith('javafx') }.collect { it.isDirectory() ? it : zipTree(it) }
+    })
+    exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA', 'module-info.class'
+}
+
+tasks.named('assemble') {
+    dependsOn tasks.named('cliJar')
+}

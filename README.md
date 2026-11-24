@@ -97,7 +97,7 @@ cd EECS3311-MusicMind
 
 The first build downloads Gradle 9.1, the libraries (JavaFX 21, the PostgreSQL driver, Gson,
 dotenv-java, JUnit) and the embedded PostgreSQL binaries the tests use. It takes a few minutes.
-A passing build ends with `BUILD SUCCESSFUL` and runs the unit tests (1050 of them) with no keys and
+A passing build ends with `BUILD SUCCESSFUL` and runs the unit tests (1066 of them) with no keys and
 no database server.
 
 ## Set up PostgreSQL
@@ -175,6 +175,50 @@ build/install/musicmind/bin/musicmind-gui          # the GUI
 
 On Windows use `musicmind.bat` and `musicmind-gui.bat` in the same folder. A command exits with
 status 0 when it works, 1 when it could not finish, and 2 for a wrong command or arguments.
+
+### Standalone CLI (`java -jar`)
+
+The CLI also comes as one runnable jar that holds everything it needs (no JavaFX, no Gradle):
+
+```bash
+./gradlew cliJar                                  # builds build/libs/musicmind-cli.jar (also built by ./gradlew build)
+java -jar build/libs/musicmind-cli.jar help       # list every command and option
+java -jar build/libs/musicmind-cli.jar -LLMAPI -input examples/task.txt   # run the agent on a task file
+```
+
+Run it from the project folder so it finds your `.env` (or set the same variables in the environment).
+It needs Java 17 or newer.
+
+**Options** (given before the command; one or two dashes both work):
+
+| Option | Meaning |
+|---|---|
+| `--input <file>` (`-input`) | Run the commands in a task file, one per line, written as in the interactive session. Blank lines and lines starting with `#` are skipped. Each command is echoed (`musicmind> profile`) before its output. If a command asks a question (the F11 options, the restore or delete confirmations), the next line of the file is the answer. `exit` stops the file. The exit status is the worst status of the commands. |
+| `--input -` | Read the task from standard input instead of a file. |
+| `--llm openai` (`-LLMAPI`) | Use OpenAI for the AI steps (the default). Needs `OPENAI_API_KEY` in `.env`; without it the labelled fallbacks are used. `-LLMAPI` with no value means `openai`. |
+| `--llm none` | Run with no LLM at all, even if a key is set: every AI step uses its labelled, computed fallback. |
+| `<command> [args]` | Run one command instead of a task file, for example `java -jar build/libs/musicmind-cli.jar --llm none profile`. With no command and no `--input`, an interactive session starts. |
+
+**Working example.** [`examples/task.txt`](examples/task.txt) is a read-only task; it changes nothing on Spotify:
+
+```text
+profile
+trends
+search "calm songs for studying"
+discover --novelty 0.7
+playlists
+```
+
+```bash
+java -jar build/libs/musicmind-cli.jar -LLMAPI -input examples/task.txt
+cat examples/task.txt | java -jar build/libs/musicmind-cli.jar --input -     # the same task from standard input
+java -jar build/libs/musicmind-cli.jar --llm none --input examples/task.txt  # the same task with no LLM
+```
+
+The output shows each command, then its result: your genre mix and summary (F1), the trends across
+time ranges (F2), the matching songs (F3), new songs with a reason each (F4) and your playlists.
+[`examples/task-create.txt`](examples/task-create.txt) is a write task: it creates a private
+playlist called "Morning Run Test" on your Spotify account (F5).
 
 ## Example usage
 

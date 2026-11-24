@@ -1,0 +1,8 @@
+# A read-only MusicMind task: it looks at your taste and finds music, and changes nothing on Spotify.
+# Run it with:  java -jar build/libs/musicmind-cli.jar --input examples/task.txt
+# One command per line, written as in the interactive session. Lines starting with # are skipped.
+profile
+trends
+search "calm songs for studying"
+discover --novelty 0.7
+playlists

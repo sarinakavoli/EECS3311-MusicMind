@@ -853,6 +853,16 @@ commits 905213c (F10), 1d4be94 (wording keys) and 968d1aa (`verifyTracks`).
   percentage bar would suggest precision there is not; the table puts the ranges side by side and adds
   the change. Impact: none for the features; the screens differ from the wording of Stage 1.
 
+- **Standalone CLI: task files, LLM choice and a runnable jar (Nov 24)**
+  - **Original:** Stage 1 and the plan (R15) give a CLI run as `musicmind <command>` or an interactive session; no task-file input, no way to choose the LLM, no single jar.
+  - **Change:**
+    - Global options before the command, with one or two dashes: `--input <file|->` runs a task file (one command per line, `#` comments, each command echoed, the next line answers a command's question, `exit` stops it, the status is the worst one); `-` reads standard input. `--llm openai|none` (alias `-LLMAPI`; with no value it means `openai`) chooses OpenAI or no LLM at all.
+    - `AppController.create(boolean useLlm)`; `create()` calls it with `true`. `CliApp` gains a constructor taking `Function<Boolean, AppController>`.
+    - Gradle task `cliJar` builds `build/libs/musicmind-cli.jar` (main class `CliApp`, all runtime libraries, no JavaFX); `assemble` depends on it. Examples in `examples/task.txt` (read-only) and `examples/task-create.txt` (writes a playlist).
+    - `help` lists the options; the README documents them with a working example.
+  - **Reason:** The instructor's Stage 2 follow-up (Nov 20) asks for a standalone CLI that runs "java -jar Agent.jar -LLMAPI -input task.txt" on the task in the file, with the options and a working example in the README; Stage 3 builds on it.
+  - **Impact:** Additive only: new wording keys `text.cliOption*`, `cliLlmChoices`, `cliBadLlm`, `cliInputUnreadable`, `cliInputWithCommand`, `cliOptionsUsage`; 16 new tests in `CliAppTest` (1066 in total). Existing commands and the GUI are unchanged.
+
 ## 8. Design patterns
 
 The five patterns counted for the course are Adapter, Strategy, Command, State and Facade, as in
