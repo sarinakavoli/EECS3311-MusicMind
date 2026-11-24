@@ -22,6 +22,11 @@ import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.io.StringReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.function.Function;
+import org.junit.jupiter.api.io.TempDir;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -903,5 +908,201 @@ class CliAppTest extends PostgresTestBase {
 
         assertEquals(CliApp.FAILED, r.status());
         assertTrue(music.calls.stream().noneMatch(c -> c.startsWith("unfollow")), music.calls.toString());
+    }
+
+    // ---- global options: --input and --llm ----
+
+    @TempDir Path tmp;
+
+    private Path taskFile(String text) throws java.io.IOException {
+        return Files.writeString(tmp.resolve("task.txt"), text);
+    }
+
+    private Result runWith(Function<Boolean, AppController> factory, String stdin, String... args) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        CliApp app = new CliApp(factory, new BufferedReader(new StringReader(stdin)),
+                new PrintStream(out, true, StandardCharsets.UTF_8), new PrintStream(err, true, StandardCharsets.UTF_8), config);
+        int status = app.run(args);
+        return new Result(status, out.toString(StandardCharsets.UTF_8), err.toString(StandardCharsets.UTF_8));
+    }
+
+    private Music playlistMusic() {
+        Music music = new Music();
+        music.seed("p1", "a", "b");
+        music.userPlaylists = List.of(new com.musicmind.domain.PlaylistSummary("p1", "Road Trip", 2));
+        return music;
+    }
+
+    @Test
+    void input_runsEachLineInOrderAndEchoesIt() throws Exception {
+        Path file = taskFile("playlists\nhelp\nplaylists\n");
+        Result r = run(controller(playlistMusic(), null), "", "--input", file.toString());
+
+        assertEquals(CliApp.OK, r.status(), r.err());
+        String prompt = config.wording("cliPrompt");
+        int first = r.out().indexOf(prompt + " playlists");
+        int help = r.out().indexOf(prompt + " help");
+        int last = r.out().lastIndexOf(prompt + " playlists");
+        assertTrue(first >= 0 && help > first && last > help, r.out());
+        assertTrue(r.out().contains("Road Trip"), r.out());
+    }
+
+    @Test
+    void input_skipsCommentsAndBlankLines() throws Exception {
+        Path file = taskFile("# a comment\n\n   \nplaylists\n  # indented comment\n");
+        Result r = run(controller(playlistMusic(), null), "", "--input", file.toString());
+
+        assertEquals(CliApp.OK, r.status(), r.err());
+        assertFalse(r.out().contains("a comment"), r.out());
+        assertEquals(1, r.out().split(java.util.regex.Pattern.quote(config.wording("cliPrompt") + " "), -1).length - 1, r.out());
+    }
+
+    @Test
+    void input_statusIsTheHighestSeenAndTheRunContinues() throws Exception {
+        Path file = taskFile("delete nope\nbogus\nplaylists\n");
+        Result r = run(controller(playlistMusic(), null), "", "--input", file.toString());
+
+        assertEquals(CliApp.USAGE, r.status());
+        assertTrue(r.out().contains("Road Trip"), "the run continued after the failures: " + r.out());
+
+        Path onlyFailure = taskFile("delete nope\nplaylists\n");
+        assertEquals(CliApp.FAILED, run(controller(playlistMusic(), null), "", "--input", onlyFailure.toString()).status());
+    }
+
+    @Test
+    void input_exitStopsTheFile() throws Exception {
+        Path file = taskFile("playlists\nexit\nbogus\n");
+        Result r = run(controller(playlistMusic(), null), "", "--input", file.toString());
+
+        assertEquals(CliApp.OK, r.status(), r.err());
+        assertTrue(r.out().contains(config.wording("cliGoodbye")), r.out());
+        assertFalse(r.err().contains("bogus"), r.err());
+    }
+
+    @Test
+    void input_missingFile_isAUsageError() {
+        Result r = run(controller(new Music(), null), "", "--input", tmp.resolve("nope.txt").toString());
+
+        assertEquals(CliApp.USAGE, r.status());
+        assertTrue(r.err().contains("nope.txt"), r.err());
+    }
+
+    @Test
+    void input_withoutAValue_isAUsageError() {
+        Result r = run(controller(new Music(), null), "", "--input");
+
+        assertEquals(CliApp.USAGE, r.status());
+        assertTrue(r.err().contains(String.format(config.wording("cliOptionNeedsValue"), "--input")), r.err());
+    }
+
+    @Test
+    void input_dash_readsTheTaskFromTheGivenReader() {
+        Result r = run(controller(playlistMusic(), null), "playlists\nexit\n", "--input", "-");
+
+        assertEquals(CliApp.OK, r.status(), r.err());
+        assertTrue(r.out().contains(config.wording("cliPrompt") + " playlists"), r.out());
+        assertTrue(r.out().contains("Road Trip"), r.out());
+    }
+
+    @Test
+    void input_aCommandsPromptReadsItsAnswerFromTheFile() throws Exception {
+        Music music = playlistMusic();
+        Path file = taskFile("delete p1\nRoad Trip\nplaylists\n");
+        Result r = run(controller(music, null), "", "--input", file.toString());
+
+        assertEquals(CliApp.OK, r.status(), r.err());
+        assertTrue(music.calls.contains("unfollow p1"), "the answer line was the typed name: " + music.calls);
+        assertFalse(r.out().contains(config.wording("cliPrompt") + " Road Trip"), "the answer is not run as a command: " + r.out());
+    }
+
+    @Test
+    void input_aWrongAnswerCancelsTheDelete() throws Exception {
+        Music music = playlistMusic();
+        Path file = taskFile("delete p1\nsomething else\n");
+        Result r = run(controller(music, null), "", "--input", file.toString());
+
+        assertEquals(CliApp.FAILED, r.status());
+        assertTrue(music.calls.stream().noneMatch(c -> c.startsWith("unfollow")), music.calls.toString());
+    }
+
+    @Test
+    void input_singleDashAndCaseWork() throws Exception {
+        Path file = taskFile("playlists\n");
+        for (String option : List.of("-input", "--input", "-INPUT")) {
+            Result r = run(controller(playlistMusic(), null), "", option, file.toString());
+            assertEquals(CliApp.OK, r.status(), option + ": " + r.err());
+            assertTrue(r.out().contains("Road Trip"), option);
+        }
+    }
+
+    @Test
+    void input_withACommandAsWell_isAUsageError() throws Exception {
+        Path file = taskFile("playlists\n");
+        assertEquals(CliApp.USAGE, run(controller(new Music(), null), "", "--input", file.toString(), "profile").status());
+    }
+
+    @Test
+    void llm_noneAndOpenaiChooseWhetherTheControllerGetsTheLlm() {
+        List<Boolean> asked = new ArrayList<>();
+        Function<Boolean, AppController> factory = useLlm -> {
+            asked.add(useLlm);
+            return controller(playlistMusic(), null);
+        };
+
+        assertEquals(CliApp.OK, runWith(factory, "", "--llm", "none", "playlists").status());
+        assertEquals(CliApp.OK, runWith(factory, "", "--llm", "openai", "playlists").status());
+        assertEquals(CliApp.OK, runWith(factory, "", "playlists").status());
+        assertEquals(CliApp.OK, runWith(factory, "", "-LLM", "NONE", "playlists").status());
+        assertEquals(CliApp.OK, runWith(factory, "", "-llmapi", "none", "playlists").status());
+        assertEquals(List.of(false, true, true, false, false), asked);
+    }
+
+    @Test
+    void llmapiWithoutAValue_meansOpenai_soTheCourseCommandLineWorks() throws Exception {
+        List<Boolean> asked = new ArrayList<>();
+        Function<Boolean, AppController> factory = useLlm -> {
+            asked.add(useLlm);
+            return controller(playlistMusic(), null);
+        };
+        Path file = taskFile("playlists\n");
+
+        Result r = runWith(factory, "", "-LLMAPI", "-input", file.toString());
+
+        assertEquals(CliApp.OK, r.status(), r.err());
+        assertEquals(List.of(true), asked);
+        assertEquals(CliApp.OK, runWith(factory, "", "-LLMAPI", "playlists").status());
+    }
+
+    @Test
+    void llm_unknownValue_isAUsageErrorListingTheAllowedOnes() {
+        List<Boolean> asked = new ArrayList<>();
+        Result r = runWith(useLlm -> { asked.add(useLlm); return controller(new Music(), null); }, "", "--llm", "bogus", "playlists");
+
+        assertEquals(CliApp.USAGE, r.status());
+        assertTrue(r.err().contains("openai") && r.err().contains("none") && r.err().contains("bogus"), r.err());
+        assertTrue(asked.isEmpty(), "no controller was built");
+    }
+
+    @Test
+    void llm_andInputCombine() throws Exception {
+        List<Boolean> asked = new ArrayList<>();
+        Path file = taskFile("playlists\n");
+        Result r = runWith(useLlm -> { asked.add(useLlm); return controller(playlistMusic(), null); }, "",
+                "--llm", "none", "--input", file.toString());
+
+        assertEquals(CliApp.OK, r.status(), r.err());
+        assertEquals(List.of(false), asked);
+    }
+
+    @Test
+    void helpListsTheGlobalOptions() {
+        Result r = run("help");
+
+        assertTrue(r.out().contains(config.wording("cliOptionsTitle")), r.out());
+        assertTrue(r.out().contains("--input <file|->"), r.out());
+        assertTrue(r.out().contains("--llm <openai|none>"), r.out());
+        assertTrue(r.out().contains(config.wording("cliOptionDesc.input")), r.out());
+        assertTrue(r.out().contains(config.wording("cliOptionDesc.llm")), r.out());
     }
 }

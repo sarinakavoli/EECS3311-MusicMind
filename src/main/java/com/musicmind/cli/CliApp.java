@@ -26,6 +26,9 @@ import com.musicmind.domain.Verdict;
 import com.musicmind.music.AuthExpiredException;
 
 import java.io.BufferedReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
@@ -36,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -66,8 +70,10 @@ public class CliApp {
     private static final int ARTISTS_SHOWN = 5;
     private static final int TREND_GENRES_SHOWN = 3;
 
-    private final Supplier<AppController> factory;
-    private final BufferedReader in;
+    private final Function<Boolean, AppController> factory;
+    /** Not final: while a task file runs, the file is where the commands' prompts read their answers from. */
+    private BufferedReader in;
+    private boolean useLlm = true;
     private final PrintStream out;
     private final PrintStream err;
     private final Config config;
@@ -80,6 +86,11 @@ public class CliApp {
      * @param err     failures and usage errors
      */
     public CliApp(Supplier<AppController> factory, BufferedReader in, PrintStream out, PrintStream err, Config config) {
+        this(useLlm -> factory.get(), in, out, err, config);
+    }
+
+    /** As above, but the factory is told whether the LLM may be used ({@code --llm none} passes false). */
+    public CliApp(Function<Boolean, AppController> factory, BufferedReader in, PrintStream out, PrintStream err, Config config) {
         this.factory = factory;
         this.in = in;
         this.out = out;
@@ -89,7 +100,7 @@ public class CliApp {
 
     public static void main(String[] args) {
         Config config = Config.load();
-        CliApp app = new CliApp(AppController::create, new BufferedReader(new InputStreamReader(System.in)),
+        CliApp app = new CliApp((Function<Boolean, AppController>) AppController::create, new BufferedReader(new InputStreamReader(System.in)),
                 System.out, System.err, config);
         System.exit(app.run(args));
     }
@@ -99,10 +110,90 @@ public class CliApp {
         if (!config.lastfmConfigured()) {
             out.println(config.tagsOffBanner());
         }
-        if (args.length == 0) {
-            return interactive();
+        // Global options come before the command, with one or two dashes.
+        String input = null;
+        int i = 0;
+        while (i < args.length) {
+            String name = args[i].replaceFirst("^--?", "").toLowerCase();
+            boolean option = args[i].startsWith("-") && List.of("input", "llm", "llmapi").contains(name);
+            if (!option) {
+                break;
+            }
+            String next = i + 1 < args.length ? args[i + 1] : null;
+            if (name.equals("input")) {
+                if (next == null) {
+                    return optionUsage(String.format(config.wording("cliOptionNeedsValue"), "--input"));
+                }
+                input = next;
+                i += 2;
+            } else {
+                // -LLMAPI on its own (the course's example) means the default, openai.
+                boolean valueless = next == null || next.startsWith("-") && !next.equals("-")
+                        || COMMANDS.contains(next.toLowerCase());
+                String value = valueless ? "openai" : next.toLowerCase();
+                if (!List.of("openai", "none").contains(value)) {
+                    return optionUsage(String.format(config.wording("cliBadLlm"), config.wording("cliLlmChoices"), next));
+                }
+                useLlm = value.equals("openai");
+                i += valueless ? 1 : 2;
+            }
         }
-        return dispatch(args);
+        String[] rest = Arrays.copyOfRange(args, i, args.length);
+        if (input != null) {
+            return rest.length > 0 ? optionUsage(config.wording("cliInputWithCommand")) : runTaskFile(input);
+        }
+        return rest.length == 0 ? interactive() : dispatch(rest);
+    }
+
+    private int optionUsage(String problem) {
+        err.println(problem);
+        err.println(config.wording("cliOptionsUsage"));
+        return USAGE;
+    }
+
+    /**
+     * Runs a task file ({@code -} is standard input): one command per line, each echoed after the prompt so the
+     * output reads like a session. Lines after a command that asks a question are its answers. The run goes on
+     * after a failing command and ends with the highest status seen.
+     */
+    private int runTaskFile(String source) {
+        BufferedReader original = in;
+        BufferedReader task = null;
+        if (!source.equals("-")) {
+            try {
+                task = Files.newBufferedReader(Path.of(source), StandardCharsets.UTF_8);
+            } catch (IOException | RuntimeException e) {
+                err.println(String.format(config.wording("cliInputUnreadable"), source, e.getMessage()));
+                return USAGE;
+            }
+            in = task;
+        }
+        int status = OK;
+        try {
+            String line;
+            while ((line = readLine()) != null) {
+                String text = line.strip();
+                if (text.isEmpty() || text.startsWith("#")) {
+                    continue;
+                }
+                out.println(config.wording("cliPrompt") + " " + text);
+                String[] words = tokenize(text);
+                status = Math.max(status, dispatch(words));
+                if (words.length > 0 && words[0].equalsIgnoreCase("exit")) {
+                    break;
+                }
+            }
+            return status;
+        } finally {
+            in = original;
+            if (task != null) {
+                try {
+                    task.close();
+                } catch (IOException ignored) {
+                    // nothing to recover
+                }
+            }
+        }
     }
 
     private int dispatch(String[] args) {
@@ -845,7 +936,7 @@ public class CliApp {
     /** The controller, built on first use and kept for the rest of the session. */
     private AppController controller() {
         if (controller == null) {
-            controller = factory.get();
+            controller = factory.apply(useLlm);
         }
         return controller;
     }
@@ -901,6 +992,12 @@ public class CliApp {
         for (String command : COMMANDS) {
             out.println("  " + config.wording("cliUsage." + command));
             out.println("      " + config.wording("cliDesc." + command));
+        }
+        out.println();
+        out.println(config.wording("cliOptionsTitle"));
+        for (String option : List.of("input", "llm")) {
+            out.println("  " + config.wording("cliOption." + option));
+            out.println("      " + config.wording("cliOptionDesc." + option));
         }
         out.println();
         out.println(config.wording("cliHelpFooter"));
