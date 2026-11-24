@@ -23,6 +23,7 @@ Spotify Web API. EECS3311 Software Design course project (individual). Stage 1
 ./gradlew run                        # launch the GUI
 ./gradlew runCli --args="help"       # launch the CLI
 ./gradlew installDist                # build/install/musicmind/bin/musicmind and musicmind-gui
+./gradlew cliJar                     # build/libs/musicmind-cli.jar: java -jar ... -LLMAPI -input examples/task.txt
 ```
 Tests need no keys: Spotify is a local `HttpServer`, PostgreSQL is an embedded binary, the LLM is
 `MockLLMProvider` (under `src/test`). Do not read or print `.env` or `.spotify-tokens.json`.
@@ -70,7 +71,7 @@ section III item 14). Prompts carry ids, counts, the user's own words and Last.f
 guard test over `PromptBuilder` enforces it.
 
 ## Current status
-All twelve features plus Delete are implemented (CLI and GUI) and merged into `main`; 1050 tests
+All twelve features plus Delete are implemented (CLI and GUI) and merged into `main`; 1066 tests
 pass. The Stage 2 report (`docs/report/stage2-report.pdf`), the updated UML, the AI costs and the
 GUI screenshots and the demonstration video (linked in report Sections 2 and 7) are done. What was tried against the real accounts is in
 `docs/DAILY_TEST_NOTES.md`; status by feature is in `docs/STAGE1_CONFORMANCE.md`.
