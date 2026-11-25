@@ -17,10 +17,19 @@ interface (JavaFX) and a command-line interface (CLI) that share one application
 | Stage | Deliverable | Status |
 |-------|-------------|--------|
 | Stage 1 | Design report (`docs/`) | Done |
-| Stage 2 | Implementation | All 12 features implemented; GUI redesign merged (PR #4); report written (`docs/report/stage2-report.pdf`); new screenshots and demonstration videos still to do |
+| Stage 2 | Implementation | All 12 features implemented; GUI redesign merged (PR #4); report with GUI and CLI screenshots for every feature (`docs/report/stage2-report.pdf`); demonstration videos below |
 | Stage 3 | Verification and testing | Not started |
 
 This is one repository used across all three stages.
+
+**Demonstration videos (Stage 2)**
+
+- **Main demo, Nov 24 (the instructor's follow-up):** https://youtu.be/JRWQpdjW5ic. A task (create a 30-minute
+  morning-run playlist) is completed in the GUI, then the same task in the standalone CLI
+  (`java -jar build/libs/musicmind-cli.jar -LLMAPI -input examples/task-create.txt`), followed by the other
+  features in both interfaces.
+- Earlier full walkthrough, Nov 15, one segment per feature: https://youtu.be/JYH60ZGvw_A. The report's Section 7 links each
+  feature's timestamp.
 
 - Stage 1 to code mapping, with tests and what was tried live: `docs/STAGE1_CONFORMANCE.md`
 - Every change from the Stage 1 design (Original -> Change -> Reason -> Impact): `docs/STAGE2_PLAN.md`
