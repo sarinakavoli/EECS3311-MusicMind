@@ -379,8 +379,9 @@ All of this runs through `controller/AppController` and `controller/MusicAgentFa
   `cancellingTheModifyNegotiationMakesNoSpotifyWritesAndNoSnapshot`), `cli/CliAppTest`.
 - **GUI:** `app/view/NegotiationDialog`, shown on the worker's request through a future the
   JavaFX thread completes.
-- **Live:** **not run live.** `docs/DAILY_TEST_NOTES.md` lists the negotiation prompt as still to
-  check. The GUI dialog was shown with stand-in text only.
+- **Live:** Nov 24: a real conflict ("a 600 minute mix of only songs I have never heard", 100% new)
+  in the GUI dialog and the CLI prompt, then cancelled; nothing was created. Choosing an option was
+  not run live. The GUI buttons were pressed by a script driving the real app.
 
 ### F12 Agent History and Snapshot/Restore (UC13, SD02)
 
@@ -417,8 +418,9 @@ All of this runs through `controller/AppController` and `controller/MusicAgentFa
   `delete_snapshotCannotBeSaved_playlistIsKept`, `delete_canBeRecreatedFromSnapshot`),
   `agent/command/PlaylistCommandsTest`, `agent/command/PlaylistManagerTest`, `cli/CliAppTest`.
 - **GUI:** a Delete button on each playlist row (`app/view/PlaylistView`) with an in-app confirm
-  dialog (`ConfirmDialog`) that names the playlist (Nov 4). Not run live: it would change the real account.
-- **Live:** not run live.
+  dialog (`ConfirmDialog`) that names the playlist (Nov 4).
+- **Live:** Nov 24, on a test playlist: GUI Delete and confirm (pressed by a script driving the real
+  app), then CLI `restore` recreated it from the saved version and CLI `delete` removed it again.
 
 ## 3. Stage 1 names and signatures
 
